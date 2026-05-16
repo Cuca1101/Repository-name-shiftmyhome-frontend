@@ -1,0 +1,415 @@
+import { useEffect, useId, useMemo, useRef, useState } from 'react'
+import { PackagePlus } from 'lucide-react'
+import {
+  CATEGORY_ORDER,
+  INVENTORY_BY_CATEGORY,
+  getCatalogItem,
+  getFlattenedCatalogEntries,
+} from '../inventoryCatalog'
+import InlineInventoryQtyControl from '../InlineInventoryQtyControl'
+import InventorySearchBar from '../InventorySearchBar'
+import HighlightedInventoryName from '../HighlightedInventoryName'
+import {
+  INVENTORY_SEARCH_EMPTY_MESSAGE,
+  matchesInventorySearch,
+} from '../inventorySearchUtils'
+import InventorySelectionVolumeRow from '../InventorySelectionVolumeRow'
+import { resolveDefaultM3PerUnit } from '../inventoryLineDefaults'
+import CrewSizeField from '../CrewSizeField'
+import {
+  CatalogItemLucideIcon,
+  CategoryLucideIcon,
+  ITEM_VOLUME_HINT,
+} from '../inventoryLucideIcons'
+
+function newLineId() {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID()
+  return `L-${Date.now()}-${Math.random().toString(16).slice(2)}`
+}
+
+function catalogLineForItem(lines, itemId) {
+  return lines.find((l) => !l.isCustom && l.catalogId === itemId) ?? null
+}
+
+export default function Step2Inventory({
+  lines,
+  onLinesChange,
+  customSizeM3,
+  crewSize,
+  onCrewSizeChange,
+  crewSettings,
+}) {
+  const searchId = useId()
+  const crewFieldId = useId()
+  const crewHintId = useId()
+  const resultsPanelRef = useRef(null)
+  const [activeCategory, setActiveCategory] = useState(CATEGORY_ORDER[0])
+  const [searchQuery, setSearchQuery] = useState('')
+  const [customName, setCustomName] = useState('')
+  const [customSize, setCustomSize] = useState('medium')
+
+  const flatCatalogEntries = useMemo(() => getFlattenedCatalogEntries(), [])
+
+  const searchGrouped = useMemo(() => {
+    const q = searchQuery.trim()
+    if (!q) return []
+    const filtered = flatCatalogEntries.filter((e) =>
+      matchesInventorySearch(e.item.name, q),
+    )
+    const m = new Map()
+    for (const e of filtered) {
+      if (!m.has(e.categoryKey)) {
+        m.set(e.categoryKey, { label: e.categoryLabel, entries: [] })
+      }
+      m.get(e.categoryKey).entries.push(e)
+    }
+    return CATEGORY_ORDER.filter((k) => m.has(k)).map((k) => ({
+      categoryKey: k,
+      label: m.get(k).label,
+      entries: m.get(k).entries,
+    }))
+  }, [flatCatalogEntries, searchQuery])
+
+  const isSearchMode = searchQuery.trim().length > 0
+
+  useEffect(() => {
+    if (!isSearchMode) return
+    const id = requestAnimationFrame(() => {
+      resultsPanelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+    })
+    return () => cancelAnimationFrame(id)
+  }, [isSearchMode, searchQuery, searchGrouped.length])
+
+  const totalM3 = useMemo(() => {
+    let t = 0
+    for (const row of lines) {
+      t += row.quantity * row.m3 * (row.mult || 1)
+    }
+    return Math.round(t * 100) / 100
+  }, [lines])
+
+  const customLines = useMemo(() => lines.filter((l) => l.isCustom), [lines])
+
+  function addFromCatalog(itemId) {
+    const found = getCatalogItem(itemId)
+    if (!found) return
+    const { item } = found
+    const idx = lines.findIndex((l) => !l.isCustom && l.catalogId === itemId)
+    if (idx >= 0) {
+      const next = [...lines]
+      next[idx] = { ...next[idx], quantity: next[idx].quantity + 1 }
+      onLinesChange(next)
+      return
+    }
+    onLinesChange([
+      ...lines,
+      {
+        lineId: newLineId(),
+        catalogId: itemId,
+        name: item.name,
+        quantity: 1,
+        m3: item.m3,
+        defaultM3: item.m3,
+        weightType: item.weightType,
+        mult: item.mult ?? 1,
+        isCustom: false,
+      },
+    ])
+  }
+
+  function bump(lineId, delta) {
+    onLinesChange(
+      lines
+        .map((r) =>
+          r.lineId === lineId ? { ...r, quantity: Math.max(0, r.quantity + delta) } : r,
+        )
+        .filter((r) => r.quantity > 0),
+    )
+  }
+
+  function addCustom() {
+    const name = customName.trim()
+    if (!name) return
+    const m3 = customSizeM3?.[customSize] ?? 0.35
+    const wt = customSize === 'heavy' ? 'heavy' : customSize === 'large' ? 'large' : 'medium'
+    onLinesChange([
+      ...lines,
+      {
+        lineId: newLineId(),
+        catalogId: null,
+        name,
+        quantity: 1,
+        m3,
+        defaultM3: m3,
+        weightType: wt,
+        mult: 1,
+        isCustom: true,
+      },
+    ])
+    setCustomName('')
+  }
+
+  function clampM3(n) {
+    return Math.round(Math.max(0.01, n) * 100) / 100
+  }
+
+  function setLineM3(lineId, nextM3) {
+    onLinesChange(
+      lines.map((r) => (r.lineId === lineId ? { ...r, m3: clampM3(nextM3) } : r)),
+    )
+  }
+
+  function resetLineM3(lineId) {
+    onLinesChange(
+      lines.map((r) => {
+        if (r.lineId !== lineId) return r
+        const def = resolveDefaultM3PerUnit(r)
+        return { ...r, m3: def, defaultM3: r.defaultM3 ?? def }
+      }),
+    )
+  }
+
+  const cat = INVENTORY_BY_CATEGORY[activeCategory]
+
+  const input =
+    'w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/25'
+
+  function renderCatalogRow(item, highlightQuery, emphasizeMatch) {
+    const line = catalogLineForItem(lines, item.id)
+    const qty = line?.quantity ?? 0
+    const volumeHint = ITEM_VOLUME_HINT[item.id]
+    const perUnitVol = Number(item.m3) || 0
+    return (
+      <li
+        key={item.id}
+        className={`flex min-h-[64px] items-stretch gap-3 rounded-xl border border-slate-100 px-3 py-3 sm:gap-4 sm:px-4 ${
+          emphasizeMatch
+            ? 'bg-amber-50/50 ring-1 ring-amber-200/70'
+            : 'bg-slate-50/80'
+        }`}
+      >
+        <div className="flex min-w-0 flex-1 items-center gap-3">
+          <div
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white text-brand-700 shadow-sm ring-1 ring-slate-200/80"
+            aria-hidden
+          >
+            <CatalogItemLucideIcon itemId={item.id} className="h-5 w-5" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-semibold leading-snug text-slate-900">
+              {highlightQuery ? (
+                <HighlightedInventoryName name={item.name} query={highlightQuery} />
+              ) : (
+                item.name
+              )}
+            </p>
+            <p className="mt-0.5 text-xs text-slate-500">
+              {perUnitVol.toFixed(2)} m³ per unit
+              {volumeHint ? <span className="text-slate-600"> · {volumeHint}</span> : null}
+            </p>
+          </div>
+        </div>
+        <div className="flex shrink-0 items-center self-center">
+          <InlineInventoryQtyControl
+            quantity={qty}
+            onAdd={() => addFromCatalog(item.id)}
+            onDecrement={() => line && bump(line.lineId, -1)}
+            onIncrement={() => (line ? bump(line.lineId, 1) : addFromCatalog(item.id))}
+          />
+        </div>
+      </li>
+    )
+  }
+
+  return (
+    <div className="space-y-8">
+      <div>
+        <h2 className="text-xl font-bold text-slate-900 sm:text-2xl">Inventory</h2>
+        <p className="mt-1 text-sm text-slate-600">
+          Choose your crew size first — it affects loading time and pricing. Then tap{' '}
+          <strong className="font-semibold text-slate-800">Add</strong> or use{' '}
+          <strong className="font-semibold text-slate-800">−</strong> /{' '}
+          <strong className="font-semibold text-slate-800">+</strong> on each item. Your total volume
+          and estimate update live in the summary.
+        </p>
+      </div>
+
+      <CrewSizeField
+        id={crewFieldId}
+        descriptionId={crewHintId}
+        value={crewSize}
+        onChange={onCrewSizeChange}
+        crewSettings={crewSettings}
+      />
+
+      <div className="-mx-1 flex snap-x snap-mandatory gap-2 overflow-x-auto pb-1 pl-1 pr-2 sm:mx-0 sm:flex-wrap sm:overflow-visible sm:pb-0 sm:pl-0 sm:pr-0">
+        {CATEGORY_ORDER.map((key) => {
+          const c = INVENTORY_BY_CATEGORY[key]
+          return (
+            <button
+              key={key}
+              type="button"
+              onClick={() => setActiveCategory(key)}
+              className={`shrink-0 snap-start inline-flex min-h-[44px] items-center gap-2 rounded-xl border px-3 py-2 text-sm font-semibold transition sm:px-4 ${
+                activeCategory === key
+                  ? 'border-brand-500 bg-brand-50 text-brand-900 ring-2 ring-brand-500/20'
+                  : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'
+              }`}
+            >
+              <CategoryLucideIcon
+                categoryKey={key}
+                className={`h-4 w-4 shrink-0 ${activeCategory === key ? 'text-brand-700' : 'text-slate-500'}`}
+              />
+              {c.label}
+            </button>
+          )
+        })}
+      </div>
+
+      <InventorySearchBar
+        id={searchId}
+        value={searchQuery}
+        onChange={setSearchQuery}
+        className="mt-4"
+      />
+
+      <div ref={resultsPanelRef} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
+        {isSearchMode ? (
+          <div>
+            <h3 className="text-sm font-bold text-slate-900">Search results</h3>
+            {searchGrouped.length === 0 ? (
+              <p className="mt-4 text-sm text-slate-600" role="status" aria-live="polite">
+                {INVENTORY_SEARCH_EMPTY_MESSAGE}
+              </p>
+            ) : (
+              <div className="mt-4 space-y-6">
+                {searchGrouped.map(({ categoryKey, label, entries }) => (
+                  <div key={categoryKey}>
+                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                      {label}
+                    </p>
+                    <ul className="mt-2 grid gap-3 sm:grid-cols-2">
+                      {entries.map(({ item }) =>
+                        renderCatalogRow(item, searchQuery.trim(), true),
+                      )}
+                    </ul>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        ) : (
+          <div>
+            <h3 className="text-sm font-bold text-slate-900">{cat.label}</h3>
+            <ul className="mt-4 grid gap-3 sm:grid-cols-2">
+              {cat.items.map((item) => renderCatalogRow(item, '', false))}
+            </ul>
+          </div>
+        )}
+      </div>
+
+      <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50/50 p-4 sm:p-5">
+        <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Custom item</p>
+        <div className="mt-3 grid gap-3 sm:grid-cols-12 sm:items-end">
+          <label className="block sm:col-span-6">
+            <span className="text-sm font-medium text-slate-700">Name</span>
+            <input
+              value={customName}
+              onChange={(e) => setCustomName(e.target.value)}
+              className={`mt-1 ${input}`}
+              placeholder="e.g. Piano, aquarium"
+            />
+          </label>
+          <label className="block sm:col-span-3">
+            <span className="text-sm font-medium text-slate-700">Size band</span>
+            <select
+              value={customSize}
+              onChange={(e) => setCustomSize(e.target.value)}
+              className={`mt-1 ${input}`}
+            >
+              <option value="small">Small</option>
+              <option value="medium">Medium</option>
+              <option value="large">Large</option>
+              <option value="heavy">Heavy</option>
+            </select>
+          </label>
+          <div className="sm:col-span-3">
+            <button
+              type="button"
+              onClick={addCustom}
+              disabled={!customName.trim()}
+              className="w-full min-h-[48px] rounded-xl bg-slate-900 py-3 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-50"
+            >
+              Add custom
+            </button>
+          </div>
+        </div>
+
+        {customLines.length > 0 && (
+          <ul className="mt-5 space-y-3 border-t border-slate-200/80 pt-5">
+            {customLines.map((row) => (
+              <li
+                key={row.lineId}
+                className="flex min-h-[64px] items-stretch gap-3 rounded-xl border border-slate-200 bg-white px-3 py-3 sm:gap-4 sm:px-4"
+              >
+                <div className="flex min-w-0 flex-1 items-center gap-3">
+                  <div
+                    className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-slate-50 text-slate-700 ring-1 ring-slate-200/80"
+                    aria-hidden
+                  >
+                    <PackagePlus className="h-5 w-5" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-semibold text-slate-900">{row.name}</p>
+                    <p className="mt-0.5 text-xs text-slate-500">Custom · {row.m3.toFixed(2)} m³ each</p>
+                  </div>
+                </div>
+                <div className="flex shrink-0 items-center self-center">
+                  <InlineInventoryQtyControl
+                    quantity={row.quantity}
+                    onAdd={() => bump(row.lineId, 1)}
+                    onDecrement={() => bump(row.lineId, -1)}
+                    onIncrement={() => bump(row.lineId, 1)}
+                  />
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+
+      <div className="rounded-2xl border border-brand-100 bg-gradient-to-br from-brand-50/50 to-white p-5 shadow-card ring-1 ring-brand-100/60">
+        <div className="flex flex-wrap items-baseline justify-between gap-2">
+          <div>
+            <h3 className="text-lg font-bold text-slate-900">Your selection</h3>
+            <p className="mt-0.5 text-xs text-slate-500">
+              Adjust quantity above; fine-tune volume per item here — totals and price update live.
+            </p>
+          </div>
+          <span className="text-sm font-semibold text-brand-800">
+            Total volume: {totalM3.toFixed(2)} m³
+          </span>
+        </div>
+        {lines.length === 0 ? (
+          <p className="mt-4 text-sm text-slate-600">No items yet — add from the categories above.</p>
+        ) : (
+          <ul className="mt-4 space-y-3">
+            {lines.map((row) => (
+              <InventorySelectionVolumeRow
+                key={row.lineId}
+                name={row.name}
+                isCustom={Boolean(row.isCustom)}
+                quantity={row.quantity}
+                perUnitM3={row.m3}
+                defaultPerUnitM3={resolveDefaultM3PerUnit(row)}
+                multiplier={row.mult ?? 1}
+                onPerUnitM3Change={(v) => setLineM3(row.lineId, v)}
+                onResetDefault={() => resetLineM3(row.lineId)}
+              />
+            ))}
+          </ul>
+        )}
+      </div>
+    </div>
+  )
+}

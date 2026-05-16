@@ -1,0 +1,6 @@
+export const LS_PRICING = 'smh_pricing_settings_v1'
+export const LS_ITEMS = 'smh_items_library_v1'
+export const LS_JOBS = 'smh_jobs_v1'
+export const LS_JOB_ITEMS = 'smh_job_items_v1'
+export const LS_REVIEWS = 'smh_reviews_v1'
+export const LS_JOB_SEQ = 'smh_job_seq_v1'
