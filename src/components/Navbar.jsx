@@ -22,10 +22,10 @@ export default function Navbar() {
 
   return (
     <header className="sticky top-0 z-50 border-b border-slate-200/80 bg-white/95 backdrop-blur-md">
-      <nav className="mx-auto flex w-full min-w-0 max-w-6xl items-center justify-between gap-2 px-4 py-3 sm:gap-3 sm:px-6 lg:px-8">
+      <nav className="mx-auto flex w-full min-w-0 max-w-6xl items-center justify-between gap-1.5 px-4 py-2.5 sm:gap-3 sm:py-3 sm:px-6 lg:px-8">
         <HomeSectionLink
           sectionId="home"
-          className="mr-3 inline-flex shrink-0 items-center rounded-lg outline-none ring-brand-600 focus-visible:ring-2 lg:mr-4"
+          className="mr-1 inline-flex min-w-0 max-w-[58%] shrink items-center rounded-lg outline-none ring-brand-600 focus-visible:ring-2 sm:mr-3 sm:max-w-none lg:mr-4"
           onNavigate={closeMenu}
         >
           <Logo />

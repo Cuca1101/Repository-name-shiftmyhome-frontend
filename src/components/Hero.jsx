@@ -31,15 +31,15 @@ export default function Hero() {
       <div className="absolute inset-0 bg-gradient-to-r from-brand-950/95 via-brand-900/88 to-brand-800/75" />
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-white/10 via-transparent to-transparent" />
 
-      <div className="relative mx-auto min-w-0 max-w-7xl space-y-10 px-4 py-14 sm:space-y-12 sm:px-6 sm:py-24 xl:max-w-[90rem] xl:px-8 xl:py-28">
+      <div className="relative mx-auto min-w-0 max-w-6xl space-y-8 px-4 py-12 sm:space-y-12 sm:px-6 sm:py-20 lg:px-8 lg:py-24">
         <div className="flex flex-col gap-8 lg:gap-10">
           <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between lg:gap-8">
             <div className="min-w-0 max-w-2xl lg:max-w-3xl">
               <p className="text-sm font-semibold uppercase tracking-wider text-brand-200">Glasgow &amp; UK removals</p>
-              <h1 className="mt-3 text-balance text-4xl font-extrabold tracking-tight text-white sm:text-5xl lg:text-6xl">
+              <h1 className="mt-3 text-balance text-3xl font-extrabold tracking-tight text-white sm:text-5xl lg:text-6xl">
                 Professional removals made simple
               </h1>
-              <p className="mt-6 text-lg leading-relaxed text-slate-200 sm:text-xl">
+              <p className="mt-4 text-base leading-relaxed text-slate-200 sm:mt-6 sm:text-lg lg:text-xl">
                 Fast, reliable and affordable removals across Glasgow and the UK.
               </p>
             </div>
@@ -57,7 +57,7 @@ export default function Hero() {
             {TRUST_BADGES.map((label) => (
               <li
                 key={label}
-                className="inline-flex w-fit items-center gap-2 rounded-full border border-white/20 bg-white/10 px-4 py-2 text-sm font-medium text-white backdrop-blur-sm"
+                className="inline-flex w-fit max-w-full items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-1.5 text-xs font-medium text-white backdrop-blur-sm sm:px-4 sm:py-2 sm:text-sm"
               >
                 <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#25D366] text-xs font-bold text-white">
                   ✓

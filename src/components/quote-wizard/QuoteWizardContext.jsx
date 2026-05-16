@@ -50,6 +50,17 @@ export function makeQuoteRef() {
   return `SMH-${y}-${n}`
 }
 
+/** Scroll quote wizard to top after step change (mobile: user is often mid-form inside #quote). */
+function scrollQuoteWizardIntoView() {
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      document.querySelector('#quote')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      document.querySelector('#quote-wizard-top')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      window.scrollTo({ top: 0, behavior: 'smooth' })
+    })
+  })
+}
+
 export function initialWizardState() {
   return {
     pickupAddress: '',
@@ -116,10 +127,17 @@ export function QuoteWizardProvider({ children, serviceType: serviceTypeProp, al
   const [feedback, setFeedback] = useState({ type: null, text: '' })
   const [lastQuoteData, setLastQuoteData] = useState(null)
   const fileInputRef = useRef(null)
+  const pendingStepScrollRef = useRef(false)
 
   useEffect(() => {
     setServiceType(serviceTypeProp)
   }, [serviceTypeProp])
+
+  useEffect(() => {
+    if (!pendingStepScrollRef.current) return
+    pendingStepScrollRef.current = false
+    scrollQuoteWizardIntoView()
+  }, [step])
 
   useEffect(() => {
     let c = false
@@ -321,18 +339,20 @@ export function QuoteWizardProvider({ children, serviceType: serviceTypeProp, al
       }
       return
     }
+    pendingStepScrollRef.current = true
     setStep((s) => Math.min(4, s + 1))
   }, [step, wizard, canGoNext])
 
-  const back = useCallback(() => setStep((s) => Math.max(1, s - 1)), [])
+  const back = useCallback(() => {
+    pendingStepScrollRef.current = true
+    setStep((s) => Math.max(1, s - 1))
+  }, [])
 
   const goToStep = useCallback((targetStep) => {
     const n = Math.min(4, Math.max(1, Number(targetStep) || 1))
     setFeedback({ type: null, text: '' })
+    pendingStepScrollRef.current = true
     setStep(n)
-    requestAnimationFrame(() => {
-      document.getElementById('quote')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-    })
   }, [])
 
   const buildQuotePayloadForSave = useCallback(() => {

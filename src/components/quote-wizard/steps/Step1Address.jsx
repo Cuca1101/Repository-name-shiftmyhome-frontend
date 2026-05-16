@@ -23,7 +23,7 @@ const EXACT_HOUR_OPTIONS = Array.from({ length: 11 }, (_, i) => {
 const HAS_MAPBOX = Boolean(import.meta.env.VITE_MAPBOX_TOKEN)
 
 const input =
-  'min-h-[48px] w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-slate-900 shadow-sm outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/25'
+  'min-h-[44px] w-full max-w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-base text-slate-900 shadow-sm outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/25 sm:min-h-[48px] sm:px-4'
 const label = 'mb-1.5 block text-sm font-medium text-slate-700'
 const field = 'min-w-0'
 const textAreaNoMap = `${input} min-h-[5.5rem] resize-y py-3`
@@ -56,7 +56,7 @@ export default function Step1Address({
   return (
     <div className="space-y-8">
       <div>
-        <h2 className="text-xl font-bold text-slate-900 sm:text-2xl">Address & access</h2>
+        <h2 className="text-lg font-bold text-slate-900 sm:text-2xl">Address & access</h2>
         <p className="mt-1 text-sm text-slate-600">
           Where we’re collecting from and delivering to, plus access for planning.
         </p>

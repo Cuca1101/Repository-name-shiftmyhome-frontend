@@ -1,6 +1,6 @@
 export default function Step3Details({ data, onChange, fileInputRef }) {
   const input =
-    'w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-slate-900 shadow-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/25'
+    'w-full max-w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-base text-slate-900 shadow-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/25 sm:px-4 sm:py-3'
   const label = 'mb-1.5 block text-sm font-medium text-slate-700'
 
   function set(k, v) {
@@ -10,7 +10,7 @@ export default function Step3Details({ data, onChange, fileInputRef }) {
   return (
     <div className="space-y-10">
       <div>
-        <h2 className="text-xl font-bold text-slate-900 sm:text-2xl">Job details & contact</h2>
+        <h2 className="text-lg font-bold text-slate-900 sm:text-2xl">Job details & contact</h2>
         <p className="mt-1 text-sm text-slate-600">
           Extras, access notes, and how we reach you — we’ll only use your details for this quote.
         </p>

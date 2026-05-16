@@ -10,7 +10,7 @@ export default function PublicLayout({ children }) {
       <div className="flex min-h-screen min-w-0 w-full max-w-full flex-col clip-x">
         <HomeHashScroll />
         <Navbar />
-        <main className="min-w-0 flex-1">{children}</main>
+        <main className="min-w-0 flex-1 w-full max-w-full overflow-x-hidden pb-20 sm:pb-0">{children}</main>
         <Footer />
         <WhatsAppButton />
       </div>

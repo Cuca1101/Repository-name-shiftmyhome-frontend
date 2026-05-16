@@ -25,7 +25,7 @@ export default function CoveragePage() {
               <span className="mx-2 text-slate-300">/</span>
               <span className="text-slate-700">Coverage</span>
             </nav>
-            <h1 className="mt-3 text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl">UK coverage map</h1>
+            <h1 className="mt-3 text-2xl font-bold tracking-tight text-slate-900 sm:text-4xl">UK coverage map</h1>
             <p className="mt-2 max-w-2xl text-sm text-slate-600 sm:text-base">
               Interactive network view — pins show regular service hubs. We also quote UK-wide moves beyond these markers.
             </p>

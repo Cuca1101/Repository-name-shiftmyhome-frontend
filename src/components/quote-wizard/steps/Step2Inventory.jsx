@@ -224,7 +224,7 @@ export default function Step2Inventory({
   return (
     <div className="space-y-8">
       <div>
-        <h2 className="text-xl font-bold text-slate-900 sm:text-2xl">Inventory</h2>
+        <h2 className="text-lg font-bold text-slate-900 sm:text-2xl">Inventory</h2>
         <p className="mt-1 text-sm text-slate-600">
           Choose your crew size first — it affects loading time and pricing. Then tap{' '}
           <strong className="font-semibold text-slate-800">Add</strong> or use{' '}
@@ -242,7 +242,7 @@ export default function Step2Inventory({
         crewSettings={crewSettings}
       />
 
-      <div className="-mx-1 flex snap-x snap-mandatory gap-2 overflow-x-auto pb-1 pl-1 pr-2 sm:mx-0 sm:flex-wrap sm:overflow-visible sm:pb-0 sm:pl-0 sm:pr-0">
+      <div className="flex min-w-0 snap-x snap-mandatory gap-2 overflow-x-auto pb-1 sm:flex-wrap sm:overflow-visible sm:pb-0">
         {CATEGORY_ORDER.map((key) => {
           const c = INVENTORY_BY_CATEGORY[key]
           return (
@@ -273,7 +273,7 @@ export default function Step2Inventory({
         className="mt-4"
       />
 
-      <div ref={resultsPanelRef} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
+      <div ref={resultsPanelRef} className="min-w-0 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:p-6">
         {isSearchMode ? (
           <div>
             <h3 className="text-sm font-bold text-slate-900">Search results</h3>

@@ -35,12 +35,12 @@ export default function FAQSection() {
   const [openIndex, setOpenIndex] = useState(null)
 
   return (
-    <section id="faq" className="scroll-mt-20 border-t border-slate-200 bg-slate-50 py-16 sm:py-24">
+    <section id="faq" className="scroll-mt-20 border-t border-slate-200 bg-slate-50 py-12 sm:py-24">
       <div className="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8">
-        <h2 className="text-center text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl">
+        <h2 className="text-center text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl lg:text-4xl">
           Frequently Asked Questions
         </h2>
-        <p className="mx-auto mt-4 max-w-xl text-center text-lg text-slate-600">
+        <p className="mx-auto mt-4 max-w-xl text-center text-base text-slate-600 sm:text-lg">
           Quick answers about pricing, insurance, booking, and how we work.
         </p>
         <div className="mt-10 divide-y divide-slate-200 rounded-2xl border border-slate-200 bg-white shadow-card">
@@ -54,7 +54,7 @@ export default function FAQSection() {
                   className="flex w-full items-center justify-between gap-4 px-5 py-4 text-left transition hover:bg-slate-50 sm:px-6 sm:py-5"
                   aria-expanded={open}
                 >
-                  <span className="text-base font-semibold text-slate-900 sm:text-lg">{item.q}</span>
+                  <span className="min-w-0 flex-1 text-left text-sm font-semibold text-slate-900 sm:text-base lg:text-lg">{item.q}</span>
                   <span
                     className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-slate-50 text-slate-600 transition ${
                       open ? 'rotate-180 border-brand-200 bg-brand-50 text-brand-700' : ''

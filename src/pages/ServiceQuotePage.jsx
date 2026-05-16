@@ -27,7 +27,7 @@ export default function ServiceQuotePage() {
           >
             <span aria-hidden>←</span> Back to Services
           </Link>
-          <h1 className="mt-6 text-balance text-3xl font-bold tracking-tight text-white sm:text-4xl lg:text-5xl">
+          <h1 className="mt-6 text-balance text-2xl font-bold tracking-tight text-white sm:text-4xl lg:text-5xl">
             {page.title}
           </h1>
           <p className="mt-4 max-w-2xl text-base leading-relaxed text-brand-100 sm:text-lg">{page.shortDescription}</p>

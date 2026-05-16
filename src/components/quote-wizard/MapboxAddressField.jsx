@@ -2,7 +2,7 @@ import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import { searchGeocodingSuggestions } from '../../lib/mapboxRouteApi'
 
 const inputClass =
-  'min-h-[48px] w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-slate-900 shadow-sm outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/25'
+  'min-h-[44px] w-full max-w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-base text-slate-900 shadow-sm outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/25 sm:min-h-[48px] sm:px-4'
 
 /**
  * Mapbox Geocoding autocomplete. Saves full address text + lng/lat when user picks a suggestion.

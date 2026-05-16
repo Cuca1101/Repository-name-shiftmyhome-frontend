@@ -69,7 +69,7 @@ export default function Step4Review({
   return (
     <div className="space-y-8">
       <div>
-        <h2 className="text-xl font-bold text-slate-900 sm:text-2xl">Review & price</h2>
+        <h2 className="text-lg font-bold text-slate-900 sm:text-2xl">Review & price</h2>
         <p className="mt-1 text-sm text-slate-600">
           Check everything looks right, then submit your enquiry or pay securely by card on this page. Your estimate uses
           live pricing from our admin settings.
@@ -107,11 +107,11 @@ export default function Step4Review({
           </div>
           <div>
             <dt className="text-slate-600">Pickup</dt>
-            <dd className="mt-1 text-slate-900">{wizard.pickupAddress || '—'}</dd>
+            <dd className="mt-1 break-words text-slate-900">{wizard.pickupAddress || '—'}</dd>
           </div>
           <div>
             <dt className="text-slate-600">Delivery</dt>
-            <dd className="mt-1 text-slate-900">{wizard.deliveryAddress || '—'}</dd>
+            <dd className="mt-1 break-words text-slate-900">{wizard.deliveryAddress || '—'}</dd>
           </div>
           <div className="flex justify-between gap-4 border-b border-slate-100 pb-3">
             <dt className="text-slate-600">Distance</dt>

@@ -3,6 +3,20 @@
 @tailwind utilities;
 
 @layer base {
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
+
+  html,
+  body,
+  #root {
+    width: 100%;
+    max-width: 100%;
+    overflow-x: hidden;
+  }
+
   html {
     scroll-behavior: smooth;
     -webkit-text-size-adjust: 100%;
@@ -10,11 +24,39 @@
   }
 
   body {
-    @apply min-w-0 overflow-x-clip antialiased text-slate-800 bg-white;
+    @apply min-w-0 antialiased text-slate-800 bg-white;
   }
 
   #root {
-    @apply min-h-screen min-w-0 w-full;
+    @apply min-h-screen min-w-0;
+  }
+
+  img,
+  video,
+  canvas,
+  svg {
+    max-width: 100%;
+  }
+
+  img,
+  video {
+    height: auto;
+  }
+
+  input,
+  select,
+  textarea,
+  button {
+    max-width: 100%;
+  }
+
+  /* Prevent iOS Safari from auto-zooming focused fields (keeps layout at 1:1 scale). */
+  @media (max-width: 639px) {
+    input,
+    select,
+    textarea {
+      font-size: 16px;
+    }
   }
 }
 

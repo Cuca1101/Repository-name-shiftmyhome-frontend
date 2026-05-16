@@ -29,7 +29,7 @@ export default function InventorySelectionVolumeRow({
   }
 
   return (
-    <li className="rounded-xl border border-slate-200 bg-white/90 p-4 shadow-sm ring-1 ring-slate-100">
+    <li className="min-w-0 rounded-xl border border-slate-200 bg-white/90 p-3 shadow-sm ring-1 ring-slate-100 sm:p-4">
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div className="min-w-0 flex-1">
           <p className="font-medium leading-snug text-slate-900">{name}</p>
@@ -67,7 +67,7 @@ export default function InventorySelectionVolumeRow({
                 if (!Number.isFinite(v)) return
                 onPerUnitM3Change(roundM3(v))
               }}
-              className="min-h-[44px] w-[6.5rem] rounded-xl border-2 border-slate-200 px-2 py-2 text-center text-base font-semibold tabular-nums text-slate-900 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 disabled:bg-slate-100"
+              className="min-h-[44px] w-full max-w-[6.5rem] rounded-xl border-2 border-slate-200 px-2 py-2 text-center text-base font-semibold tabular-nums text-slate-900 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 disabled:bg-slate-100"
             />
             <button
               type="button"

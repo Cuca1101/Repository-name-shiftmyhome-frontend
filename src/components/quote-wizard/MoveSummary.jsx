@@ -59,7 +59,7 @@ export default function MoveSummary({
 
   return (
     <aside className="flex w-full min-w-0 flex-col gap-4 lg:sticky lg:top-24">
-      <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-card ring-1 ring-slate-100">
+      <div className="min-w-0 rounded-2xl border border-slate-200 bg-white p-3 shadow-card ring-1 ring-slate-100 sm:p-5">
         <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Quote reference</p>
         <p className="mt-1 font-mono text-lg font-bold text-brand-800">{quoteRef}</p>
         <p className="mt-2 text-xs text-slate-500">Keep this handy when you speak to us.</p>
@@ -74,7 +74,7 @@ export default function MoveSummary({
         onDistanceFromRoute={onDistanceFromRoute}
       />
 
-      <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-50 to-white p-5 shadow-card ring-1 ring-slate-100">
+      <div className="min-w-0 rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-50 to-white p-3 shadow-card ring-1 ring-slate-100 sm:p-5">
         <h3 className="text-sm font-bold text-slate-900">Move summary</h3>
         <dl className="mt-4 space-y-4 text-sm">
           <div>
@@ -192,9 +192,9 @@ export default function MoveSummary({
       </div>
 
       {showPricing && breakdown && (
-        <div className="rounded-2xl border border-emerald-100 bg-gradient-to-br from-emerald-50/90 to-white p-5 shadow-card ring-1 ring-emerald-100/80">
+        <div className="min-w-0 rounded-2xl border border-emerald-100 bg-gradient-to-br from-emerald-50/90 to-white p-3 shadow-card ring-1 ring-emerald-100/80 sm:p-5">
           <h3 className="text-sm font-bold text-slate-900">Estimated total</h3>
-          <p className="mt-2 text-3xl font-bold tracking-tight text-emerald-700">
+          <p className="mt-2 text-2xl font-bold tracking-tight text-emerald-700 sm:text-3xl">
             £{breakdown.estimatedTotal.toFixed(2)}
           </p>
           <p className="mt-2 text-xs leading-relaxed text-slate-600">

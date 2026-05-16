@@ -51,9 +51,11 @@ function BrandIconBox({ size = 'nav', dark = false }) {
 
 function TextMark({ className = '', dark = false }) {
   return (
-    <span className={`inline-flex items-center gap-3 ${className}`}>
+    <span className={`inline-flex min-w-0 items-center gap-2 sm:gap-3 ${className}`}>
       <BrandIconBox size="mark" dark={dark} />
-      <span className={`font-bold tracking-tight ${dark ? 'text-white' : 'text-slate-900'}`}>
+      <span
+        className={`truncate text-base font-bold tracking-tight sm:text-lg ${dark ? 'text-white' : 'text-slate-900'}`}
+      >
         ShiftMy<span className={dark ? 'text-brand-400' : 'text-brand-600'}>Home</span>
       </span>
     </span>
@@ -73,10 +75,10 @@ export default function Logo({ asImage = false, variant = 'default', className =
   if (asImage) {
     if (imageFailed) {
       return (
-        <span className={`inline-flex max-w-full items-center gap-3 ${className}`}>
+        <span className={`inline-flex min-w-0 max-w-full items-center gap-2 sm:gap-3 ${className}`}>
           <BrandIconBox size="nav" dark={dark} />
           <span
-            className={`text-lg font-bold tracking-tight sm:text-xl ${dark ? 'text-white' : 'text-slate-900'}`}
+            className={`truncate text-base font-bold tracking-tight sm:text-xl ${dark ? 'text-white' : 'text-slate-900'}`}
           >
             ShiftMy<span className={dark ? 'text-brand-400' : 'text-brand-600'}>Home</span>
           </span>
@@ -84,12 +86,12 @@ export default function Logo({ asImage = false, variant = 'default', className =
       )
     }
     return (
-      <span className={`inline-flex max-w-full items-center gap-3 ${className}`}>
+      <span className={`inline-flex min-w-0 max-w-full items-center gap-2 sm:gap-3 ${className}`}>
         <BrandIconBox size="nav" dark={dark} />
         <img
           src="/logo.png"
           alt="ShiftMyHome logo"
-          className={`h-10 w-auto max-w-[min(100%,16rem)] object-contain object-left sm:h-11 lg:h-12 ${dark ? 'brightness-0 invert' : ''}`}
+          className={`h-9 w-auto max-w-[min(100%,9rem)] object-contain object-left sm:h-11 sm:max-w-[min(100%,16rem)] lg:h-12 ${dark ? 'brightness-0 invert' : ''}`}
           onError={() => setImageFailed(true)}
         />
       </span>

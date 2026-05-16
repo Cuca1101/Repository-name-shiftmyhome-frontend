@@ -5,17 +5,17 @@ import { HouseIcon, iconBySlug } from './serviceIcons'
 export default function HeroServiceGrid() {
   return (
     <div id="services" className="scroll-mt-24 w-full pt-4 sm:pt-6">
-      <ul className="mx-auto grid w-full max-w-7xl grid-cols-1 items-stretch gap-4 sm:grid-cols-2 sm:gap-6 lg:grid-cols-3 lg:gap-6 xl:max-w-[90rem]">
+      <ul className="mx-auto grid w-full min-w-0 max-w-6xl grid-cols-1 items-stretch gap-4 sm:grid-cols-2 sm:gap-6 lg:grid-cols-3 lg:gap-6">
         {SERVICE_PAGES.map((service) => {
           const Icon = iconBySlug[service.slug] ?? HouseIcon
           return (
             <li key={service.path} className="min-w-0 w-full">
               <Link
                 to={service.path}
-                className="group relative flex h-[250px] w-full flex-col overflow-hidden rounded-2xl shadow-lg shadow-black/30 ring-1 ring-white/10 transition-[transform,box-shadow] duration-200 ease-out will-change-transform hover:scale-[1.03] hover:shadow-2xl hover:shadow-brand-500/25 focus-visible:outline focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-brand-950 sm:h-[265px] lg:h-[275px] lg:rounded-[1.25rem]"
+                className="group relative flex h-[220px] w-full min-w-0 flex-col overflow-hidden rounded-2xl shadow-lg shadow-black/30 ring-1 ring-white/10 transition-[transform,box-shadow] duration-200 ease-out sm:h-[250px] sm:hover:scale-[1.02] sm:hover:shadow-2xl sm:hover:shadow-brand-500/25 lg:h-[275px] lg:rounded-[1.25rem] lg:hover:scale-[1.03] focus-visible:outline focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-brand-950"
               >
                 <div
-                  className="absolute inset-0 scale-100 bg-cover bg-center transition duration-500 ease-out group-hover:scale-105"
+                  className="absolute inset-0 scale-100 bg-cover bg-center transition duration-500 ease-out sm:group-hover:scale-105"
                   style={{ backgroundImage: `url(${service.heroImage})` }}
                   role="presentation"
                 />
@@ -23,7 +23,7 @@ export default function HeroServiceGrid() {
                   className="absolute inset-0 bg-gradient-to-b from-slate-950/75 via-slate-900/45 to-slate-950/90"
                   aria-hidden
                 />
-                <div className="relative z-10 flex h-full min-h-0 flex-col p-5 sm:p-6 md:p-7">
+                <div className="relative z-10 flex h-full min-h-0 flex-col p-4 sm:p-6 md:p-7">
                   <div className="flex shrink-0 justify-start">
                     <div className="flex h-11 w-11 items-center justify-center rounded-full border border-white/40 bg-white/20 p-2 text-white shadow-sm backdrop-blur-md sm:h-12 sm:w-12">
                       <Icon className="h-6 w-6 sm:h-7 sm:w-7" />

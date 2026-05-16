@@ -42,9 +42,11 @@ function QuoteWizardInner() {
   const serviceTypeOptions = allowServiceChange ? [...SERVICE_TYPES] : undefined
 
   return (
-    <section id="quote" className="scroll-mt-20 border-t border-slate-200 bg-slate-50 py-8 sm:py-14">
-      <div className="mx-auto min-w-0 max-w-6xl px-4 sm:px-6 lg:px-8">
-        <WizardProgress step={step} />
+    <section id="quote" className="scroll-mt-24 border-t border-slate-200 bg-slate-50 py-6 sm:py-14">
+      <div className="mx-auto min-w-0 w-full max-w-6xl px-4 sm:px-6 lg:px-8">
+        <div id="quote-wizard-top">
+          <WizardProgress step={step} />
+        </div>
 
         {feedback.text && (
           <div
@@ -86,9 +88,9 @@ function QuoteWizardInner() {
         {loadingSettings ? (
           <p className="text-center text-slate-600">Loading…</p>
         ) : (
-          <div className="flex flex-col gap-8 lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(260px,min(100%,360px))] lg:items-start lg:gap-10">
+          <div className="flex flex-col gap-6 lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(260px,min(100%,360px))] lg:items-start lg:gap-10">
             <div className="min-w-0">
-              <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-card sm:p-8">
+              <div className="min-w-0 rounded-2xl border border-slate-200 bg-white p-3 shadow-card sm:p-8">
                 {step === 1 && (
                   <Step1Address
                     data={wizard}
