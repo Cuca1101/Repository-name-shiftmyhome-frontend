@@ -18,6 +18,7 @@ const sections = [
       { to: '/admin/completed-jobs', label: 'Completed Jobs', end: false, icon: 'star' },
       { to: '/admin/cancelled-jobs', label: 'Cancelled Jobs', end: false, icon: 'ban' },
       { to: '/admin/quote-requests', label: 'Quote requests', end: false, icon: 'inbox' },
+      { to: '/admin/website-leads', label: 'Website Leads / Quote Funnel', end: false, icon: 'inbox' },
       { to: '/admin/jobs', label: 'Job cards', end: false, icon: 'truck' },
       { to: '/admin/bookings', label: 'Bookings', end: false, icon: 'truck' },
       { to: '/admin/job-history', label: 'Job history', end: false, icon: 'truck' },

@@ -25,6 +25,7 @@ import CancelledJobsAdmin from './components/CancelledJobsAdmin'
 import DriversAdmin from './components/DriversAdmin'
 import PartnersAdmin from './components/PartnersAdmin'
 import HomePageQuoteRequestsAdmin from './components/HomePageQuoteRequestsAdmin'
+import WebsiteLeadsAdmin from './components/WebsiteLeadsAdmin'
 import AvailableJobDetails from './components/AvailableJobDetails'
 import JourneyPlannerPage from './components/JourneyPlannerPage'
 import OperationsMapPage from './components/OperationsMapPage'
@@ -129,6 +130,7 @@ export default function App() {
         <Route path="drivers" element={<DriversAdmin />} />
         <Route path="partners" element={<PartnersAdmin />} />
         <Route path="quote-requests" element={<HomePageQuoteRequestsAdmin />} />
+        <Route path="website-leads" element={<WebsiteLeadsAdmin />} />
         <Route path="quotes/:id" element={<RedirectQuoteDetailToAvailableJobs />} />
         <Route path="quotes" element={<Navigate to="/admin/available-jobs" replace />} />
         <Route path="jobs" element={<JobCardsAdmin />} />
