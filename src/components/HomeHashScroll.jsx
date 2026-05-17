@@ -9,18 +9,36 @@ export default function HomeHashScroll() {
   const location = useLocation()
 
   useLayoutEffect(() => {
-    if (location.pathname !== '/') return
+    if (location.pathname !== '/') return undefined
     const id = location.hash?.replace(/^#/, '').trim()
-    if (!id) return
+    if (!id) return undefined
 
-    const run = () => {
-      document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    let cancelled = false
+    let timeoutId
+
+    const scrollToId = () => {
+      const el = document.getElementById(id)
+      if (!el) return false
+      el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      return true
     }
 
-    const raf = requestAnimationFrame(() => {
-      requestAnimationFrame(run)
+    const tryScroll = (attempt = 0) => {
+      if (cancelled) return
+      if (scrollToId()) return
+      if (attempt < 12) {
+        timeoutId = window.setTimeout(() => tryScroll(attempt + 1), 50)
+      }
+    }
+
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => tryScroll(0))
     })
-    return () => cancelAnimationFrame(raf)
+
+    return () => {
+      cancelled = true
+      if (timeoutId) window.clearTimeout(timeoutId)
+    }
   }, [location.pathname, location.hash])
 
   return null

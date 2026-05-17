@@ -83,17 +83,7 @@
   }
 
   .nav-logo-slab {
-    clip-path: polygon(0 0, calc(100% - 14px) 0, 100% 100%, 0 100%);
-  }
-
-  .service-card-image-fade {
-    background: linear-gradient(
-      90deg,
-      rgb(255 255 255) 0%,
-      rgb(255 255 255 / 0.92) 18%,
-      rgb(255 255 255 / 0.45) 42%,
-      transparent 68%
-    );
+    clip-path: polygon(0 0, calc(100% - 16px) 0, 100% 100%, 0 100%);
   }
 
   .hero-image-fade {

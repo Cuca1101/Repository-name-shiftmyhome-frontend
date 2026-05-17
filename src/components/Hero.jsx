@@ -1,40 +1,41 @@
 ﻿import HomeSectionLink from './HomeSectionLink'
 import HomeTrustRow from './HomeTrustRow'
-
-const HERO_IMAGE =
-  'https://images.unsplash.com/photo-1600585152915-d208bec867a1?auto=format&fit=crop&w=1800&h=1200&q=85'
+import QuotePageLink from './QuotePageLink'
+import { useWebsiteCms } from '../context/WebsiteCmsContext'
+import { DEFAULT_HOMEPAGE } from '../lib/websiteCmsDefaults'
 
 export default function Hero() {
+  const { homepage } = useWebsiteCms()
+  const h = homepage ?? DEFAULT_HOMEPAGE
+  const heroImage = h.heroImageUrl || DEFAULT_HOMEPAGE.heroImageUrl
+
   return (
-    <section id="home" className="scroll-mt-[68px] overflow-hidden bg-white">
+    <section id="home" className="scroll-mt-[76px] overflow-hidden bg-white">
       <div className="home-container">
         <div className="grid min-w-0 items-center gap-6 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)] lg:gap-8 xl:gap-10">
           <div className="py-6 sm:py-8 lg:py-10">
             <h1 className="text-balance text-[1.75rem] font-extrabold leading-[1.12] tracking-tight text-navy sm:text-4xl lg:text-[2.65rem] lg:leading-[1.08]">
-              Moving made{' '}
+              {h.heroTitlePart1}{' '}
               <span className="bg-gradient-to-r from-brand-600 via-brand-500 to-cyan-500 bg-clip-text text-transparent">
-                simple.
+                {h.heroTitleHighlight1}
               </span>
               <br />
-              <span className="text-slate-900">Stress-free </span>
+              <span className="text-slate-900">{h.heroTitlePart2} </span>
               <span className="bg-gradient-to-r from-brand-600 via-brand-500 to-cyan-500 bg-clip-text text-transparent">
-                from start to finish.
+                {h.heroTitleHighlight2}
               </span>
             </h1>
             <p className="mt-3 max-w-lg text-[15px] leading-relaxed text-slate-600 sm:mt-4 sm:text-base lg:text-[17px]">
-              Professional movers. Reliable service. Get your instant quote in minutes.
+              {h.heroSubtitle}
             </p>
 
             <div className="mt-5 flex flex-col gap-2.5 xs:flex-row xs:flex-wrap sm:mt-6">
-              <HomeSectionLink
-                sectionId="quote"
-                className="btn-premium-primary min-h-[46px] w-full px-6 py-2.5 text-sm sm:w-auto sm:min-w-[200px] sm:text-[15px]"
-              >
-                Get an Instant Quote
+              <QuotePageLink className="btn-premium-primary min-h-[46px] w-full px-6 py-2.5 text-sm sm:w-auto sm:min-w-[200px] sm:text-[15px]">
+                {h.ctaPrimaryText}
                 <span aria-hidden className="text-white/90">
                   →
                 </span>
-              </HomeSectionLink>
+              </QuotePageLink>
               <HomeSectionLink
                 sectionId="how-it-works"
                 className="btn-premium-secondary min-h-[46px] w-full px-5 py-2.5 text-sm sm:w-auto sm:text-[15px]"
@@ -47,12 +48,12 @@ export default function Hero() {
                     <path d="M8 5v14l11-7z" />
                   </svg>
                 </span>
-                How it works
+                {h.ctaSecondaryText}
               </HomeSectionLink>
             </div>
 
             <div className="mt-5 sm:mt-6">
-              <HomeTrustRow embedded />
+              <HomeTrustRow embedded trustpilotText={h.trustpilotText} />
             </div>
           </div>
 
@@ -60,7 +61,7 @@ export default function Hero() {
             <div className="relative aspect-[4/3] overflow-hidden rounded-2xl sm:aspect-[5/4] lg:aspect-auto lg:min-h-[380px] lg:rounded-none lg:rounded-l-2xl xl:min-h-[420px]">
               <div
                 className="absolute inset-0 bg-cover bg-[center_42%] transition-transform duration-700 ease-premium lg:hover:scale-[1.02]"
-                style={{ backgroundImage: `url(${HERO_IMAGE})` }}
+                style={{ backgroundImage: `url(${heroImage})` }}
                 role="img"
                 aria-label="Professional home removals"
               />
@@ -76,4 +77,3 @@ export default function Hero() {
     </section>
   )
 }
-

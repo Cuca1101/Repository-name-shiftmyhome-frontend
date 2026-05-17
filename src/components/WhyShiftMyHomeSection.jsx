@@ -51,7 +51,7 @@ const CARDS = [
 
 export default function WhyShiftMyHomeSection() {
   return (
-    <section id="why-us" className="scroll-mt-20 bg-white py-12 sm:py-24">
+    <section id="why-us" className="scroll-mt-[76px] bg-white py-12 sm:py-24">
       <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-2xl text-center">
           <h2 className="text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl lg:text-4xl">Why ShiftMyHome</h2>

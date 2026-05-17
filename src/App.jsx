@@ -3,6 +3,7 @@ import ProtectedRoute from './components/ProtectedRoute'
 import AdminLayout from './components/AdminLayout'
 import PublicLayout from './layouts/PublicLayout'
 import HomePage from './pages/HomePage'
+import QuotePage from './pages/QuotePage'
 import CoveragePage from './pages/CoveragePage'
 import TermsPage from './pages/TermsPage'
 import PrivacyPage from './pages/PrivacyPage'
@@ -17,6 +18,7 @@ import JobCardDetails from './components/JobCardDetails'
 import PricingEngineAdmin from './components/PricingEngineAdmin'
 import ItemsLibraryAdmin from './components/ItemsLibraryAdmin'
 import ReviewsAdmin from './components/ReviewsAdmin'
+import WebsiteCmsAdmin from './components/admin/WebsiteCmsAdmin'
 import AvailableJobsAdmin from './components/AvailableJobsAdmin'
 import MarketplaceJobsAdmin from './components/MarketplaceJobsAdmin'
 import ActiveJobsAdmin from './components/ActiveJobsAdmin'
@@ -50,6 +52,7 @@ export default function App() {
   return (
     <Routes>
       <Route path="/" element={<HomePage />} />
+      <Route path="/quote" element={<QuotePage />} />
       <Route
         path="/coverage"
         element={
@@ -140,6 +143,7 @@ export default function App() {
         <Route path="pricing" element={<PricingEngineAdmin />} />
         <Route path="items" element={<ItemsLibraryAdmin />} />
         <Route path="reviews" element={<ReviewsAdmin />} />
+        <Route path="website-cms" element={<WebsiteCmsAdmin />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

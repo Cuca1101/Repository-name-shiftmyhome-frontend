@@ -1,32 +1,15 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { SERVICE_PAGES } from '../constants/servicePages'
+import { HOME_SERVICE_CARD_IMAGES } from '../constants/homeServiceCardImages'
 import { fetchPricingSettings } from '../lib/data/pricingSettingsRepository'
 import { HouseIcon, iconBySlug } from './serviceIcons'
-
-/** Display titles on homepage cards (serviceType / routes unchanged). */
-const CARD_TITLES = {
-  'office-moves': 'Office Move',
-}
-
-const CARD_DESCRIPTIONS = {
-  'house-removals': 'Full or partial moves of any size.',
-  'man-with-van': 'Van & crew for smaller loads and quick jobs.',
-  'furniture-delivery': 'Bulky furniture moved safely with care.',
-  'office-moves': 'Office relocations planned around your business.',
-  'student-moves': 'Student & flat moves across Glasgow & beyond.',
-  clearance: 'Clearances with upfront pricing & disposal.',
-}
-
-function cardTitle(service) {
-  return CARD_TITLES[service.slug] ?? service.title
-}
-
-function cardDescription(service) {
-  return CARD_DESCRIPTIONS[service.slug] ?? service.heroTeaser
-}
+import { useWebsiteCms } from '../context/WebsiteCmsContext'
+import { DEFAULT_HOMEPAGE } from '../lib/websiteCmsDefaults'
 
 export default function HeroServiceGrid() {
+  const { homepage, serviceCards, hasCmsServiceCards } = useWebsiteCms()
+  const h = homepage ?? DEFAULT_HOMEPAGE
   const [settings, setSettings] = useState(null)
 
   useEffect(() => {
@@ -44,7 +27,7 @@ export default function HeroServiceGrid() {
     }
   }, [])
 
-  const priceByService = useMemo(() => {
+  const priceBySlug = useMemo(() => {
     const b = settings?.basePriceByService
     if (!b) return {}
     const out = {}
@@ -55,55 +38,96 @@ export default function HeroServiceGrid() {
     return out
   }, [settings])
 
+  const cards = useMemo(() => {
+    if (hasCmsServiceCards) {
+      return serviceCards
+        .filter((c) => c.is_active !== false)
+        .map((c) => ({
+          key: c.id || c.slug,
+          slug: c.slug,
+          title: c.title,
+          description: c.description,
+          imageSrc: c.image_url,
+          path: c.route_path,
+          buttonText: c.button_text || 'Get a Quote',
+          price: c.starting_price || priceBySlug[c.slug] || null,
+        }))
+    }
+    return SERVICE_PAGES.map((service) => ({
+      key: service.path,
+      slug: service.slug,
+      title: service.slug === 'office-moves' ? 'Office Move' : service.title,
+      description:
+        {
+          'house-removals': 'Full or partial moves of any size.',
+          'man-with-van': 'Van & crew for smaller loads and quick jobs.',
+          'furniture-delivery': 'Bulky furniture moved safely with care.',
+          'office-moves': 'Office relocations planned around your business.',
+          'student-moves': 'Student & flat moves across Glasgow & beyond.',
+          clearance: 'Clearances with upfront pricing & disposal.',
+        }[service.slug] ?? service.heroTeaser,
+      imageSrc: HOME_SERVICE_CARD_IMAGES[service.slug] ?? service.heroImage,
+      path: service.path,
+      buttonText: 'Get a Quote',
+      price: priceBySlug[service.slug] || null,
+    }))
+  }, [hasCmsServiceCards, serviceCards, priceBySlug])
+
   return (
-    <section id="services" className="scroll-mt-24 bg-white pb-12 pt-8 sm:pb-16 sm:pt-12">
-      <div className="mx-auto min-w-0 max-w-6xl px-4 sm:px-6 lg:px-8">
-        <div className="mx-auto max-w-2xl text-center">
-          <h2 className="text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">Our removal services</h2>
-          <p className="mt-2 text-sm text-slate-600 sm:text-base">
-            Choose a service and get an instant quote — same trusted quote wizard on every page.
-          </p>
+    <section id="services" className="home-section scroll-mt-[76px] bg-white pb-2">
+      <div className="home-container">
+        <div className="mb-5 flex flex-col gap-1 sm:mb-6 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <h2 className="text-xl font-extrabold tracking-tight text-navy sm:text-2xl lg:text-[1.65rem]">
+              {h.servicesHeading}
+            </h2>
+            <p className="mt-1 max-w-xl text-sm text-slate-600">{h.servicesSubheading}</p>
+          </div>
         </div>
 
-        <ul className="mt-8 grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3 lg:gap-6">
-          {SERVICE_PAGES.map((service) => {
-            const Icon = iconBySlug[service.slug] ?? HouseIcon
-            const price = priceByService[service.slug]
+        <ul className="grid grid-cols-1 items-stretch gap-4 sm:grid-cols-2 sm:gap-4 lg:grid-cols-3 lg:gap-5">
+          {cards.map((card) => {
+            const Icon = iconBySlug[card.slug] ?? HouseIcon
             return (
-              <li key={service.path} className="min-w-0">
+              <li key={card.key} className="flex min-w-0">
                 <Link
-                  to={service.path}
-                  className="group flex h-full min-h-[280px] flex-col overflow-hidden rounded-2xl bg-white shadow-premium ring-1 ring-slate-200/80 transition hover:shadow-card-hover sm:min-h-[300px] sm:flex-row"
+                  to={card.path}
+                  className="group relative flex h-[300px] w-full min-w-0 overflow-hidden rounded-2xl shadow-premium ring-1 ring-slate-900/10 transition-all duration-300 ease-premium hover:-translate-y-1.5 hover:shadow-card-hover sm:h-[320px] lg:h-[340px]"
                 >
-                  <div className="flex min-w-0 flex-1 flex-col p-4 sm:p-5">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-xl border-2 border-brand-200 bg-brand-50 text-brand-600">
-                      <Icon className="h-5 w-5" />
-                    </div>
-                    <h3 className="mt-3 text-base font-bold leading-snug text-slate-900 sm:text-lg">
-                      {cardTitle(service)}
-                    </h3>
-                    <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-slate-600 sm:text-sm">
-                      {cardDescription(service)}
-                    </p>
-                    {price ? (
-                      <p className="mt-2 text-sm font-bold text-brand-600 sm:text-base">From {price}</p>
-                    ) : (
-                      <p className="mt-2 text-sm font-semibold text-slate-400">Get a quote</p>
-                    )}
-                    <span className="mt-auto inline-flex min-h-[40px] w-full items-center justify-center gap-1 rounded-full bg-gradient-to-r from-brand-600 to-brand-500 px-4 py-2 text-xs font-bold text-white shadow-md transition group-hover:from-brand-700 sm:mt-4 sm:min-h-[44px] sm:text-sm">
-                      Get a Quote
-                      <span aria-hidden>→</span>
-                    </span>
-                  </div>
+                  <img
+                    src={card.imageSrc}
+                    alt={card.title}
+                    loading="lazy"
+                    decoding="async"
+                    className="absolute inset-0 h-full w-full object-cover object-center transition-transform duration-500 ease-premium group-hover:scale-[1.06]"
+                  />
                   <div
-                    className="relative h-28 shrink-0 bg-slate-100 sm:h-auto sm:w-[42%] sm:min-w-[140px]"
+                    className="pointer-events-none absolute inset-0 bg-gradient-to-t from-slate-950/95 via-slate-900/70 to-slate-900/25"
                     aria-hidden
-                  >
-                    <div
-                      className="absolute inset-0 bg-cover bg-center transition duration-500 group-hover:scale-105"
-                      style={{ backgroundImage: `url(${service.heroImage})` }}
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-r from-white via-white/70 to-transparent sm:from-white sm:via-white/50" />
+                  />
+                  <div
+                    className="pointer-events-none absolute inset-0 bg-gradient-to-br from-brand-900/20 via-transparent to-transparent opacity-80"
+                    aria-hidden
+                  />
+                  <div className="relative z-10 flex h-full w-full flex-col p-4 sm:p-5">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/30 bg-white/15 text-white shadow-lg backdrop-blur-md sm:h-11 sm:w-11">
+                      <Icon className="h-5 w-5 sm:h-[22px] sm:w-[22px]" aria-hidden />
+                    </div>
+                    <div className="mt-auto">
+                      <h3 className="text-lg font-bold leading-tight text-white sm:text-xl">{card.title}</h3>
+                      <p className="mt-1.5 line-clamp-2 text-sm leading-snug text-white/85">{card.description}</p>
+                      {card.price ? (
+                        <p className="mt-2 text-base font-bold text-white">
+                          From <span className="text-brand-300">{card.price}</span>
+                        </p>
+                      ) : (
+                        <p className="mt-2 text-sm font-semibold text-white/70">Instant online quote</p>
+                      )}
+                      <span className="btn-premium-primary mt-3 w-full min-h-[40px] px-4 py-2.5 text-xs shadow-lg shadow-brand-900/40 transition-shadow group-hover:shadow-xl group-hover:shadow-brand-600/40 sm:min-h-[42px] sm:text-sm">
+                        {card.buttonText}
+                        <span aria-hidden>→</span>
+                      </span>
+                    </div>
                   </div>
                 </Link>
               </li>

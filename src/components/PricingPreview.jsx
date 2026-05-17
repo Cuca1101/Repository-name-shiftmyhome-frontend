@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { fetchPricingSettings } from '../lib/data/pricingSettingsRepository'
-import HomeSectionLink from './HomeSectionLink'
+import QuotePageLink from './QuotePageLink'
 
 export default function PricingPreview() {
   const [loading, setLoading] = useState(true)
@@ -67,17 +67,14 @@ export default function PricingPreview() {
                 )}
               </p>
               <p className="mt-2 flex-1 text-sm text-slate-600">{sub}</p>
-              <HomeSectionLink
-                sectionId="quote"
-                className="mt-6 inline-flex min-h-[48px] items-center justify-center rounded-full bg-brand-600 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-700"
-              >
+              <QuotePageLink className="mt-6 inline-flex min-h-[48px] items-center justify-center rounded-full bg-brand-600 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-700">
                 Get a quote
-              </HomeSectionLink>
+              </QuotePageLink>
             </li>
           ))}
         </ul>
         <p className="mx-auto mt-10 max-w-2xl text-center text-sm text-slate-500">
-          Final price depends on distance, items, access and date — use the calculator below for a live estimate.
+          Final price depends on distance, items, access and date — use our instant quote page for a live estimate.
         </p>
       </div>
     </section>

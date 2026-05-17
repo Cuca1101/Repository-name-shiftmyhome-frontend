@@ -2,7 +2,7 @@ import { useLocation, useNavigate } from 'react-router-dom'
 
 /**
  * In-app anchor for homepage sections. Smooth-scrolls when already on `/`,
- * otherwise navigates to `/#sectionId` so the hash scroll effect can run.
+ * otherwise navigates to `/#sectionId` so HomeHashScroll can run after mount.
  *
  * @param {{ sectionId: string, children: import('react').ReactNode, className?: string, onNavigate?: () => void }} props
  */

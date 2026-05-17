@@ -1,10 +1,8 @@
 import PublicLayout from '../layouts/PublicLayout'
 import Hero from '../components/Hero'
-import HomeTrustRow from '../components/HomeTrustRow'
 import HeroServiceGrid from '../components/HeroServiceGrid'
-import HomeBenefitBar from '../components/HomeBenefitBar'
-import CustomerQuoteCalculator from '../components/CustomerQuoteCalculator'
-import WhyShiftMyHomeSection from '../components/WhyShiftMyHomeSection'
+import HowItWorksSection from '../components/HowItWorksSection'
+import AboutSection from '../components/AboutSection'
 import ReviewsSection from '../components/ReviewsSection'
 import FAQSection from '../components/FAQSection'
 import SupportCTASection from '../components/SupportCTASection'
@@ -17,11 +15,9 @@ export default function HomePage() {
     <PublicLayout>
       <div className="bg-white">
         <Hero />
-        <HomeTrustRow />
         <HeroServiceGrid />
-        <HomeBenefitBar />
-        <CustomerQuoteCalculator />
-        <WhyShiftMyHomeSection />
+        <HowItWorksSection />
+        <AboutSection />
         <ReviewsSection />
         <PricingPreview />
         <CoverageHomeSection />

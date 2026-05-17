@@ -16,7 +16,7 @@ export default function PaymentCancelledPage() {
             Back to home
           </Link>
           <a
-            href="/#quote"
+            href="/quote"
             className="inline-flex min-h-[48px] items-center justify-center rounded-xl border border-slate-200 bg-white px-8 py-3 text-sm font-semibold text-slate-800 shadow-sm transition hover:bg-slate-50"
           >
             Return to quote form
