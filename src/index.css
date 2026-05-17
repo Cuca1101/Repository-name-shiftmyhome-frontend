@@ -77,6 +77,30 @@
   }
 }
 
+/* Mobile homepage: 3×2 service grid (desktop restored from sm: 640px in components). */
+@media (max-width: 639px) {
+  .service-card-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  @media (max-width: 359px) {
+    .service-card-grid {
+      gap: 6px;
+    }
+  }
+
+  #quote .quote-wizard-layout {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 24%);
+    gap: 8px;
+  }
+
+  #quote .quote-route-map {
+    height: 88px !important;
+    min-height: 88px !important;
+  }
+}
+
 /* Admin: scale down cards/grids on narrow viewports without changing structure. */
 @media (max-width: 512px) {
   .admin-main-compact :is(h2) {

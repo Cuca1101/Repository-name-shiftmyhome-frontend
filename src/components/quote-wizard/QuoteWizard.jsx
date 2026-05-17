@@ -88,7 +88,7 @@ function QuoteWizardInner() {
         {loadingSettings ? (
           <p className="text-center text-slate-600">Loading…</p>
         ) : (
-          <div className="grid grid-cols-[minmax(0,1fr)_minmax(88px,30%)] items-start gap-2 xxs:grid-cols-[minmax(0,1fr)_minmax(96px,32%)] xxs:gap-2.5 xs:gap-3 mb:grid-cols-[minmax(0,1fr)_minmax(120px,34%)] sm:gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(260px,min(100%,360px))] lg:gap-10">
+          <div className="grid quote-wizard-layout grid-cols-[minmax(0,1fr)_minmax(0,24%)] items-start gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(200px,34%)] sm:gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(260px,min(100%,360px))] lg:gap-10">
             <div className="min-w-0">
               <div className="min-w-0 rounded-xl border border-slate-200 bg-white p-2 shadow-card xxs:rounded-2xl xxs:p-2.5 xs:p-3 sm:p-8">
                 {step === 1 && (

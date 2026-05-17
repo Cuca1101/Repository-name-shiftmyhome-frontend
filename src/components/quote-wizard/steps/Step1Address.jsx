@@ -54,9 +54,9 @@ export default function Step1Address({
     serviceTypeOptions.length > 0
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-4 sm:space-y-8">
       <div>
-        <h2 className="text-lg font-bold text-slate-900 sm:text-2xl">Address & access</h2>
+        <h2 className="text-sm font-bold text-slate-900 xxs:text-base sm:text-2xl">Address & access</h2>
         <p className="mt-1 text-sm text-slate-600">
           Where we’re collecting from and delivering to, plus access for planning.
         </p>

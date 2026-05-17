@@ -327,7 +327,7 @@ function QuoteRouteMapInner({
   const showMap = Boolean(token)
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-slate-200 bg-slate-100 shadow-card ring-1 ring-slate-100">
+    <div className="quote-route-map overflow-hidden rounded-lg border border-slate-200 bg-slate-100 shadow-card ring-1 ring-slate-100 sm:rounded-2xl">
       {!showMap ? (
         <div className="flex h-[100px] min-h-[100px] xxs:h-[110px] xxs:min-h-[110px] xs:h-[130px] xs:min-h-[130px] mb:h-[160px] mb:min-h-[160px] sm:h-[200px] sm:min-h-[200px] lg:h-[260px] lg:min-h-[260px] w-full items-center justify-center rounded-2xl bg-slate-50 px-4 text-center">
           <p className="text-sm leading-relaxed text-slate-700">{MSG_NO_TOKEN}</p>
