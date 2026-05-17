@@ -8,7 +8,7 @@ import Step2Inventory from './steps/Step2Inventory'
 import Step3Details from './steps/Step3Details'
 import Step4Review from './steps/Step4Review'
 
-function QuoteWizardInner() {
+function QuoteWizardInner({ compact = false }) {
   const {
     step,
     quoteRef,
@@ -42,7 +42,14 @@ function QuoteWizardInner() {
   const serviceTypeOptions = allowServiceChange ? [...SERVICE_TYPES] : undefined
 
   return (
-    <section id="quote" className="scroll-mt-24 border-t border-slate-200 bg-slate-50 py-4 xxs:py-5 sm:py-14">
+    <section
+      id="quote"
+      className={
+        compact
+          ? 'scroll-mt-20 bg-slate-50 py-3 xxs:py-4 sm:py-5'
+          : 'scroll-mt-24 border-t border-slate-200 bg-slate-50 py-4 xxs:py-5 sm:py-14'
+      }
+    >
       <div className="mx-auto min-w-0 w-full max-w-6xl px-2.5 xxs:px-3 xs:px-4 sm:px-6 lg:px-8">
         <div id="quote-wizard-top">
           <WizardProgress step={step} />
@@ -187,12 +194,12 @@ function QuoteWizardInner() {
 }
 
 /**
- * @param {{ serviceType: string, allowServiceChange?: boolean }} props
+ * @param {{ serviceType: string, allowServiceChange?: boolean, compact?: boolean }} props
  */
-export default function QuoteWizard({ serviceType, allowServiceChange = false }) {
+export default function QuoteWizard({ serviceType, allowServiceChange = false, compact = false }) {
   return (
     <QuoteWizardProvider serviceType={serviceType} allowServiceChange={allowServiceChange}>
-      <QuoteWizardInner />
+      <QuoteWizardInner compact={compact} />
     </QuoteWizardProvider>
   )
 }
