@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { fetchPricingSettings } from '../lib/data/pricingSettingsRepository'
-import QuotePageLink from './QuotePageLink'
+import HomeSectionLink from './HomeSectionLink'
 
 export default function PricingPreview() {
   const [loading, setLoading] = useState(true)
@@ -67,9 +67,12 @@ export default function PricingPreview() {
                 )}
               </p>
               <p className="mt-2 flex-1 text-sm text-slate-600">{sub}</p>
-              <QuotePageLink className="mt-6 inline-flex min-h-[48px] items-center justify-center rounded-full bg-brand-600 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-700">
+              <HomeSectionLink
+                sectionId="services"
+                className="mt-6 inline-flex min-h-[48px] items-center justify-center rounded-full bg-brand-600 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-700"
+              >
                 Get a quote
-              </QuotePageLink>
+              </HomeSectionLink>
             </li>
           ))}
         </ul>

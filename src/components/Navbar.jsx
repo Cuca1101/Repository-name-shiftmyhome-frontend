@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import Logo from './Logo'
 import HomeSectionLink from './HomeSectionLink'
-import QuotePageLink from './QuotePageLink'
 import { CONTACT } from '../config'
 import { useWebsiteCms } from '../context/WebsiteCmsContext'
 
@@ -123,12 +122,13 @@ export default function Navbar() {
             </span>
             <span className="whitespace-nowrap">{phoneDisplay}</span>
           </a>
-          <QuotePageLink
+          <HomeSectionLink
+            sectionId="services"
             className="btn-premium-primary min-h-[40px] px-4 py-2 text-sm sm:min-h-[42px] sm:px-5"
-            onClick={closeMenu}
+            onNavigate={closeMenu}
           >
             {ctaText}
-          </QuotePageLink>
+          </HomeSectionLink>
 
           <button
             type="button"
@@ -178,9 +178,13 @@ export default function Navbar() {
               </svg>
               {phoneDisplay}
             </a>
-            <QuotePageLink className="btn-premium-primary mt-2 min-h-[46px] w-full" onClick={closeMenu}>
+            <HomeSectionLink
+              sectionId="services"
+              className="btn-premium-primary mt-2 min-h-[46px] w-full"
+              onNavigate={closeMenu}
+            >
               {ctaText}
-            </QuotePageLink>
+            </HomeSectionLink>
           </div>
         </div>
       )}

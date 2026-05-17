@@ -1,6 +1,5 @@
 ﻿import HomeSectionLink from './HomeSectionLink'
 import HomeTrustRow from './HomeTrustRow'
-import QuotePageLink from './QuotePageLink'
 import { useWebsiteCms } from '../context/WebsiteCmsContext'
 import { DEFAULT_HOMEPAGE } from '../lib/websiteCmsDefaults'
 
@@ -30,12 +29,15 @@ export default function Hero() {
             </p>
 
             <div className="mt-5 flex flex-col gap-2.5 xs:flex-row xs:flex-wrap sm:mt-6">
-              <QuotePageLink className="btn-premium-primary min-h-[46px] w-full px-6 py-2.5 text-sm sm:w-auto sm:min-w-[200px] sm:text-[15px]">
+              <HomeSectionLink
+                sectionId="services"
+                className="btn-premium-primary min-h-[46px] w-full px-6 py-2.5 text-sm sm:w-auto sm:min-w-[200px] sm:text-[15px]"
+              >
                 {h.ctaPrimaryText}
                 <span aria-hidden className="text-white/90">
                   →
                 </span>
-              </QuotePageLink>
+              </HomeSectionLink>
               <HomeSectionLink
                 sectionId="how-it-works"
                 className="btn-premium-secondary min-h-[46px] w-full px-5 py-2.5 text-sm sm:w-auto sm:text-[15px]"

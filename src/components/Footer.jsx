@@ -14,7 +14,7 @@ const quickLinks = [
   { sectionId: 'reviews', label: 'Reviews' },
   { sectionId: 'coverage', label: 'Coverage' },
   { sectionId: 'contact', label: 'Contact' },
-  { to: '/quote', label: 'Get Free Quote' },
+  { sectionId: 'services', label: 'Get Free Quote' },
 ]
 
 const linkClass = 'text-slate-400 transition hover:text-brand-300'
