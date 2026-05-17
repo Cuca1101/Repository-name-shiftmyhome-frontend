@@ -2,6 +2,7 @@ import { Navigate, Route, Routes, useParams } from 'react-router-dom'
 import ProtectedRoute from './components/ProtectedRoute'
 import AdminLayout from './components/AdminLayout'
 import PublicLayout from './layouts/PublicLayout'
+import ServiceQuoteLayout from './layouts/ServiceQuoteLayout'
 import HomePage from './pages/HomePage'
 import QuotePage from './pages/QuotePage'
 import CoveragePage from './pages/CoveragePage'
@@ -106,9 +107,9 @@ export default function App() {
           key={path}
           path={path}
           element={
-            <PublicLayout>
+            <ServiceQuoteLayout>
               <ServiceQuotePage />
-            </PublicLayout>
+            </ServiceQuoteLayout>
           }
         />
       ))}

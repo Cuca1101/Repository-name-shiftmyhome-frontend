@@ -34,6 +34,8 @@ export function WebsiteCmsProvider({ children }) {
       try {
         const data = await fetchWebsiteCmsPublic()
         if (!cancelled) setCms(data)
+      } catch {
+        if (!cancelled) setCms(null)
       } finally {
         if (!cancelled) setLoading(false)
       }
