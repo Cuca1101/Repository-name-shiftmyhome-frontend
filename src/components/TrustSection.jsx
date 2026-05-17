@@ -18,11 +18,11 @@ export default function TrustSection() {
             Straightforward removals from a team that turns up on time and treats your home with respect.
           </p>
         </div>
-        <ul className="mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <ul className="mt-8 grid grid-cols-2 gap-3 xxs:gap-4 xs:mt-10 sm:mt-12 sm:gap-4 lg:grid-cols-3">
           {points.map(({ title, text }) => (
             <li
               key={title}
-              className="rounded-2xl border border-slate-200 bg-slate-50/80 p-6 shadow-card transition hover:border-brand-200 hover:shadow-card-hover"
+              className="rounded-xl border border-slate-200 bg-slate-50/80 p-3 shadow-card transition hover:border-brand-200 hover:shadow-card-hover xxs:p-3.5 xs:rounded-2xl sm:p-6"
             >
               <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-brand-600 text-white">
                 <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>

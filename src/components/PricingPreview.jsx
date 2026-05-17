@@ -52,14 +52,14 @@ export default function PricingPreview() {
             Honest ballpark figures — we&apos;ll confirm your exact quote once we know the details.
           </p>
         </div>
-        <ul className="mt-12 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+        <ul className="mt-8 grid grid-cols-2 gap-3 xxs:gap-4 xs:mt-10 sm:mt-12 sm:gap-5 lg:grid-cols-3 lg:gap-6">
           {tiers.map(({ title, priceLabel, sub }) => (
             <li
               key={title}
-              className="flex flex-col rounded-2xl border border-slate-200 bg-gradient-to-b from-brand-50/80 to-white p-6 text-center shadow-card ring-1 ring-slate-100"
+              className="flex flex-col rounded-xl border border-slate-200 bg-gradient-to-b from-brand-50/80 to-white p-3 text-center shadow-card ring-1 ring-slate-100 xxs:p-3.5 xs:rounded-2xl sm:p-6"
             >
-              <h3 className="text-lg font-semibold text-slate-900">{title}</h3>
-              <p className="mt-3 text-3xl font-bold tracking-tight text-brand-700">
+              <h3 className="text-sm font-semibold text-slate-900 xxs:text-base sm:text-lg">{title}</h3>
+              <p className="mt-2 text-xl font-bold tracking-tight text-brand-700 xxs:mt-2.5 xxs:text-2xl sm:mt-3 sm:text-3xl">
                 {loading ? (
                   <span className="inline-block h-9 w-24 animate-pulse rounded bg-slate-200" />
                 ) : (

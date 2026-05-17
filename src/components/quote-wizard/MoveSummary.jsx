@@ -58,10 +58,10 @@ export default function MoveSummary({
   )
 
   return (
-    <aside className="flex w-full min-w-0 flex-col gap-4 lg:sticky lg:top-24">
-      <div className="min-w-0 rounded-2xl border border-slate-200 bg-white p-3 shadow-card ring-1 ring-slate-100 sm:p-5">
-        <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Quote reference</p>
-        <p className="mt-1 font-mono text-lg font-bold text-brand-800">{quoteRef}</p>
+    <aside className="flex w-full min-w-0 flex-col gap-2 xxs:gap-2.5 xs:gap-3 lg:sticky lg:top-24 lg:gap-4">
+      <div className="min-w-0 rounded-lg border border-slate-200 bg-white p-2 shadow-card ring-1 ring-slate-100 xxs:p-2.5 xs:rounded-2xl sm:p-5">
+        <p className="text-[0.6rem] font-semibold uppercase tracking-wide text-slate-500 xxs:text-xs">Quote reference</p>
+        <p className="mt-0.5 font-mono text-sm font-bold text-brand-800 xxs:text-base sm:text-lg">{quoteRef}</p>
         <p className="mt-2 text-xs text-slate-500">Keep this handy when you speak to us.</p>
       </div>
 
@@ -74,9 +74,9 @@ export default function MoveSummary({
         onDistanceFromRoute={onDistanceFromRoute}
       />
 
-      <div className="min-w-0 rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-50 to-white p-3 shadow-card ring-1 ring-slate-100 sm:p-5">
-        <h3 className="text-sm font-bold text-slate-900">Move summary</h3>
-        <dl className="mt-4 space-y-4 text-sm">
+      <div className="min-w-0 rounded-lg border border-slate-200 bg-gradient-to-br from-slate-50 to-white p-2 shadow-card ring-1 ring-slate-100 xxs:p-2.5 xs:rounded-2xl sm:p-5">
+        <h3 className="text-xs font-bold text-slate-900 xxs:text-sm">Move summary</h3>
+        <dl className="mt-2 space-y-2 text-[0.7rem] xxs:mt-2.5 xxs:space-y-2.5 xxs:text-xs sm:mt-4 sm:space-y-4 sm:text-sm">
           <div>
             <dt className="text-xs font-semibold uppercase tracking-wide text-brand-700">Service</dt>
             <dd className="mt-0.5 font-medium text-slate-800">{serviceType}</dd>
@@ -141,7 +141,7 @@ export default function MoveSummary({
               </dd>
               {lineRowCount > 0 && (
                 <>
-                  <div className="mt-2 hidden max-h-56 overflow-auto rounded-lg border border-slate-200 bg-white p-2 md:block">
+                  <div className="mt-2 max-h-24 overflow-auto rounded-lg border border-slate-200 bg-white p-1.5 xxs:max-h-28 xs:max-h-32 sm:max-h-56 sm:p-2">
                     <ul className="space-y-1.5 text-xs leading-snug text-slate-700">
                       {inventoryLines.map((line) => {
                         const formatted = formatInventorySummaryLine(line)
@@ -156,26 +156,6 @@ export default function MoveSummary({
                       })}
                     </ul>
                   </div>
-                  <details className="mt-2 rounded-lg border border-slate-200 bg-white md:hidden">
-                    <summary className="cursor-pointer list-none px-3 py-2 text-xs font-semibold text-slate-700">
-                      View full inventory ({lineRowCount})
-                    </summary>
-                    <div className="max-h-64 overflow-auto border-t border-slate-100 p-2">
-                      <ul className="space-y-1.5 text-xs leading-snug text-slate-700">
-                        {inventoryLines.map((line) => {
-                          const formatted = formatInventorySummaryLine(line)
-                          return (
-                            <li key={line.lineId} className="flex items-start justify-between gap-2 border-b border-slate-100 pb-1 last:border-b-0">
-                              <span className="min-w-0 flex-1">
-                                {formatted.label} <span className="font-semibold">× {formatted.qty}</span>
-                              </span>
-                              <span className="shrink-0 tabular-nums text-slate-600">{formatted.volumeLabel}</span>
-                            </li>
-                          )
-                        })}
-                      </ul>
-                    </div>
-                  </details>
                 </>
               )}
             </div>

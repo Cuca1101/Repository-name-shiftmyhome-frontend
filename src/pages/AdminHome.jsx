@@ -45,8 +45,8 @@ export default function AdminHome() {
 
   return (
     <div className="space-y-8">
-      <div className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-sm sm:p-8">
-        <h2 className="text-xl font-bold tracking-tight text-slate-900 sm:text-2xl">Overview</h2>
+      <div className="admin-surface sm:p-6">
+        <h2 className="text-base font-bold tracking-tight text-slate-900 xxs:text-lg sm:text-2xl">Overview</h2>
         <p className="mt-2 max-w-2xl text-sm leading-relaxed text-slate-600">
           Snapshot of job cards from the live pricing flow.{' '}
           {legacyQuotes > 0 && (
@@ -72,20 +72,20 @@ export default function AdminHome() {
         </div>
       ) : (
         <>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <div className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm ring-1 ring-slate-900/5">
+          <div className="grid grid-cols-2 gap-2 xxs:gap-3 xs:gap-3.5 sm:gap-4 lg:grid-cols-4">
+            <div className="admin-surface">
               <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Total job cards</p>
-              <p className="mt-2 text-3xl font-bold tabular-nums text-slate-900">{stats.total}</p>
+              <p className="mt-1 text-xl font-bold tabular-nums text-slate-900 xxs:mt-1.5 xxs:text-2xl sm:mt-2 sm:text-3xl">{stats.total}</p>
             </div>
-            <div className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm ring-1 ring-slate-900/5">
+            <div className="admin-surface">
               <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">New</p>
               <p className="mt-2 text-3xl font-bold tabular-nums text-brand-600">{stats.byStatus.New ?? 0}</p>
             </div>
-            <div className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm ring-1 ring-slate-900/5">
+            <div className="admin-surface">
               <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Booked</p>
               <p className="mt-2 text-3xl font-bold tabular-nums text-emerald-600">{stats.byStatus.Booked ?? 0}</p>
             </div>
-            <div className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm ring-1 ring-slate-900/5">
+            <div className="admin-surface">
               <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Completed</p>
               <p className="mt-2 text-3xl font-bold tabular-nums text-slate-800">{stats.byStatus.Completed ?? 0}</p>
             </div>
@@ -98,7 +98,7 @@ export default function AdminHome() {
                 <code className="rounded-md bg-slate-100 px-1.5 py-0.5 text-xs">quotes</code> table — wizard &
                 online card payments.
               </p>
-              <dl className="mt-6 grid gap-6 sm:grid-cols-2 lg:grid-cols-5">
+              <dl className="mt-4 grid grid-cols-2 gap-3 xxs:gap-4 sm:mt-6 sm:gap-5 lg:grid-cols-5 lg:gap-6">
                 <div className="rounded-xl bg-slate-50/80 px-4 py-3">
                   <dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">Total leads</dt>
                   <dd className="mt-1 text-2xl font-bold tabular-nums text-slate-900">{quoteStats.total}</dd>

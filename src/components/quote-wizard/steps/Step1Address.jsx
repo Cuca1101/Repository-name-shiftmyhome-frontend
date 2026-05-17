@@ -23,7 +23,7 @@ const EXACT_HOUR_OPTIONS = Array.from({ length: 11 }, (_, i) => {
 const HAS_MAPBOX = Boolean(import.meta.env.VITE_MAPBOX_TOKEN)
 
 const input =
-  'min-h-[44px] w-full max-w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-base text-slate-900 shadow-sm outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/25 sm:min-h-[48px] sm:px-4'
+  'min-h-[38px] w-full max-w-full rounded-lg border border-slate-200 bg-white px-2 py-2 text-base text-slate-900 shadow-sm outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/25 xxs:min-h-[40px] xxs:px-2.5 xs:rounded-xl sm:min-h-[48px] sm:px-4'
 const label = 'mb-1.5 block text-sm font-medium text-slate-700'
 const field = 'min-w-0'
 const textAreaNoMap = `${input} min-h-[5.5rem] resize-y py-3`
@@ -91,7 +91,7 @@ export default function Step1Address({
         </div>
       )}
 
-      <div className="grid grid-cols-1 gap-x-8 gap-y-6 sm:grid-cols-2 sm:items-start">
+      <div className="grid grid-cols-2 gap-x-2 gap-y-3 xxs:gap-x-2.5 xxs:gap-y-3.5 xs:gap-x-3 ph:gap-x-4 sm:gap-x-8 sm:gap-y-6 sm:items-start">
         {HAS_MAPBOX ? (
           <>
             <MapboxAddressField

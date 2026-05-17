@@ -288,7 +288,7 @@ export default function Step2Inventory({
                     <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
                       {label}
                     </p>
-                    <ul className="mt-2 grid gap-3 sm:grid-cols-2">
+                    <ul className="mt-2 grid grid-cols-2 gap-2 xxs:gap-2.5 sm:gap-3">
                       {entries.map(({ item }) =>
                         renderCatalogRow(item, searchQuery.trim(), true),
                       )}
@@ -301,7 +301,7 @@ export default function Step2Inventory({
         ) : (
           <div>
             <h3 className="text-sm font-bold text-slate-900">{cat.label}</h3>
-            <ul className="mt-4 grid gap-3 sm:grid-cols-2">
+            <ul className="mt-4 grid grid-cols-2 gap-2 xxs:gap-2.5 sm:gap-3">
               {cat.items.map((item) => renderCatalogRow(item, '', false))}
             </ul>
           </div>

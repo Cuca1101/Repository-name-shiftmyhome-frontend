@@ -60,9 +60,42 @@
   }
 }
 
-/* Prevent page-level horizontal scroll; use overflow-x-auto on specific components when needed. */
+/* Preserve desktop-like structure on phones: tighter spacing, smaller type, no overflow. */
+@layer components {
+  .public-compact-section {
+    @apply py-8 xxs:py-10 sm:py-16 lg:py-24;
+  }
+
+  .admin-surface {
+    @apply rounded-xl border border-slate-200/80 bg-white p-3 shadow-sm xxs:p-4 sm:rounded-2xl sm:p-5;
+  }
+}
+
 @layer utilities {
   .clip-x {
     overflow-x: clip;
+  }
+}
+
+/* Admin: scale down cards/grids on narrow viewports without changing structure. */
+@media (max-width: 512px) {
+  .admin-main-compact :is(h2) {
+    font-size: 1.125rem;
+    line-height: 1.5rem;
+  }
+
+  .admin-main-compact :is(h3) {
+    font-size: 0.9375rem;
+    line-height: 1.375rem;
+  }
+
+  .admin-main-compact .text-3xl {
+    font-size: 1.5rem;
+    line-height: 2rem;
+  }
+
+  .admin-main-compact .text-2xl {
+    font-size: 1.25rem;
+    line-height: 1.75rem;
   }
 }

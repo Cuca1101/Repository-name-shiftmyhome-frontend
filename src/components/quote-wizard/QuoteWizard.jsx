@@ -42,8 +42,8 @@ function QuoteWizardInner() {
   const serviceTypeOptions = allowServiceChange ? [...SERVICE_TYPES] : undefined
 
   return (
-    <section id="quote" className="scroll-mt-24 border-t border-slate-200 bg-slate-50 py-6 sm:py-14">
-      <div className="mx-auto min-w-0 w-full max-w-6xl px-4 sm:px-6 lg:px-8">
+    <section id="quote" className="scroll-mt-24 border-t border-slate-200 bg-slate-50 py-4 xxs:py-5 sm:py-14">
+      <div className="mx-auto min-w-0 w-full max-w-6xl px-2.5 xxs:px-3 xs:px-4 sm:px-6 lg:px-8">
         <div id="quote-wizard-top">
           <WizardProgress step={step} />
         </div>
@@ -88,9 +88,9 @@ function QuoteWizardInner() {
         {loadingSettings ? (
           <p className="text-center text-slate-600">Loading…</p>
         ) : (
-          <div className="flex flex-col gap-6 lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(260px,min(100%,360px))] lg:items-start lg:gap-10">
+          <div className="grid grid-cols-[minmax(0,1fr)_minmax(88px,30%)] items-start gap-2 xxs:grid-cols-[minmax(0,1fr)_minmax(96px,32%)] xxs:gap-2.5 xs:gap-3 mb:grid-cols-[minmax(0,1fr)_minmax(120px,34%)] sm:gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(260px,min(100%,360px))] lg:gap-10">
             <div className="min-w-0">
-              <div className="min-w-0 rounded-2xl border border-slate-200 bg-white p-3 shadow-card sm:p-8">
+              <div className="min-w-0 rounded-xl border border-slate-200 bg-white p-2 shadow-card xxs:rounded-2xl xxs:p-2.5 xs:p-3 sm:p-8">
                 {step === 1 && (
                   <Step1Address
                     data={wizard}
@@ -131,19 +131,19 @@ function QuoteWizardInner() {
                 )}
 
                 {step < 4 && (
-                  <div className="mt-10 flex flex-col-reverse gap-3 sm:flex-row sm:justify-between">
+                  <div className="mt-4 flex flex-row flex-wrap justify-between gap-2 xxs:mt-5 sm:mt-10">
                     <button
                       type="button"
                       onClick={back}
                       disabled={step === 1}
-                      className="min-h-[52px] rounded-xl border border-slate-200 bg-white px-6 py-3 text-sm font-semibold text-slate-800 shadow-sm transition hover:bg-slate-50 disabled:opacity-40"
+                      className="min-h-[40px] rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-800 shadow-sm transition hover:bg-slate-50 disabled:opacity-40 xxs:min-h-[42px] xxs:px-4 xxs:text-sm sm:min-h-[52px] sm:rounded-xl sm:px-6 sm:py-3"
                     >
                       ← Back
                     </button>
                     <button
                       type="button"
                       onClick={next}
-                      className="min-h-[52px] rounded-xl bg-gradient-to-r from-brand-600 to-emerald-600 px-8 py-3 text-sm font-bold text-white shadow-md transition hover:from-brand-700 hover:to-emerald-700"
+                      className="min-h-[40px] rounded-lg bg-gradient-to-r from-brand-600 to-emerald-600 px-4 py-2 text-xs font-bold text-white shadow-md transition hover:from-brand-700 hover:to-emerald-700 xxs:min-h-[42px] xxs:px-5 xxs:text-sm sm:min-h-[52px] sm:rounded-xl sm:px-8 sm:py-3"
                     >
                       Continue →
                     </button>

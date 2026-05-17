@@ -232,7 +232,7 @@ export default function Step3Details({ data, onChange, fileInputRef }) {
         </div>
       </div>
 
-      <div className="grid gap-6 sm:grid-cols-2">
+      <div className="grid grid-cols-2 gap-3 xxs:gap-4 sm:gap-6">
         <label className="block sm:col-span-2">
           <span className={label}>Parking / vehicle access</span>
           <select
@@ -313,7 +313,7 @@ export default function Step3Details({ data, onChange, fileInputRef }) {
 
       <div className="rounded-2xl border border-brand-100 bg-gradient-to-br from-brand-50/40 to-white p-5 sm:p-6">
         <h3 className="text-sm font-bold text-slate-900">Your details</h3>
-        <div className="mt-4 grid gap-4 sm:grid-cols-2">
+        <div className="mt-4 grid grid-cols-2 gap-3 xxs:gap-4">
           <label className="block sm:col-span-2">
             <span className={label}>Full name</span>
             <input

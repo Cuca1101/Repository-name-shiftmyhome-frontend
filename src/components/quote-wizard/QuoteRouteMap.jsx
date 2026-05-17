@@ -26,7 +26,7 @@ class MapErrorBoundary extends Component {
   render() {
     if (this.state.hasError) {
       return (
-        <div className="h-[260px] min-h-[260px] w-full overflow-hidden rounded-2xl border border-slate-200 bg-slate-50 p-5 text-center shadow-card ring-1 ring-slate-100">
+        <div className="h-[100px] min-h-[100px] xxs:h-[110px] xxs:min-h-[110px] xs:h-[130px] xs:min-h-[130px] mb:h-[160px] mb:min-h-[160px] sm:h-[200px] sm:min-h-[200px] lg:h-[260px] lg:min-h-[260px] w-full overflow-hidden rounded-2xl border border-slate-200 bg-slate-50 p-5 text-center shadow-card ring-1 ring-slate-100">
           <p className="text-sm leading-relaxed text-slate-600">
             The map could not be displayed. You can still continue using manual distance in step 1.
           </p>
@@ -329,11 +329,11 @@ function QuoteRouteMapInner({
   return (
     <div className="overflow-hidden rounded-2xl border border-slate-200 bg-slate-100 shadow-card ring-1 ring-slate-100">
       {!showMap ? (
-        <div className="flex h-[260px] min-h-[260px] w-full items-center justify-center rounded-2xl bg-slate-50 px-4 text-center">
+        <div className="flex h-[100px] min-h-[100px] xxs:h-[110px] xxs:min-h-[110px] xs:h-[130px] xs:min-h-[130px] mb:h-[160px] mb:min-h-[160px] sm:h-[200px] sm:min-h-[200px] lg:h-[260px] lg:min-h-[260px] w-full items-center justify-center rounded-2xl bg-slate-50 px-4 text-center">
           <p className="text-sm leading-relaxed text-slate-700">{MSG_NO_TOKEN}</p>
         </div>
       ) : (
-        <div className="relative h-[260px] min-h-[260px] w-full overflow-hidden rounded-2xl">
+        <div className="relative h-[100px] min-h-[100px] xxs:h-[110px] xxs:min-h-[110px] xs:h-[130px] xs:min-h-[130px] mb:h-[160px] mb:min-h-[160px] sm:h-[200px] sm:min-h-[200px] lg:h-[260px] lg:min-h-[260px] w-full overflow-hidden rounded-2xl">
           <div ref={containerRef} className="h-full w-full" aria-label="Route map" />
 
           {overlay === 'calculating' && (
