@@ -3,5 +3,6 @@ dist
 .env
 .DS_Store
 
-# Accidental nested clone of this repo (must not be tracked as a submodule)
+# Accidental nested clones / deploy copies (must not be tracked as submodules)
 Repository-name-shiftmyhome-frontend/
+shiftmyhome-web-deploy/
