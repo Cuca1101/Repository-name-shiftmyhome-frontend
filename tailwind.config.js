@@ -15,6 +15,9 @@ export default {
           800: '#001233',
           900: '#000D26',
         },
+        surface: {
+          muted: '#F4F6F9',
+        },
         brand: {
           50: '#eff6ff',
           100: '#dbeafe',
@@ -32,13 +35,22 @@ export default {
       fontFamily: {
         sans: ['Inter', 'system-ui', 'Segoe UI', 'sans-serif'],
       },
+      maxWidth: {
+        site: '82rem',
+      },
       boxShadow: {
-        card: '0 4px 6px -1px rgb(0 0 0 / 0.06), 0 2px 4px -2px rgb(0 0 0 / 0.06)',
-        'card-hover': '0 10px 15px -3px rgb(0 0 0 / 0.08), 0 4px 6px -4px rgb(0 0 0 / 0.06)',
-        premium: '0 8px 30px -8px rgb(0 13 38 / 0.12), 0 4px 12px -4px rgb(0 13 38 / 0.08)',
+        card: '0 2px 8px -2px rgb(0 13 38 / 0.08), 0 1px 3px rgb(0 13 38 / 0.06)',
+        'card-hover':
+          '0 12px 28px -8px rgb(37 99 235 / 0.18), 0 8px 16px -6px rgb(0 13 38 / 0.1)',
+        premium: '0 4px 20px -4px rgb(0 13 38 / 0.1), 0 2px 8px -2px rgb(0 13 38 / 0.06)',
+        nav: '0 4px 24px -4px rgb(0 0 0 / 0.35)',
       },
       backgroundImage: {
-        'brand-gradient': 'linear-gradient(135deg, #2563eb 0%, #3b82f6 50%, #60a5fa 100%)',
+        'brand-gradient': 'linear-gradient(135deg, #1d4ed8 0%, #2563eb 45%, #3b82f6 100%)',
+        'brand-gradient-hover': 'linear-gradient(135deg, #1e40af 0%, #1d4ed8 50%, #2563eb 100%)',
+      },
+      transitionTimingFunction: {
+        premium: 'cubic-bezier(0.22, 1, 0.36, 1)',
       },
     },
   },

@@ -62,6 +62,50 @@
 
 /* Preserve desktop-like structure on phones: tighter spacing, smaller type, no overflow. */
 @layer components {
+  .home-container {
+    @apply mx-auto w-full min-w-0 max-w-site px-4 sm:px-6 lg:px-8;
+  }
+
+  .home-section {
+    @apply py-6 sm:py-8 lg:py-10;
+  }
+
+  .btn-premium {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl font-semibold transition-all duration-300 ease-premium;
+  }
+
+  .btn-premium-primary {
+    @apply btn-premium bg-brand-gradient text-white shadow-md shadow-brand-600/25 hover:bg-brand-gradient-hover hover:shadow-lg hover:shadow-brand-600/30 hover:-translate-y-0.5 active:translate-y-0;
+  }
+
+  .btn-premium-secondary {
+    @apply btn-premium border border-slate-200 bg-white text-slate-800 shadow-sm hover:border-brand-200 hover:bg-brand-50/50 hover:text-brand-700 hover:shadow-md;
+  }
+
+  .nav-logo-slab {
+    clip-path: polygon(0 0, calc(100% - 14px) 0, 100% 100%, 0 100%);
+  }
+
+  .service-card-image-fade {
+    background: linear-gradient(
+      90deg,
+      rgb(255 255 255) 0%,
+      rgb(255 255 255 / 0.92) 18%,
+      rgb(255 255 255 / 0.45) 42%,
+      transparent 68%
+    );
+  }
+
+  .hero-image-fade {
+    background: linear-gradient(
+      90deg,
+      rgb(255 255 255) 0%,
+      rgb(255 255 255 / 0.88) 22%,
+      rgb(255 255 255 / 0.35) 48%,
+      transparent 72%
+    );
+  }
+
   .public-compact-section {
     @apply py-8 xxs:py-10 sm:py-16 lg:py-24;
   }

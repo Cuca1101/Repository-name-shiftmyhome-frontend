@@ -1,60 +1,79 @@
 ﻿import HomeSectionLink from './HomeSectionLink'
+import HomeTrustRow from './HomeTrustRow'
 
 const HERO_IMAGE =
-  'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=1600&q=80'
-
-const btnPrimary =
-  'inline-flex min-h-[48px] items-center justify-center gap-2 rounded-full bg-gradient-to-r from-brand-600 to-brand-500 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-brand-600/25 transition hover:from-brand-700 hover:to-brand-600 sm:px-8 sm:text-base'
-const btnSecondary =
-  'inline-flex min-h-[48px] items-center justify-center gap-2 rounded-full border-2 border-brand-600 bg-white px-6 py-3 text-sm font-semibold text-brand-700 transition hover:bg-brand-50 sm:px-8 sm:text-base'
+  'https://images.unsplash.com/photo-1600585152915-d208bec867a1?auto=format&fit=crop&w=1800&h=1200&q=85'
 
 export default function Hero() {
   return (
-    <section id="home" className="scroll-mt-24 overflow-hidden bg-white">
-      <div className="mx-auto grid min-w-0 max-w-7xl lg:grid-cols-2 lg:items-center">
-        <div className="px-4 py-10 sm:px-6 sm:py-14 lg:px-8 lg:py-20">
-          <p className="text-sm font-semibold uppercase tracking-wide text-brand-600">Glasgow &amp; UK removals</p>
-          <h1 className="mt-3 text-balance text-3xl font-extrabold leading-tight tracking-tight text-slate-900 sm:text-4xl lg:text-5xl xl:text-[3.25rem]">
-            Moving made{' '}
-            <span className="bg-gradient-to-r from-brand-600 to-cyan-500 bg-clip-text text-transparent">simple.</span>
-            <br />
-            Stress-free{' '}
-            <span className="bg-gradient-to-r from-brand-600 to-cyan-500 bg-clip-text text-transparent">
-              from start to finish.
-            </span>
-          </h1>
-          <p className="mt-4 max-w-xl text-base leading-relaxed text-slate-600 sm:text-lg">
-            Professional movers. Reliable service. Get your instant quote in minutes.
-          </p>
-          <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
-            <HomeSectionLink sectionId="quote" className={btnPrimary}>
-              Get an Instant Quote
-              <span aria-hidden>→</span>
-            </HomeSectionLink>
-            <HomeSectionLink sectionId="how-it-works" className={btnSecondary}>
-              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-brand-100 text-brand-700" aria-hidden>
-                <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 24 24">
-                  <path d="M8 5v14l11-7z" />
-                </svg>
+    <section id="home" className="scroll-mt-[68px] overflow-hidden bg-white">
+      <div className="home-container">
+        <div className="grid min-w-0 items-center gap-6 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)] lg:gap-8 xl:gap-10">
+          <div className="py-6 sm:py-8 lg:py-10">
+            <h1 className="text-balance text-[1.75rem] font-extrabold leading-[1.12] tracking-tight text-navy sm:text-4xl lg:text-[2.65rem] lg:leading-[1.08]">
+              Moving made{' '}
+              <span className="bg-gradient-to-r from-brand-600 via-brand-500 to-cyan-500 bg-clip-text text-transparent">
+                simple.
               </span>
-              How it works
-            </HomeSectionLink>
+              <br />
+              <span className="text-slate-900">Stress-free </span>
+              <span className="bg-gradient-to-r from-brand-600 via-brand-500 to-cyan-500 bg-clip-text text-transparent">
+                from start to finish.
+              </span>
+            </h1>
+            <p className="mt-3 max-w-lg text-[15px] leading-relaxed text-slate-600 sm:mt-4 sm:text-base lg:text-[17px]">
+              Professional movers. Reliable service. Get your instant quote in minutes.
+            </p>
+
+            <div className="mt-5 flex flex-col gap-2.5 xs:flex-row xs:flex-wrap sm:mt-6">
+              <HomeSectionLink
+                sectionId="quote"
+                className="btn-premium-primary min-h-[46px] w-full px-6 py-2.5 text-sm sm:w-auto sm:min-w-[200px] sm:text-[15px]"
+              >
+                Get an Instant Quote
+                <span aria-hidden className="text-white/90">
+                  →
+                </span>
+              </HomeSectionLink>
+              <HomeSectionLink
+                sectionId="how-it-works"
+                className="btn-premium-secondary min-h-[46px] w-full px-5 py-2.5 text-sm sm:w-auto sm:text-[15px]"
+              >
+                <span
+                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-brand-100 text-brand-600"
+                  aria-hidden
+                >
+                  <svg className="h-3.5 w-3.5" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M8 5v14l11-7z" />
+                  </svg>
+                </span>
+                How it works
+              </HomeSectionLink>
+            </div>
+
+            <div className="mt-5 sm:mt-6">
+              <HomeTrustRow embedded />
+            </div>
           </div>
-        </div>
-        <div className="relative min-h-[240px] sm:min-h-[320px] lg:min-h-[520px]">
-          <div
-            className="absolute inset-0 bg-cover bg-center"
-            style={{ backgroundImage: `url(${HERO_IMAGE})` }}
-            role="img"
-            aria-label="Professional home removals"
-          />
-          <div
-            className="absolute inset-0 bg-gradient-to-r from-white via-white/80 to-transparent lg:from-white lg:via-white/40 lg:to-transparent"
-            aria-hidden
-          />
-          <div className="absolute inset-0 bg-gradient-to-t from-white/30 via-transparent to-transparent lg:hidden" aria-hidden />
+
+          <div className="relative mx-auto w-full max-w-xl lg:max-w-none">
+            <div className="relative aspect-[4/3] overflow-hidden rounded-2xl sm:aspect-[5/4] lg:aspect-auto lg:min-h-[380px] lg:rounded-none lg:rounded-l-2xl xl:min-h-[420px]">
+              <div
+                className="absolute inset-0 bg-cover bg-[center_42%] transition-transform duration-700 ease-premium lg:hover:scale-[1.02]"
+                style={{ backgroundImage: `url(${HERO_IMAGE})` }}
+                role="img"
+                aria-label="Professional home removals"
+              />
+              <div className="hero-image-fade absolute inset-0 lg:hidden" aria-hidden />
+              <div
+                className="absolute inset-0 hidden bg-gradient-to-r from-white via-white/75 to-transparent lg:block"
+                aria-hidden
+              />
+            </div>
+          </div>
         </div>
       </div>
     </section>
   )
 }
+
