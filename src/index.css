@@ -77,19 +77,8 @@
   }
 }
 
-/* Mobile homepage: 3×2 service grid (desktop restored from sm: 640px in components). */
+/* Mobile quote wizard: compact map + side-by-side layout. */
 @media (max-width: 639px) {
-  .service-card-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 8px;
-  }
-
-  @media (max-width: 359px) {
-    .service-card-grid {
-      gap: 6px;
-    }
-  }
-
   #quote .quote-wizard-layout {
     grid-template-columns: minmax(0, 1fr) minmax(0, 24%);
     gap: 8px;

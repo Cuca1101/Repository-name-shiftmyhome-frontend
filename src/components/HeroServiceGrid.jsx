@@ -1,53 +1,116 @@
+import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { SERVICE_PAGES } from '../constants/servicePages'
+import { fetchPricingSettings } from '../lib/data/pricingSettingsRepository'
 import { HouseIcon, iconBySlug } from './serviceIcons'
 
+/** Display titles on homepage cards (serviceType / routes unchanged). */
+const CARD_TITLES = {
+  'office-moves': 'Office Move',
+}
+
+const CARD_DESCRIPTIONS = {
+  'house-removals': 'Full or partial moves of any size.',
+  'man-with-van': 'Van & crew for smaller loads and quick jobs.',
+  'furniture-delivery': 'Bulky furniture moved safely with care.',
+  'office-moves': 'Office relocations planned around your business.',
+  'student-moves': 'Student & flat moves across Glasgow & beyond.',
+  clearance: 'Clearances with upfront pricing & disposal.',
+}
+
+function cardTitle(service) {
+  return CARD_TITLES[service.slug] ?? service.title
+}
+
+function cardDescription(service) {
+  return CARD_DESCRIPTIONS[service.slug] ?? service.heroTeaser
+}
+
 export default function HeroServiceGrid() {
+  const [settings, setSettings] = useState(null)
+
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      try {
+        const s = await fetchPricingSettings()
+        if (!cancelled) setSettings(s)
+      } catch {
+        if (!cancelled) setSettings(null)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  const priceByService = useMemo(() => {
+    const b = settings?.basePriceByService
+    if (!b) return {}
+    const out = {}
+    for (const s of SERVICE_PAGES) {
+      const v = b[s.serviceType]
+      out[s.slug] = typeof v === 'number' && Number.isFinite(v) ? `£${Math.round(v)}` : null
+    }
+    return out
+  }, [settings])
+
   return (
-    <div id="services" className="scroll-mt-24 w-full pt-2 pb-16 xxs:pt-2.5 xxs:pb-[4.25rem] sm:pt-6 sm:pb-0">
-      <ul className="service-card-grid mx-auto grid w-full min-w-0 max-w-6xl grid-cols-3 items-stretch gap-2 sm:grid-cols-2 sm:gap-6 lg:grid-cols-3 lg:gap-6">
-        {SERVICE_PAGES.map((service) => {
-          const Icon = iconBySlug[service.slug] ?? HouseIcon
-          return (
-            <li key={service.path} className="min-w-0 w-full">
-              <Link
-                to={service.path}
-                className="group relative flex h-[145px] w-full min-w-0 flex-col overflow-hidden rounded-2xl shadow-lg shadow-black/30 ring-1 ring-white/10 transition-[transform,box-shadow] duration-200 ease-out xxs:h-[150px] xs:h-[158px] ph:h-[165px] mb:h-[170px] sm:h-[250px] sm:rounded-2xl sm:hover:scale-[1.02] sm:hover:shadow-2xl sm:hover:shadow-brand-500/25 lg:h-[275px] lg:rounded-[1.25rem] lg:hover:scale-[1.03] focus-visible:outline focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-brand-950"
-              >
-                <div
-                  className="absolute inset-0 scale-100 bg-cover bg-center transition duration-500 ease-out sm:group-hover:scale-105"
-                  style={{ backgroundImage: `url(${service.heroImage})` }}
-                  role="presentation"
-                />
-                <div
-                  className="absolute inset-0 bg-gradient-to-b from-slate-950/75 via-slate-900/45 to-slate-950/90"
-                  aria-hidden
-                />
-                <div className="relative z-10 flex h-full min-h-0 flex-col p-2 sm:p-6 md:p-7">
-                  <div className="flex shrink-0 justify-start">
-                    <div className="flex h-[34px] w-[34px] items-center justify-center rounded-full border border-white/40 bg-white/20 p-1 text-white shadow-sm backdrop-blur-md xxs:h-9 xxs:w-9 xs:h-[38px] xs:w-[38px] sm:h-12 sm:w-12">
-                      <Icon className="h-3.5 w-3.5 xxs:h-4 xxs:w-4 xs:h-[18px] xs:w-[18px] sm:h-7 sm:w-7" />
+    <section id="services" className="scroll-mt-24 bg-white pb-12 pt-8 sm:pb-16 sm:pt-12">
+      <div className="mx-auto min-w-0 max-w-6xl px-4 sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-2xl text-center">
+          <h2 className="text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">Our removal services</h2>
+          <p className="mt-2 text-sm text-slate-600 sm:text-base">
+            Choose a service and get an instant quote — same trusted quote wizard on every page.
+          </p>
+        </div>
+
+        <ul className="mt-8 grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3 lg:gap-6">
+          {SERVICE_PAGES.map((service) => {
+            const Icon = iconBySlug[service.slug] ?? HouseIcon
+            const price = priceByService[service.slug]
+            return (
+              <li key={service.path} className="min-w-0">
+                <Link
+                  to={service.path}
+                  className="group flex h-full min-h-[280px] flex-col overflow-hidden rounded-2xl bg-white shadow-premium ring-1 ring-slate-200/80 transition hover:shadow-card-hover sm:min-h-[300px] sm:flex-row"
+                >
+                  <div className="flex min-w-0 flex-1 flex-col p-4 sm:p-5">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-xl border-2 border-brand-200 bg-brand-50 text-brand-600">
+                      <Icon className="h-5 w-5" />
                     </div>
-                  </div>
-                  <div className="flex min-h-0 flex-1 flex-col items-center justify-center px-0.5 text-center">
-                    <h3 className="line-clamp-2 text-balance text-[11px] font-bold leading-tight text-white drop-shadow-md xxs:text-xs ph:text-[13px] sm:text-lg md:text-[1.125rem]">
-                      {service.title}
+                    <h3 className="mt-3 text-base font-bold leading-snug text-slate-900 sm:text-lg">
+                      {cardTitle(service)}
                     </h3>
-                    <p className="mt-0.5 line-clamp-1 text-[9px] leading-tight text-white/90 xxs:text-[10px] sm:mt-2 sm:text-sm">
-                      {service.heroTeaser}
+                    <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-slate-600 sm:text-sm">
+                      {cardDescription(service)}
                     </p>
-                  </div>
-                  <div className="shrink-0 pt-1 sm:pt-2">
-                    <span className="flex min-h-[30px] w-full items-center justify-center rounded-full bg-gradient-to-r from-brand-600 via-brand-500 to-cyan-500 px-1.5 text-center text-[10px] font-bold tracking-wide text-white shadow-md transition duration-200 group-hover:shadow-lg group-hover:shadow-brand-400/40 xxs:min-h-[32px] xxs:text-[11px] sm:min-h-[48px] sm:px-3 sm:text-sm">
+                    {price ? (
+                      <p className="mt-2 text-sm font-bold text-brand-600 sm:text-base">From {price}</p>
+                    ) : (
+                      <p className="mt-2 text-sm font-semibold text-slate-400">Get a quote</p>
+                    )}
+                    <span className="mt-auto inline-flex min-h-[40px] w-full items-center justify-center gap-1 rounded-full bg-gradient-to-r from-brand-600 to-brand-500 px-4 py-2 text-xs font-bold text-white shadow-md transition group-hover:from-brand-700 sm:mt-4 sm:min-h-[44px] sm:text-sm">
                       Get a Quote
+                      <span aria-hidden>→</span>
                     </span>
                   </div>
-                </div>
-              </Link>
-            </li>
-          )
-        })}
-      </ul>
-    </div>
+                  <div
+                    className="relative h-28 shrink-0 bg-slate-100 sm:h-auto sm:w-[42%] sm:min-w-[140px]"
+                    aria-hidden
+                  >
+                    <div
+                      className="absolute inset-0 bg-cover bg-center transition duration-500 group-hover:scale-105"
+                      style={{ backgroundImage: `url(${service.heroImage})` }}
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-r from-white via-white/70 to-transparent sm:from-white sm:via-white/50" />
+                  </div>
+                </Link>
+              </li>
+            )
+          })}
+        </ul>
+      </div>
+    </section>
   )
 }
