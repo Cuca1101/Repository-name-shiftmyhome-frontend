@@ -1,6 +1,13 @@
 import scotlandCities from '../data/scotlandCities.json' with { type: 'json' }
 import { cityToSlug } from './citySlug.js'
 
+/** Cities with dedicated /man-with-van-{city} routes — others link to removals pages. */
+const MAN_WITH_VAN_CITY_SLUGS = new Set(
+  ['Glasgow', 'Edinburgh', 'Aberdeen', 'Dundee', 'Inverness', 'Stirling', 'Perth', 'Paisley', 'Falkirk', 'Livingston'].map(
+    cityToSlug,
+  ),
+)
+
 /**
  * Geographic neighbours for stronger internal linking (not exhaustive — fallback uses region peers).
  * @type {Record<string, string[]>}
@@ -11,7 +18,7 @@ export const NEARBY_CITIES = {
   Aberdeen: ['Stonehaven', 'Peterhead', 'Dundee', 'Inverness'],
   Dundee: ['Perth', 'Arbroath', 'Forfar', 'Edinburgh'],
   Inverness: ['Aviemore', 'Fort William', 'Nairn', 'Elgin'],
-  Stirling: ['Falkirk', 'Alloa', 'Cumbernauld', 'Glasgow'],
+  Stirling: ['Falkirk', 'Cumbernauld', 'Perth', 'Glasgow'],
   Perth: ['Dundee', 'Crieff', 'Blairgowrie', 'Stirling'],
   Paisley: ['Glasgow', 'Renfrew', 'Johnstone', 'Greenock'],
   Falkirk: ['Stirling', 'Livingston', 'Cumbernauld', 'Glasgow'],
@@ -26,7 +33,7 @@ const REGION_PEERS = {
   'greater-glasgow': ['Glasgow', 'Paisley', 'East Kilbride', 'Hamilton', 'Clydebank'],
   'edinburgh-lothians': ['Edinburgh', 'Musselburgh', 'Livingston', 'Dalkeith'],
   'lanarkshire': ['Hamilton', 'Motherwell', 'East Kilbride', 'Wishaw', 'Coatbridge'],
-  'fife': ['Dunfermline', 'Kirkcaldy', 'Glenrothes', 'St Andrews'],
+  'fife': ['Dunfermline', 'Kirkcaldy', 'Glenrothes', 'Edinburgh'],
   'tayside': ['Dundee', 'Perth', 'Arbroath', 'Forfar'],
   'north-east': ['Aberdeen', 'Peterhead', 'Stonehaven', 'Elgin'],
   highlands: ['Inverness', 'Fort William', 'Aviemore', 'Wick'],
@@ -66,7 +73,10 @@ export function buildNearbyLocationLinks(cityName, regionKey, linkKind = 'remova
 
   return [...names].slice(0, 6).map((name) => {
     const slug = cityToSlug(name)
-    const href = linkKind === 'man-with-van' ? `/man-with-van-${slug}` : `/${slug}-removals`
+    const href =
+      linkKind === 'man-with-van' && MAN_WITH_VAN_CITY_SLUGS.has(slug)
+        ? `/man-with-van-${slug}`
+        : `/${slug}-removals`
     return { href, label: name }
   })
 }

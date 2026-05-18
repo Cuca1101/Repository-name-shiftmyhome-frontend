@@ -281,6 +281,31 @@
     <priority>0.7</priority>
   </url>
   <url>
+    <loc>https://www.shiftmyhome.co.uk/furniture-movers-edinburgh</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://www.shiftmyhome.co.uk/furniture-movers-glasgow</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://www.shiftmyhome.co.uk/furniture-removals-edinburgh</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://www.shiftmyhome.co.uk/furniture-removals-glasgow</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://www.shiftmyhome.co.uk/furniture-transport-scotland</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
     <loc>https://www.shiftmyhome.co.uk/galashiels-removals</loc>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
@@ -394,6 +419,11 @@
     <loc>https://www.shiftmyhome.co.uk/lanark-removals</loc>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://www.shiftmyhome.co.uk/large-item-delivery-glasgow</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
   </url>
   <url>
     <loc>https://www.shiftmyhome.co.uk/largs-removals</loc>
@@ -651,6 +681,11 @@
     <priority>0.8</priority>
   </url>
   <url>
+    <loc>https://www.shiftmyhome.co.uk/same-day-furniture-delivery-glasgow</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
     <loc>https://www.shiftmyhome.co.uk/same-day-man-with-van-edinburgh</loc>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
@@ -676,6 +711,11 @@
     <priority>0.8</priority>
   </url>
   <url>
+    <loc>https://www.shiftmyhome.co.uk/single-furniture-item-delivery</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
     <loc>https://www.shiftmyhome.co.uk/single-item-delivery-edinburgh</loc>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
@@ -687,6 +727,11 @@
   </url>
   <url>
     <loc>https://www.shiftmyhome.co.uk/sofa-delivery-glasgow</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://www.shiftmyhome.co.uk/sofa-movers-glasgow</loc>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>

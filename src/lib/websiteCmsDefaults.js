@@ -24,7 +24,7 @@ export const DEFAULT_ABOUT = {
   paragraph1:
     'ShiftMyHome is a UK removals and transport platform helping customers book reliable moves with professional drivers, transparent pricing, and simple online quotes.',
   paragraph2:
-    'From house removals and man-with-van jobs to office relocations and clearances, we connect you with vetted crews who treat your belongings with care — and keep you informed from quote to completion.',
+    'From house removals and man with van jobs to office relocations and clearances, Shift My Home connects you with experienced movers across Scotland — a trusted removals platform that keeps you informed from quote to completion.',
   imageUrl: '/assets/about/about.png',
   trustCards: [
     {
@@ -63,7 +63,8 @@ export const DEFAULT_FOOTER = {
   phoneTel: CONTACT.phoneTel,
   email: CONTACT.email,
   ctaText: 'Get Free Quote',
-  tagline: 'Professional removals & transport across Scotland and the UK.',
+  tagline:
+    'ShiftMyHome — house removals, man with van and moving services across Scotland.',
   logoUrl: '/logo-footer.png',
   socialLinks: {
     whatsapp: 'https://wa.me/447466510975',

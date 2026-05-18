@@ -56,7 +56,7 @@ export default function Footer() {
   const email = cmsFooter.email || CONTACT.email
   const tagline =
     cmsFooter.tagline ||
-    'Professional removals, delivery, and man-with-van services from Glasgow. Whether you are moving home, shifting furniture, or need a reliable UK-wide relocation, we plan every job with care.'
+    'ShiftMyHome — house removals, man with van and moving services across Scotland.'
   const social = cmsFooter.socialLinks || {}
   const year = new Date().getFullYear()
   const [adminHref, setAdminHref] = useState('/admin/login')

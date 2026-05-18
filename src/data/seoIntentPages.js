@@ -986,4 +986,314 @@ export const INTENT_PAGE_DEFINITIONS = [
       { href: '/glasgow-removals', label: 'Glasgow removals' },
     ],
   },
+  // —— Furniture / van keyword coverage ——
+  {
+    path: '/furniture-removals-glasgow',
+    cityName: 'Glasgow',
+    regionLabel: 'Greater Glasgow',
+    serviceType: 'Furniture Delivery',
+    h1: 'Furniture Removals in Glasgow',
+    metaDescription:
+      'Furniture removals in Glasgow — sofas, beds, and home contents moved by experienced movers. ShiftMyHome instant quotes for removal van and man with van jobs.',
+    heroTeaser: 'Furniture removals with a proper removal van crew.',
+    intro:
+      'Furniture removals in Glasgow cover everything from a single wardrobe to multiple rooms of contents. ShiftMyHome quotes from your addresses and item list so the right removal van and movers are assigned.',
+    introSecondary:
+      'Whether you are reorganising rooms, moving flat, or collecting a marketplace purchase, our moving services include careful handling and Scotland-wide delivery when needed.',
+    serviceBullets: [
+      'Removal van and two-person crews',
+      'House contents and single items',
+      'Glasgow and Central Belt routes',
+    ],
+    faqs: [
+      {
+        q: 'What is the difference between furniture removals and house removals?',
+        a: 'Furniture removals often focus on selected items or partial loads. House removals typically cover fuller moves — the wizard prices either from your list.',
+      },
+      {
+        q: 'Do you provide a removal van and movers?',
+        a: 'Yes. Jobs include a suitable van and crew based on volume and access.',
+      },
+      {
+        q: 'Can you move furniture to storage?',
+        a: 'Yes — use storage as pickup or delivery in your quote.',
+      },
+    ],
+    extraRelated: [
+      { href: '/furniture-movers-glasgow', label: 'Furniture movers Glasgow' },
+      { href: '/sofa-delivery-glasgow', label: 'Sofa delivery Glasgow' },
+    ],
+  },
+  {
+    path: '/furniture-removals-edinburgh',
+    cityName: 'Edinburgh',
+    regionLabel: 'Edinburgh & the Lothians',
+    serviceType: 'Furniture Delivery',
+    h1: 'Furniture Removals in Edinburgh',
+    metaDescription:
+      'Furniture removals in Edinburgh for flats, tenements, and homes. Removal van, man with van, and moving services with instant ShiftMyHome quotes.',
+    heroTeaser: 'Edinburgh furniture removals — careful movers.',
+    intro:
+      'Furniture removals in Edinburgh need planning for stairs, parking, and Old Town access. We capture those details when you quote so movers arrive prepared.',
+    introSecondary:
+      'From student flats to family homes, ShiftMyHome provides removal company standards with transparent online pricing — no hidden fees when scope is agreed.',
+    serviceBullets: [
+      'Tenement and city-centre experience',
+      'Partial and full furniture moves',
+      'Edinburgh ↔ Glasgow and UK routes',
+    ],
+    faqs: [
+      {
+        q: 'Can you move furniture between Edinburgh addresses only?',
+        a: 'Yes — local furniture removals are common. Enter both postcodes for pricing.',
+      },
+      {
+        q: 'Do you offer man with van for furniture?',
+        a: 'Smaller loads may suit man with van; larger moves use a removal van and crew.',
+      },
+      {
+        q: 'Are weekend furniture moves available?',
+        a: 'Often yes — book early and note building access times.',
+      },
+    ],
+  },
+  {
+    path: '/furniture-movers-glasgow',
+    cityName: 'Glasgow',
+    regionLabel: 'Greater Glasgow',
+    serviceType: 'Furniture Delivery',
+    h1: 'Furniture Movers in Glasgow',
+    metaDescription:
+      'Professional furniture movers in Glasgow. ShiftMyHome — insured crews, removal van hire with helpers, and instant quotes for moving services.',
+    heroTeaser: 'Experienced furniture movers — not just a van.',
+    intro:
+      'Our furniture movers in Glasgow load, secure, and deliver with blankets and straps. You get a removal company service level whether you move one item or a full flat.',
+    introSecondary:
+      'ShiftMyHome is the same trusted removals platform customers search as Shift My Home — one quote flow for man with van, removal van, and house removals.',
+    serviceBullets: [
+      'Two-person furniture moving teams',
+      'Stairs, lifts, and parking planned upfront',
+      'Marketplace and shop collections',
+    ],
+    faqs: [
+      {
+        q: 'Do furniture movers assemble items?',
+        a: 'Basic assembly can be agreed in your quote notes where offered.',
+      },
+      {
+        q: 'How do I book furniture movers near me in Glasgow?',
+        a: 'Enter your Glasgow postcode and items in the online wizard for a live price.',
+      },
+      {
+        q: 'Is this the same as man and van near me?',
+        a: 'Man with van suits smaller jobs; larger furniture moves may need a bigger van and team.',
+      },
+    ],
+  },
+  {
+    path: '/furniture-movers-edinburgh',
+    cityName: 'Edinburgh',
+    regionLabel: 'Edinburgh & the Lothians',
+    serviceType: 'Furniture Delivery',
+    h1: 'Furniture Movers in Edinburgh',
+    metaDescription:
+      'Furniture movers in Edinburgh — reliable moving services for homes and flats. ShiftMyHome quotes online for removal van and man with van options.',
+    heroTeaser: 'Furniture movers who know Edinburgh access.',
+    intro:
+      'Furniture movers in Edinburgh from ShiftMyHome handle bulky items through tight stairwells and shared closes. Tell us what you are moving and we confirm crew size.',
+    introSecondary:
+      'We also run Scotland-wide furniture transport when your delivery leaves Edinburgh — one removal company contact for local and longer routes.',
+    serviceBullets: [
+      'Careful wrapping and securing',
+      'Flat, maisonette, and house moves',
+      'Shop and private seller pickup',
+    ],
+    faqs: [
+      {
+        q: 'Can furniture movers collect from IKEA Edinburgh?',
+        a: 'Yes — see our IKEA delivery page or quote with collection details.',
+      },
+      {
+        q: 'What areas do your movers cover?',
+        a: 'Edinburgh, the Lothians, and UK destinations from your quote.',
+      },
+      {
+        q: 'Are moves insured?',
+        a: 'Goods-in-transit cover applies on booked jobs.',
+      },
+    ],
+    extraRelated: [{ href: '/furniture-removals-edinburgh', label: 'Furniture removals Edinburgh' }],
+  },
+  {
+    path: '/sofa-movers-glasgow',
+    cityName: 'Glasgow',
+    regionLabel: 'Greater Glasgow',
+    serviceType: 'Furniture Delivery',
+    h1: 'Sofa Movers in Glasgow',
+    metaDescription:
+      'Sofa movers in Glasgow — two-person teams, removal van, and careful delivery upstairs. ShiftMyHome instant quotes for sofas and corner units.',
+    heroTeaser: 'Sofa movers for stairs and tight access.',
+    intro:
+      'Sofa movers in Glasgow need the right team for weight and shape. We quote from collection and delivery addresses plus notes on floors and doorways.',
+    introSecondary:
+      'Part of our furniture delivery and man with van moving services — ideal when you have bought privately or need a sofa moved between rooms.',
+    serviceBullets: [
+      'Two movers for heavy sofas',
+      'Corner sofas and sofa beds',
+      'Gumtree and marketplace pickup',
+    ],
+    faqs: [
+      {
+        q: 'Can you move a sofa upstairs in a Glasgow tenement?',
+        a: 'Often yes — describe stair flights and landings in your quote.',
+      },
+      {
+        q: 'Do you move sofas only without other furniture?',
+        a: 'Yes — single-item jobs are welcome.',
+      },
+      {
+        q: 'Can you dispose of an old sofa?',
+        a: 'Mention disposal in quote notes for options.',
+      },
+    ],
+    extraRelated: [{ href: '/sofa-delivery-glasgow', label: 'Sofa delivery Glasgow' }],
+  },
+  {
+    path: '/single-furniture-item-delivery',
+    cityName: 'Scotland',
+    regionLabel: 'Scotland-wide',
+    serviceType: 'Furniture Delivery',
+    h1: 'Single Furniture Item Delivery in Scotland',
+    metaDescription:
+      'Single furniture item delivery across Scotland — one sofa, bed, or appliance moved safely. ShiftMyHome man with van and removal van quotes online.',
+    heroTeaser: 'One item, one clear moving quote.',
+    intro:
+      'Single furniture item delivery is ideal when you only need a sofa, bed, table, or appliance moved. ShiftMyHome prices the job from your route and access, not a full house tariff.',
+    introSecondary:
+      'Available across Glasgow, Edinburgh, and wider Scotland — the same trusted removals platform used for larger house removals and office moves.',
+    serviceBullets: [
+      'One-item and few-item jobs',
+      'Scotland-wide collections',
+      'Removal van or man with van',
+    ],
+    faqs: [
+      {
+        q: 'Is there a minimum job size?',
+        a: 'No strict minimum — very small items may still need two people for stairs.',
+      },
+      {
+        q: 'Can you deliver from a retailer to my home?',
+        a: 'Yes — add shop collection and your delivery postcode.',
+      },
+      {
+        q: 'How quickly can you collect?',
+        a: 'Quote with your date — same-day may be available when crews are free.',
+      },
+    ],
+    extraRelated: [{ href: '/large-item-delivery-glasgow', label: 'Large item delivery Glasgow' }],
+  },
+  {
+    path: '/furniture-transport-scotland',
+    cityName: 'Scotland',
+    regionLabel: 'Scotland-wide',
+    serviceType: 'Furniture Delivery',
+    h1: 'Furniture Transport Across Scotland',
+    metaDescription:
+      'Furniture transport across Scotland — removal van routes between cities and rural addresses. ShiftMyHome moving services with instant online quotes.',
+    heroTeaser: 'Scotland-wide furniture transport.',
+    intro:
+      'Furniture transport across Scotland can mean Glasgow to Inverness, Edinburgh to Aberdeen, or a rural drop-off. We plan vehicle size and time from your item list and postcodes.',
+    introSecondary:
+      'ShiftMyHome combines local man with van jobs with longer removal van routes — useful for furniture removals between Scottish cities or into England.',
+    serviceBullets: [
+      'Inter-city Scotland routes',
+      'Removal van and crew',
+      'Shops, warehouses, and private sellers',
+    ],
+    faqs: [
+      {
+        q: 'Do you transport furniture UK-wide from Scotland?',
+        a: 'Yes — include full UK addresses in your quote.',
+      },
+      {
+        q: 'Can you move multiple items in one van load?',
+        a: 'Yes — list all pieces for accurate van allocation.',
+      },
+      {
+        q: 'How is furniture transport priced?',
+        a: 'Distance, volume, access, and date drive the live online quote.',
+      },
+    ],
+    extraRelated: [{ href: '/removals-scotland', label: 'Removals Scotland' }],
+  },
+  {
+    path: '/large-item-delivery-glasgow',
+    cityName: 'Glasgow',
+    regionLabel: 'Greater Glasgow',
+    serviceType: 'Furniture Delivery',
+    h1: 'Large Item Delivery in Glasgow',
+    metaDescription:
+      'Large item delivery in Glasgow — appliances, wardrobes, and bulky furniture. Removal van teams and man with van options from ShiftMyHome.',
+    heroTeaser: 'Bulky items moved with the right van.',
+    intro:
+      'Large item delivery in Glasgow covers washing machines, American fridges, wardrobes, and wide sofas. We confirm whether a standard van or larger removal van is needed.',
+    introSecondary:
+      'Our movers treat large items as part of professional moving services — straps, blankets, and two-person lifts where required.',
+    serviceBullets: [
+      'Appliances and wardrobes',
+      'Measurement notes welcomed',
+      'Glasgow and surrounding towns',
+    ],
+    faqs: [
+      {
+        q: 'Can you deliver a fridge freezer upstairs?',
+        a: 'Describe stairs and turns — crew size follows access.',
+      },
+      {
+        q: 'Do you disconnect appliances?',
+        a: 'Plumbing/electrical disconnect is usually customer-side unless agreed.',
+      },
+      {
+        q: 'What if the item does not fit?',
+        a: 'We assess from your notes; extremely tight access may need disassembly.',
+      },
+    ],
+  },
+  {
+    path: '/same-day-furniture-delivery-glasgow',
+    cityName: 'Glasgow',
+    regionLabel: 'Greater Glasgow',
+    serviceType: 'Furniture Delivery',
+    h1: 'Same Day Furniture Delivery in Glasgow',
+    metaDescription:
+      'Same day furniture delivery in Glasgow when crews are available. Urgent sofa and furniture moves — quote online with today’s date on ShiftMyHome.',
+    heroTeaser: 'Urgent furniture delivery when slots allow.',
+    intro:
+      'Same day furniture delivery in Glasgow depends on crew availability — quote with today’s date and full details for the fastest confirmation.',
+    introSecondary:
+      'Ideal for urgent marketplace buys or room changes. Smaller items may suit man with van; larger loads use a removal van team.',
+    serviceBullets: [
+      'Quote with today’s date',
+      'Sofas and single large items',
+      'Glasgow-wide coverage',
+    ],
+    faqs: [
+      {
+        q: 'Can you guarantee same day furniture delivery?',
+        a: 'We confirm after you quote — not guaranteed until accepted.',
+      },
+      {
+        q: 'What improves same day success?',
+        a: 'Morning quotes, complete addresses, and accurate item details help.',
+      },
+      {
+        q: 'Is same day more expensive?',
+        a: 'Short-notice dates can affect price — shown in your online quote.',
+      },
+    ],
+    extraRelated: [
+      { href: '/same-day-removals-glasgow', label: 'Same day removals' },
+      { href: '/sofa-delivery-glasgow', label: 'Sofa delivery' },
+    ],
+  },
 ]
