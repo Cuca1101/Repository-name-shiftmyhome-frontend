@@ -59,10 +59,10 @@ function DesktopQuoteNavbar() {
 export default function QuoteNavbar() {
   return (
     <>
-      <div className="block md:hidden">
+      <div className="block lg:hidden">
         <MobileNavbar />
       </div>
-      <div className="hidden md:block">
+      <div className="hidden lg:block">
         <DesktopQuoteNavbar />
       </div>
     </>

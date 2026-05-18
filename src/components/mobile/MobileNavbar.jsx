@@ -15,7 +15,7 @@ const navItems = [
   { sectionId: 'contact', label: 'Contact' },
 ]
 
-/** Compact mobile navbar (&lt; md) — logo, phone, CTA, drawer. */
+/** Compact mobile/tablet navbar (&lt; lg) — logo, phone icon, hamburger only; CTA in drawer. */
 export default function MobileNavbar() {
   const { navbar } = useWebsiteCms()
   const phoneTel = navbar.phoneTel || CONTACT.phoneTel
@@ -30,20 +30,20 @@ export default function MobileNavbar() {
   }, [pathname])
 
   return (
-    <header className="sticky top-0 z-50 bg-navy shadow-nav">
-      <nav className="flex min-h-[56px] min-w-0 items-center justify-between gap-2 px-3">
+    <header className="sticky top-0 z-50 w-full max-w-full overflow-x-hidden bg-navy shadow-nav">
+      <nav className="flex min-h-[56px] min-w-0 max-w-full items-center justify-between gap-2 px-3">
         <HomeSectionLink
           sectionId="home"
-          className="nav-logo-slab relative z-10 -ml-1 flex shrink-0 items-center bg-white py-1.5 pl-2.5 pr-5"
+          className="nav-logo-slab relative z-10 -ml-1 flex min-w-0 max-w-[min(58vw,12.5rem)] shrink items-center overflow-hidden bg-white py-1.5 pl-2 pr-4"
           onNavigate={closeMenu}
         >
-          <Logo asImage src={navbar.logoUrl || undefined} />
+          <Logo asImage className="max-w-full" src={navbar.logoUrl || undefined} />
         </HomeSectionLink>
 
-        <div className="flex min-w-0 shrink-0 items-center gap-1.5">
+        <div className="flex shrink-0 items-center gap-1.5">
           <a
             href={`tel:${phoneTel}`}
-            className="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-white/10 text-white ring-1 ring-white/15"
+            className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-white/10 text-white ring-1 ring-white/15"
             aria-label="Call us"
           >
             <svg className="h-4 w-4 text-brand-300" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" aria-hidden>
@@ -54,16 +54,9 @@ export default function MobileNavbar() {
               />
             </svg>
           </a>
-          <HomeSectionLink
-            sectionId="services"
-            className="btn-premium-primary hidden min-h-[40px] px-3 py-2 text-xs font-bold xs:inline-flex"
-            onNavigate={closeMenu}
-          >
-            {ctaText}
-          </HomeSectionLink>
           <button
             type="button"
-            className="inline-flex h-10 w-10 items-center justify-center rounded-lg text-white"
+            className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-white"
             aria-expanded={open}
             aria-label="Menu"
             onClick={() => setOpen((v) => !v)}
