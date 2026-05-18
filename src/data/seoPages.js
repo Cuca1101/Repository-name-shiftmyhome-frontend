@@ -1,9 +1,10 @@
 import scotlandCities from './scotlandCities.json' with { type: 'json' }
 import { cityToSlug } from '../lib/citySlug.js'
+import { INTENT_PAGE_DEFINITIONS } from './seoIntentPages.js'
 
 export const SEO_SITE_ORIGIN = 'https://www.shiftmyhome.co.uk'
 
-/** @typedef {'removals' | 'man-with-van' | 'office-removals' | 'student-moves' | 'furniture-delivery'} SeoPageKind */
+/** @typedef {'removals' | 'man-with-van' | 'office-removals' | 'student-moves' | 'furniture-delivery' | 'intent'} SeoPageKind */
 
 /**
  * @typedef {object} SeoFaqItem
@@ -357,6 +358,56 @@ function buildSeoPage(kind, cityName) {
   })
 }
 
+/**
+ * @param {import('./seoIntentPages.js').IntentPageDef} def
+ * @returns {SeoPageConfig}
+ */
+function buildIntentPage(def) {
+  const citySlug = def.cityName === 'Scotland' ? 'scotland' : cityToSlug(def.cityName)
+  const region = def.cityName === 'Scotland' ? DEFAULT_REGION : getRegion(def.cityName)
+  const title = `${def.h1} | ShiftMyHome — Instant Quote`
+
+  /** @type {SeoRelatedLink[]} */
+  const related = [...(def.extraRelated ?? [])]
+  if (def.cityName !== 'Scotland') {
+    related.push({ href: `/${citySlug}-removals`, label: `${def.cityName} removals` })
+    if (MAN_WITH_VAN_CITIES.includes(def.cityName)) {
+      related.push({ href: `/man-with-van-${citySlug}`, label: `Man with van ${def.cityName}` })
+    }
+  } else {
+    related.push({ href: '/glasgow-removals', label: 'Glasgow removals' }, { href: '/edinburgh-removals', label: 'Edinburgh removals' })
+  }
+  related.push(
+    { href: '/house-removals', label: 'House removals' },
+    { href: '/man-with-van', label: 'Man with van' },
+    { href: '/coverage', label: 'Coverage map' },
+  )
+
+  const relatedLinks = related
+    .filter((l, i, arr) => arr.findIndex((x) => x.href === l.href) === i && l.href !== def.path)
+    .slice(0, 8)
+
+  return {
+    path: def.path,
+    slug: def.path.slice(1),
+    kind: 'intent',
+    cityName: def.cityName,
+    citySlug,
+    regionKey: region.key,
+    regionLabel: def.regionLabel,
+    title,
+    metaDescription: def.metaDescription,
+    h1: def.h1,
+    intro: def.intro,
+    introSecondary: def.introSecondary,
+    serviceType: def.serviceType,
+    heroTeaser: def.heroTeaser,
+    serviceBullets: def.serviceBullets,
+    faqs: def.faqs,
+    relatedLinks,
+  }
+}
+
 /** @type {SeoPageConfig[]} */
 const removalsPages = scotlandCities.map((city) => buildSeoPage('removals', city))
 
@@ -368,7 +419,25 @@ const serviceCityPages = SERVICE_CITY_ROUTES.flatMap(({ kind, cities }) =>
   cities.map((city) => buildSeoPage(kind, city)),
 )
 
-export const ALL_SEO_PAGES = [...removalsPages, ...manWithVanPages, ...serviceCityPages]
+/** @type {SeoPageConfig[]} */
+const intentPages = INTENT_PAGE_DEFINITIONS.map(buildIntentPage)
+
+/** @param {SeoPageConfig[]} pages */
+function assertUniqueSeoPaths(pages) {
+  const paths = pages.map((p) => p.path)
+  const seen = new Set()
+  for (const path of paths) {
+    if (seen.has(path)) {
+      throw new Error(`Duplicate SEO path: ${path}`)
+    }
+    seen.add(path)
+  }
+}
+
+const ALL_SEO_PAGES_RAW = [...removalsPages, ...manWithVanPages, ...serviceCityPages, ...intentPages]
+assertUniqueSeoPaths(ALL_SEO_PAGES_RAW)
+
+export const ALL_SEO_PAGES = ALL_SEO_PAGES_RAW
 
 /** @type {Map<string, SeoPageConfig>} */
 const byPath = new Map(ALL_SEO_PAGES.map((p) => [p.path, p]))
