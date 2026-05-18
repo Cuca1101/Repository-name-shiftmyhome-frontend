@@ -1,5 +1,6 @@
 import scotlandCities from './scotlandCities.json' with { type: 'json' }
 import { cityToSlug } from '../lib/citySlug.js'
+import { buildNearbyLocationLinks, SCOTLAND_HUB_LINKS } from '../lib/seoNearbyAreas.js'
 import { INTENT_PAGE_DEFINITIONS } from './seoIntentPages.js'
 
 export const SEO_SITE_ORIGIN = 'https://www.shiftmyhome.co.uk'
@@ -37,7 +38,24 @@ export const SEO_SITE_ORIGIN = 'https://www.shiftmyhome.co.uk'
  * @property {string[]} serviceBullets
  * @property {SeoFaqItem[]} faqs
  * @property {SeoRelatedLink[]} relatedLinks
+ * @property {SeoRelatedLink[]} nearbyLocations
  */
+
+/** @type {Record<string, SeoRelatedLink[]>} */
+const CITY_INTENT_LINKS = {
+  Glasgow: [
+    { href: '/cheap-removals-glasgow', label: 'Affordable removals' },
+    { href: '/same-day-removals-glasgow', label: 'Same-day removals' },
+    { href: '/flat-removals-glasgow', label: 'Flat removals' },
+    { href: '/cheap-man-with-van-glasgow', label: 'Man with van' },
+  ],
+  Edinburgh: [
+    { href: '/affordable-removals-edinburgh', label: 'Affordable removals' },
+    { href: '/apartment-moves-edinburgh', label: 'Apartment moves' },
+    { href: '/moving-company-edinburgh', label: 'Moving company' },
+    { href: '/same-day-man-with-van-edinburgh', label: 'Same-day van' },
+  ],
+}
 
 const MAN_WITH_VAN_CITIES = [
   'Glasgow',
@@ -124,11 +142,40 @@ function buildIntro(cityName, region, kindLabel, variant) {
 /** @param {string} cityName @param {string} regionLabel @param {number} variant */
 function buildIntroSecondary(cityName, regionLabel, variant) {
   const lines = [
-    `Based in Glasgow, we combine local knowledge with UK-wide capability — ideal when your move starts or ends in ${cityName} (${regionLabel}).`,
-    `You receive a transparent online quote, insured transport, and professional movers who treat your belongings respectfully throughout the ${cityName} job.`,
-    `Need packing materials, extra hands, or a specific time window? Tell us in the quote wizard and we will shape the ${cityName} plan around your priorities.`,
+    `Based in Glasgow, we combine Scotland-wide coverage with local crews who know ${regionLabel}. Moves are fully insured on booked jobs, and same-day slots are sometimes available when you quote early.`,
+    `You receive a transparent online price, experienced movers, and clear updates before arrival. Tell us about stairs, parking, or fragile items so the ${cityName} crew arrives prepared.`,
+    `Need packing help, extra hands, or a specific time window? Add it in the quote wizard — we shape each ${cityName} job around your access and timing, not a generic checklist.`,
   ]
   return lines[variant % lines.length]
+}
+
+/**
+ * @param {string} cityName
+ * @param {ReturnType<typeof getRegion>} region
+ * @param {{ label: string }} meta
+ * @param {number} variant
+ */
+function buildMetaDescription(cityName, region, meta, variant) {
+  const templates = [
+    `${meta.label} in ${cityName} — instant online quote, insured crews, and experienced local drivers. Serving ${region.areaPhrase}. ShiftMyHome.`,
+    `Book ${meta.label} in ${cityName} (${region.label}). Transparent pricing, Scotland-wide coverage, and professional movers. Get your quote in minutes.`,
+    `ShiftMyHome ${meta.label} for ${cityName} homes and businesses. Fully insured transport, local knowledge, and UK routes. Quote online today.`,
+    `Looking for ${meta.label} near ${cityName}? We cover ${region.areaPhrase} with clear pricing and careful handling. Same-day availability when crews are free.`,
+  ]
+  return templates[variant % templates.length]
+}
+
+/**
+ * @param {{ titleSuffix: string }} meta
+ * @param {number} variant
+ */
+function buildPageTitle(meta, variant) {
+  const suffixes = [
+    `${meta.titleSuffix} | ShiftMyHome`,
+    `${meta.titleSuffix} — Instant Quote | ShiftMyHome`,
+    `${meta.titleSuffix} | Insured Movers | ShiftMyHome`,
+  ]
+  return suffixes[variant % suffixes.length]
 }
 
 /** @param {SeoPageKind} kind @param {string} cityName */
@@ -217,6 +264,10 @@ function buildFaqs(kind, cityName, region) {
       q: 'Are moves fully insured?',
       a: 'Goods-in-transit cover applies on booked jobs. Share high-value or fragile items in your quote so we can confirm the right approach.',
     },
+    {
+      q: `Can I get a same-day move in ${cityName}?`,
+      a: 'Same-day availability depends on crew schedules — quote with your preferred date and we confirm honestly if we can help.',
+    },
   ]
   if (kind === 'man-with-van') {
     return [
@@ -263,47 +314,49 @@ function buildFaqs(kind, cityName, region) {
   ]
 }
 
-/** @param {string} cityName @param {string} citySlug @param {SeoPageKind} kind @param {string} path */
+/** @param {SeoRelatedLink[]} links @param {SeoRelatedLink} item @param {string} [excludePath] */
+function pushLink(links, item, excludePath) {
+  if (item.href === excludePath) return
+  if (links.some((l) => l.href === item.href)) return
+  links.push(item)
+}
+
+/**
+ * @param {string} cityName
+ * @param {string} citySlug
+ * @param {SeoPageKind} kind
+ * @param {string} path
+ */
 function buildRelatedLinks(cityName, citySlug, kind, path) {
   /** @type {SeoRelatedLink[]} */
   const links = []
-  const idx = scotlandCities.indexOf(cityName)
 
-  const neighbours = []
-  for (let offset = 1; offset <= 4; offset += 1) {
-    const a = scotlandCities[(idx + offset) % scotlandCities.length]
-    const b = scotlandCities[(idx - offset + scotlandCities.length) % scotlandCities.length]
-    if (a !== cityName) neighbours.push(a)
-    if (b !== cityName && neighbours.length < 4) neighbours.push(b)
-  }
-
-  neighbours.slice(0, 3).forEach((name) => {
-    const slug = cityToSlug(name)
-    if (kind === 'removals') {
-      links.push({ href: `/${slug}-removals`, label: `${name} removals` })
-    }
-  })
-
-  if (kind !== 'man-with-van' && MAN_WITH_VAN_CITIES.includes(cityName)) {
-    links.push({ href: `/man-with-van-${citySlug}`, label: `Man with van ${cityName}` })
-  }
   if (kind !== 'removals') {
-    links.push({ href: `/${citySlug}-removals`, label: `${cityName} removals` })
+    pushLink(links, { href: `/${citySlug}-removals`, label: `${cityName} removals` }, path)
+  }
+  if (kind !== 'man-with-van' && MAN_WITH_VAN_CITIES.includes(cityName)) {
+    pushLink(links, { href: `/man-with-van-${citySlug}`, label: `Man with van ${cityName}` }, path)
   }
   if (cityName === 'Glasgow' || cityName === 'Edinburgh') {
-    if (kind !== 'office-removals') links.push({ href: `/office-removals-${citySlug}`, label: `Office removals ${cityName}` })
-    if (kind !== 'student-moves') links.push({ href: `/student-moves-${citySlug}`, label: `Student moves ${cityName}` })
-    if (kind !== 'furniture-delivery') links.push({ href: `/furniture-delivery-${citySlug}`, label: `Furniture delivery ${cityName}` })
+    if (kind !== 'office-removals') {
+      pushLink(links, { href: `/office-removals-${citySlug}`, label: `Office removals ${cityName}` }, path)
+    }
+    if (kind !== 'student-moves') {
+      pushLink(links, { href: `/student-moves-${citySlug}`, label: `Student moves ${cityName}` }, path)
+    }
+    if (kind !== 'furniture-delivery') {
+      pushLink(links, { href: `/furniture-delivery-${citySlug}`, label: `Furniture delivery ${cityName}` }, path)
+    }
+    ;(CITY_INTENT_LINKS[cityName] ?? []).slice(0, 2).forEach((l) => pushLink(links, l, path))
   }
 
-  links.push(
-    { href: '/house-removals', label: 'House removals' },
-    { href: '/man-with-van', label: 'Man with van' },
-    { href: '/coverage', label: 'Coverage map' },
-    { href: '/#contact', label: 'Contact' },
-  )
+  pushLink(links, { href: '/removals-scotland', label: 'Removals Scotland' }, path)
+  pushLink(links, { href: '/house-removals', label: 'House removals' }, path)
+  pushLink(links, { href: '/man-with-van', label: 'Man with van' }, path)
+  pushLink(links, { href: '/coverage', label: 'Coverage map' }, path)
+  SCOTLAND_HUB_LINKS.slice(0, 1).forEach((l) => pushLink(links, l, path))
 
-  return links.filter((l, i, arr) => arr.findIndex((x) => x.href === l.href) === i && l.href !== path).slice(0, 8)
+  return links.slice(0, 10)
 }
 
 /**
@@ -334,8 +387,7 @@ function buildSeoPage(kind, cityName) {
       path = `/${citySlug}-removals`
   }
 
-  const title = `${meta.titleSuffix} | ShiftMyHome — Instant Quote`
-  const metaDescription = `Book ${meta.label} in ${cityName}, ${region.label}. Insured crews, transparent pricing, and an instant online quote from ShiftMyHome. Serving ${region.areaPhrase}.`
+  const linkKind = kind === 'man-with-van' ? 'man-with-van' : 'removals'
 
   return /** @type {SeoPageConfig} */ ({
     path,
@@ -345,8 +397,8 @@ function buildSeoPage(kind, cityName) {
     citySlug,
     regionKey: region.key,
     regionLabel: region.label,
-    title,
-    metaDescription,
+    title: buildPageTitle(meta, variant),
+    metaDescription: buildMetaDescription(cityName, region, meta, variant + 2),
     h1: meta.h1,
     intro: buildIntro(cityName, region, meta.label, variant),
     introSecondary: buildIntroSecondary(cityName, region.label, variant + 1),
@@ -355,6 +407,7 @@ function buildSeoPage(kind, cityName) {
     serviceBullets: meta.bullets,
     faqs: buildFaqs(kind, cityName, region),
     relatedLinks: buildRelatedLinks(cityName, citySlug, kind, path),
+    nearbyLocations: buildNearbyLocationLinks(cityName, region.key, linkKind),
   })
 }
 
@@ -365,27 +418,33 @@ function buildSeoPage(kind, cityName) {
 function buildIntentPage(def) {
   const citySlug = def.cityName === 'Scotland' ? 'scotland' : cityToSlug(def.cityName)
   const region = def.cityName === 'Scotland' ? DEFAULT_REGION : getRegion(def.cityName)
-  const title = `${def.h1} | ShiftMyHome — Instant Quote`
+  const variant = pickVariant(def.path, 17)
 
   /** @type {SeoRelatedLink[]} */
-  const related = [...(def.extraRelated ?? [])]
+  const related = []
+  ;(def.extraRelated ?? []).forEach((l) => pushLink(related, l, def.path))
   if (def.cityName !== 'Scotland') {
-    related.push({ href: `/${citySlug}-removals`, label: `${def.cityName} removals` })
+    pushLink(related, { href: `/${citySlug}-removals`, label: `${def.cityName} removals` }, def.path)
     if (MAN_WITH_VAN_CITIES.includes(def.cityName)) {
-      related.push({ href: `/man-with-van-${citySlug}`, label: `Man with van ${def.cityName}` })
+      pushLink(related, { href: `/man-with-van-${citySlug}`, label: `Man with van ${def.cityName}` }, def.path)
     }
+    ;(CITY_INTENT_LINKS[def.cityName] ?? []).forEach((l) => pushLink(related, l, def.path))
   } else {
-    related.push({ href: '/glasgow-removals', label: 'Glasgow removals' }, { href: '/edinburgh-removals', label: 'Edinburgh removals' })
+    pushLink(related, { href: '/glasgow-removals', label: 'Glasgow removals' }, def.path)
+    pushLink(related, { href: '/edinburgh-removals', label: 'Edinburgh removals' }, def.path)
+    SCOTLAND_HUB_LINKS.forEach((l) => pushLink(related, l, def.path))
   }
-  related.push(
-    { href: '/house-removals', label: 'House removals' },
-    { href: '/man-with-van', label: 'Man with van' },
-    { href: '/coverage', label: 'Coverage map' },
-  )
+  pushLink(related, { href: '/house-removals', label: 'House removals' }, def.path)
+  pushLink(related, { href: '/man-with-van', label: 'Man with van' }, def.path)
+  pushLink(related, { href: '/coverage', label: 'Coverage map' }, def.path)
+  pushLink(related, { href: '/removals-scotland', label: 'Removals Scotland' }, def.path)
 
-  const relatedLinks = related
-    .filter((l, i, arr) => arr.findIndex((x) => x.href === l.href) === i && l.href !== def.path)
-    .slice(0, 8)
+  const mvw = def.serviceType === 'Man with Van'
+  const nearbyLocations = buildNearbyLocationLinks(
+    def.cityName,
+    region.key,
+    mvw ? 'man-with-van' : 'removals',
+  )
 
   return {
     path: def.path,
@@ -395,7 +454,7 @@ function buildIntentPage(def) {
     citySlug,
     regionKey: region.key,
     regionLabel: def.regionLabel,
-    title,
+    title: buildPageTitle({ titleSuffix: def.h1 }, variant),
     metaDescription: def.metaDescription,
     h1: def.h1,
     intro: def.intro,
@@ -404,7 +463,8 @@ function buildIntentPage(def) {
     heroTeaser: def.heroTeaser,
     serviceBullets: def.serviceBullets,
     faqs: def.faqs,
-    relatedLinks,
+    relatedLinks: related.slice(0, 10),
+    nearbyLocations,
   }
 }
 
