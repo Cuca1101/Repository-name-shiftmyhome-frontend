@@ -37,9 +37,9 @@ export default function MobileServiceGrid() {
                 <Link
                   to={card.path}
                   onClick={() => onServiceCardClick(card)}
-                  className="group service-card-shell"
+                  className="group service-card-shell h-full"
                 >
-                  <div className="relative aspect-[4/5] w-full min-h-[124px]">
+                  <div className="relative flex min-h-[142px] w-full flex-1 flex-col">
                     <img
                       src={card.imageSrc}
                       alt=""
@@ -47,25 +47,30 @@ export default function MobileServiceGrid() {
                       decoding="async"
                       className="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.04]"
                     />
-                    <div className="service-card-media-overlay absolute inset-0" aria-hidden />
-                    <div className="relative flex h-full flex-col p-2.5 pb-2">
-                      <div className="service-card-icon-badge h-8 w-8">
+                    <div
+                      className="service-card-media-overlay service-card-media-overlay--mobile absolute inset-0"
+                      aria-hidden
+                    />
+                    <div className="relative z-10 flex min-h-0 flex-1 flex-col p-2.5 pt-2">
+                      <div className="service-card-icon-badge h-8 w-8 shrink-0">
                         <Icon className="h-3.5 w-3.5" aria-hidden />
                       </div>
-                      <div className="mt-auto min-w-0 space-y-0.5">
-                        <h3 className="text-[13px] font-bold leading-tight text-white">{card.title}</h3>
-                        <p className="line-clamp-2 text-[10px] leading-snug text-white/88">
+                      <div className="mt-2 flex min-h-[4.85rem] flex-1 flex-col justify-end gap-1 pb-0.5">
+                        <h3 className="text-[13px] font-bold leading-tight text-white drop-shadow-[0_1px_3px_rgba(0,0,0,0.85)]">
+                          {card.title}
+                        </h3>
+                        <p className="line-clamp-3 text-[11px] leading-snug text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]">
                           {card.description}
                         </p>
                         {card.price ? (
-                          <p className="text-[10px] font-semibold text-sky-200">
-                            From <span className="font-bold text-white">{card.price}</span>
+                          <p className="text-[10px] font-semibold text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.75)]">
+                            From <span className="font-bold text-sky-100">{card.price}</span>
                           </p>
                         ) : null}
                       </div>
                     </div>
                   </div>
-                  <div className="p-2 pt-1.5">
+                  <div className="shrink-0 p-2 pt-1.5">
                     <span className="service-card-cta min-h-[44px] text-[11px] leading-tight">
                       {ctaLabel}
                       <span className="shrink-0 opacity-90" aria-hidden>

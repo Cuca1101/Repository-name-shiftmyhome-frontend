@@ -110,6 +110,32 @@
     );
   }
 
+  /* Mobile service grid — stronger lower overlay so title/description stay readable */
+  @media (max-width: 767px) {
+    .service-card-media-overlay--mobile {
+      background: linear-gradient(
+        180deg,
+        rgb(30 58 138 / 0.12) 0%,
+        rgb(15 23 42 / 0.5) 38%,
+        rgb(2 6 23 / 0.9) 68%,
+        rgb(2 6 23 / 0.98) 100%
+      );
+    }
+  }
+
+  /* Desktop service grid — readable text over image, CTA sits in footer */
+  @media (min-width: 768px) {
+    .service-card-media-overlay--desktop {
+      background: linear-gradient(
+        180deg,
+        rgb(30 58 138 / 0.14) 0%,
+        rgb(15 23 42 / 0.48) 40%,
+        rgb(2 6 23 / 0.88) 68%,
+        rgb(2 6 23 / 0.97) 100%
+      );
+    }
+  }
+
   .service-card-icon-badge {
     @apply flex shrink-0 items-center justify-center rounded-xl border border-sky-200/35 text-white shadow-lg shadow-blue-950/40 backdrop-blur-sm;
     background: linear-gradient(145deg, rgb(29 78 216 / 0.95) 0%, rgb(6 182 212 / 0.88) 100%);
