@@ -79,7 +79,18 @@ function QuoteWizardInner({ compact = false }) {
   }
 
   const stepNavButtons =
-    step < 4 ? (
+    step === 4 ? (
+      <div className="mt-6 hidden border-t border-slate-200 pt-6 md:flex md:justify-start">
+        <button
+          type="button"
+          onClick={back}
+          className="inline-flex min-h-[52px] items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-6 py-3 text-sm font-semibold text-slate-800 shadow-sm transition hover:border-slate-300 hover:bg-slate-50"
+        >
+          <span aria-hidden>←</span>
+          Back
+        </button>
+      </div>
+    ) : step < 4 ? (
       <div className="mt-4 hidden flex-row flex-wrap justify-between gap-2 sm:mt-10 md:flex">
         <button
           type="button"
@@ -154,6 +165,7 @@ function QuoteWizardInner({ compact = false }) {
           onClearCardPayment={clearCardPayment}
           onPay={handlePay}
           onGoToStep={goToStep}
+          onBack={back}
         />
       )}
       {stepNavButtons}

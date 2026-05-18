@@ -3,8 +3,18 @@ import { HouseIcon, iconBySlug } from '../serviceIcons'
 import { useWebsiteCms } from '../../context/WebsiteCmsContext'
 import { DEFAULT_HOMEPAGE } from '../../lib/websiteCmsDefaults'
 import { useServiceGridCards } from '../../hooks/useServiceGridCards'
+import { markNewQuoteFromServiceCard } from '../../lib/quoteSessionMode'
+import { trackWebsiteLeadEvent } from '../../lib/websiteLeadTracker'
 
-/** Desktop service cards — unchanged grid (md+). */
+function onServiceCardClick(card) {
+  markNewQuoteFromServiceCard(card.serviceType || '', card.path)
+  trackWebsiteLeadEvent('new_quote_from_service', {
+    serviceType: card.serviceType,
+    returnPath: card.path,
+  })
+}
+
+/** Desktop service cards — grid (md+). */
 export default function DesktopServiceGrid() {
   const { homepage } = useWebsiteCms()
   const h = homepage ?? DEFAULT_HOMEPAGE
@@ -25,44 +35,43 @@ export default function DesktopServiceGrid() {
         <ul className="grid grid-cols-1 items-stretch gap-4 sm:grid-cols-2 sm:gap-4 lg:grid-cols-3 lg:gap-5">
           {cards.map((card) => {
             const Icon = iconBySlug[card.slug] ?? HouseIcon
+            const ctaLabel = card.buttonText?.trim() || 'Get a Quote'
             return (
               <li key={card.key} className="flex min-w-0">
                 <Link
                   to={card.path}
-                  className="group relative flex h-[300px] w-full min-w-0 overflow-hidden rounded-2xl shadow-premium ring-1 ring-slate-900/10 transition-all duration-300 ease-premium hover:-translate-y-1.5 hover:shadow-card-hover sm:h-[320px] lg:h-[340px]"
+                  onClick={() => onServiceCardClick(card)}
+                  className="group service-card-shell relative h-[300px] sm:h-[320px] lg:h-[340px]"
                 >
                   <img
                     src={card.imageSrc}
                     alt={card.title}
                     loading="lazy"
                     decoding="async"
-                    className="absolute inset-0 h-full w-full object-cover object-center transition-transform duration-500 ease-premium group-hover:scale-[1.06]"
+                    className="absolute inset-0 h-full w-full object-cover object-center transition-transform duration-500 ease-premium group-hover:scale-[1.05]"
                   />
-                  <div
-                    className="pointer-events-none absolute inset-0 bg-gradient-to-t from-slate-950/95 via-slate-900/70 to-slate-900/25"
-                    aria-hidden
-                  />
-                  <div
-                    className="pointer-events-none absolute inset-0 bg-gradient-to-br from-brand-900/20 via-transparent to-transparent opacity-80"
-                    aria-hidden
-                  />
+                  <div className="service-card-media-overlay pointer-events-none absolute inset-0" aria-hidden />
                   <div className="relative z-10 flex h-full w-full flex-col p-4 sm:p-5">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/30 bg-white/15 text-white shadow-lg backdrop-blur-md sm:h-11 sm:w-11">
+                    <div className="service-card-icon-badge h-10 w-10 sm:h-11 sm:w-11">
                       <Icon className="h-5 w-5 sm:h-[22px] sm:w-[22px]" aria-hidden />
                     </div>
-                    <div className="mt-auto">
-                      <h3 className="text-lg font-bold leading-tight text-white sm:text-xl">{card.title}</h3>
-                      <p className="mt-1.5 line-clamp-2 text-sm leading-snug text-white/85">{card.description}</p>
-                      {card.price ? (
-                        <p className="mt-2 text-base font-bold text-white">
-                          From <span className="text-brand-300">{card.price}</span>
-                        </p>
-                      ) : (
-                        <p className="mt-2 text-sm font-semibold text-white/70">Instant online quote</p>
-                      )}
-                      <span className="btn-premium-primary mt-3 w-full min-h-[40px] px-4 py-2.5 text-xs shadow-lg shadow-brand-900/40 transition-shadow group-hover:shadow-xl group-hover:shadow-brand-600/40 sm:min-h-[42px] sm:text-sm">
-                        {card.buttonText}
-                        <span aria-hidden>→</span>
+                    <div className="mt-auto space-y-2">
+                      <div>
+                        <h3 className="text-lg font-bold leading-tight text-white sm:text-xl">{card.title}</h3>
+                        <p className="mt-1 line-clamp-2 text-sm leading-snug text-white/88">{card.description}</p>
+                        {card.price ? (
+                          <p className="mt-1.5 text-sm font-semibold text-sky-200">
+                            From <span className="font-bold text-white">{card.price}</span>
+                          </p>
+                        ) : (
+                          <p className="mt-1.5 text-sm font-medium text-white/75">Instant online quote</p>
+                        )}
+                      </div>
+                      <span className="service-card-cta min-h-[42px] text-xs sm:min-h-[44px] sm:text-sm">
+                        {ctaLabel}
+                        <span className="opacity-90" aria-hidden>
+                          →
+                        </span>
                       </span>
                     </div>
                   </div>

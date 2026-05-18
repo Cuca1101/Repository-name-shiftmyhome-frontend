@@ -2,7 +2,26 @@
  * In-flow Back / Continue bar for mobile quote steps (&lt; md) — follows Move Summary.
  */
 export default function MobileQuoteStickyActions({ step, onBack, onNext }) {
-  if (step >= 4) return null
+  if (step > 4) return null
+
+  if (step === 4) {
+    return (
+      <div
+        className="mt-3 border-t border-slate-200 pt-3 md:hidden"
+        role="group"
+        aria-label="Review navigation"
+      >
+        <button
+          type="button"
+          onClick={onBack}
+          className="flex min-h-[48px] w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-800 shadow-sm transition hover:border-slate-300 hover:bg-slate-50 active:scale-[0.99]"
+        >
+          <span aria-hidden>←</span>
+          Back
+        </button>
+      </div>
+    )
+  }
 
   return (
     <div

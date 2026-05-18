@@ -152,3 +152,74 @@ export function distinctCityRoutesFromLeads(rows) {
   }
   return [...set].sort()
 }
+
+/**
+ * @param {string} id
+ * @param {Record<string, unknown>} patch
+ */
+export async function updateWebsiteLeadById(id, patch) {
+  if (!isSupabaseConfigured || !supabase || !id) return null
+  const { data, error } = await supabase.from(TABLE).update(patch).eq('id', id).select('*').maybeSingle()
+  if (error) throw new Error(error.message || 'Failed to update lead.')
+  return data
+}
+
+/**
+ * Mark inactive started quotes abandoned and schedule recovery (30+ min idle).
+ * @param {Record<string, unknown>[]} rows
+ */
+export async function scheduleAbandonedRecoveryForRows(rows) {
+  if (!isSupabaseConfigured || !supabase) return
+  const now = new Date().toISOString()
+  const scheduleAt = new Date(Date.now() + 5 * 60 * 1000).toISOString()
+
+  const targets = (rows || []).filter((row) => {
+    const eff = effectiveWebsiteLeadStatus(row)
+    if (eff === 'payment_completed' || eff === 'payment_started' || eff === 'quote_completed') {
+      return false
+    }
+    if (eff !== 'quote_abandoned' && !isWebsiteLeadAbandoned(row.last_activity_at)) return false
+    return !row.abandoned_at && !row.recovery_scheduled_at
+  })
+
+  await Promise.all(
+    targets.slice(0, 25).map((row) =>
+      updateWebsiteLeadById(row.id, {
+        abandoned_at: row.abandoned_at || now,
+        recovery_scheduled_at: scheduleAt,
+        status: row.status === 'visited' ? 'quote_started' : row.status,
+      }).catch(() => null),
+    ),
+  )
+}
+
+/**
+ * @param {string} id
+ */
+export async function markRecoveryEmailSent(id) {
+  const now = new Date().toISOString()
+  return updateWebsiteLeadById(id, {
+    recovery_email_sent: true,
+    recovery_email_sent_at: now,
+  })
+}
+
+/**
+ * @param {string} id
+ */
+export async function markLeadRecovered(id) {
+  const now = new Date().toISOString()
+  return updateWebsiteLeadById(id, {
+    recovered_booking: true,
+    recovered_booking_at: now,
+  })
+}
+
+/**
+ * @param {string} id
+ */
+export async function archiveWebsiteLead(id) {
+  return updateWebsiteLeadById(id, {
+    archived_at: new Date().toISOString(),
+  })
+}

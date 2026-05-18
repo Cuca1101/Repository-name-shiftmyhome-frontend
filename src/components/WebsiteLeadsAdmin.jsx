@@ -4,8 +4,12 @@ import AdminRecordsSearchRow from './admin/AdminRecordsSearchRow'
 import {
   distinctCityRoutesFromLeads,
   fetchWebsiteLeadsForAdmin,
+  markRecoveryEmailSent,
+  scheduleAbandonedRecoveryForRows,
 } from '../lib/data/websiteLeadsRepository'
+import { filterLeadsByRecoveryChip } from '../lib/websiteLeadRecovery'
 import { formatDateTimeUK } from '../lib/formatDateDisplay'
+import WebsiteLeadsRecoveryPanel, { RecoveryBadge } from './admin/WebsiteLeadsRecoveryPanel'
 
 const FILTERS = [
   { id: 'all', label: 'All' },
@@ -67,9 +71,23 @@ function DetailRow({ label, children }) {
 /**
  * @param {{ row: Record<string, unknown> | null, onClose: () => void }} props
  */
-function LeadDetailDrawer({ row, onClose }) {
+function LeadDetailDrawer({ row, onClose, onRefresh }) {
+  const [busy, setBusy] = useState(false)
   if (!row) return null
   const eff = row.effective_status || row.status
+
+  async function sendRecovery() {
+    if (!row.id || busy) return
+    setBusy(true)
+    try {
+      await markRecoveryEmailSent(row.id)
+      onRefresh()
+    } catch (e) {
+      window.alert(e?.message || 'Could not mark recovery email sent.')
+    } finally {
+      setBusy(false)
+    }
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end" role="dialog" aria-modal="true">
@@ -94,8 +112,19 @@ function LeadDetailDrawer({ row, onClose }) {
           </button>
         </div>
         <div className="flex-1 overflow-y-auto px-5 py-2">
-          <div className="mb-4">
+          <div className="mb-4 flex flex-wrap items-center gap-2">
             <StatusBadge status={eff} />
+            <RecoveryBadge row={row} />
+          </div>
+          <div className="mb-4">
+            <button
+              type="button"
+              disabled={busy || row.recovery_email_sent}
+              onClick={sendRecovery}
+              className="rounded-lg bg-slate-900 px-3 py-2 text-xs font-bold text-white disabled:opacity-50"
+            >
+              Send recovery email
+            </button>
           </div>
           <dl>
             <DetailRow label="Landing page">{row.landing_path}</DetailRow>
@@ -107,8 +136,9 @@ function LeadDetailDrawer({ row, onClose }) {
             <DetailRow label="Customer name">{row.customer_name}</DetailRow>
             <DetailRow label="Email">{row.customer_email}</DetailRow>
             <DetailRow label="Phone">{row.customer_phone}</DetailRow>
-            <DetailRow label="Pickup postcode">{row.pickup_postcode}</DetailRow>
-            <DetailRow label="Delivery postcode">{row.delivery_postcode}</DetailRow>
+            <DetailRow label="Pickup">{row.pickup_address || row.pickup_postcode}</DetailRow>
+            <DetailRow label="Dropoff">{row.delivery_address || row.delivery_postcode}</DetailRow>
+            <DetailRow label="Feedback">{row.feedback_reason || row.feedback_notes || '—'}</DetailRow>
             <DetailRow label="Last activity">{formatDateTimeUK(row.last_activity_at)}</DetailRow>
             <DetailRow label="Created">{formatDateTimeUK(row.created_at)}</DetailRow>
             <DetailRow label="Updated">{formatDateTimeUK(row.updated_at)}</DetailRow>
@@ -140,6 +170,7 @@ export default function WebsiteLeadsAdmin() {
   const [searchInput, setSearchInput] = useState('')
   const [activeSearch, setActiveSearch] = useState('')
   const [filter, setFilter] = useState('all')
+  const [recoveryChip, setRecoveryChip] = useState('')
   const [cityRoute, setCityRoute] = useState('')
   const [rows, setRows] = useState([])
   const [allRowsForCities, setAllRowsForCities] = useState([])
@@ -164,14 +195,15 @@ export default function WebsiteLeadsAdmin() {
         }),
         fetchWebsiteLeadsForAdmin({ filter: 'all' }),
       ])
-      setRows(list)
+      await scheduleAbandonedRecoveryForRows(all)
+      setRows(filterLeadsByRecoveryChip(list, recoveryChip))
       setAllRowsForCities(all)
     } catch (e) {
       setError(e?.message || 'Failed to load website leads.')
     } finally {
       setLoading(false)
     }
-  }, [filter, cityRoute, activeSearch])
+  }, [filter, cityRoute, activeSearch, recoveryChip])
 
   useEffect(() => {
     load()
@@ -200,6 +232,13 @@ export default function WebsiteLeadsAdmin() {
           Refresh
         </button>
       </div>
+
+      <WebsiteLeadsRecoveryPanel
+        allRows={allRowsForCities}
+        rows={rows}
+        recoveryChip={recoveryChip}
+        onRecoveryChipChange={setRecoveryChip}
+      />
 
       <div className="flex flex-wrap gap-2">
         {FILTERS.map((f) => (
@@ -260,6 +299,7 @@ export default function WebsiteLeadsAdmin() {
               <thead className="bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-500">
                 <tr>
                   <th className="px-4 py-3">Status</th>
+                  <th className="px-4 py-3">Recovery</th>
                   <th className="px-4 py-3">Landing / city</th>
                   <th className="px-4 py-3">Service</th>
                   <th className="px-4 py-3">Customer</th>
@@ -278,6 +318,9 @@ export default function WebsiteLeadsAdmin() {
                     <tr key={row.id} className="hover:bg-slate-50/80">
                       <td className="px-4 py-3">
                         <StatusBadge status={eff} />
+                      </td>
+                      <td className="px-4 py-3">
+                        <RecoveryBadge row={row} />
                       </td>
                       <td className="max-w-[140px] px-4 py-3">
                         <div className="font-medium text-slate-900">{row.landing_path || '—'}</div>
@@ -324,7 +367,7 @@ export default function WebsiteLeadsAdmin() {
         )}
       </div>
 
-      <LeadDetailDrawer row={selected} onClose={() => setSelected(null)} />
+      <LeadDetailDrawer row={selected} onClose={() => setSelected(null)} onRefresh={load} />
     </div>
   )
 }

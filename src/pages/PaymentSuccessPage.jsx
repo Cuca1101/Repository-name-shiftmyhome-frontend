@@ -3,6 +3,7 @@ import { Link, useSearchParams } from 'react-router-dom'
 import { Check, Copy } from 'lucide-react'
 import { verifyPaymentIntent } from '../lib/stripeCheckout'
 import { clearQuoteDraft } from '../lib/quoteDraftStorage'
+import { trackWebsiteLeadEvent } from '../lib/websiteLeadTracker'
 
 function scrollToEl(el, block = 'center') {
   if (!el || typeof el.scrollIntoView !== 'function') return
@@ -25,8 +26,13 @@ export default function PaymentSuccessPage() {
       try {
         const data = await verifyPaymentIntent(paymentIntentId)
         if (!cancelled && data?.quote_ref && typeof data.quote_ref === 'string') {
-          setQuoteRef(data.quote_ref.trim())
+          const ref = data.quote_ref.trim()
+          setQuoteRef(ref)
           clearQuoteDraft()
+          trackWebsiteLeadEvent('payment_completed', {
+            quoteRef: ref,
+            recoveredBooking: true,
+          })
         }
       } catch {
         /* Keep friendly UI; reference may still arrive by email */

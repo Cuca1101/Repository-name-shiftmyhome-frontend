@@ -1,5 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
-import { SERVICE_PAGES } from '../constants/servicePages'
+import { SERVICE_PAGES, getServicePageByPath } from '../constants/servicePages'
+
+function serviceTypeForPath(path) {
+  return getServicePageByPath(path)?.serviceType ?? ''
+}
 import { HOME_SERVICE_CARD_IMAGES } from '../constants/homeServiceCardImages'
 import { fetchPricingSettings } from '../lib/data/pricingSettingsRepository'
 import { useWebsiteCms } from '../context/WebsiteCmsContext'
@@ -48,6 +52,7 @@ export function useServiceGridCards() {
           description: c.description,
           imageSrc: c.image_url,
           path: c.route_path,
+          serviceType: serviceTypeForPath(c.route_path) || '',
           buttonText: c.button_text || 'Get a Quote',
           price: c.starting_price || priceBySlug[c.slug] || null,
         }))
@@ -67,6 +72,7 @@ export function useServiceGridCards() {
         }[service.slug] ?? service.heroTeaser,
       imageSrc: HOME_SERVICE_CARD_IMAGES[service.slug] ?? service.heroImage,
       path: service.path,
+      serviceType: service.serviceType,
       buttonText: 'Get a Quote',
       price: priceBySlug[service.slug] || null,
     }))

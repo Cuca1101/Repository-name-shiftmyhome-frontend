@@ -39,8 +39,11 @@ import {
   MOVE_DATE_PAST_ERROR,
   isMoveDateOnOrAfterToday,
 } from '../../lib/moveDateLocal'
-import { clearQuoteDraft, loadQuoteDraft, saveQuoteDraft } from '../../lib/quoteDraftStorage'
+import { clearQuoteDraft, saveQuoteDraft } from '../../lib/quoteDraftStorage'
+import { resolveWizardBootstrap } from '../../lib/quoteWizardBootstrap'
 import { initialWizardState, makeQuoteRef } from '../../lib/quoteWizardDefaults'
+import { clearResumeSavedQuote } from '../../lib/quoteSessionMode'
+import { trackQuoteWizardSnapshot, trackWebsiteLeadEvent } from '../../lib/websiteLeadTracker'
 import { useLocation } from 'react-router-dom'
 
 const QuoteWizardContext = createContext(null)
@@ -76,23 +79,23 @@ const HAS_MAPBOX_TOKEN = Boolean(import.meta.env.VITE_MAPBOX_TOKEN)
 export function QuoteWizardProvider({ children, serviceType: serviceTypeProp, allowServiceChange = false }) {
   const location = useLocation()
   const skipAutosaveRef = useRef(false)
+  const [bootstrap] = useState(() => resolveWizardBootstrap(serviceTypeProp))
+  const isResumedRef = useRef(bootstrap.isResumed)
+  const addressBaselineRef = useRef(
+    isResumedRef.current
+      ? {
+          pickup: bootstrap.wizard.pickupAddress.trim(),
+          delivery: bootstrap.wizard.deliveryAddress.trim(),
+        }
+      : null,
+  )
+  const funnelTrackedRef = useRef(false)
+  const savedDraftTrackedRef = useRef(false)
 
-  const [step, setStep] = useState(() => {
-    const draft = loadQuoteDraft()
-    return draft?.step ?? 1
-  })
-  const [quoteRef, setQuoteRef] = useState(() => {
-    const draft = loadQuoteDraft()
-    return draft?.quoteRef ?? makeQuoteRef()
-  })
-  const [wizard, setWizard] = useState(() => {
-    const draft = loadQuoteDraft()
-    return draft?.wizard ?? initialWizardState()
-  })
-  const [serviceType, setServiceType] = useState(() => {
-    const draft = loadQuoteDraft()
-    return draft?.serviceType || serviceTypeProp
-  })
+  const [step, setStep] = useState(bootstrap.step)
+  const [quoteRef, setQuoteRef] = useState(bootstrap.quoteRef)
+  const [wizard, setWizard] = useState(bootstrap.wizard)
+  const [serviceType, setServiceType] = useState(bootstrap.serviceType)
   const [settings, setSettings] = useState(null)
   const [loadingSettings, setLoadingSettings] = useState(true)
   const [submitting, setSubmitting] = useState(false)
@@ -109,6 +112,60 @@ export function QuoteWizardProvider({ children, serviceType: serviceTypeProp, al
       setServiceType(serviceTypeProp)
     }
   }, [serviceTypeProp, allowServiceChange])
+
+  useEffect(() => {
+    if (funnelTrackedRef.current) return
+    funnelTrackedRef.current = true
+    trackWebsiteLeadEvent(isResumedRef.current ? 'saved_quote_resumed' : 'quote_started', {
+      quoteRef,
+      serviceType: bootstrap.serviceType,
+      step,
+      returnPath: location.pathname,
+    })
+  }, [bootstrap.serviceType, location.pathname, quoteRef, step])
+
+  useEffect(() => {
+    if (isResumedRef.current) return
+    const pickup = wizard.pickupAddress.trim()
+    const delivery = wizard.deliveryAddress.trim()
+    if (!addressBaselineRef.current) {
+      if (pickup.length > 2 || delivery.length > 2) {
+        addressBaselineRef.current = { pickup, delivery }
+      }
+      return
+    }
+    const base = addressBaselineRef.current
+    const pickupChanged = pickup.length > 2 && pickup !== base.pickup
+    const deliveryChanged = delivery.length > 2 && delivery !== base.delivery
+    if (!pickupChanged && !deliveryChanged) return
+
+    addressBaselineRef.current = { pickup, delivery }
+    const nextRef = makeQuoteRef()
+    setQuoteRef(nextRef)
+    if (pickupChanged) {
+      trackWebsiteLeadEvent('pickup_address_changed', {
+        quoteRef: nextRef,
+        serviceType,
+        pickupAddress: pickup,
+        deliveryAddress: delivery,
+        step,
+      })
+    }
+    if (deliveryChanged) {
+      trackWebsiteLeadEvent('dropoff_address_changed', {
+        quoteRef: nextRef,
+        serviceType,
+        pickupAddress: pickup,
+        deliveryAddress: delivery,
+        step,
+      })
+    }
+    trackWebsiteLeadEvent('new_quote_started', {
+      quoteRef: nextRef,
+      serviceType,
+      source: 'address_change',
+    })
+  }, [wizard.pickupAddress, wizard.deliveryAddress, serviceType, step])
 
   useEffect(() => {
     if (!pendingStepScrollRef.current) return
@@ -214,6 +271,13 @@ export function QuoteWizardProvider({ children, serviceType: serviceTypeProp, al
 
   useEffect(() => {
     if (skipAutosaveRef.current) return undefined
+    const hasProgress =
+      isResumedRef.current ||
+      step > 1 ||
+      wizard.pickupAddress.trim().length > 2 ||
+      wizard.deliveryAddress.trim().length > 2
+    if (!hasProgress) return undefined
+
     const returnPath =
       location.pathname && location.pathname !== '/' ? location.pathname : '/quote'
     const timer = window.setTimeout(() => {
@@ -225,9 +289,42 @@ export function QuoteWizardProvider({ children, serviceType: serviceTypeProp, al
         wizard,
         estimatedTotal: estimatedTotalForDraft,
       })
+      if (!savedDraftTrackedRef.current) {
+        savedDraftTrackedRef.current = true
+        trackWebsiteLeadEvent('saved_quote_created', {
+          quoteRef,
+          serviceType,
+          step,
+          returnPath,
+        })
+      }
+      trackQuoteWizardSnapshot({
+        step,
+        quoteRef,
+        serviceType,
+        wizard,
+        estimatedTotal: estimatedTotalForDraft,
+        landingPath: returnPath,
+        status: step > 1 ? 'step_completed' : 'quote_started',
+      })
     }, 500)
     return () => window.clearTimeout(timer)
   }, [step, quoteRef, serviceType, wizard, location.pathname, estimatedTotalForDraft])
+
+  useEffect(() => {
+    if (step <= 1) return
+    trackWebsiteLeadEvent('step_completed', {
+      quoteRef,
+      serviceType,
+      step,
+      estimatedTotal: estimatedTotalForDraft,
+      customerName: wizard.fullName,
+      customerEmail: wizard.email,
+      customerPhone: wizard.phone,
+      pickupAddress: wizard.pickupAddress,
+      deliveryAddress: wizard.deliveryAddress,
+    })
+  }, [step])
 
   const customSizeM3 = settings?.customSizeM3
 
@@ -487,6 +584,17 @@ export function QuoteWizardProvider({ children, serviceType: serviceTypeProp, al
           paymentType,
           amountLabel,
         })
+        trackWebsiteLeadEvent('payment_started', {
+          quoteRef,
+          serviceType,
+          step,
+          estimatedTotal: breakdown?.estimatedTotal,
+          customerName: wizard.fullName,
+          customerEmail: wizard.email,
+          customerPhone: wizard.phone,
+          pickupAddress: wizard.pickupAddress,
+          deliveryAddress: wizard.deliveryAddress,
+        })
       } catch (e) {
         setPayError(e?.message ?? 'Payment could not start.')
       } finally {
@@ -612,6 +720,17 @@ export function QuoteWizardProvider({ children, serviceType: serviceTypeProp, al
           ? `Quote emailed. ${backendIssues.join(' ')}`
           : 'Thank you — your quote request was sent. We’ll be in touch shortly.',
       })
+      trackWebsiteLeadEvent('quote_completed', {
+        quoteRef,
+        serviceType,
+        step,
+        estimatedTotal: breakdown.estimatedTotal,
+        customerName: wizard.fullName,
+        customerEmail: wizard.email,
+        customerPhone: wizard.phone,
+        pickupAddress: wizard.pickupAddress,
+        deliveryAddress: wizard.deliveryAddress,
+      })
       skipAutosaveRef.current = true
       clearQuoteDraft()
       setWizard(initialWizardState())
@@ -632,6 +751,10 @@ export function QuoteWizardProvider({ children, serviceType: serviceTypeProp, al
 
   const resetQuoteWizard = useCallback(() => {
     skipAutosaveRef.current = true
+    clearResumeSavedQuote()
+    isResumedRef.current = false
+    addressBaselineRef.current = null
+    savedDraftTrackedRef.current = false
     clearQuoteDraft()
     setWizard(initialWizardState())
     setQuoteRef(makeQuoteRef())
