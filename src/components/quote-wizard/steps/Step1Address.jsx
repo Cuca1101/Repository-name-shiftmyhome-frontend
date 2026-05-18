@@ -2,23 +2,10 @@ import { useEffect } from 'react'
 import MapboxAddressField from '../MapboxAddressField'
 import FloorSelect from '../FloorSelect'
 import { getLocalDateYYYYMMDD } from '../../../lib/moveDateLocal'
+import MobileStep1ArrivalWindow from '../MobileStep1ArrivalWindow'
+import Step1ArrivalFields from '../Step1ArrivalFields'
 
 const PROPERTY_TYPES = ['House', 'Flat / apartment', 'Bungalow', 'Commercial', 'Other']
-
-const ARRIVAL_OPTIONS = [
-  { value: 'flex', label: 'Flexible on time' },
-  { value: 'morning', label: 'Morning (08:00–12:00)' },
-  { value: 'midday', label: 'Midday (12:00–16:00)' },
-  { value: 'evening', label: 'Evening (16:00–20:00)' },
-  { value: 'exact', label: 'Exact arrival time (premium)' },
-]
-
-/** Whole hours 08:00 … 18:00 */
-const EXACT_HOUR_OPTIONS = Array.from({ length: 11 }, (_, i) => {
-  const h = i + 8
-  const hh = String(h).padStart(2, '0')
-  return { value: `${hh}:00`, label: `${hh}:00` }
-})
 
 const HAS_MAPBOX = Boolean(import.meta.env.VITE_MAPBOX_TOKEN)
 
@@ -27,16 +14,51 @@ const input =
 const label = 'mb-1.5 block text-sm font-medium text-slate-700'
 const field = 'min-w-0'
 const textAreaNoMap = `${input} min-h-[5.5rem] resize-y py-3`
-const liftRow =
-  'flex min-h-[52px] cursor-pointer items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm outline-none transition focus-within:border-brand-500 focus-within:ring-2 focus-within:ring-brand-500/25'
-const liftInput = 'h-5 w-5 shrink-0 rounded border-slate-300 text-brand-600 focus:ring-brand-500'
+const liftFieldset =
+  'min-w-0 rounded-xl border border-slate-200 bg-white px-3 py-2.5 shadow-sm sm:px-4 sm:py-3'
+const liftLegend = 'mb-2 block text-sm font-medium text-slate-700'
+const liftOption =
+  'flex min-h-[44px] flex-1 cursor-pointer items-center justify-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm font-medium text-slate-800 transition has-[:checked]:border-brand-500 has-[:checked]:bg-brand-50 has-[:checked]:text-brand-900'
+const liftRadio = 'h-4 w-4 shrink-0 border-slate-300 text-brand-600 focus:ring-brand-500'
+
+function LiftYesNoField({ legend, name, value, onSelect }) {
+  return (
+    <fieldset className={liftFieldset}>
+      <legend className={liftLegend}>{legend}</legend>
+      <div className="grid grid-cols-2 gap-2" role="group" aria-label={legend}>
+        <label className={liftOption}>
+          <input
+            type="radio"
+            name={name}
+            className={liftRadio}
+            checked={value === true}
+            onChange={() => onSelect(true)}
+          />
+          Yes
+        </label>
+        <label className={liftOption}>
+          <input
+            type="radio"
+            name={name}
+            className={liftRadio}
+            checked={value === false}
+            onChange={() => onSelect(false)}
+          />
+          No
+        </label>
+      </div>
+    </fieldset>
+  )
+}
 
 export default function Step1Address({
   data,
   onChange,
+  quoteRef,
   serviceType,
   serviceTypeOptions,
   onServiceTypeChange,
+  arrivalError = '',
 }) {
   function set(k, v) {
     onChange({ ...data, [k]: v })
@@ -56,14 +78,36 @@ export default function Step1Address({
   return (
     <div className="space-y-4 sm:space-y-8">
       <div>
-        <h2 className="text-sm font-bold text-slate-900 xxs:text-base sm:text-2xl">Address & access</h2>
-        <p className="mt-1 text-sm text-slate-600">
-          Where we’re collecting from and delivering to, plus access for planning.
-        </p>
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0 flex-1">
+            <h2 className="whitespace-nowrap text-base font-bold leading-tight text-slate-900 md:whitespace-normal md:text-2xl">
+              Address & access
+            </h2>
+            <p className="mt-1 text-sm leading-snug text-slate-600 md:hidden">Pickup, delivery and access details.</p>
+            <p className="mt-1 hidden text-sm text-slate-600 md:block">
+              Where we’re collecting from and delivering to, plus access for planning.
+            </p>
+            {HAS_MAPBOX && (
+              <p className="mt-2 hidden text-sm text-slate-600 md:block">
+                Use the address search and <strong className="font-semibold text-slate-800">select a suggestion</strong>{' '}
+                for each location so we can plot the route and distance.
+              </p>
+            )}
+          </div>
+          {quoteRef ? (
+            <div
+              className="flex w-[140px] shrink-0 flex-col justify-center rounded-xl border border-blue-200 bg-blue-50 px-2.5 py-2 md:hidden"
+              aria-label="Quote reference"
+            >
+              <p className="text-[10px] font-semibold uppercase leading-tight tracking-wide text-blue-600">Reference</p>
+              <p className="mt-0.5 truncate font-mono text-xs font-bold leading-tight text-blue-900">{quoteRef}</p>
+            </div>
+          ) : null}
+        </div>
         {HAS_MAPBOX && (
-          <p className="mt-2 text-sm text-slate-600">
-            Use the address search and <strong className="font-semibold text-slate-800">select a suggestion</strong> for
-            each location so we can plot the route and distance.
+          <p className="mt-2 text-sm leading-snug text-slate-600 md:hidden">
+            Use address search and <strong className="font-semibold text-slate-800">select a suggestion</strong> for
+            each location to plot the route.
           </p>
         )}
       </div>
@@ -210,24 +254,22 @@ export default function Step1Address({
           />
         </div>
 
-        <label className={`${field} ${liftRow}`}>
-          <input
-            type="checkbox"
-            checked={data.pickupLift}
-            onChange={(e) => set('pickupLift', e.target.checked)}
-            className={liftInput}
+        <div className={field}>
+          <LiftYesNoField
+            legend="Lift available at pickup"
+            name="pickupLift"
+            value={data.pickupLift}
+            onSelect={(v) => set('pickupLift', v)}
           />
-          <span className="text-sm font-medium leading-snug text-slate-800">Lift available at pickup</span>
-        </label>
-        <label className={`${field} ${liftRow}`}>
-          <input
-            type="checkbox"
-            checked={data.deliveryLift}
-            onChange={(e) => set('deliveryLift', e.target.checked)}
-            className={liftInput}
+        </div>
+        <div className={field}>
+          <LiftYesNoField
+            legend="Lift available at delivery"
+            name="deliveryLift"
+            value={data.deliveryLift}
+            onSelect={(v) => set('deliveryLift', v)}
           />
-          <span className="text-sm font-medium leading-snug text-slate-800">Lift available at delivery</span>
-        </label>
+        </div>
 
         <label className={field}>
           <span className={label}>Move date</span>
@@ -240,50 +282,15 @@ export default function Step1Address({
             className={input}
           />
         </label>
-        <label className={field}>
-          <span className={label}>Preferred arrival window</span>
-          <select
-            value={data.arrivalWindow}
-            onChange={(e) => {
-              const v = e.target.value
-              set('arrivalWindow', v)
-              if (v !== 'exact') set('exactArrivalTime', '')
-            }}
-            className={input}
-          >
-            {ARRIVAL_OPTIONS.map((o) => (
-              <option key={o.value} value={o.value}>
-                {o.label}
-              </option>
-            ))}
-          </select>
-        </label>
+        <div className={`${field} hidden sm:col-span-2 md:block`}>
+          <Step1ArrivalFields data={data} onChange={onChange} error={arrivalError} />
+        </div>
 
-        {data.arrivalWindow === 'exact' && (
-          <div className={`${field} space-y-2`}>
-            <label className="block">
-              <span className={label}>Preferred arrival time</span>
-              <select
-                value={data.exactArrivalTime || ''}
-                onChange={(e) => set('exactArrivalTime', e.target.value)}
-                className={input}
-                required={data.arrivalWindow === 'exact'}
-              >
-                <option value="">Select hour (08:00–18:00)</option>
-                {EXACT_HOUR_OPTIONS.map((o) => (
-                  <option key={o.value} value={o.value}>
-                    {o.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <p className="text-xs leading-relaxed text-amber-900/90">
-              Exact time requests are subject to route availability. A premium applies — shown in your estimate on step 4.
-            </p>
-          </div>
-        )}
+        <div className={`${field} col-span-2 md:hidden`}>
+          <MobileStep1ArrivalWindow data={data} onChange={onChange} error={arrivalError} />
+        </div>
 
-        <label className={`${field} sm:col-span-2`}>
+        <label className={`${field} hidden sm:col-span-2 md:block`}>
           <span className={label}>Distance (miles)</span>
           <input
             type="number"

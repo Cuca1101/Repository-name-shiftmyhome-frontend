@@ -11,7 +11,7 @@ export default function ServiceQuoteLayout({ children }) {
       <WebsiteCmsProvider>
         <div className="flex min-h-screen min-w-0 w-full max-w-full flex-col clip-x">
           <QuoteNavbar />
-          <main className="min-w-0 flex-1 w-full max-w-full overflow-x-hidden pb-20 sm:pb-0">{children}</main>
+          <main className="min-w-0 flex-1 w-full max-w-full overflow-x-hidden pb-24 md:pb-0">{children}</main>
           <Footer />
           <WhatsAppButton />
         </div>

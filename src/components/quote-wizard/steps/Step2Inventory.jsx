@@ -16,6 +16,7 @@ import {
 import InventorySelectionVolumeRow from '../InventorySelectionVolumeRow'
 import { resolveDefaultM3PerUnit } from '../inventoryLineDefaults'
 import CrewSizeField from '../CrewSizeField'
+import MobileStep2Inventory from '../MobileStep2Inventory'
 import {
   CatalogItemLucideIcon,
   CategoryLucideIcon,
@@ -38,11 +39,14 @@ export default function Step2Inventory({
   crewSize,
   onCrewSizeChange,
   crewSettings,
+  quoteRef,
+  validationMessage = '',
 }) {
   const searchId = useId()
   const crewFieldId = useId()
   const crewHintId = useId()
   const resultsPanelRef = useRef(null)
+  const categoriesRef = useRef(null)
   const [activeCategory, setActiveCategory] = useState(CATEGORY_ORDER[0])
   const [searchQuery, setSearchQuery] = useState('')
   const [customName, setCustomName] = useState('')
@@ -169,6 +173,10 @@ export default function Step2Inventory({
     )
   }
 
+  function removeAll() {
+    onLinesChange([])
+  }
+
   const cat = INVENTORY_BY_CATEGORY[activeCategory]
 
   const input =
@@ -221,8 +229,75 @@ export default function Step2Inventory({
     )
   }
 
+  function renderMobileCatalogRow(item, highlightQuery, emphasizeMatch) {
+    const line = catalogLineForItem(lines, item.id)
+    const qty = line?.quantity ?? 0
+    return (
+      <li
+        key={item.id}
+        className={`flex min-h-[52px] items-center gap-2 rounded-lg border px-2 py-2 ${
+          emphasizeMatch ? 'border-amber-200 bg-amber-50/50' : 'border-slate-100 bg-slate-50/80'
+        }`}
+      >
+        <div
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white text-brand-700 ring-1 ring-slate-200/80"
+          aria-hidden
+        >
+          <CatalogItemLucideIcon itemId={item.id} className="h-4 w-4" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-medium leading-snug text-slate-900">
+            {highlightQuery ? (
+              <HighlightedInventoryName name={item.name} query={highlightQuery} />
+            ) : (
+              item.name
+            )}
+          </p>
+        </div>
+        <InlineInventoryQtyControl
+          quantity={qty}
+          onAdd={() => addFromCatalog(item.id)}
+          onDecrement={() => line && bump(line.lineId, -1)}
+          onIncrement={() => (line ? bump(line.lineId, 1) : addFromCatalog(item.id))}
+        />
+      </li>
+    )
+  }
+
   return (
-    <div className="space-y-8">
+    <>
+      <MobileStep2Inventory
+        quoteRef={quoteRef}
+        totalM3={totalM3}
+        lines={lines}
+        crewSize={crewSize}
+        onCrewSizeChange={onCrewSizeChange}
+        crewSettings={crewSettings}
+        crewFieldId={crewFieldId}
+        crewHintId={crewHintId}
+        validationMessage={validationMessage}
+        searchId={searchId}
+        searchQuery={searchQuery}
+        setSearchQuery={setSearchQuery}
+        activeCategory={activeCategory}
+        setActiveCategory={setActiveCategory}
+        isSearchMode={isSearchMode}
+        searchGrouped={searchGrouped}
+        cat={cat}
+        customName={customName}
+        setCustomName={setCustomName}
+        customSize={customSize}
+        setCustomSize={setCustomSize}
+        addCustom={addCustom}
+        removeAll={removeAll}
+        bump={bump}
+        renderCatalogRow={renderMobileCatalogRow}
+        resultsPanelRef={resultsPanelRef}
+        categoriesRef={categoriesRef}
+        inputClass={input}
+      />
+
+    <div className="hidden space-y-8 md:block">
       <div>
         <h2 className="text-lg font-bold text-slate-900 sm:text-2xl">Inventory</h2>
         <p className="mt-1 text-sm text-slate-600">
@@ -411,5 +486,6 @@ export default function Step2Inventory({
         )}
       </div>
     </div>
+    </>
   )
 }

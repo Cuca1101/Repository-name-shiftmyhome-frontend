@@ -111,16 +111,15 @@
   }
 }
 
-/* Mobile quote wizard: compact map + side-by-side layout. */
-@media (max-width: 639px) {
-  #quote .quote-wizard-layout {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 24%);
-    gap: 8px;
+/* Mobile quote wizard: full-width steps, open summary, in-flow nav. */
+@media (max-width: 767px) {
+  #quote .quote-route-map {
+    height: 112px !important;
+    min-height: 112px !important;
   }
 
-  #quote .quote-route-map {
-    height: 88px !important;
-    min-height: 88px !important;
+  #contact.public-quote-section {
+    @apply py-8;
   }
 }
 

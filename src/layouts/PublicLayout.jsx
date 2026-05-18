@@ -14,7 +14,7 @@ export default function PublicLayout({ children }) {
           <HomeHashScroll />
           <WebsiteAnnouncementBar />
           <Navbar />
-          <main className="min-w-0 flex-1 w-full max-w-full overflow-x-hidden pb-20 sm:pb-0">{children}</main>
+          <main className="min-w-0 flex-1 w-full max-w-full overflow-x-hidden pb-24 md:pb-0">{children}</main>
           <Footer />
           <WhatsAppButton />
         </div>

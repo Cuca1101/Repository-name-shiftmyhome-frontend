@@ -1,0 +1,101 @@
+import { FLOOR_OPTIONS } from '../components/quote-wizard/FloorSelect'
+import { formatCompactArrivalLine } from './emailQuotePayload'
+import { formatDateUK } from './formatDateDisplay'
+
+/** Floor label for move summary: "1st floor", "2nd floor", etc. */
+export function formatMoveSummaryFloorLabel(n) {
+  if (n == null) return ''
+  const o = FLOOR_OPTIONS.find((x) => x.value === n)
+  if (!o) return ''
+  if (o.value === -1 || o.value === 0) return o.label
+  if (o.label.endsWith('+')) return `${o.label} floor`
+  return `${o.label} floor`
+}
+
+/** Always "Lift yes" or "Lift no" — never blank. */
+export function formatMoveSummaryLiftLabel(lift) {
+  return lift === true ? 'Lift yes' : 'Lift no'
+}
+
+export function formatMoveSummaryArrival(wizard) {
+  const line = formatCompactArrivalLine(wizard)
+  if (!line) return ''
+  return line
+    .replace(/^Arrival window:\s*/i, '')
+    .replace(/^Exact arrival:\s*/i, '')
+    .trim()
+}
+
+export function formatMoveSummaryCrewSize(crewSize, crewSettings) {
+  const n = Number(crewSize)
+  if (!(n >= 1 && n <= 4)) return ''
+  const options = [
+    { value: 1, label: '1 Man', enabled: crewSettings?.crewSizeOneEnabled !== false },
+    { value: 2, label: '2 Men', enabled: crewSettings?.crewSizeTwoEnabled !== false },
+    { value: 3, label: '3 Men', enabled: crewSettings?.crewSizeThreeEnabled !== false },
+    { value: 4, label: '4 Men', enabled: Boolean(crewSettings?.crewSizeFourEnabled) },
+  ].filter((o) => o.enabled)
+  const match = options.find((o) => o.value === n)
+  return match?.label ?? `${n} ${n === 1 ? 'Man' : 'Men'}`
+}
+
+export function formatMoveSummaryDistance(distanceMiles) {
+  const n = Number(distanceMiles)
+  if (!(n > 0)) return ''
+  return `${n.toFixed(1)} miles`
+}
+
+export function formatMoveSummaryInventoryCount(inventoryLines) {
+  const lines = (inventoryLines || []).filter((l) => l.quantity > 0)
+  const units = lines.reduce((s, l) => s + Math.max(0, Number(l.quantity) || 0), 0)
+  if (units <= 0) return ''
+  return `${units} ${units === 1 ? 'item' : 'items'}`
+}
+
+export function hasMoveSummaryRouteData({
+  pickupLng,
+  pickupLat,
+  deliveryLng,
+  deliveryLat,
+  pickupAddress,
+  deliveryAddress,
+}) {
+  const coordsOk =
+    pickupLng != null &&
+    pickupLat != null &&
+    deliveryLng != null &&
+    deliveryLat != null
+  const textOk =
+    Boolean(pickupAddress?.trim()) || Boolean(deliveryAddress?.trim())
+  return coordsOk || textOk
+}
+
+export function buildMoveSummaryExtras(wizard) {
+  const blocks = []
+  if (wizard?.dismantling) {
+    const count = wizard.dismantlingItemCount || 0
+    const detail = wizard.dismantlingWhat?.trim()
+    blocks.push({
+      key: 'dismantling',
+      title: 'Dismantling',
+      text: `${count} ${count === 1 ? 'item' : 'items'}${detail ? ` · ${detail}` : ''}`,
+    })
+  }
+  if (wizard?.reassembly) {
+    const text = wizard.reassemblySameAsDismantling
+      ? 'Same items as dismantling'
+      : `${wizard.reassemblyItemCount || 0} ${(wizard.reassemblyItemCount || 0) === 1 ? 'item' : 'items'}${wizard.reassemblyWhat?.trim() ? ` · ${wizard.reassemblyWhat.trim()}` : ''}`
+    blocks.push({ key: 'assembly', title: 'Assembly', text })
+  }
+  if (wizard?.packingMaterials) {
+    const text =
+      (wizard.packingWhat || '').trim() ||
+      (wizard.packingApproxBoxes > 0
+        ? `Moving boxes: ${wizard.packingApproxBoxes} boxes`
+        : 'Selected')
+    blocks.push({ key: 'packing', title: 'Packing materials', text })
+  }
+  return blocks
+}
+
+export { formatDateUK }

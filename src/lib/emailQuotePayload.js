@@ -46,6 +46,7 @@ export function formatQuoteBreakdownLines(b) {
 }
 
 export const ARRIVAL_LABELS = {
+  flex_window: 'Flexible collection window',
   flex: 'Flexible on time',
   morning: 'Morning · 08:00–12:00',
   midday: 'Midday · 12:00–16:00',
@@ -63,10 +64,43 @@ export function formatWizardArrivalSummary(wizard) {
   if (!wizard) return '—'
   const awRaw = wizard.arrivalWindow
   const aw = awRaw === 'afternoon' ? 'evening' : awRaw
+  if (aw === 'flex_window' && wizard.flexibleArrivalFrom && wizard.flexibleArrivalUntil) {
+    return `Flexible window · ${wizard.flexibleArrivalFrom}–${wizard.flexibleArrivalUntil}`
+  }
   if (aw === 'exact' && wizard.exactArrivalTime) {
     return `${wizard.exactArrivalTime} (Exact time)`
   }
   return ARRIVAL_LABELS[aw] || ARRIVAL_LABELS[wizard.arrivalWindow] || wizard.arrivalWindow || '—'
+}
+
+/** Compact arrival line for mobile move summary (no empty times). */
+export function formatCompactArrivalLine(wizard) {
+  if (!wizard) return null
+  if (
+    wizard.arrivalWindow === 'flex_window' &&
+    wizard.flexibleArrivalFrom &&
+    wizard.flexibleArrivalUntil
+  ) {
+    return `Arrival window: ${wizard.flexibleArrivalFrom} – ${wizard.flexibleArrivalUntil}`
+  }
+  if (wizard.arrivalWindow === 'exact' && wizard.exactArrivalTime) {
+    return `Exact arrival: ${wizard.exactArrivalTime}`
+  }
+  return null
+}
+
+/** @param {{ arrivalWindow?: string, exactArrivalTime?: string, flexibleArrivalFrom?: string, flexibleArrivalUntil?: string } | null | undefined} wizard */
+export function getWizardArrivalTimePayload(wizard) {
+  if (!wizard) return ''
+  if (wizard.arrivalWindow === 'exact') {
+    return (wizard.exactArrivalTime || '').trim()
+  }
+  if (wizard.arrivalWindow === 'flex_window') {
+    const from = (wizard.flexibleArrivalFrom || '').trim()
+    const until = (wizard.flexibleArrivalUntil || '').trim()
+    if (from && until) return `${from}–${until}`
+  }
+  return ''
 }
 
 /**

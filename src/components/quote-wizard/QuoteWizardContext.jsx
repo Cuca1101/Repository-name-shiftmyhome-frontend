@@ -21,7 +21,13 @@ import {
   formatInventoryRowsForEmail,
   formatQuoteBreakdownLines,
   formatWizardArrivalSummary,
+  getWizardArrivalTimePayload,
 } from '../../lib/emailQuotePayload'
+import { isMobileViewport } from '../../lib/arrivalTimeSlots'
+import {
+  isWizardArrivalValid,
+  wizardArrivalErrorMessage,
+} from '../../lib/arrivalWizardValidation'
 import { getLocalDateYYYYMMDD } from '../../lib/moveDateLocal'
 import { sendQuoteRequestEmailJs } from '../../utils/sendQuoteRequestEmailJs'
 import {
@@ -33,6 +39,9 @@ import {
   MOVE_DATE_PAST_ERROR,
   isMoveDateOnOrAfterToday,
 } from '../../lib/moveDateLocal'
+import { clearQuoteDraft, loadQuoteDraft, saveQuoteDraft } from '../../lib/quoteDraftStorage'
+import { initialWizardState, makeQuoteRef } from '../../lib/quoteWizardDefaults'
+import { useLocation } from 'react-router-dom'
 
 const QuoteWizardContext = createContext(null)
 
@@ -44,11 +53,7 @@ export function useQuoteWizard() {
   return ctx
 }
 
-export function makeQuoteRef() {
-  const y = new Date().getFullYear()
-  const n = Math.floor(100000 + Math.random() * 900000)
-  return `SMH-${y}-${n}`
-}
+export { makeQuoteRef, initialWizardState } from '../../lib/quoteWizardDefaults'
 
 /** Scroll quote wizard to top after step change (mobile: user is often mid-form inside #quote). */
 function scrollQuoteWizardIntoView() {
@@ -61,51 +66,6 @@ function scrollQuoteWizardIntoView() {
   })
 }
 
-export function initialWizardState() {
-  return {
-    pickupAddress: '',
-    deliveryAddress: '',
-    pickupLng: null,
-    pickupLat: null,
-    deliveryLng: null,
-    deliveryLat: null,
-    pickupPropertyType: 'House',
-    deliveryPropertyType: 'House',
-    pickupFloor: null,
-    deliveryFloor: null,
-    pickupLift: true,
-    deliveryLift: true,
-    distanceMiles: 0,
-    moveDate: '',
-    arrivalWindow: 'flex',
-    exactArrivalTime: '',
-    inventoryLines: [],
-    packing: false,
-    packingWhat: '',
-    packingApproxBoxes: 0,
-    packingFragile: false,
-    packingMaterials: false,
-    dismantling: false,
-    dismantlingWhat: '',
-    dismantlingItemCount: 0,
-    reassembly: false,
-    reassemblyWhat: '',
-    reassemblyItemCount: 0,
-    reassemblySameAsDismantling: false,
-    parkingDistance: 'standard',
-    walkingDistance: 'standard',
-    stairsFlights: 0,
-    stairsNotes: '',
-    heavyNotes: '',
-    specialInstructions: '',
-    crewSize: null,
-    vehicleSize: '',
-    fullName: '',
-    phone: '',
-    email: '',
-  }
-}
-
 const HAS_MAPBOX_TOKEN = Boolean(import.meta.env.VITE_MAPBOX_TOKEN)
 
 /**
@@ -114,10 +74,25 @@ const HAS_MAPBOX_TOKEN = Boolean(import.meta.env.VITE_MAPBOX_TOKEN)
  * @param {{ children: import('react').ReactNode, serviceType: string, allowServiceChange?: boolean }} props
  */
 export function QuoteWizardProvider({ children, serviceType: serviceTypeProp, allowServiceChange = false }) {
-  const [step, setStep] = useState(1)
-  const [quoteRef] = useState(() => makeQuoteRef())
-  const [wizard, setWizard] = useState(initialWizardState)
-  const [serviceType, setServiceType] = useState(serviceTypeProp)
+  const location = useLocation()
+  const skipAutosaveRef = useRef(false)
+
+  const [step, setStep] = useState(() => {
+    const draft = loadQuoteDraft()
+    return draft?.step ?? 1
+  })
+  const [quoteRef, setQuoteRef] = useState(() => {
+    const draft = loadQuoteDraft()
+    return draft?.quoteRef ?? makeQuoteRef()
+  })
+  const [wizard, setWizard] = useState(() => {
+    const draft = loadQuoteDraft()
+    return draft?.wizard ?? initialWizardState()
+  })
+  const [serviceType, setServiceType] = useState(() => {
+    const draft = loadQuoteDraft()
+    return draft?.serviceType || serviceTypeProp
+  })
   const [settings, setSettings] = useState(null)
   const [loadingSettings, setLoadingSettings] = useState(true)
   const [submitting, setSubmitting] = useState(false)
@@ -130,8 +105,10 @@ export function QuoteWizardProvider({ children, serviceType: serviceTypeProp, al
   const pendingStepScrollRef = useRef(false)
 
   useEffect(() => {
-    setServiceType(serviceTypeProp)
-  }, [serviceTypeProp])
+    if (!allowServiceChange) {
+      setServiceType(serviceTypeProp)
+    }
+  }, [serviceTypeProp, allowServiceChange])
 
   useEffect(() => {
     if (!pendingStepScrollRef.current) return
@@ -199,8 +176,8 @@ export function QuoteWizardProvider({ children, serviceType: serviceTypeProp, al
       access: {
         pickupFloor: wizard.pickupFloor == null ? 0 : Number(wizard.pickupFloor),
         deliveryFloor: wizard.deliveryFloor == null ? 0 : Number(wizard.deliveryFloor),
-        pickupLift: Boolean(wizard.pickupLift),
-        deliveryLift: Boolean(wizard.deliveryLift),
+        pickupLift: wizard.pickupLift == null ? undefined : Boolean(wizard.pickupLift),
+        deliveryLift: wizard.deliveryLift == null ? undefined : Boolean(wizard.deliveryLift),
         longWalk: wizard.walkingDistance === 'long',
         parking: wizard.parkingDistance === 'long',
         stairsFlights: wizard.stairsFlights,
@@ -230,12 +207,47 @@ export function QuoteWizardProvider({ children, serviceType: serviceTypeProp, al
     })
   }, [step, settings, serviceType, wizard, lineItems, heavyItemCount])
 
+  const estimatedTotalForDraft =
+    breakdown?.estimatedTotal != null && Number.isFinite(breakdown.estimatedTotal)
+      ? breakdown.estimatedTotal
+      : null
+
+  useEffect(() => {
+    if (skipAutosaveRef.current) return undefined
+    const returnPath =
+      location.pathname && location.pathname !== '/' ? location.pathname : '/quote'
+    const timer = window.setTimeout(() => {
+      saveQuoteDraft({
+        step,
+        quoteRef,
+        serviceType,
+        returnPath,
+        wizard,
+        estimatedTotal: estimatedTotalForDraft,
+      })
+    }, 500)
+    return () => window.clearTimeout(timer)
+  }, [step, quoteRef, serviceType, wizard, location.pathname, estimatedTotalForDraft])
+
   const customSizeM3 = settings?.customSizeM3
 
   const handleDistanceFromRoute = useCallback((payload) => {
     if (payload?.type === 'ok' && typeof payload.miles === 'number') {
       setWizard((w) => ({ ...w, distanceMiles: payload.miles }))
     }
+  }, [])
+
+  const mobileStep3ExtrasValid = useCallback((w) => {
+    if (w.dismantling && !(Number(w.dismantlingItemCount) > 0)) return false
+    if (w.reassembly && !w.reassemblySameAsDismantling && !(Number(w.reassemblyItemCount) > 0)) {
+      return false
+    }
+    if (w.packingMaterials) {
+      const hasBoxes = Number(w.packingApproxBoxes) > 0
+      const hasDetail = (w.packingWhat || '').trim().length > 0
+      if (!hasBoxes && !hasDetail) return false
+    }
+    return true
   }, [])
 
   const canGoNext = useCallback(() => {
@@ -251,14 +263,7 @@ export function QuoteWizardProvider({ children, serviceType: serviceTypeProp, al
       const floorsOk = wizard.pickupFloor != null && wizard.deliveryFloor != null
       const moveDateOk =
         Boolean(wizard.moveDate) && isMoveDateOnOrAfterToday(wizard.moveDate)
-      const et = (wizard.exactArrivalTime || '').trim()
-      const arrivalOk =
-        wizard.arrivalWindow !== 'exact' ||
-        (/^\d{2}:\d{2}$/.test(et) &&
-          (() => {
-            const h = parseInt(et.slice(0, 2), 10)
-            return h >= 8 && h <= 18
-          })())
+      const arrivalOk = isWizardArrivalValid(wizard)
       return (
         textOk &&
         floorsOk &&
@@ -274,14 +279,14 @@ export function QuoteWizardProvider({ children, serviceType: serviceTypeProp, al
     }
     if (step === 3) {
       const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(wizard.email.trim())
-      return (
-        wizard.fullName.trim().length > 1 &&
-        wizard.phone.trim().length > 5 &&
-        emailOk
-      )
+      const contactOk =
+        wizard.fullName.trim().length > 1 && wizard.phone.trim().length > 5 && emailOk
+      const addressesOk =
+        wizard.pickupAddress.trim().length > 2 && wizard.deliveryAddress.trim().length > 2
+      return contactOk && addressesOk && mobileStep3ExtrasValid(wizard)
     }
     return true
-  }, [step, wizard])
+  }, [step, wizard, mobileStep3ExtrasValid])
 
   const next = useCallback(() => {
     setFeedback({ type: null, text: '' })
@@ -307,23 +312,9 @@ export function QuoteWizardProvider({ children, serviceType: serviceTypeProp, al
       setFeedback({ type: 'error', text: MOVE_DATE_PAST_ERROR })
       return
     }
-    if (step === 1 && wizard.arrivalWindow === 'exact') {
-      const et = (wizard.exactArrivalTime || '').trim()
-      if (!/^\d{2}:\d{2}$/.test(et)) {
-        setFeedback({
-          type: 'error',
-          text: 'Please choose your preferred arrival hour (08:00–18:00).',
-        })
-        return
-      }
-      const h = parseInt(et.slice(0, 2), 10)
-      if (h < 8 || h > 18) {
-        setFeedback({
-          type: 'error',
-          text: 'Arrival time must be between 08:00 and 18:00.',
-        })
-        return
-      }
+    if (step === 1 && !isWizardArrivalValid(wizard)) {
+      setFeedback({ type: 'error', text: wizardArrivalErrorMessage(wizard) })
+      return
     }
     if (!canGoNext()) {
       if (step === 2) {
@@ -334,6 +325,40 @@ export function QuoteWizardProvider({ children, serviceType: serviceTypeProp, al
         } else {
           setFeedback({ type: 'error', text: 'Please complete the required fields.' })
         }
+      } else if (step === 3) {
+        const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(wizard.email.trim())
+        if (wizard.fullName.trim().length <= 1) {
+          setFeedback({ type: 'error', text: 'Please enter your full name.' })
+        } else if (wizard.phone.trim().length <= 5) {
+          setFeedback({ type: 'error', text: 'Please enter a valid phone number.' })
+        } else if (!emailOk) {
+          setFeedback({ type: 'error', text: 'Please enter a valid email address.' })
+        } else if (wizard.pickupAddress.trim().length <= 2) {
+          setFeedback({ type: 'error', text: 'Please enter your pickup address.' })
+        } else if (wizard.deliveryAddress.trim().length <= 2) {
+          setFeedback({ type: 'error', text: 'Please enter your delivery address.' })
+        } else if (wizard.dismantling && !(Number(wizard.dismantlingItemCount) > 0)) {
+          setFeedback({
+            type: 'error',
+            text: 'Please enter how many items need dismantling.',
+          })
+        } else if (
+          wizard.reassembly &&
+          !wizard.reassemblySameAsDismantling &&
+          !(Number(wizard.reassemblyItemCount) > 0)
+        ) {
+          setFeedback({
+            type: 'error',
+            text: 'Please enter how many items need assembling.',
+          })
+        } else if (wizard.packingMaterials && !mobileStep3ExtrasValid(wizard)) {
+          setFeedback({
+            type: 'error',
+            text: 'Please set a quantity for at least one packing material.',
+          })
+        } else {
+          setFeedback({ type: 'error', text: 'Please complete the required fields.' })
+        }
       } else {
         setFeedback({ type: 'error', text: 'Please complete the required fields.' })
       }
@@ -341,7 +366,7 @@ export function QuoteWizardProvider({ children, serviceType: serviceTypeProp, al
     }
     pendingStepScrollRef.current = true
     setStep((s) => Math.min(4, s + 1))
-  }, [step, wizard, canGoNext])
+  }, [step, wizard, canGoNext, mobileStep3ExtrasValid])
 
   const back = useCallback(() => {
     pendingStepScrollRef.current = true
@@ -391,7 +416,7 @@ export function QuoteWizardProvider({ children, serviceType: serviceTypeProp, al
       inventory: invSummaryForParams,
       pricing: breakdown ? formatQuoteBreakdownLines(breakdown) : '',
       arrival_type: wizard.arrivalWindow === 'exact' ? 'exact' : 'window',
-      arrival_time: wizard.arrivalWindow === 'exact' ? (wizard.exactArrivalTime || '').trim() : '',
+      arrival_time: getWizardArrivalTimePayload(wizard),
     })
 
     const extras = {
@@ -408,13 +433,34 @@ export function QuoteWizardProvider({ children, serviceType: serviceTypeProp, al
 
   const handlePay = useCallback(
     async (paymentType) => {
-      if (!breakdown) return
+      if (paymentType === 'full' && !breakdown) {
+        setPayError('Your quote total is still calculating. Please wait a moment and try again.')
+        return
+      }
       if (!isMoveDateOnOrAfterToday(wizard.moveDate)) {
         setPayError(MOVE_DATE_PAST_ERROR)
         return
       }
-      const payload = buildQuotePayloadForSave()
-      if (!payload) return
+      if (wizard.phone.trim().length <= 5) {
+        setPayError('Please add your phone number on step 3 before paying.')
+        return
+      }
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(wizard.email.trim())) {
+        setPayError('Please add a valid email on step 3 before paying.')
+        return
+      }
+
+      let payload
+      try {
+        payload = buildQuotePayloadForSave()
+      } catch (e) {
+        setPayError(e?.message ?? 'Could not prepare your quote for payment.')
+        return
+      }
+      if (!payload) {
+        setPayError('Please complete your quote details before paying.')
+        return
+      }
 
       setPayLoading(true)
       setPayError('')
@@ -494,7 +540,7 @@ export function QuoteWizardProvider({ children, serviceType: serviceTypeProp, al
       arrivalWindow: wizard.arrivalWindow,
       exactArrivalTime: wizard.exactArrivalTime,
       arrival_type: wizard.arrivalWindow === 'exact' ? 'exact' : 'window',
-      arrival_time: wizard.arrivalWindow === 'exact' ? (wizard.exactArrivalTime || '').trim() || null : null,
+      arrival_time: getWizardArrivalTimePayload(wizard) || null,
       photoFileNames,
     }
 
@@ -553,8 +599,7 @@ export function QuoteWizardProvider({ children, serviceType: serviceTypeProp, al
           status: 'New',
           job_items: jobItems,
           arrival_type: wizard.arrivalWindow === 'exact' ? 'exact' : 'window',
-          arrival_time:
-            wizard.arrivalWindow === 'exact' ? (wizard.exactArrivalTime || '').trim() || null : null,
+          arrival_time: getWizardArrivalTimePayload(wizard) || null,
         })
       } catch (err) {
         jobWarning = err?.message || 'Database error'
@@ -567,8 +612,14 @@ export function QuoteWizardProvider({ children, serviceType: serviceTypeProp, al
           ? `Quote emailed. ${backendIssues.join(' ')}`
           : 'Thank you — your quote request was sent. We’ll be in touch shortly.',
       })
+      skipAutosaveRef.current = true
+      clearQuoteDraft()
       setWizard(initialWizardState())
+      setQuoteRef(makeQuoteRef())
       setStep(1)
+      window.setTimeout(() => {
+        skipAutosaveRef.current = false
+      }, 600)
       if (fileInputRef.current) fileInputRef.current.value = ''
     } catch (err) {
       setLastQuoteData(null)
@@ -578,6 +629,23 @@ export function QuoteWizardProvider({ children, serviceType: serviceTypeProp, al
       setSubmitting(false)
     }
   }, [breakdown, settings, serviceType, quoteRef, wizard, buildQuotePayloadForSave])
+
+  const resetQuoteWizard = useCallback(() => {
+    skipAutosaveRef.current = true
+    clearQuoteDraft()
+    setWizard(initialWizardState())
+    setQuoteRef(makeQuoteRef())
+    setStep(1)
+    setServiceType(serviceTypeProp)
+    setFeedback({ type: null, text: '' })
+    setLastQuoteData(null)
+    setCardPayment(null)
+    setPayError('')
+    if (fileInputRef.current) fileInputRef.current.value = ''
+    window.setTimeout(() => {
+      skipAutosaveRef.current = false
+    }, 600)
+  }, [serviceTypeProp])
 
   const value = {
     step,
@@ -613,6 +681,7 @@ export function QuoteWizardProvider({ children, serviceType: serviceTypeProp, al
     buildQuotePayloadForSave,
     handlePay,
     handleSubmit,
+    resetQuoteWizard,
   }
 
   return <QuoteWizardContext.Provider value={value}>{children}</QuoteWizardContext.Provider>

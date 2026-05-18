@@ -1,12 +1,11 @@
 import { Link } from 'react-router-dom'
 import Logo from './Logo'
+import MobileNavbar from './mobile/MobileNavbar'
 import { CONTACT } from '../config'
 import { useWebsiteCms } from '../context/WebsiteCmsContext'
 
-/**
- * Minimal sticky header for service quote pages — no full-site nav distractions.
- */
-export default function QuoteNavbar() {
+/** Desktop quote header (md+) — unchanged from original QuoteNavbar. */
+function DesktopQuoteNavbar() {
   const { navbar } = useWebsiteCms()
   const phoneDisplay = navbar.phoneDisplay || CONTACT.phoneDisplay
   const phoneTel = navbar.phoneTel || CONTACT.phoneTel
@@ -50,9 +49,22 @@ export default function QuoteNavbar() {
           </a>
         </div>
       </nav>
-      <p className="home-container border-t border-white/10 pb-2 pt-1 text-center text-[11px] font-medium text-white/60 sm:hidden">
-        Secure quote
-      </p>
     </header>
+  )
+}
+
+/**
+ * Service quote pages — mobile matches homepage MobileNavbar; desktop header unchanged.
+ */
+export default function QuoteNavbar() {
+  return (
+    <>
+      <div className="block md:hidden">
+        <MobileNavbar />
+      </div>
+      <div className="hidden md:block">
+        <DesktopQuoteNavbar />
+      </div>
+    </>
   )
 }
