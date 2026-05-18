@@ -17,8 +17,13 @@ export default function HomeHashScroll() {
     let timeoutId
 
     const scrollToId = () => {
-      const el = document.getElementById(id)
-      if (!el) return false
+      const matches = document.querySelectorAll(`#${CSS.escape(id)}`)
+      if (!matches.length) return false
+      const el =
+        Array.from(matches).find((node) => {
+          const rect = node.getBoundingClientRect()
+          return rect.width > 0 && rect.height > 0
+        }) ?? matches[0]
       el.scrollIntoView({ behavior: 'smooth', block: 'start' })
       return true
     }

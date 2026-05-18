@@ -34,6 +34,8 @@ import JourneyPlannerPage from './components/JourneyPlannerPage'
 import OperationsMapPage from './components/OperationsMapPage'
 import PaymentSuccessPage from './pages/PaymentSuccessPage'
 import PaymentCancelledPage from './pages/PaymentCancelledPage'
+import SeoLandingPage from './pages/SeoLandingPage'
+import { SEO_PAGE_PATHS } from './data/seoPages'
 
 function RedirectQuoteDetailToAvailableJobs() {
   const { id } = useParams()
@@ -109,6 +111,17 @@ export default function App() {
           element={
             <ServiceQuoteLayout>
               <ServiceQuotePage />
+            </ServiceQuoteLayout>
+          }
+        />
+      ))}
+      {SEO_PAGE_PATHS.map((path) => (
+        <Route
+          key={path}
+          path={path}
+          element={
+            <ServiceQuoteLayout>
+              <SeoLandingPage />
             </ServiceQuoteLayout>
           }
         />

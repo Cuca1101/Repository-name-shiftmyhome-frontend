@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import Logo from '../Logo'
 import HomeSectionLink from '../HomeSectionLink'
+import CoverageLink from '../CoverageLink'
 import { CONTACT } from '../../config'
 import { useWebsiteCms } from '../../context/WebsiteCmsContext'
 
@@ -81,13 +82,9 @@ export default function DesktopNavbar() {
         </HomeSectionLink>
 
         <div className="hidden min-w-0 flex-1 items-center justify-center gap-4 md:flex xl:gap-6">
-          {navItems.map((item) => (
-            <HomeSectionLink
-              key={item.sectionId}
-              sectionId={item.sectionId}
-              className={navLinkClass(isHome && activeSection === item.sectionId)}
-              onNavigate={() => setActiveSection(item.sectionId)}
-            >
+          {navItems.map((item) => {
+            const linkClassName = navLinkClass(isHome && activeSection === item.sectionId)
+            const label = (
               <span className="inline-flex items-center gap-0.5">
                 {item.label}
                 {item.sectionId === 'services' && (
@@ -96,8 +93,29 @@ export default function DesktopNavbar() {
                   </svg>
                 )}
               </span>
-            </HomeSectionLink>
-          ))}
+            )
+            if (item.sectionId === 'coverage') {
+              return (
+                <CoverageLink
+                  key={item.sectionId}
+                  className={linkClassName}
+                  onNavigate={() => setActiveSection(item.sectionId)}
+                >
+                  {label}
+                </CoverageLink>
+              )
+            }
+            return (
+              <HomeSectionLink
+                key={item.sectionId}
+                sectionId={item.sectionId}
+                className={linkClassName}
+                onNavigate={() => setActiveSection(item.sectionId)}
+              >
+                {label}
+              </HomeSectionLink>
+            )
+          })}
         </div>
 
         <div className="flex shrink-0 items-center gap-2 sm:gap-3">

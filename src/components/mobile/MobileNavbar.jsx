@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import Logo from '../Logo'
 import HomeSectionLink from '../HomeSectionLink'
+import CoverageLink from '../CoverageLink'
 import { CONTACT } from '../../config'
 import { useWebsiteCms } from '../../context/WebsiteCmsContext'
 
@@ -75,16 +76,26 @@ export default function MobileNavbar() {
       {open ? (
         <div className="border-t border-white/10 bg-navy-800">
           <div className="flex max-h-[min(70vh,420px)] flex-col gap-0.5 overflow-y-auto px-3 py-2">
-            {navItems.map((item) => (
-              <HomeSectionLink
-                key={item.sectionId}
-                sectionId={item.sectionId}
-                className="rounded-lg px-2 py-3 text-[15px] font-medium text-white/90 active:bg-white/10"
-                onNavigate={closeMenu}
-              >
-                {item.label}
-              </HomeSectionLink>
-            ))}
+            {navItems.map((item) =>
+              item.sectionId === 'coverage' ? (
+                <CoverageLink
+                  key={item.sectionId}
+                  className="rounded-lg px-2 py-3 text-[15px] font-medium text-white/90 active:bg-white/10"
+                  onNavigate={closeMenu}
+                >
+                  {item.label}
+                </CoverageLink>
+              ) : (
+                <HomeSectionLink
+                  key={item.sectionId}
+                  sectionId={item.sectionId}
+                  className="rounded-lg px-2 py-3 text-[15px] font-medium text-white/90 active:bg-white/10"
+                  onNavigate={closeMenu}
+                >
+                  {item.label}
+                </HomeSectionLink>
+              ),
+            )}
             <HomeSectionLink
               sectionId="services"
               className="btn-premium-primary mt-2 min-h-[48px] w-full text-sm"

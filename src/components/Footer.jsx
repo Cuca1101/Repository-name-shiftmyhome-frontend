@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import Logo from './Logo'
 import HomeSectionLink from './HomeSectionLink'
+import CoverageLink from './CoverageLink'
 import { CONTACT, WHATSAPP_URL } from '../config'
 import { supabase } from '../lib/supabase'
 import { useWebsiteCms } from '../context/WebsiteCmsContext'
@@ -125,6 +126,8 @@ export default function Footer() {
                     <Link to={item.to} className={linkClass}>
                       {item.label}
                     </Link>
+                  ) : item.sectionId === 'coverage' ? (
+                    <CoverageLink className={linkClass}>{item.label}</CoverageLink>
                   ) : (
                     <HomeSectionLink sectionId={item.sectionId} className={linkClass}>
                       {item.label}

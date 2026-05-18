@@ -11,7 +11,14 @@ export default function HomeSectionLink({ sectionId, children, className, onNavi
   const location = useLocation()
 
   function scrollToSection() {
-    const el = document.getElementById(sectionId)
+    const matches = document.querySelectorAll(`#${CSS.escape(sectionId)}`)
+    const el =
+      matches.length > 0
+        ? Array.from(matches).find((node) => {
+            const rect = node.getBoundingClientRect()
+            return rect.width > 0 && rect.height > 0
+          }) ?? matches[0]
+        : null
     if (el) {
       el.scrollIntoView({ behavior: 'smooth', block: 'start' })
     }
