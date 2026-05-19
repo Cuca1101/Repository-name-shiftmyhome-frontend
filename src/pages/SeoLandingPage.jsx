@@ -2,6 +2,7 @@ import { Link, Navigate, useLocation } from 'react-router-dom'
 import QuoteWizard from '../components/quote-wizard/QuoteWizard'
 import SeoHead from '../components/seo/SeoHead'
 import SeoFaqJsonLd from '../components/seo/SeoFaqJsonLd'
+import SeoBusinessJsonLd from '../components/seo/SeoBusinessJsonLd'
 import SeoFaqAccordion from '../components/seo/SeoFaqAccordion'
 import { getSeoPageByPath } from '../data/seoPages'
 import { CONTACT, WHATSAPP_URL } from '../config'
@@ -110,6 +111,11 @@ export default function SeoLandingPage() {
   return (
     <article className="seo-landing">
       <SeoHead title={page.title} description={page.metaDescription} path={page.path} />
+      <SeoBusinessJsonLd
+        path={page.path}
+        pageTitle={page.h1}
+        description={page.metaDescription}
+      />
       <SeoFaqJsonLd faqs={page.faqs} path={page.path} />
 
       <header className="seo-hero" aria-label="Page introduction">

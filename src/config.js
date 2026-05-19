@@ -1,20 +1,34 @@
 /**
- * Official WhatsApp link (number + pre-filled message). Use everywhere for consistency.
+ * Site contact & messaging — re-exported from companyContact (single source of truth).
  */
-export const WHATSAPP_URL =
-  'https://wa.me/447466510975?text=Hi%2C%20I%20need%20a%20removals%20quote'
+import {
+  COMPANY_PHONE,
+  COMPANY_PHONE_DISPLAY,
+  COMPANY_PHONE_TEL,
+  COMPANY_PHONE_E164,
+  COMPANY_PHONE_WHATSAPP,
+  COMPANY_EMAIL,
+  WHATSAPP_URL,
+  WHATSAPP_SUPPORT_URL,
+  WHATSAPP_ME_URL,
+  COMPANY_CONTACT,
+} from './constants/companyContact'
 
-/** WhatsApp pre-filled message for general support / help (CTAs, footer variants). */
-export const WHATSAPP_SUPPORT_URL =
-  'https://wa.me/447466510975?text=Hi%2C%20I%20need%20help%20with%20a%20removals%20quote'
+export {
+  COMPANY_PHONE,
+  COMPANY_PHONE_DISPLAY,
+  COMPANY_PHONE_TEL,
+  COMPANY_PHONE_E164,
+  COMPANY_PHONE_WHATSAPP,
+  COMPANY_EMAIL,
+  WHATSAPP_URL,
+  WHATSAPP_SUPPORT_URL,
+  WHATSAPP_ME_URL,
+}
+
+export const CONTACT = COMPANY_CONTACT
 
 /** @deprecated Use WHATSAPP_URL — kept for any old imports */
 export function getWhatsAppUrl() {
   return WHATSAPP_URL
-}
-
-export const CONTACT = {
-  phoneDisplay: '07466510975',
-  phoneTel: '07466510975',
-  email: 'admin@shiftmyhome.co.uk',
 }

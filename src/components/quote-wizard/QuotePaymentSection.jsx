@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Check, ShieldCheck } from 'lucide-react'
 import { isDepositPaymentAllowedForMoveDate } from '../../lib/moveDateLocal'
+import { trackWebsiteLeadEvent } from '../../lib/websiteLeadTracker'
 import QuoteStripePayment from './QuoteStripePayment'
 
 /** Step 4 mounts twice (mobile + desktop columns); detect visibility without document-wide MutationObserver. */
@@ -129,6 +130,10 @@ export default function QuotePaymentSection({
 
   function selectChoice(kind) {
     setPaymentChoice(kind)
+    void trackWebsiteLeadEvent('payment_option_selected', {
+      paymentType: kind,
+      returnPath: typeof window !== 'undefined' ? window.location.pathname : '/',
+    })
     const intentReady = cardPayment?.paymentType === kind && cardFormOpen
     if (!intentReady && typeof onPay === 'function') {
       onPay(kind)

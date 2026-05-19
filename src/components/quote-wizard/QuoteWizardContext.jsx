@@ -340,6 +340,7 @@ export function QuoteWizardProvider({ children, serviceType: serviceTypeProp, al
         estimatedTotal: estimatedTotalForDraft,
         landingPath: returnPath,
         status: step > 1 ? 'step_completed' : 'quote_started',
+        allowContactInLead: false,
       })
     }, 500)
     return () => window.clearTimeout(timer)
@@ -347,16 +348,19 @@ export function QuoteWizardProvider({ children, serviceType: serviceTypeProp, al
 
   useEffect(() => {
     if (step <= 1) return
+    trackWebsiteLeadEvent(`quote_step_${step}`, {
+      quoteRef,
+      serviceType,
+      step,
+      estimatedTotal: estimatedTotalForDraft,
+      returnPath: location.pathname,
+    })
     trackWebsiteLeadEvent('step_completed', {
       quoteRef,
       serviceType,
       step,
       estimatedTotal: estimatedTotalForDraft,
-      customerName: wizard.fullName,
-      customerEmail: wizard.email,
-      customerPhone: wizard.phone,
-      pickupAddress: wizard.pickupAddress,
-      deliveryAddress: wizard.deliveryAddress,
+      returnPath: location.pathname,
     })
   }, [step])
 

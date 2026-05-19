@@ -3,6 +3,7 @@ import { useLocation } from 'react-router-dom'
 import { SEO_SITE_ORIGIN } from '../../data/seoPages'
 import { useWebsiteCms } from '../../context/WebsiteCmsContext'
 import { DEFAULT_HOMEPAGE } from '../../lib/websiteCmsDefaults'
+import { buildMovingCompanyJsonLd, buildWebSiteJsonLd } from '../../lib/schemaOrgBusiness'
 
 const SITE_ORIGIN = SEO_SITE_ORIGIN
 
@@ -33,60 +34,6 @@ function setLink(rel, href) {
   const prev = el.getAttribute('href')
   el.setAttribute('href', href)
   return { el, prev, created }
-}
-
-const ORGANIZATION_JSON_LD = {
-  '@context': 'https://schema.org',
-  '@type': 'MovingCompany',
-  '@id': `${SITE_ORIGIN}/#organization`,
-  name: 'ShiftMyHome',
-  alternateName: ['Shift My Home', 'Shift My Home Removals'],
-  url: SITE_ORIGIN,
-  description:
-    'ShiftMyHome is a trusted removals platform for house removals, man with van, furniture delivery, office moves, and student moves across Scotland and the UK.',
-  areaServed: {
-    '@type': 'Country',
-    name: 'Scotland',
-  },
-  knowsAbout: [
-    'House removals',
-    'Man with van',
-    'Furniture delivery',
-    'Office moves',
-    'Student moves',
-    'Removal van',
-    'Moving services',
-  ],
-  hasOfferCatalog: {
-    '@type': 'OfferCatalog',
-    name: 'Moving services',
-    itemListElement: [
-      { '@type': 'Offer', itemOffered: { '@type': 'Service', name: 'House removals' } },
-      { '@type': 'Offer', itemOffered: { '@type': 'Service', name: 'Man with van' } },
-      { '@type': 'Offer', itemOffered: { '@type': 'Service', name: 'Furniture delivery' } },
-      { '@type': 'Offer', itemOffered: { '@type': 'Service', name: 'Office moves' } },
-      { '@type': 'Offer', itemOffered: { '@type': 'Service', name: 'Student moves' } },
-    ],
-  },
-  contactPoint: {
-    '@type': 'ContactPoint',
-    telephone: '+44-7466-510975',
-    contactType: 'customer service',
-    areaServed: 'GB',
-    availableLanguage: 'English',
-  },
-}
-
-const WEBSITE_JSON_LD = {
-  '@context': 'https://schema.org',
-  '@type': 'WebSite',
-  '@id': `${SITE_ORIGIN}/#website`,
-  name: 'ShiftMyHome',
-  alternateName: 'Shift My Home',
-  url: SITE_ORIGIN,
-  description: HOME_PAGE_DESCRIPTION,
-  publisher: { '@id': `${SITE_ORIGIN}/#organization` },
-  inLanguage: 'en-GB',
 }
 
 /**
@@ -133,8 +80,9 @@ export default function HomePageSeo() {
       document.head.appendChild(script)
     }
     const prevJson = script.textContent
-    const websiteLd = { ...WEBSITE_JSON_LD, description: pageDescription }
-    script.textContent = JSON.stringify([ORGANIZATION_JSON_LD, websiteLd])
+    const organizationLd = buildMovingCompanyJsonLd(SITE_ORIGIN, { description: pageDescription })
+    const websiteLd = buildWebSiteJsonLd(SITE_ORIGIN, pageDescription)
+    script.textContent = JSON.stringify([organizationLd, websiteLd])
 
     return () => {
       document.title = prevTitle

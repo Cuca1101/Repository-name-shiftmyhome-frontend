@@ -5,6 +5,7 @@ import MobileTrustBand from '../components/mobile/MobileTrustBand'
 import HowItWorksSection from '../components/HowItWorksSection'
 import AboutSection from '../components/AboutSection'
 import ReviewsSection from '../components/ReviewsSection'
+import RecentMovesGallerySection from '../components/RecentMovesGallerySection'
 import FAQSection from '../components/FAQSection'
 import SupportCTASection from '../components/SupportCTASection'
 import PricingPreview from '../components/PricingPreview'
@@ -35,6 +36,7 @@ export default function HomePage() {
           <ContactSection />
           <MobileTrustBand />
           <ReviewsSection />
+          <RecentMovesGallerySection />
           {mobileSecondarySections}
         </div>
 
@@ -45,6 +47,7 @@ export default function HomePage() {
           <HowItWorksSection />
           <AboutSection />
           <ReviewsSection />
+          <RecentMovesGallerySection />
           <PricingPreview />
           <CoverageHomeSection />
           <FAQSection />

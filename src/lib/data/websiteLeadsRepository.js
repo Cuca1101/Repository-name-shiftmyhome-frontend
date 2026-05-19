@@ -127,6 +127,13 @@ export async function fetchWebsiteLeadsForAdmin(opts = {}) {
         r.quote_ref,
         r.landing_path,
         r.city_route,
+        r.city,
+        r.region,
+        r.country,
+        r.ip_masked,
+        r.device_type,
+        r.browser_name,
+        r.referrer,
         r.service_type,
         r.session_id,
       ]

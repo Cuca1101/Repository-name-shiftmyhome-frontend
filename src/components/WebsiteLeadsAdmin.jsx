@@ -7,6 +7,7 @@ import {
   markRecoveryEmailSent,
   scheduleAbandonedRecoveryForRows,
 } from '../lib/data/websiteLeadsRepository'
+import { fetchWebsiteEventsForAdmin } from '../lib/data/websiteEventsRepository'
 import { filterLeadsByRecoveryChip } from '../lib/websiteLeadRecovery'
 import { formatDateTimeUK } from '../lib/formatDateDisplay'
 import WebsiteLeadsRecoveryPanel, { RecoveryBadge } from './admin/WebsiteLeadsRecoveryPanel'
@@ -129,6 +130,13 @@ function LeadDetailDrawer({ row, onClose, onRefresh }) {
           <dl>
             <DetailRow label="Landing page">{row.landing_path}</DetailRow>
             <DetailRow label="Route / city">{row.city_route || '—'}</DetailRow>
+            <DetailRow label="Visitor location">
+              {[row.city, row.region, row.country].filter(Boolean).join(', ') || '—'}
+            </DetailRow>
+            <DetailRow label="IP (masked)">{row.ip_masked || '—'}</DetailRow>
+            <DetailRow label="Device">
+              {[row.device_type, row.browser_name].filter(Boolean).join(' · ') || '—'}
+            </DetailRow>
             <DetailRow label="Service">{row.service_type || '—'}</DetailRow>
             <DetailRow label="Step reached">{row.current_step ? `Step ${row.current_step}` : '—'}</DetailRow>
             <DetailRow label="Quote ref">{row.quote_ref || '—'}</DetailRow>
@@ -173,6 +181,7 @@ export default function WebsiteLeadsAdmin() {
   const [recoveryChip, setRecoveryChip] = useState('')
   const [cityRoute, setCityRoute] = useState('')
   const [rows, setRows] = useState([])
+  const [events, setEvents] = useState([])
   const [allRowsForCities, setAllRowsForCities] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -187,17 +196,19 @@ export default function WebsiteLeadsAdmin() {
     setLoading(true)
     setError('')
     try {
-      const [list, all] = await Promise.all([
+      const [list, all, recentEvents] = await Promise.all([
         fetchWebsiteLeadsForAdmin({
           filter,
           cityRoute,
           search: activeSearch,
         }),
         fetchWebsiteLeadsForAdmin({ filter: 'all' }),
+        fetchWebsiteEventsForAdmin({ limit: 150 }),
       ])
       await scheduleAbandonedRecoveryForRows(all)
       setRows(filterLeadsByRecoveryChip(list, recoveryChip))
       setAllRowsForCities(all)
+      setEvents(recentEvents)
     } catch (e) {
       setError(e?.message || 'Failed to load website leads.')
     } finally {
@@ -222,6 +233,7 @@ export default function WebsiteLeadsAdmin() {
           <h2 className="text-2xl font-bold text-slate-900">Website Leads / Quote Funnel</h2>
           <p className="mt-1 text-sm text-slate-600">
             Anonymous visitors and quote progress. Abandoned = started quote with no activity for 30+ minutes.
+            Visitor IP is stored masked/hashed for admin analytics only (GDPR).
           </p>
         </div>
         <button
@@ -231,6 +243,60 @@ export default function WebsiteLeadsAdmin() {
         >
           Refresh
         </button>
+      </div>
+
+      <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-card">
+        <div className="border-b border-slate-100 px-5 py-4">
+          <h3 className="text-base font-semibold text-slate-900">Recent funnel events</h3>
+          <p className="mt-1 text-xs text-slate-500">
+            Latest page views and quote steps with approximate location (requires migration 032 + edge function
+            get-visitor-context).
+          </p>
+        </div>
+        {events.length === 0 ? (
+          <p className="px-5 py-8 text-center text-sm text-slate-500">No events recorded yet.</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-slate-200 text-left text-sm">
+              <thead className="bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                <tr>
+                  <th className="px-4 py-3">Time</th>
+                  <th className="px-4 py-3">Event</th>
+                  <th className="px-4 py-3">Page</th>
+                  <th className="px-4 py-3">Source</th>
+                  <th className="px-4 py-3">Location</th>
+                  <th className="px-4 py-3">IP</th>
+                  <th className="px-4 py-3">Device</th>
+                  <th className="px-4 py-3">Session</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {events.map((ev) => (
+                  <tr key={ev.id} className="hover:bg-slate-50/80">
+                    <td className="whitespace-nowrap px-4 py-2.5 text-slate-600">
+                      {formatDateTimeUK(ev.created_at)}
+                    </td>
+                    <td className="px-4 py-2.5 font-medium text-slate-900">{ev.event_name}</td>
+                    <td className="max-w-[120px] truncate px-4 py-2.5 text-slate-700">{ev.page_path || '—'}</td>
+                    <td className="max-w-[140px] truncate px-4 py-2.5 text-xs text-slate-600">
+                      {ev.referrer || '—'}
+                    </td>
+                    <td className="px-4 py-2.5 text-slate-700">
+                      {[ev.city, ev.region, ev.country].filter(Boolean).join(', ') || '—'}
+                    </td>
+                    <td className="px-4 py-2.5 font-mono text-xs text-slate-600">{ev.ip_masked || '—'}</td>
+                    <td className="px-4 py-2.5 text-xs text-slate-600">
+                      {[ev.device_type, ev.browser_name].filter(Boolean).join(' · ') || '—'}
+                    </td>
+                    <td className="px-4 py-2.5 font-mono text-xs text-slate-500">
+                      {String(ev.session_id || '').slice(0, 8)}…
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
       <WebsiteLeadsRecoveryPanel
@@ -301,6 +367,8 @@ export default function WebsiteLeadsAdmin() {
                   <th className="px-4 py-3">Status</th>
                   <th className="px-4 py-3">Recovery</th>
                   <th className="px-4 py-3">Landing / city</th>
+                  <th className="px-4 py-3">Location</th>
+                  <th className="px-4 py-3">IP</th>
                   <th className="px-4 py-3">Service</th>
                   <th className="px-4 py-3">Customer</th>
                   <th className="px-4 py-3">Step</th>
@@ -328,6 +396,9 @@ export default function WebsiteLeadsAdmin() {
                           <div className="text-xs text-slate-500">{row.city_route}</div>
                         ) : null}
                       </td>
+                      <td className="px-4 py-3 text-slate-700">{[row.city, row.region, row.country].filter(Boolean).join(', ') || '—'}
+                      </td>
+                      <td className="px-4 py-3 font-mono text-xs text-slate-600">{row.ip_masked || '—'}</td>
                       <td className="px-4 py-3 text-slate-700">{row.service_type || '—'}</td>
                       <td className="max-w-[180px] px-4 py-3">
                         <div className="font-medium text-slate-900">{row.customer_name || '—'}</div>

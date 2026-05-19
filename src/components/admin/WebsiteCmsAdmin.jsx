@@ -10,12 +10,14 @@ import {
 } from '../../lib/data/websiteCmsRepository'
 import { uploadWebsiteImage } from '../../lib/data/websiteCmsUpload'
 import { getDefaultServiceCards } from '../../lib/websiteCmsDefaults'
+import HomepageGalleryAdminTab from './HomepageGalleryAdminTab'
 
 const TABS = [
   { id: 'homepage', label: 'Homepage' },
   { id: 'service-cards', label: 'Service Cards' },
   { id: 'about', label: 'About Section' },
   { id: 'reviews', label: 'Reviews' },
+  { id: 'gallery', label: 'Recent Moves Gallery' },
   { id: 'coverage', label: 'Coverage' },
   { id: 'navbar-footer', label: 'Navbar & Footer' },
   { id: 'announcement', label: 'Announcement Bar' },
@@ -110,6 +112,7 @@ export default function WebsiteCmsAdmin() {
   const [announcement, setAnnouncement] = useState({})
   const [serviceCards, setServiceCards] = useState([])
   const [reviews, setReviews] = useState([])
+  const [galleryItems, setGalleryItems] = useState([])
   const [media, setMedia] = useState([])
   const [editingCard, setEditingCard] = useState(null)
   const [editingReview, setEditingReview] = useState(null)
@@ -127,6 +130,7 @@ export default function WebsiteCmsAdmin() {
       setAnnouncement(data.settings.announcement)
       setServiceCards(data.serviceCards)
       setReviews(data.reviews)
+      setGalleryItems(data.galleryItems ?? [])
       setMedia(data.media)
     } catch (e) {
       setMessage({
@@ -250,6 +254,16 @@ export default function WebsiteCmsAdmin() {
           <Field label="Services section subheading">
             <input className={inputClass} value={homepage.servicesSubheading || ''} onChange={(e) => setHomepage({ ...homepage, servicesSubheading: e.target.value })} />
           </Field>
+          <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-3">
+            <p className="text-sm font-semibold text-slate-800">Recent moves gallery (homepage)</p>
+            <Field label="Gallery heading">
+              <input className={inputClass} value={homepage.galleryHeading || ''} onChange={(e) => setHomepage({ ...homepage, galleryHeading: e.target.value })} />
+            </Field>
+            <Field label="Gallery subheading">
+              <textarea className={inputClass} rows={2} value={homepage.gallerySubheading || ''} onChange={(e) => setHomepage({ ...homepage, gallerySubheading: e.target.value })} />
+            </Field>
+            <p className="text-xs text-slate-500">Manage photos in the Recent Moves Gallery tab.</p>
+          </div>
           <button type="button" disabled={saving} onClick={() => saveSection('homepage', homepage)} className="rounded-xl bg-brand-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-60">
             {saving ? 'Saving…' : 'Save Homepage'}
           </button>
@@ -457,6 +471,10 @@ export default function WebsiteCmsAdmin() {
             ))}
           </ul>
         </div>
+      )}
+
+      {tab === 'gallery' && (
+        <HomepageGalleryAdminTab galleryItems={galleryItems} onReload={load} setMessage={setMessage} />
       )}
 
       {tab === 'reviews' && (

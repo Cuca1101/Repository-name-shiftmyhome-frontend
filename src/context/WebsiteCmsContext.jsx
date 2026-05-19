@@ -22,6 +22,7 @@ const WebsiteCmsContext = createContext({
   announcement: DEFAULT_ANNOUNCEMENT,
   serviceCards: getDefaultServiceCards(),
   reviews: DEFAULT_REVIEWS,
+  galleryItems: [],
 })
 
 export function WebsiteCmsProvider({ children }) {
@@ -54,6 +55,7 @@ export function WebsiteCmsProvider({ children }) {
     const announcement = cms?.announcement ?? DEFAULT_ANNOUNCEMENT
     const serviceCards = cms?.serviceCards?.length ? cms.serviceCards : getDefaultServiceCards()
     const reviews = cms?.reviews?.length ? cms.reviews : DEFAULT_REVIEWS
+    const galleryItems = cms?.galleryItems?.length ? cms.galleryItems : []
 
     return {
       loading,
@@ -61,6 +63,7 @@ export function WebsiteCmsProvider({ children }) {
       hasCmsData: cms !== null,
       hasCmsServiceCards: Boolean(cms?.serviceCards?.length),
       hasCmsReviews: Boolean(cms?.reviews?.length),
+      hasCmsGallery: Boolean(cms?.galleryItems?.length),
       homepage,
       about,
       coverage,
@@ -69,6 +72,7 @@ export function WebsiteCmsProvider({ children }) {
       announcement,
       serviceCards,
       reviews,
+      galleryItems,
     }
   }, [cms, loading])
 

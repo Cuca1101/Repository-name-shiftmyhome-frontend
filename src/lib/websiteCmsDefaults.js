@@ -1,4 +1,4 @@
-import { CONTACT } from '../config'
+import { CONTACT, WHATSAPP_ME_URL } from '../config'
 import { SERVICE_PAGES } from '../constants/servicePages'
 import { HOME_SERVICE_CARD_IMAGES } from '../constants/homeServiceCardImages'
 
@@ -20,6 +20,9 @@ export const DEFAULT_HOMEPAGE = {
   trustpilotText: 'Excellent 4.8 out of 5 Trustpilot',
   servicesHeading: 'Our removal services',
   servicesSubheading: 'Choose a service and get an instant quote in minutes.',
+  galleryHeading: 'Recent moves across Scotland',
+  gallerySubheading:
+    'Real completed jobs from our crews — house moves, office relocations, and furniture deliveries.',
 }
 
 export const DEFAULT_ABOUT = {
@@ -70,7 +73,7 @@ export const DEFAULT_FOOTER = {
     'ShiftMyHome — house removals, man with van and moving services across Scotland.',
   logoUrl: '/logo-footer.png',
   socialLinks: {
-    whatsapp: 'https://wa.me/447466510975',
+    whatsapp: WHATSAPP_ME_URL,
     facebook: '',
     instagram: '',
   },

@@ -1,4 +1,5 @@
 import { supabase, isSupabaseConfigured } from '../supabaseClient'
+import { fetchHomepageGalleryPublic, fetchHomepageGalleryAdmin } from './homepageGalleryRepository'
 import {
   DEFAULT_HOMEPAGE,
   DEFAULT_ABOUT,
@@ -20,7 +21,7 @@ function isMissingTableError(err) {
 export async function fetchWebsiteCmsPublic() {
   if (!isSupabaseConfigured) return null
   try {
-    const [settingsRes, cardsRes, reviewsRes] = await Promise.all([
+    const [settingsRes, cardsRes, reviewsRes, galleryItems] = await Promise.all([
       supabase.from('website_settings').select('*').eq('id', SETTINGS_ID).maybeSingle(),
       supabase
         .from('website_service_cards')
@@ -32,6 +33,7 @@ export async function fetchWebsiteCmsPublic() {
         .select('*')
         .eq('is_active', true)
         .order('sort_order', { ascending: true }),
+      fetchHomepageGalleryPublic(),
     ])
 
     if (settingsRes.error && isMissingTableError(settingsRes.error)) return null
@@ -52,6 +54,7 @@ export async function fetchWebsiteCmsPublic() {
       announcement: mergeSection(DEFAULT_ANNOUNCEMENT, row?.announcement),
       serviceCards: cardsRes.data?.length ? cardsRes.data : null,
       reviews: reviewsRes.data?.length ? reviewsRes.data : null,
+      galleryItems: galleryItems?.length ? galleryItems : null,
     }
   } catch {
     return null
@@ -63,11 +66,15 @@ export async function fetchWebsiteCmsAdmin() {
     throw new Error('Supabase is not configured. Add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY.')
   }
 
-  const [settingsRes, cardsRes, reviewsRes, mediaRes] = await Promise.all([
+  const [settingsRes, cardsRes, reviewsRes, mediaRes, galleryItems] = await Promise.all([
     supabase.from('website_settings').select('*').eq('id', SETTINGS_ID).maybeSingle(),
     supabase.from('website_service_cards').select('*').order('sort_order', { ascending: true }),
     supabase.from('website_reviews').select('*').order('sort_order', { ascending: true }),
     supabase.from('website_media').select('*').order('created_at', { ascending: false }).limit(200),
+    fetchHomepageGalleryAdmin().catch((err) => {
+      if (isMissingTableError(err)) return []
+      throw err
+    }),
   ])
 
   for (const res of [settingsRes, cardsRes, reviewsRes, mediaRes]) {
@@ -87,6 +94,7 @@ export async function fetchWebsiteCmsAdmin() {
     serviceCards: cardsRes.data ?? [],
     reviews: reviewsRes.data ?? [],
     media: mediaRes.data ?? [],
+    galleryItems: galleryItems ?? [],
   }
 }
 
