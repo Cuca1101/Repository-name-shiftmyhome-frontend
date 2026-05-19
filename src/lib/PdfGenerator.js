@@ -703,3 +703,158 @@ export async function generateJobPdf(job, extra = {}) {
     cleanup()
   }
 }
+
+/**
+ * Mount quote-based job sheet HTML in the viewport (same pattern as legacy generateJobPdf).
+ * Off-screen positioning produces blank captures in Chromium.
+ * @param {string} html
+ * @returns {Promise<{ root: HTMLElement, cleanup: () => void }>}
+ */
+async function mountHtmlForJobSheetPdfCapture(html) {
+  const backdrop = document.createElement('div')
+  backdrop.id = 'job-sheet-pdf-backdrop'
+  backdrop.setAttribute('aria-hidden', 'true')
+  Object.assign(backdrop.style, {
+    position: 'fixed',
+    inset: '0',
+    background: 'rgba(15, 23, 42, 0.45)',
+    zIndex: '2147483646',
+    pointerEvents: 'auto',
+  })
+
+  const wrapper = document.createElement('div')
+  wrapper.id = 'job-sheet-pdf-wrapper'
+  Object.assign(wrapper.style, {
+    position: 'fixed',
+    left: '0',
+    right: '0',
+    top: '48px',
+    marginLeft: 'auto',
+    marginRight: 'auto',
+    width: '800px',
+    maxWidth: 'min(800px, calc(100vw - 48px))',
+    maxHeight: 'calc(100vh - 96px)',
+    minHeight: '200px',
+    padding: '0',
+    boxSizing: 'border-box',
+    background: '#ffffff',
+    zIndex: '2147483647',
+    opacity: '1',
+    visibility: 'visible',
+    display: 'block',
+    pointerEvents: 'none',
+    overflow: 'auto',
+    boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+  })
+  wrapper.innerHTML = html
+  document.body.appendChild(backdrop)
+  document.body.appendChild(wrapper)
+
+  await waitForPdfElementPaint(wrapper)
+
+  const root = wrapper.querySelector('#job-sheet-pdf-root')
+  const mainEl = root?.querySelector('#job-sheet-pdf-main')
+  const h = mainEl ? mainEl.scrollHeight : root ? root.scrollHeight : wrapper.scrollHeight
+  if (!root || h < 80) {
+    if (backdrop.parentNode) document.body.removeChild(backdrop)
+    if (wrapper.parentNode) document.body.removeChild(wrapper)
+    throw new Error(JOB_PDF_DATA_MISSING_MESSAGE)
+  }
+
+  const cleanup = () => {
+    if (backdrop.parentNode) document.body.removeChild(backdrop)
+    if (wrapper.parentNode) document.body.removeChild(wrapper)
+  }
+
+  return { root, cleanup }
+}
+
+/**
+ * Quote-based Job Sheet: styled HTML → PDF via html2canvas + jsPDF (legacy job PDF pipeline).
+ * @param {string} html must include #job-sheet-pdf-root and #job-sheet-pdf-main
+ * @param {string} filename
+ * @param {{ asBlob?: boolean }} [options]
+ * @returns {Promise<void | Blob>}
+ */
+export async function saveJobSheetHtmlAsPdf(html, filename, options = {}) {
+  const { root, cleanup } = await mountHtmlForJobSheetPdfCapture(html)
+  const shell = root.parentElement
+  const prevMaxH = shell && shell instanceof HTMLElement ? shell.style.maxHeight : ''
+  const prevOv = shell && shell instanceof HTMLElement ? shell.style.overflow : ''
+  try {
+    const mainEl = root.querySelector('#job-sheet-pdf-main')
+    if (!mainEl || mainEl.scrollHeight < 40) {
+      throw new Error(JOB_PDF_DATA_MISSING_MESSAGE)
+    }
+
+    const scale = jobSheetHtml2CanvasScale()
+    if (shell instanceof HTMLElement) {
+      shell.style.maxHeight = 'none'
+      shell.style.overflow = 'visible'
+    }
+
+    const pdfBaseOpt = {
+      margin: [10, 10, 10, 10],
+      jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+      scale,
+    }
+
+    /**
+     * @param {HTMLElement} el
+     * @returns {Promise<HTMLCanvasElement>}
+     */
+    const captureSheet = (el) =>
+      html2canvas(el, {
+        scale,
+        useCORS: true,
+        allowTaint: false,
+        foreignObjectRendering: false,
+        backgroundColor: '#ffffff',
+        logging: false,
+        imageTimeout: 20000,
+        scrollX: 0,
+        scrollY: 0,
+        windowWidth: el.scrollWidth,
+        windowHeight: Math.min(el.scrollHeight, 16000),
+        onclone(clonedDoc) {
+          for (const id of ['job-sheet-pdf-root', 'job-sheet-pdf-main', 'job-sheet-pdf-checkin']) {
+            const node = clonedDoc.getElementById(id)
+            if (node) {
+              node.style.setProperty('-webkit-print-color-adjust', 'exact')
+              node.style.setProperty('print-color-adjust', 'exact')
+              node.style.setProperty('color-adjust', 'exact')
+              node.style.backgroundColor = '#ffffff'
+              node.style.color = '#0f172a'
+              node.style.fontFamily = 'Arial, Helvetica, sans-serif'
+            }
+          }
+        },
+      })
+
+    const canvasMain = await captureSheet(mainEl)
+    if (!canvasMain.width || !canvasMain.height) {
+      throw new Error('PDF render failed: blank canvas.')
+    }
+
+    let pdfOut = canvasToJsPdf(canvasMain, pdfBaseOpt, null)
+
+    const checkinEl = root.querySelector('#job-sheet-pdf-checkin')
+    if (checkinEl && checkinEl.scrollHeight > 20) {
+      const canvasCheck = await captureSheet(checkinEl)
+      if (canvasCheck.width && canvasCheck.height) {
+        pdfOut = canvasToJsPdf(canvasCheck, pdfBaseOpt, pdfOut)
+      }
+    }
+
+    if (options.asBlob) {
+      return pdfOut.output('blob')
+    }
+    pdfOut.save(filename)
+  } finally {
+    if (shell instanceof HTMLElement) {
+      shell.style.maxHeight = prevMaxH
+      shell.style.overflow = prevOv
+    }
+    cleanup()
+  }
+}

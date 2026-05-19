@@ -35,7 +35,10 @@ function QuoteWizardInner({ compact = false }) {
     feedback,
     lastQuoteData,
     setFeedback,
-    fileInputRef,
+    quotePhotoFiles,
+    addQuotePhotos,
+    removeQuotePhotoAt,
+    clearQuotePhotos,
     totalM3,
     breakdown,
     customSizeM3,
@@ -45,6 +48,7 @@ function QuoteWizardInner({ compact = false }) {
     goToStep,
     handleSubmit,
     handlePay,
+    uploadCustomerPhotosAfterPayment,
   } = useQuoteWizard()
 
   const serviceTypeOptions = allowServiceChange ? [...SERVICE_TYPES] : undefined
@@ -71,6 +75,8 @@ function QuoteWizardInner({ compact = false }) {
     arrivalWindow: wizard.arrivalWindow,
     exactArrivalTime: wizard.exactArrivalTime,
     inventoryLines: wizard.inventoryLines,
+    onInventoryLinesChange: (inventoryLines) =>
+      setWizard((w) => ({ ...w, inventoryLines })),
     totalM3,
     showPricing: step >= 4,
     breakdown,
@@ -142,7 +148,11 @@ function QuoteWizardInner({ compact = false }) {
         <Step3Details
           data={wizard}
           onChange={setWizard}
-          fileInputRef={fileInputRef}
+          onGoToStep={goToStep}
+          quotePhotoFiles={quotePhotoFiles}
+          onQuotePhotosAdd={addQuotePhotos}
+          onQuotePhotoRemove={removeQuotePhotoAt}
+          onQuotePhotosClear={clearQuotePhotos}
           quoteRef={quoteRef}
           validationMessage={
             step === 3 && feedback.type === 'error' && feedback.text ? feedback.text : ''
@@ -164,6 +174,7 @@ function QuoteWizardInner({ compact = false }) {
           cardPayment={cardPayment}
           onClearCardPayment={clearCardPayment}
           onPay={handlePay}
+          onPaymentSucceeded={uploadCustomerPhotosAfterPayment}
           onGoToStep={goToStep}
           onBack={back}
         />
@@ -177,7 +188,7 @@ function QuoteWizardInner({ compact = false }) {
       id="quote"
       className={
         compact
-          ? 'quote-wizard-section scroll-mt-20 bg-slate-50 py-3 md:py-5'
+          ? 'quote-wizard-section quote-wizard-section--embedded scroll-mt-20 py-3 md:py-5'
           : 'quote-wizard-section scroll-mt-24 border-t border-slate-200 bg-slate-50 py-4 md:border-t md:py-14'
       }
     >
@@ -229,29 +240,27 @@ function QuoteWizardInner({ compact = false }) {
           <>
             {/* Mobile: steps → open summary (map + details) → in-flow nav */}
             <div className="block space-y-3 md:hidden">
-              <div className="min-w-0 rounded-xl border border-slate-200 bg-white p-3 shadow-card">{stepPanel}</div>
+              <div
+                className={`min-w-0 rounded-xl border border-slate-200 bg-white p-3 shadow-card${compact ? ' quote-wizard-card' : ''}`}
+              >
+                {stepPanel}
+              </div>
               {step !== 4 ? <MoveSummary {...summaryProps} /> : null}
               <MobileQuoteStickyActions step={step} onBack={back} onNext={next} />
             </div>
 
-            {/* Desktop: two-column steps 1–3; single column review on step 4 */}
-            <div
-              className={
-                step === 4
-                  ? 'hidden md:block md:max-w-3xl'
-                  : 'hidden items-start gap-4 md:grid md:grid-cols-[minmax(0,1fr)_minmax(200px,34%)] lg:grid-cols-[minmax(0,1fr)_minmax(260px,min(100%,360px))] lg:gap-10'
-              }
-            >
+            {/* Desktop: two-column layout (main + move summary sidebar), all steps */}
+            <div className="hidden items-start gap-4 md:grid md:grid-cols-[minmax(0,1fr)_minmax(200px,34%)] lg:grid-cols-[minmax(0,1fr)_minmax(260px,min(100%,360px))] lg:gap-10">
               <div className="min-w-0">
                 <div
-                  className={`min-w-0 rounded-2xl border border-slate-200 bg-white shadow-card ${
-                    step === 4 ? 'p-6 lg:p-8' : 'p-8'
+                  className={`min-w-0 rounded-2xl border border-slate-200 bg-white p-8 shadow-card ${
+                    compact ? 'quote-wizard-card ' : ''
                   }`}
                 >
                   {stepPanel}
                 </div>
               </div>
-              {step !== 4 ? <MoveSummary {...summaryProps} /> : null}
+              <MoveSummary {...summaryProps} />
             </div>
           </>
         )}

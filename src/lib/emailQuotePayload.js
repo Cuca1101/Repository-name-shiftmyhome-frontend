@@ -3,6 +3,13 @@
  */
 
 import { formatDateUK } from './formatDateDisplay'
+import { formatPickupDeliveryContactsForSummary } from './quoteWizardContactFields'
+import { getEffectiveReassemblyItemCount } from './quoteWizardReassembly'
+
+/** @param {Record<string, unknown>} wizard */
+function formatPickupDeliveryContactsBlock(wizard) {
+  return formatPickupDeliveryContactsForSummary(wizard)
+}
 
 /** One line per item with volume line ~m³ for email body */
 export function formatInventoryRowsForEmail(rows) {
@@ -13,7 +20,13 @@ export function formatInventoryRowsForEmail(rows) {
       const vol = l.quantity * l.volumePerUnitM3 * mult
       const vr = Math.round(vol * 100) / 100
       const custom = l.isCustom ? ', custom' : ''
-      return `  • ${l.name} ×${l.quantity}  (~${vr} m³ line vol, ${l.weightType || 'std'}${custom})`
+      const category = l.categoryLabel ? ` [${l.categoryLabel}]` : ''
+      const sizeBand =
+        l.customSizeBand && l.isCustom ? `, size: ${l.customSizeBand}` : ''
+      const wt = l.weightType || 'std'
+      const heavyFragile =
+        wt === 'heavy' ? ', heavy' : wt === 'large' ? ', large' : ''
+      return `  • ${l.name}${category} ×${l.quantity}  (~${vr} m³ line vol, ${wt}${heavyFragile}${sizeBand}${custom})`
     })
     .join('\n')
 }
@@ -142,6 +155,12 @@ export function formatWizardServiceExtrasBlock(wizard) {
     if (Number.isFinite(boxes) && boxes > 0) bits.push(`Approx boxes/items: ${boxes}`)
     bits.push(`Fragile items: ${wizard.packingFragile ? 'Yes' : 'No'}`)
     bits.push(`Packing materials required: ${wizard.packingMaterials ? 'Yes' : 'No'}`)
+    const materialsDetail = String(
+      wizard.packingMaterialsDetail || '',
+    ).trim()
+    if (wizard.packingMaterials && materialsDetail) {
+      bits.push(`Packing materials:\n${materialsDetail}`)
+    }
     blocks.push(bits.join('\n'))
   }
   if (wizard.dismantling) {
@@ -153,12 +172,10 @@ export function formatWizardServiceExtrasBlock(wizard) {
   }
   if (wizard.reassembly) {
     const bits = ['Reassembly requested']
-    if (wizard.reassemblyWhat) bits.push(`Items: ${wizard.reassemblyWhat}`)
-    const n = Number(wizard.reassemblyItemCount)
-    if (!wizard.reassemblySameAsDismantling && Number.isFinite(n) && n > 0) {
-      bits.push(`How many items: ${n}`)
-    }
+    const n = getEffectiveReassemblyItemCount(wizard)
+    if (Number.isFinite(n) && n > 0) bits.push(`How many items: ${n}`)
     bits.push(`Same items as dismantling: ${wizard.reassemblySameAsDismantling ? 'Yes' : 'No'}`)
+    if (wizard.reassemblyWhat) bits.push(`Items: ${wizard.reassemblyWhat}`)
     blocks.push(bits.join('\n'))
   }
   return blocks.filter(Boolean).join('\n\n')
@@ -193,6 +210,8 @@ export function buildWizardFullSummaryText({
       handlingMultiplier: l.mult ?? 1,
       weightType: l.weightType,
       isCustom: l.isCustom,
+      categoryLabel: l.categoryLabel,
+      customSizeBand: l.customSizeBand,
     })) ?? []
   const inv = formatInventoryRowsForEmail(rowsForEmail)
 
@@ -213,6 +232,8 @@ export function buildWizardFullSummaryText({
     `Name: ${wizard.fullName || '—'}`,
     `Email: ${wizard.email || '—'}`,
     `Phone: ${wizard.phone || '—'}`,
+    '',
+    formatPickupDeliveryContactsBlock(wizard),
     '',
     '— Service —',
     `Selected service: ${serviceType || '—'}`,

@@ -1,11 +1,6 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { PackagePlus } from 'lucide-react'
-import {
-  CATEGORY_ORDER,
-  INVENTORY_BY_CATEGORY,
-  getCatalogItem,
-  getFlattenedCatalogEntries,
-} from '../inventoryCatalog'
+import { useQuoteInventoryCatalog } from '../useQuoteInventoryCatalog'
 import InlineInventoryQtyControl from '../InlineInventoryQtyControl'
 import InventorySearchBar from '../InventorySearchBar'
 import HighlightedInventoryName from '../HighlightedInventoryName'
@@ -47,12 +42,31 @@ export default function Step2Inventory({
   const crewHintId = useId()
   const resultsPanelRef = useRef(null)
   const categoriesRef = useRef(null)
-  const [activeCategory, setActiveCategory] = useState(CATEGORY_ORDER[0])
+  const {
+    categoryOrder,
+    inventoryByCategory,
+    getCatalogItem,
+    getFlattenedCatalogEntries,
+    loading: catalogLoading,
+    source: catalogSource,
+  } = useQuoteInventoryCatalog()
+
+  const [activeCategory, setActiveCategory] = useState('')
   const [searchQuery, setSearchQuery] = useState('')
   const [customName, setCustomName] = useState('')
   const [customSize, setCustomSize] = useState('medium')
 
-  const flatCatalogEntries = useMemo(() => getFlattenedCatalogEntries(), [])
+  useEffect(() => {
+    if (!categoryOrder.length) return
+    setActiveCategory((prev) =>
+      prev && categoryOrder.includes(prev) ? prev : categoryOrder[0],
+    )
+  }, [categoryOrder])
+
+  const flatCatalogEntries = useMemo(
+    () => getFlattenedCatalogEntries(),
+    [getFlattenedCatalogEntries],
+  )
 
   const searchGrouped = useMemo(() => {
     const q = searchQuery.trim()
@@ -67,12 +81,12 @@ export default function Step2Inventory({
       }
       m.get(e.categoryKey).entries.push(e)
     }
-    return CATEGORY_ORDER.filter((k) => m.has(k)).map((k) => ({
+    return categoryOrder.filter((k) => m.has(k)).map((k) => ({
       categoryKey: k,
       label: m.get(k).label,
       entries: m.get(k).entries,
     }))
-  }, [flatCatalogEntries, searchQuery])
+  }, [flatCatalogEntries, searchQuery, categoryOrder])
 
   const isSearchMode = searchQuery.trim().length > 0
 
@@ -97,7 +111,7 @@ export default function Step2Inventory({
   function addFromCatalog(itemId) {
     const found = getCatalogItem(itemId)
     if (!found) return
-    const { item } = found
+    const { item, categoryKey, categoryLabel } = found
     const idx = lines.findIndex((l) => !l.isCustom && l.catalogId === itemId)
     if (idx >= 0) {
       const next = [...lines]
@@ -111,7 +125,9 @@ export default function Step2Inventory({
         lineId: newLineId(),
         catalogId: itemId,
         name: item.name,
-        quantity: 1,
+        categoryKey,
+        categoryLabel,
+        quantity: item.defaultQty ?? 1,
         m3: item.m3,
         defaultM3: item.m3,
         weightType: item.weightType,
@@ -142,6 +158,9 @@ export default function Step2Inventory({
         lineId: newLineId(),
         catalogId: null,
         name,
+        categoryKey: null,
+        categoryLabel: 'Custom',
+        customSizeBand: customSize,
         quantity: 1,
         m3,
         defaultM3: m3,
@@ -167,7 +186,7 @@ export default function Step2Inventory({
     onLinesChange(
       lines.map((r) => {
         if (r.lineId !== lineId) return r
-        const def = resolveDefaultM3PerUnit(r)
+        const def = resolveDefaultM3PerUnit(r, getCatalogItem)
         return { ...r, m3: def, defaultM3: r.defaultM3 ?? def }
       }),
     )
@@ -177,7 +196,7 @@ export default function Step2Inventory({
     onLinesChange([])
   }
 
-  const cat = INVENTORY_BY_CATEGORY[activeCategory]
+  const cat = inventoryByCategory[activeCategory]
 
   const input =
     'w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/25'
@@ -269,6 +288,10 @@ export default function Step2Inventory({
       <MobileStep2Inventory
         quoteRef={quoteRef}
         totalM3={totalM3}
+        categoryOrder={categoryOrder}
+        inventoryByCategory={inventoryByCategory}
+        catalogLoading={catalogLoading}
+        catalogSource={catalogSource}
         lines={lines}
         crewSize={crewSize}
         onCrewSizeChange={onCrewSizeChange}
@@ -307,6 +330,11 @@ export default function Step2Inventory({
           <strong className="font-semibold text-slate-800">+</strong> on each item. Your total volume
           and estimate update live in the summary.
         </p>
+        {catalogLoading ? (
+          <p className="mt-2 text-xs text-slate-500">Loading item catalogue…</p>
+        ) : catalogSource === 'library' ? (
+          <p className="mt-2 text-xs text-slate-500">Using your Items Library catalogue.</p>
+        ) : null}
       </div>
 
       <CrewSizeField
@@ -318,8 +346,9 @@ export default function Step2Inventory({
       />
 
       <div className="flex min-w-0 snap-x snap-mandatory gap-2 overflow-x-auto pb-1 sm:flex-wrap sm:overflow-visible sm:pb-0">
-        {CATEGORY_ORDER.map((key) => {
-          const c = INVENTORY_BY_CATEGORY[key]
+        {categoryOrder.map((key) => {
+          const c = inventoryByCategory[key]
+          if (!c) return null
           return (
             <button
               key={key}
@@ -373,13 +402,17 @@ export default function Step2Inventory({
               </div>
             )}
           </div>
-        ) : (
+        ) : catalogLoading ? (
+          <p className="mt-4 text-sm text-slate-600">Loading items…</p>
+        ) : cat ? (
           <div>
             <h3 className="text-sm font-bold text-slate-900">{cat.label}</h3>
             <ul className="mt-4 grid grid-cols-2 gap-2 xxs:gap-2.5 sm:gap-3">
               {cat.items.map((item) => renderCatalogRow(item, '', false))}
             </ul>
           </div>
+        ) : (
+          <p className="mt-4 text-sm text-slate-600">No items in this category.</p>
         )}
       </div>
 
@@ -453,7 +486,7 @@ export default function Step2Inventory({
         )}
       </div>
 
-      <div className="rounded-2xl border border-brand-100 bg-gradient-to-br from-brand-50/50 to-white p-5 shadow-card ring-1 ring-brand-100/60">
+      <div className="hidden rounded-2xl border border-brand-100 bg-gradient-to-br from-brand-50/50 to-white p-5 shadow-card ring-1 ring-brand-100/60" aria-hidden="true">
         <div className="flex flex-wrap items-baseline justify-between gap-2">
           <div>
             <h3 className="text-lg font-bold text-slate-900">Your selection</h3>
@@ -476,7 +509,7 @@ export default function Step2Inventory({
                 isCustom={Boolean(row.isCustom)}
                 quantity={row.quantity}
                 perUnitM3={row.m3}
-                defaultPerUnitM3={resolveDefaultM3PerUnit(row)}
+                defaultPerUnitM3={resolveDefaultM3PerUnit(row, getCatalogItem)}
                 multiplier={row.mult ?? 1}
                 onPerUnitM3Change={(v) => setLineM3(row.lineId, v)}
                 onResetDefault={() => resetLineM3(row.lineId)}

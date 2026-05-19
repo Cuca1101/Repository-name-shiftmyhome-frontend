@@ -1,6 +1,10 @@
 /**
  * Professional removals inventory — grouped by UI category/cards.
  *
+ * Quote Wizard loads the Admin Items Library first (Supabase / localStorage);
+ * this file is the offline fallback when the library is empty or unavailable.
+ * See useQuoteInventoryCatalog.js and buildQuoteInventoryCatalog.js.
+ *
  * IMPORTANT:
  * m3 is ALWAYS per unit, not total line volume.
  * Quantity is applied later by pricing:

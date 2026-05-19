@@ -1,6 +1,7 @@
 import { FLOOR_OPTIONS } from '../components/quote-wizard/FloorSelect'
 import { formatCompactArrivalLine } from './emailQuotePayload'
 import { formatDateUK } from './formatDateDisplay'
+import { getEffectiveReassemblyItemCount } from './quoteWizardReassembly'
 
 /** Floor label for move summary: "1st floor", "2nd floor", etc. */
 export function formatMoveSummaryFloorLabel(n) {
@@ -82,10 +83,16 @@ export function buildMoveSummaryExtras(wizard) {
     })
   }
   if (wizard?.reassembly) {
-    const text = wizard.reassemblySameAsDismantling
-      ? 'Same items as dismantling'
-      : `${wizard.reassemblyItemCount || 0} ${(wizard.reassemblyItemCount || 0) === 1 ? 'item' : 'items'}${wizard.reassemblyWhat?.trim() ? ` · ${wizard.reassemblyWhat.trim()}` : ''}`
-    blocks.push({ key: 'assembly', title: 'Assembly', text })
+    const count = getEffectiveReassemblyItemCount(wizard)
+    const detail = wizard.reassemblyWhat?.trim()
+    const sameNote = wizard.reassemblySameAsDismantling ? ' · Same items as dismantling' : ''
+    const detailNote =
+      !wizard.reassemblySameAsDismantling && detail ? ` · ${detail}` : ''
+    blocks.push({
+      key: 'assembly',
+      title: 'Reassembly',
+      text: `${count} ${count === 1 ? 'item' : 'items'}${sameNote}${detailNote}`,
+    })
   }
   if (wizard?.packingMaterials) {
     const text =

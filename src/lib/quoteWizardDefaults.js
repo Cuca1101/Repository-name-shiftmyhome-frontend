@@ -29,6 +29,8 @@ export function initialWizardState() {
     inventoryLines: [],
     packing: false,
     packingWhat: '',
+    /** Mobile/desktop materials stepper lines (separate from packing service notes). */
+    packingMaterialsDetail: '',
     packingApproxBoxes: 0,
     packingFragile: false,
     packingMaterials: false,
@@ -50,5 +52,11 @@ export function initialWizardState() {
     fullName: '',
     phone: '',
     email: '',
+    pickupContactSameAsCustomer: true,
+    deliveryContactSameAsCustomer: true,
+    pickupContactName: '',
+    pickupContactPhone: '',
+    deliveryContactName: '',
+    deliveryContactPhone: '',
   }
 }

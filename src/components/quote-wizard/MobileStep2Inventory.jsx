@@ -4,7 +4,6 @@ import CrewSizeField from './CrewSizeField'
 import InventorySearchBar from './InventorySearchBar'
 import { INVENTORY_SEARCH_EMPTY_MESSAGE } from './inventorySearchUtils'
 import { CategoryLucideIcon } from './inventoryLucideIcons'
-import { CATEGORY_ORDER, INVENTORY_BY_CATEGORY } from './inventoryCatalog'
 
 const card = 'min-w-0 rounded-xl border border-slate-200 bg-white shadow-sm'
 
@@ -14,6 +13,10 @@ const card = 'min-w-0 rounded-xl border border-slate-200 bg-white shadow-sm'
 export default function MobileStep2Inventory({
   quoteRef,
   totalM3,
+  categoryOrder,
+  inventoryByCategory,
+  catalogLoading = false,
+  catalogSource = 'fallback',
   lines,
   crewSize,
   onCrewSizeChange,
@@ -68,6 +71,11 @@ export default function MobileStep2Inventory({
         <p className="mt-0.5 text-xs leading-snug text-slate-600">
           Add items from the categories below. Your selections appear in the move summary below.
         </p>
+        {catalogLoading ? (
+          <p className="mt-1 text-[11px] text-slate-500">Loading item catalogue…</p>
+        ) : catalogSource === 'library' ? (
+          <p className="mt-1 text-[11px] text-slate-500">Using your Items Library catalogue.</p>
+        ) : null}
       </div>
 
       {validationMessage ? (
@@ -81,8 +89,9 @@ export default function MobileStep2Inventory({
 
       <div ref={catalogSectionRef} className={`${card} overflow-hidden p-3`}>
         <div className="-mx-1 flex min-w-0 snap-x snap-mandatory gap-2.5 overflow-x-auto overscroll-x-contain scroll-smooth px-1 pb-2.5 touch-pan-x [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          {CATEGORY_ORDER.map((key) => {
-            const c = INVENTORY_BY_CATEGORY[key]
+          {categoryOrder.map((key) => {
+            const c = inventoryByCategory[key]
+            if (!c) return null
             return (
               <button
                 key={key}
@@ -124,11 +133,15 @@ export default function MobileStep2Inventory({
                 </div>
               )}
             </div>
-          ) : (
+          ) : catalogLoading ? (
+            <p className="mt-3 text-sm text-slate-600">Loading items…</p>
+          ) : cat ? (
             <div>
               <h3 className="text-xs font-bold uppercase tracking-wide text-slate-500">{cat.label}</h3>
               <ul className="mt-1.5 space-y-1">{cat.items.map((item) => renderCatalogRow(item, '', false))}</ul>
             </div>
+          ) : (
+            <p className="mt-3 text-sm text-slate-600">No items in this category.</p>
           )}
         </div>
       </div>

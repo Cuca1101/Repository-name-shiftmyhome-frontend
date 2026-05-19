@@ -1,3 +1,5 @@
+import { getEffectiveReassemblyItemCount } from './quoteWizardReassembly'
+
 /**
  * @typedef {Object} CustomSizeM3
  * @property {number} small
@@ -223,8 +225,8 @@ export function calculateQuote(settings, input) {
     }
   }
 
-  // No-lift supplement: only when above ground without a lift (lift avoids this extra only, not the floor charge).
-  if (pickupFloor > 0 && !pickupLift && noLiftFlat > 0) {
+  // No-lift supplement: above ground + customer chose lift No (not ground floor; not when lift Yes).
+  if (pickupFloor > 0 && pickupLiftExplicit && !pickupLift && noLiftFlat > 0) {
     const amt = money(noLiftFlat * accessCrewMult)
     if (amt > 0) {
       const crewHint = accessCrewMult > 1 ? ` × ${accessCrewMult} crew` : ''
@@ -234,7 +236,7 @@ export function calculateQuote(settings, input) {
       })
     }
   }
-  if (deliveryFloor > 0 && !deliveryLift && noLiftFlat > 0) {
+  if (deliveryFloor > 0 && deliveryLiftExplicit && !deliveryLift && noLiftFlat > 0) {
     const amt = money(noLiftFlat * accessCrewMult)
     if (amt > 0) {
       const crewHint = accessCrewMult > 1 ? ` × ${accessCrewMult} crew` : ''
@@ -322,10 +324,7 @@ export function calculateQuote(settings, input) {
   }
 
   if (extras.reassembly) {
-    let n = Math.max(0, Number(extras.reassemblyItemCount) || 0)
-    if (extras.reassemblySameAsDismantling) {
-      n = Math.max(0, Number(extras.dismantlingItemCount) || 0)
-    }
+    const n = getEffectiveReassemblyItemCount(extras)
     if (n > 0 && reassembleRate > 0) {
       extrasLines.push({
         label: `Reassembly (${n} items × £${reassembleRate.toFixed(2)})`,

@@ -123,3 +123,19 @@ async function fetchItemsFromLs() {
     return []
   }
 }
+
+/**
+ * Where the active items library read/write path points.
+ * @returns {'supabase' | 'localStorage'}
+ */
+export function getItemsLibraryStorageKind() {
+  return isSupabaseConfigured && supabase ? 'supabase' : 'localStorage'
+}
+
+/**
+ * Replace entire localStorage catalogue (used when purging invalid rows offline).
+ * @param {LibraryItemRow[]} validRows
+ */
+export function replaceLocalItemsLibrary(validRows) {
+  localStorage.setItem(LS_ITEMS, JSON.stringify(validRows))
+}

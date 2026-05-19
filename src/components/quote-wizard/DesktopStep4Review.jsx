@@ -1,4 +1,4 @@
-import MobileQuoteMoveSummary from '../mobile/MobileQuoteMoveSummary'
+import QuoteEstimatedTotalCard from './QuoteEstimatedTotalCard'
 
 function EditLink({ label, step, onGoToStep }) {
   return (
@@ -15,16 +15,7 @@ function EditLink({ label, step, onGoToStep }) {
 /**
  * Desktop Step 4 review & payment (md+).
  */
-export default function DesktopStep4Review({
-  quoteRef,
-  wizard,
-  serviceType,
-  breakdown,
-  totalM3,
-  crewSettings,
-  onDistanceFromRoute,
-  onGoToStep,
-}) {
+export default function DesktopStep4Review({ breakdown, onGoToStep }) {
   return (
     <div className="hidden min-w-0 space-y-6 md:block">
       <div>
@@ -33,6 +24,8 @@ export default function DesktopStep4Review({
           Check your move details, then pay securely to confirm your booking.
         </p>
       </div>
+
+      <QuoteEstimatedTotalCard breakdown={breakdown} />
 
       <div className="rounded-2xl border border-sky-200/80 bg-gradient-to-br from-sky-50/90 to-white px-5 py-4 text-sm leading-relaxed text-sky-950 shadow-sm">
         <p className="font-semibold text-sky-900">Need to change something?</p>
@@ -46,34 +39,6 @@ export default function DesktopStep4Review({
           <EditLink label="Edit details & extras" step={3} onGoToStep={onGoToStep} />
         </div>
       </div>
-
-      <MobileQuoteMoveSummary
-        showOnDesktop
-        quoteRef={quoteRef}
-        wizard={wizard}
-        serviceType={serviceType}
-        onDistanceFromRoute={onDistanceFromRoute}
-        pickupLng={wizard.pickupLng}
-        pickupLat={wizard.pickupLat}
-        deliveryLng={wizard.deliveryLng}
-        deliveryLat={wizard.deliveryLat}
-        pickupAddress={wizard.pickupAddress}
-        deliveryAddress={wizard.deliveryAddress}
-        pickupPropertyType={wizard.pickupPropertyType}
-        deliveryPropertyType={wizard.deliveryPropertyType}
-        pickupFloor={wizard.pickupFloor}
-        deliveryFloor={wizard.deliveryFloor}
-        pickupLift={wizard.pickupLift}
-        deliveryLift={wizard.deliveryLift}
-        distanceMiles={wizard.distanceMiles}
-        moveDate={wizard.moveDate}
-        inventoryLines={wizard.inventoryLines}
-        totalM3={totalM3}
-        showPricing={false}
-        breakdown={breakdown}
-        crewSettings={crewSettings}
-      />
-
     </div>
   )
 }

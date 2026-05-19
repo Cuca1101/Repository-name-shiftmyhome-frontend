@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 
-const sections = [
+const mainSections = [
   {
     title: 'Overview',
     items: [{ to: '/admin', label: 'Dashboard', end: true, icon: 'layout' }],
@@ -11,17 +11,19 @@ const sections = [
     title: 'Operations',
     items: [
       { to: '/admin/available-jobs', label: 'Available Jobs', end: false, icon: 'document' },
-      { to: '/admin/operations-map', label: 'Operations map', end: false, icon: 'crosshair' },
-      { to: '/admin/journey-planner', label: 'Journey planner', end: true, icon: 'map' },
       { to: '/admin/marketplace', label: 'Marketplace', end: false, icon: 'package' },
       { to: '/admin/active-jobs', label: 'Active Jobs', end: false, icon: 'truck' },
       { to: '/admin/completed-jobs', label: 'Completed Jobs', end: false, icon: 'star' },
       { to: '/admin/cancelled-jobs', label: 'Cancelled Jobs', end: false, icon: 'ban' },
-      { to: '/admin/quote-requests', label: 'Quote requests', end: false, icon: 'inbox' },
+      { to: '/admin/operations-map', label: 'Operations Map', end: false, icon: 'crosshair' },
+      { to: '/admin/journey-planner', label: 'Journey Planner', end: false, icon: 'map' },
+    ],
+  },
+  {
+    title: 'Sales',
+    items: [
+      { to: '/admin/quote-requests', label: 'Quote Requests', end: false, icon: 'inbox' },
       { to: '/admin/website-leads', label: 'Website Leads / Quote Funnel', end: false, icon: 'inbox' },
-      { to: '/admin/jobs', label: 'Job cards', end: false, icon: 'truck' },
-      { to: '/admin/bookings', label: 'Bookings', end: false, icon: 'truck' },
-      { to: '/admin/job-history', label: 'Job history', end: false, icon: 'truck' },
     ],
   },
   {
@@ -46,6 +48,25 @@ const sections = [
     ],
   },
 ]
+
+const legacySupportSection = {
+  title: 'Legacy / Support Tools',
+  helperText:
+    'Old support/debug pages retained temporarily during migration to the quotes-first workflow.',
+  items: [
+    { to: '/admin/jobs', label: 'Job Cards', end: false, icon: 'truck' },
+    { to: '/admin/bookings', label: 'Bookings', end: false, icon: 'truck' },
+    { to: '/admin/job-history', label: 'Job History', end: false, icon: 'truck' },
+  ],
+}
+
+/** @param {string} pathname */
+function isLegacySupportPath(pathname) {
+  if (pathname === '/admin/jobs' || pathname.startsWith('/admin/jobs/')) return true
+  if (pathname === '/admin/bookings' || pathname.startsWith('/admin/bookings/')) return true
+  if (pathname === '/admin/job-history' || pathname.startsWith('/admin/job-history/')) return true
+  return false
+}
 
 function NavIcon({ name, className }) {
   const cn = className || 'h-5 w-5 shrink-0'
@@ -190,13 +211,42 @@ function pathActive(pathname, item) {
   return pathname === item.to || pathname.startsWith(`${item.to}/`)
 }
 
+function AdminNavItem({ item, pathname, onNavigate }) {
+  const active = pathActive(pathname, item)
+  return (
+    <li>
+      <NavLink
+        to={item.to}
+        end={item.end}
+        onClick={onNavigate}
+        className={`group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition ${
+          active
+            ? 'bg-white/10 text-white shadow-inner ring-1 ring-white/10'
+            : 'text-slate-400 hover:bg-white/5 hover:text-white'
+        }`}
+      >
+        <span className={active ? 'text-emerald-400' : 'text-slate-500 group-hover:text-slate-300'}>
+          <NavIcon name={item.icon} />
+        </span>
+        {item.label}
+        {active && <span className="ml-auto h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-400" aria-hidden />}
+      </NavLink>
+    </li>
+  )
+}
+
 export default function AdminLayout() {
   const navigate = useNavigate()
   const loc = useLocation()
   const pathname = loc.pathname
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [legacyOpen, setLegacyOpen] = useState(() => isLegacySupportPath(pathname))
 
   const closeSidebar = useCallback(() => setSidebarOpen(false), [])
+
+  useEffect(() => {
+    if (isLegacySupportPath(pathname)) setLegacyOpen(true)
+  }, [pathname])
 
   useEffect(() => {
     closeSidebar()
@@ -216,10 +266,9 @@ export default function AdminLayout() {
     navigate('/admin/login', { replace: true })
   }
 
-  const currentTitle =
-    sections
-      .flatMap((s) => s.items)
-      .find((item) => pathActive(pathname, item))?.label ?? 'Admin'
+  const allNavItems = [...mainSections.flatMap((s) => s.items), ...legacySupportSection.items]
+
+  const currentTitle = allNavItems.find((item) => pathActive(pathname, item))?.label ?? 'Admin'
 
   return (
     <div className="min-h-screen min-w-0 bg-slate-100/90">
@@ -268,44 +317,52 @@ export default function AdminLayout() {
         </div>
 
         <nav className="flex-1 overflow-y-auto px-3 py-4" aria-label="Admin navigation">
-          {sections.map((section) => (
-            <div key={section.title} className="mb-6 last:mb-0">
-              <p className="mb-2 px-3 text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+          {mainSections.map((section) => (
+            <div key={section.title} className="mb-7 last:mb-0">
+              <p className="mb-2.5 px-3 text-[10px] font-semibold uppercase tracking-wider text-slate-500">
                 {section.title}
               </p>
               <ul className="space-y-0.5">
-                {section.items.map((item) => {
-                  const active = pathActive(pathname, item)
-                  return (
-                    <li key={item.to}>
-                      <NavLink
-                        to={item.to}
-                        end={item.end}
-                        onClick={closeSidebar}
-                        className={`group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition ${
-                          active
-                            ? 'bg-white/10 text-white shadow-inner ring-1 ring-white/10'
-                            : 'text-slate-400 hover:bg-white/5 hover:text-white'
-                        }`}
-                      >
-                        <span
-                          className={
-                            active ? 'text-emerald-400' : 'text-slate-500 group-hover:text-slate-300'
-                          }
-                        >
-                          <NavIcon name={item.icon} />
-                        </span>
-                        {item.label}
-                        {active && (
-                          <span className="ml-auto h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-400" aria-hidden />
-                        )}
-                      </NavLink>
-                    </li>
-                  )
-                })}
+                {section.items.map((item) => (
+                  <AdminNavItem key={item.to} item={item} pathname={pathname} onNavigate={closeSidebar} />
+                ))}
               </ul>
             </div>
           ))}
+
+          <div className="mb-6 border-t border-white/10 pt-5 last:mb-0">
+            <button
+              type="button"
+              onClick={() => setLegacyOpen((open) => !open)}
+              className="mb-2 flex w-full items-center gap-2 rounded-lg px-3 py-1.5 text-left transition hover:bg-white/5"
+              aria-expanded={legacyOpen}
+              aria-controls="admin-legacy-support-nav"
+            >
+              <p className="min-w-0 flex-1 text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+                {legacySupportSection.title}
+              </p>
+              <svg
+                className={`h-4 w-4 shrink-0 text-slate-500 transition-transform ${legacyOpen ? 'rotate-180' : ''}`}
+                fill="none"
+                viewBox="0 0 24 24"
+                strokeWidth={2}
+                stroke="currentColor"
+                aria-hidden
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
+              </svg>
+            </button>
+            {legacyOpen ? (
+              <div id="admin-legacy-support-nav">
+                <p className="mb-3 px-3 text-[11px] leading-relaxed text-slate-500">{legacySupportSection.helperText}</p>
+                <ul className="space-y-0.5">
+                  {legacySupportSection.items.map((item) => (
+                    <AdminNavItem key={item.to} item={item} pathname={pathname} onNavigate={closeSidebar} />
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+          </div>
         </nav>
 
         <div className="shrink-0 border-t border-white/10 p-3">

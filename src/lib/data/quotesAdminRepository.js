@@ -25,7 +25,7 @@ const QUOTE_ASSIGNMENT_SAFE_KEYS = new Set([
 ])
 
 /**
- * @typedef {'all'|'unpaid'|'deposit_paid'|'paid'|'booked'} AvailableJobsAdminFilter
+ * @typedef {'all'|'all_paid'|'unpaid'|'deposit_paid'|'paid'|'booked'} AvailableJobsAdminFilter
  */
 
 /**
@@ -40,7 +40,9 @@ export async function fetchQuotesForAdmin(filterKey = 'all', searchTerm = '') {
 
   let q = supabase.from(QUOTES_TABLE).select('*').order('created_at', { ascending: false })
 
-  if (filterKey === 'unpaid') {
+  if (filterKey === 'all_paid') {
+    q = q.in('payment_status', ['paid', 'deposit_paid'])
+  } else if (filterKey === 'unpaid') {
     q = q.eq('payment_status', 'unpaid')
   } else if (filterKey === 'deposit_paid') {
     q = q.eq('payment_status', 'deposit_paid')

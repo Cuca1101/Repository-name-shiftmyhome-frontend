@@ -191,23 +191,34 @@ export default function JobCardDetails() {
       ? formatWizardServiceExtrasBlock(job.price_inputs.wizard).trim()
       : ''
 
-  const inventoryDisplayRows = items.map((r) => ({
-    name: String(r.item_name || 'Item'),
-    qty: r.quantity,
-    volume:
-      r.line_volume_m3 != null && Number.isFinite(Number(r.line_volume_m3))
-        ? `${Number(r.line_volume_m3).toFixed(2)} m³`
-        : '—',
-    sizeType: [
-      r.cubic_metres_per_unit != null && Number.isFinite(Number(r.cubic_metres_per_unit))
-        ? `${Number(r.cubic_metres_per_unit).toFixed(2)} m³/unit`
-        : null,
-      r.is_custom ? 'Custom' : null,
-      r.weight_type != null ? String(r.weight_type) : null,
-    ]
-      .filter(Boolean)
-      .join(' · ') || '—',
-  }))
+  const wizardLines = job?.price_inputs?.wizard?.inventoryLines
+  const inventoryDisplayRows = items.map((r) => {
+    const match = Array.isArray(wizardLines)
+      ? wizardLines.find(
+          (l) =>
+            (l.catalogId && l.catalogId === r.library_item_id) ||
+            String(l.name || '').trim() === String(r.item_name || '').trim(),
+        )
+      : null
+    return {
+      name: String(r.item_name || 'Item'),
+      qty: r.quantity,
+      volume:
+        r.line_volume_m3 != null && Number.isFinite(Number(r.line_volume_m3))
+          ? `${Number(r.line_volume_m3).toFixed(2)} m³`
+          : '—',
+      sizeType: [
+        match?.categoryLabel,
+        r.cubic_metres_per_unit != null && Number.isFinite(Number(r.cubic_metres_per_unit))
+          ? `${Number(r.cubic_metres_per_unit).toFixed(2)} m³/unit`
+          : null,
+        match?.customSizeBand ? `Size: ${match.customSizeBand}` : r.is_custom ? 'Custom' : null,
+        r.weight_type != null ? String(r.weight_type) : null,
+      ]
+        .filter(Boolean)
+        .join(' · ') || '—',
+    }
+  })
 
   return (
     <div className="space-y-6">

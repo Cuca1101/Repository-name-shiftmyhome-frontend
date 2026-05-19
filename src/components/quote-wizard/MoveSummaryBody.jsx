@@ -1,4 +1,6 @@
 import QuoteRouteMap from './QuoteRouteMap'
+import InlineInventoryQtyControl from './InlineInventoryQtyControl'
+import { applyInventoryLineQuantityDelta } from '../../lib/inventoryLineQuantity'
 import {
   formatMoveSummaryArrival,
   formatMoveSummaryCrewSize,
@@ -51,6 +53,7 @@ export default function MoveSummaryBody({
   arrivalWindow,
   exactArrivalTime,
   inventoryLines,
+  onInventoryLinesChange,
   totalM3,
   showPricing,
   breakdown,
@@ -63,6 +66,14 @@ export default function MoveSummaryBody({
     (s, l) => s + Math.max(0, Number(l.quantity) || 0),
     0,
   )
+  /** Desktop sidebar only — Step 2 & 3 quantity controls (mobile uses MobileQuoteMoveSummary). */
+  const sidebarInventoryEditable =
+    (step === 2 || step === 3) && typeof onInventoryLinesChange === 'function'
+
+  function bumpLine(lineId, delta) {
+    if (!onInventoryLinesChange) return
+    onInventoryLinesChange(applyInventoryLineQuantityDelta(inventoryLines, lineId, delta))
+  }
 
   const cardPad = compact ? 'p-3' : 'p-2 shadow-card ring-1 ring-slate-100 xxs:p-2.5 xs:rounded-2xl sm:p-5'
   const cardRound = compact ? 'rounded-xl' : 'rounded-lg xxs:rounded-2xl'
@@ -151,23 +162,75 @@ export default function MoveSummaryBody({
           )}
           {step >= 2 && (
             <div>
-              <dt className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Inventory</dt>
+              <dt className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+                {sidebarInventoryEditable ? 'Selected items' : 'Inventory'}
+              </dt>
               <dd className="mt-0.5 text-slate-800">
                 {totalItemUnits} {totalItemUnits === 1 ? 'item' : 'items'} ·{' '}
                 <span className="font-semibold text-brand-800">{totalM3.toFixed(2)} m³</span>
               </dd>
               {lineRowCount > 0 && !compact && (
-                <div className="mt-2 max-h-28 overflow-auto rounded-lg border border-slate-200 bg-white p-2 sm:max-h-56">
-                  <ul className="space-y-1.5 text-xs leading-snug text-slate-700">
+                <div
+                  className={
+                    sidebarInventoryEditable
+                      ? 'mt-3 rounded-xl border border-slate-200 bg-white p-2.5 shadow-sm ring-1 ring-slate-100'
+                      : 'mt-2 max-h-28 overflow-auto rounded-lg border border-slate-200 bg-white p-2 sm:max-h-56'
+                  }
+                >
+                  {sidebarInventoryEditable ? (
+                    <p className="mb-2 px-0.5 text-[11px] leading-relaxed text-slate-500">
+                      Adjust quantities here — totals update live.
+                    </p>
+                  ) : null}
+                  <ul
+                    className={
+                      sidebarInventoryEditable
+                        ? 'space-y-2'
+                        : 'space-y-1.5 text-xs leading-snug text-slate-700'
+                    }
+                  >
                     {inventoryLines.map((line) => {
                       const formatted = formatInventorySummaryLine(line)
+                      const qty = formatted.qty
+                      if (sidebarInventoryEditable) {
+                        return (
+                          <li
+                            key={line.lineId}
+                            className="rounded-lg border border-slate-100 bg-slate-50/80 p-2.5"
+                          >
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="min-w-0 flex-1">
+                                <p className="text-sm font-semibold leading-snug text-slate-900">
+                                  {formatted.label}
+                                </p>
+                                <p className="mt-0.5 text-xs tabular-nums text-slate-500">
+                                  {formatted.volumeLabel} total
+                                  {Number(line.m3) > 0
+                                    ? ` · ${Number(line.m3).toFixed(2)} m³ each`
+                                    : ''}
+                                </p>
+                              </div>
+                              <div className="shrink-0 [&_button]:!min-h-[36px] [&_button]:!min-w-[36px] [&_button]:!text-sm">
+                                <InlineInventoryQtyControl
+                                  quantity={qty}
+                                  onAdd={() => bumpLine(line.lineId, 1)}
+                                  onDecrement={() => bumpLine(line.lineId, -1)}
+                                  onIncrement={() => bumpLine(line.lineId, 1)}
+                                  addLabel="+"
+                                />
+                              </div>
+                            </div>
+                          </li>
+                        )
+                      }
                       return (
                         <li
                           key={line.lineId}
-                          className="flex items-start justify-between gap-2 border-b border-slate-100 pb-1 last:border-b-0"
+                          className="flex items-center justify-between gap-2 border-b border-slate-100 pb-1.5 pt-0.5 last:border-b-0"
                         >
-                          <span className="min-w-0 flex-1">
-                            {formatted.label} <span className="font-semibold">× {formatted.qty}</span>
+                          <span className="min-w-0 flex-1 leading-snug">
+                            {formatted.label}
+                            <span className="font-semibold"> × {qty}</span>
                           </span>
                           <span className="shrink-0 tabular-nums text-slate-600">{formatted.volumeLabel}</span>
                         </li>
@@ -176,6 +239,9 @@ export default function MoveSummaryBody({
                   </ul>
                 </div>
               )}
+              {lineRowCount === 0 && sidebarInventoryEditable ? (
+                <p className="mt-2 text-xs text-slate-500">No items yet — add from the catalogue.</p>
+              ) : null}
             </div>
           )}
           {step >= 3 && wizard && formatWizardServiceExtrasSummary(wizard) && (

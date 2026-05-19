@@ -23,12 +23,19 @@ import {
   formatWizardArrivalSummary,
   getWizardArrivalTimePayload,
 } from '../../lib/emailQuotePayload'
+import {
+  scrollToStep3ContactField,
+  step3ContactDetailsError,
+  step3ContactDetailsValid,
+} from '../../lib/quoteWizardStep3ContactScroll'
 import { isMobileViewport } from '../../lib/arrivalTimeSlots'
 import {
   isWizardArrivalValid,
   wizardArrivalErrorMessage,
 } from '../../lib/arrivalWizardValidation'
 import { getLocalDateYYYYMMDD } from '../../lib/moveDateLocal'
+import { uploadCustomerQuotePhotos } from '../../lib/quotePhotoUpload'
+import { MAX_PHOTOS } from './QuoteWizardPhotosField'
 import { sendQuoteRequestEmailJs } from '../../utils/sendQuoteRequestEmailJs'
 import {
   calculateQuote,
@@ -104,8 +111,35 @@ export function QuoteWizardProvider({ children, serviceType: serviceTypeProp, al
   const [cardPayment, setCardPayment] = useState(null)
   const [feedback, setFeedback] = useState({ type: null, text: '' })
   const [lastQuoteData, setLastQuoteData] = useState(null)
-  const fileInputRef = useRef(null)
+  const [quotePhotoFiles, setQuotePhotoFiles] = useState([])
   const pendingStepScrollRef = useRef(false)
+
+  const addQuotePhotos = useCallback((fileList) => {
+    const incoming = Array.from(fileList).filter(
+      (f) => f instanceof File && f.size > 0 && String(f.type || '').startsWith('image/'),
+    )
+    if (!incoming.length) return
+    setQuotePhotoFiles((prev) => {
+      const seen = new Set(prev.map((f) => `${f.name}|${f.size}|${f.lastModified}`))
+      const merged = [...prev]
+      for (const f of incoming) {
+        const key = `${f.name}|${f.size}|${f.lastModified}`
+        if (!seen.has(key)) {
+          seen.add(key)
+          merged.push(f)
+        }
+      }
+      return merged.slice(0, MAX_PHOTOS)
+    })
+  }, [])
+
+  const removeQuotePhotoAt = useCallback((index) => {
+    setQuotePhotoFiles((prev) => prev.filter((_, i) => i !== index))
+  }, [])
+
+  const clearQuotePhotos = useCallback(() => {
+    setQuotePhotoFiles([])
+  }, [])
 
   useEffect(() => {
     if (!allowServiceChange) {
@@ -334,19 +368,6 @@ export function QuoteWizardProvider({ children, serviceType: serviceTypeProp, al
     }
   }, [])
 
-  const mobileStep3ExtrasValid = useCallback((w) => {
-    if (w.dismantling && !(Number(w.dismantlingItemCount) > 0)) return false
-    if (w.reassembly && !w.reassemblySameAsDismantling && !(Number(w.reassemblyItemCount) > 0)) {
-      return false
-    }
-    if (w.packingMaterials) {
-      const hasBoxes = Number(w.packingApproxBoxes) > 0
-      const hasDetail = (w.packingWhat || '').trim().length > 0
-      if (!hasBoxes && !hasDetail) return false
-    }
-    return true
-  }, [])
-
   const canGoNext = useCallback(() => {
     if (step === 1) {
       const textOk =
@@ -375,15 +396,10 @@ export function QuoteWizardProvider({ children, serviceType: serviceTypeProp, al
       return wizard.inventoryLines.length > 0 && crewOk
     }
     if (step === 3) {
-      const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(wizard.email.trim())
-      const contactOk =
-        wizard.fullName.trim().length > 1 && wizard.phone.trim().length > 5 && emailOk
-      const addressesOk =
-        wizard.pickupAddress.trim().length > 2 && wizard.deliveryAddress.trim().length > 2
-      return contactOk && addressesOk && mobileStep3ExtrasValid(wizard)
+      return step3ContactDetailsValid(wizard)
     }
     return true
-  }, [step, wizard, mobileStep3ExtrasValid])
+  }, [step, wizard])
 
   const next = useCallback(() => {
     setFeedback({ type: null, text: '' })
@@ -423,39 +439,9 @@ export function QuoteWizardProvider({ children, serviceType: serviceTypeProp, al
           setFeedback({ type: 'error', text: 'Please complete the required fields.' })
         }
       } else if (step === 3) {
-        const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(wizard.email.trim())
-        if (wizard.fullName.trim().length <= 1) {
-          setFeedback({ type: 'error', text: 'Please enter your full name.' })
-        } else if (wizard.phone.trim().length <= 5) {
-          setFeedback({ type: 'error', text: 'Please enter a valid phone number.' })
-        } else if (!emailOk) {
-          setFeedback({ type: 'error', text: 'Please enter a valid email address.' })
-        } else if (wizard.pickupAddress.trim().length <= 2) {
-          setFeedback({ type: 'error', text: 'Please enter your pickup address.' })
-        } else if (wizard.deliveryAddress.trim().length <= 2) {
-          setFeedback({ type: 'error', text: 'Please enter your delivery address.' })
-        } else if (wizard.dismantling && !(Number(wizard.dismantlingItemCount) > 0)) {
-          setFeedback({
-            type: 'error',
-            text: 'Please enter how many items need dismantling.',
-          })
-        } else if (
-          wizard.reassembly &&
-          !wizard.reassemblySameAsDismantling &&
-          !(Number(wizard.reassemblyItemCount) > 0)
-        ) {
-          setFeedback({
-            type: 'error',
-            text: 'Please enter how many items need assembling.',
-          })
-        } else if (wizard.packingMaterials && !mobileStep3ExtrasValid(wizard)) {
-          setFeedback({
-            type: 'error',
-            text: 'Please set a quantity for at least one packing material.',
-          })
-        } else {
-          setFeedback({ type: 'error', text: 'Please complete the required fields.' })
-        }
+        const { message, field } = step3ContactDetailsError(wizard)
+        setFeedback({ type: 'error', text: message })
+        scrollToStep3ContactField(field)
       } else {
         setFeedback({ type: 'error', text: 'Please complete the required fields.' })
       }
@@ -463,7 +449,7 @@ export function QuoteWizardProvider({ children, serviceType: serviceTypeProp, al
     }
     pendingStepScrollRef.current = true
     setStep((s) => Math.min(4, s + 1))
-  }, [step, wizard, canGoNext, mobileStep3ExtrasValid])
+  }, [step, wizard, canGoNext])
 
   const back = useCallback(() => {
     pendingStepScrollRef.current = true
@@ -479,8 +465,7 @@ export function QuoteWizardProvider({ children, serviceType: serviceTypeProp, al
 
   const buildQuotePayloadForSave = useCallback(() => {
     if (!breakdown) return null
-    const photoInput = fileInputRef.current
-    const files = photoInput?.files ? Array.from(photoInput.files) : []
+    const files = quotePhotoFiles
 
     const fullSummaryText = buildWizardFullSummaryText({
       wizard,
@@ -497,6 +482,8 @@ export function QuoteWizardProvider({ children, serviceType: serviceTypeProp, al
       handlingMultiplier: l.mult ?? 1,
       weightType: l.weightType,
       isCustom: l.isCustom,
+      categoryLabel: l.categoryLabel,
+      customSizeBand: l.customSizeBand,
     }))
     const invSummaryForParams = formatInventoryRowsForEmail(invRowsForParams)
 
@@ -524,9 +511,29 @@ export function QuoteWizardProvider({ children, serviceType: serviceTypeProp, al
     }
 
     return { templateParams, extras, fullSummaryText, photoFileNames: files.map((f) => f.name) }
-  }, [breakdown, wizard, serviceType, quoteRef])
+  }, [breakdown, wizard, serviceType, quoteRef, quotePhotoFiles])
 
   const clearCardPayment = useCallback(() => setCardPayment(null), [])
+
+  /** Upload wizard photos after Stripe payment succeeds (booking already created server-side). */
+  const uploadCustomerPhotosAfterPayment = useCallback(
+    async (booking = {}) => {
+      if (!quotePhotoFiles.length) return
+      const ref = String(booking.quoteRef || quoteRef).trim()
+      if (!ref) return
+      try {
+        await uploadCustomerQuotePhotos({
+          files: quotePhotoFiles,
+          quoteRef: ref,
+          jobId: booking.jobId ?? null,
+        })
+        setQuotePhotoFiles([])
+      } catch (photoErr) {
+        console.warn('[Quote] customer photo upload failed after payment', photoErr)
+      }
+    },
+    [quotePhotoFiles, quoteRef],
+  )
 
   const handlePay = useCallback(
     async (paymentType) => {
@@ -656,7 +663,7 @@ export function QuoteWizardProvider({ children, serviceType: serviceTypeProp, al
       const lineVol = row.quantity * row.m3 * (row.mult ?? 1)
       return {
         item_name: row.name,
-        library_item_id: null,
+        library_item_id: row.isCustom ? null : row.catalogId ?? null,
         quantity: row.quantity,
         cubic_metres_per_unit: row.m3,
         line_volume_m3: Math.round(lineVol * 100) / 100,
@@ -689,8 +696,9 @@ export function QuoteWizardProvider({ children, serviceType: serviceTypeProp, al
       }
 
       let jobWarning = null
+      let createdJob = null
       try {
-        await createJobRequest({
+        createdJob = await createJobRequest({
           full_name: wizard.fullName,
           phone: wizard.phone,
           email: wizard.email,
@@ -713,7 +721,22 @@ export function QuoteWizardProvider({ children, serviceType: serviceTypeProp, al
         jobWarning = err?.message || 'Database error'
       }
 
-      const backendIssues = [quoteWarning, jobWarning].filter(Boolean)
+      let photoWarning = null
+      if (quotePhotoFiles.length > 0) {
+        try {
+          await uploadCustomerQuotePhotos({
+            files: quotePhotoFiles,
+            quoteRef,
+            jobId: createdJob?.id ?? null,
+          })
+        } catch (photoErr) {
+          console.warn('[Quote] customer photo upload failed', photoErr)
+          photoWarning =
+            'Your quote was saved but some photos could not be uploaded. We may follow up for images.'
+        }
+      }
+
+      const backendIssues = [quoteWarning, jobWarning, photoWarning].filter(Boolean)
       setFeedback({
         type: backendIssues.length ? 'warning' : 'success',
         text: backendIssues.length
@@ -734,12 +757,12 @@ export function QuoteWizardProvider({ children, serviceType: serviceTypeProp, al
       skipAutosaveRef.current = true
       clearQuoteDraft()
       setWizard(initialWizardState())
+      setQuotePhotoFiles([])
       setQuoteRef(makeQuoteRef())
       setStep(1)
       window.setTimeout(() => {
         skipAutosaveRef.current = false
       }, 600)
-      if (fileInputRef.current) fileInputRef.current.value = ''
     } catch (err) {
       setLastQuoteData(null)
       const msg = err?.text || err?.message || 'Something went wrong.'
@@ -747,7 +770,7 @@ export function QuoteWizardProvider({ children, serviceType: serviceTypeProp, al
     } finally {
       setSubmitting(false)
     }
-  }, [breakdown, settings, serviceType, quoteRef, wizard, buildQuotePayloadForSave])
+  }, [breakdown, settings, serviceType, quoteRef, wizard, quotePhotoFiles, buildQuotePayloadForSave])
 
   const resetQuoteWizard = useCallback(() => {
     skipAutosaveRef.current = true
@@ -764,7 +787,7 @@ export function QuoteWizardProvider({ children, serviceType: serviceTypeProp, al
     setLastQuoteData(null)
     setCardPayment(null)
     setPayError('')
-    if (fileInputRef.current) fileInputRef.current.value = ''
+    setQuotePhotoFiles([])
     window.setTimeout(() => {
       skipAutosaveRef.current = false
     }, 600)
@@ -790,7 +813,10 @@ export function QuoteWizardProvider({ children, serviceType: serviceTypeProp, al
     setFeedback,
     lastQuoteData,
     setLastQuoteData,
-    fileInputRef,
+    quotePhotoFiles,
+    addQuotePhotos,
+    removeQuotePhotoAt,
+    clearQuotePhotos,
     lineItems,
     heavyItemCount,
     totalM3,
@@ -804,6 +830,7 @@ export function QuoteWizardProvider({ children, serviceType: serviceTypeProp, al
     buildQuotePayloadForSave,
     handlePay,
     handleSubmit,
+    uploadCustomerPhotosAfterPayment,
     resetQuoteWizard,
   }
 

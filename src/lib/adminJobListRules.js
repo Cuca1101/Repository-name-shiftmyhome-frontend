@@ -26,12 +26,20 @@ export function quoteHasAssignedPartner(q) {
 }
 
 /** @param {Record<string, unknown>} q */
-export function quoteIsBookedOrPaid(q) {
-  const st = String(q.status ?? '').trim()
-  if (st === 'Booked') return true
+export function quoteIsCardPaid(q) {
   const ps = String(q.payment_status ?? '').trim().toLowerCase()
-  if (ps === 'paid' || ps === 'deposit_paid') return true
-  return false
+  return ps === 'paid' || ps === 'deposit_paid'
+}
+
+/**
+ * Legacy helper — includes CRM `status = Booked` without card payment.
+ * Do not use for Available Jobs inbox rules.
+ * @param {Record<string, unknown>} q
+ */
+export function quoteIsBookedOrPaid(q) {
+  if (quoteIsCardPaid(q)) return true
+  const st = String(q.status ?? '').trim()
+  return st === 'Booked'
 }
 
 /** @param {Record<string, unknown>} q */
@@ -40,12 +48,12 @@ export function quoteOperationalStatusLower(q) {
 }
 
 /**
- * Available Jobs inbox: booked/paid, unassigned, not on marketplace, not terminal.
+ * Available Jobs inbox: card-paid only, unassigned, not on marketplace, not terminal.
  * @param {Record<string, unknown>} q
  */
 export function quotePassesAvailableJobsStrict(q) {
   if (q?.bundled_journey_id != null && String(q.bundled_journey_id).trim() !== '') return false
-  if (!quoteIsBookedOrPaid(q)) return false
+  if (!quoteIsCardPaid(q)) return false
   const st = String(q.status ?? '').trim()
   if (st === 'Completed' || st === 'Cancelled') return false
   if (q.completed_at) return false

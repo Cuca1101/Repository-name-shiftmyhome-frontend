@@ -1,18 +1,13 @@
 import { useEffect } from 'react'
 import { useLocation } from 'react-router-dom'
 import { SEO_SITE_ORIGIN } from '../../data/seoPages'
+import { useWebsiteCms } from '../../context/WebsiteCmsContext'
+import { DEFAULT_HOMEPAGE } from '../../lib/websiteCmsDefaults'
 
 const SITE_ORIGIN = SEO_SITE_ORIGIN
 
-export const HOME_PAGE_TITLE =
-  'ShiftMyHome | House Removals, Man With Van & Moving Services Scotland'
-
-export const HOME_PAGE_DESCRIPTION =
-  'ShiftMyHome (Shift My Home) offers house removals, man with van, removal van and moving services across Scotland. Instant online quotes for Glasgow, Edinburgh and UK-wide moves.'
-
-const OG_TITLE = 'ShiftMyHome — Removals & Man With Van Scotland'
-const OG_DESCRIPTION =
-  'Trusted removals platform for house moves, man with van, and furniture delivery. Scotland-wide coverage with instant quotes from Shift My Home.'
+export const HOME_PAGE_TITLE = DEFAULT_HOMEPAGE.homepageSeoTitle
+export const HOME_PAGE_DESCRIPTION = DEFAULT_HOMEPAGE.homepageSeoDescription
 
 function setMeta(attr, key, content) {
   let el = document.querySelector(`meta[${attr}="${key}"]`)
@@ -100,24 +95,30 @@ const WEBSITE_JSON_LD = {
  */
 export default function HomePageSeo() {
   const { pathname } = useLocation()
+  const { homepage } = useWebsiteCms()
   const isHome = pathname === '/'
+
+  const pageTitle =
+    String(homepage?.homepageSeoTitle || '').trim() || HOME_PAGE_TITLE
+  const pageDescription =
+    String(homepage?.homepageSeoDescription || '').trim() || HOME_PAGE_DESCRIPTION
 
   useEffect(() => {
     if (!isHome) return undefined
 
     const prevTitle = document.title
-    document.title = HOME_PAGE_TITLE
+    document.title = pageTitle
 
     const metas = [
-      setMeta('name', 'description', HOME_PAGE_DESCRIPTION),
-      setMeta('property', 'og:title', OG_TITLE),
-      setMeta('property', 'og:description', OG_DESCRIPTION),
+      setMeta('name', 'description', pageDescription),
+      setMeta('property', 'og:title', pageTitle),
+      setMeta('property', 'og:description', pageDescription),
       setMeta('property', 'og:url', SITE_ORIGIN),
       setMeta('property', 'og:type', 'website'),
       setMeta('property', 'og:site_name', 'ShiftMyHome'),
       setMeta('name', 'twitter:card', 'summary_large_image'),
-      setMeta('name', 'twitter:title', OG_TITLE),
-      setMeta('name', 'twitter:description', OG_DESCRIPTION),
+      setMeta('name', 'twitter:title', pageTitle),
+      setMeta('name', 'twitter:description', pageDescription),
     ]
 
     const canonical = setLink('canonical', `${SITE_ORIGIN}/`)
@@ -132,7 +133,8 @@ export default function HomePageSeo() {
       document.head.appendChild(script)
     }
     const prevJson = script.textContent
-    script.textContent = JSON.stringify([ORGANIZATION_JSON_LD, WEBSITE_JSON_LD])
+    const websiteLd = { ...WEBSITE_JSON_LD, description: pageDescription }
+    script.textContent = JSON.stringify([ORGANIZATION_JSON_LD, websiteLd])
 
     return () => {
       document.title = prevTitle
@@ -145,7 +147,7 @@ export default function HomePageSeo() {
       if (!hadScript && script?.parentNode) script.parentNode.removeChild(script)
       else if (hadScript) script.textContent = prevJson
     }
-  }, [isHome])
+  }, [isHome, pageTitle, pageDescription])
 
   return null
 }

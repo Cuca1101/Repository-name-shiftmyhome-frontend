@@ -13,7 +13,9 @@ import {
   Wrench,
 } from 'lucide-react'
 import QuoteRouteMap from '../quote-wizard/QuoteRouteMap'
+import InlineInventoryQtyControl from '../quote-wizard/InlineInventoryQtyControl'
 import { CatalogItemLucideIcon } from '../quote-wizard/inventoryLucideIcons'
+import { applyInventoryLineQuantityDelta } from '../../lib/inventoryLineQuantity'
 import {
   buildMoveSummaryExtras,
   formatDateUK,
@@ -48,10 +50,16 @@ function SummaryRow({ icon: Icon, iconClass = 'text-slate-400', label, value }) 
   )
 }
 
-function ReadOnlyInventoryRow({ row }) {
+function SelectedInventoryRow({ row, editable, inventoryLines, onInventoryLinesChange }) {
   const qty = Math.max(0, Number(row.quantity) || 0)
+
+  function bump(delta) {
+    if (!onInventoryLinesChange) return
+    onInventoryLinesChange(applyInventoryLineQuantityDelta(inventoryLines, row.lineId, delta))
+  }
+
   return (
-    <li className="flex items-center gap-2.5 border-b border-slate-100 py-2 last:border-b-0">
+    <li className="flex items-center gap-2 border-b border-slate-100 py-2 last:border-b-0">
       <div
         className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-brand-50 text-brand-700 ring-1 ring-brand-100"
         aria-hidden
@@ -62,9 +70,18 @@ function ReadOnlyInventoryRow({ row }) {
           <CatalogItemLucideIcon itemId={row.catalogId} className="h-3.5 w-3.5" />
         )}
       </div>
-      <p className="min-w-0 flex-1 text-sm leading-snug text-slate-800">
-        {row.name} <span className="font-semibold text-slate-900">× {qty}</span>
-      </p>
+      <p className="min-w-0 flex-1 text-sm leading-snug text-slate-800">{row.name}</p>
+      {editable ? (
+        <InlineInventoryQtyControl
+          quantity={qty}
+          onAdd={() => bump(1)}
+          onDecrement={() => bump(-1)}
+          onIncrement={() => bump(1)}
+          addLabel="+"
+        />
+      ) : (
+        <span className="shrink-0 text-sm font-semibold tabular-nums text-slate-900">× {qty}</span>
+      )}
     </li>
   )
 }
@@ -90,12 +107,15 @@ export default function MobileQuoteMoveSummary({
   distanceMiles,
   moveDate,
   inventoryLines,
+  onInventoryLinesChange,
+  step,
   totalM3,
   showPricing,
   breakdown,
   crewSettings,
   showOnDesktop = false,
 }) {
+  const itemsEditable = step === 3 && typeof onInventoryLinesChange === 'function'
   const [itemsOpen, setItemsOpen] = useState(false)
 
   const selectedLines = (inventoryLines || []).filter((l) => l.quantity > 0)
@@ -232,7 +252,13 @@ export default function MobileQuoteMoveSummary({
             <div className="min-h-0 overflow-hidden">
               <ul className="pb-2 pt-0.5">
                 {selectedLines.map((row) => (
-                  <ReadOnlyInventoryRow key={row.lineId} row={row} />
+                  <SelectedInventoryRow
+                    key={row.lineId}
+                    row={row}
+                    editable={itemsEditable}
+                    inventoryLines={inventoryLines}
+                    onInventoryLinesChange={onInventoryLinesChange}
+                  />
                 ))}
               </ul>
             </div>

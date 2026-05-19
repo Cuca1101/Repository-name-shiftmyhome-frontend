@@ -17,6 +17,8 @@ import { getAvailableJobWarningBadges, getMarketplaceJobWarningBadges } from '..
 import JobStatusBadge from './JobStatusBadge'
 import JobActionsMenu from './JobActionsMenu'
 import MarketplaceJobRemoveButton from './MarketplaceJobRemoveButton'
+import CancelDemoBookingAction from './CancelDemoBookingAction'
+import { isQuoteDemoOrTest } from '../../lib/cancelDemoBooking'
 
 function money(n) {
   if (n == null || n === '') return '—'
@@ -31,10 +33,12 @@ function money(n) {
  *   showQuickActions?: boolean,
  *   adminSlot?: unknown,
  *   listVariant?: 'available' | 'marketplace' | null,
+ *   layoutMode?: 'grid' | 'list',
  *   onAssignDriver?: () => void,
  *   onMarketplace?: () => void,
  *   selectionCheckbox?: unknown,
  *   marketplaceOnApplied?: () => void | Promise<void>,
+ *   onDemoCancelled?: () => void | Promise<void>,
  * }} props
  */
 export default function JobCard({
@@ -44,11 +48,28 @@ export default function JobCard({
   showQuickActions = true,
   adminSlot = null,
   listVariant = null,
+  layoutMode = 'grid',
   onAssignDriver,
   onMarketplace,
   selectionCheckbox = null,
   marketplaceOnApplied,
+  onDemoCancelled,
 }) {
+  if (listVariant === 'available') {
+    return (
+      <AvailableJobCardCompact
+        q={q}
+        statusBadge={statusBadge}
+        showQuickActions={showQuickActions}
+        layoutMode={layoutMode}
+        onAssignDriver={onAssignDriver}
+        onMarketplace={onMarketplace}
+        selectionCheckbox={selectionCheckbox}
+        onDemoCancelled={onDemoCancelled}
+      />
+    )
+  }
+
   const id = String(q.id)
   const ref = q.quote_ref ? String(q.quote_ref) : id.slice(0, 8)
   const kv = parseDetailsKeyValues(q.details)
@@ -89,8 +110,9 @@ export default function JobCard({
 
       <p className="mt-3 truncate text-base font-semibold text-slate-900">{q.full_name || '—'}</p>
 
-      {warningBadges.length > 0 ? (
+      {warningBadges.length > 0 || isQuoteDemoOrTest(q) ? (
         <div className="mt-2 flex flex-wrap gap-1.5" role="status" aria-label="Admin warnings">
+          {isQuoteDemoOrTest(q) ? <JobStatusBadge label="Demo/Test" tone="slate" /> : null}
           {warningBadges.map((b) => (
             <JobStatusBadge key={b.label} label={b.label} tone={b.tone} />
           ))}
@@ -205,6 +227,12 @@ export default function JobCard({
         </div>
       ) : null}
 
+      {listVariant === 'available' ? (
+        <div className="mt-3">
+          <CancelDemoBookingAction quote={q} onApplied={onDemoCancelled} compact />
+        </div>
+      ) : null}
+
       <JobActionsMenu
         quoteId={id}
         showQuickActions={showQuickActions}
@@ -216,6 +244,134 @@ export default function JobCard({
         <span className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[10px] text-slate-500">quotes</span>{' '}
         row · {formatDateTimeUK(q.created_at)}
       </p>
+    </li>
+  )
+}
+
+/**
+ * Compact card layout for Available Jobs list only.
+ * @param {{
+ *   q: Record<string, unknown>,
+ *   statusBadge?: { label: string, tone?: string } | null,
+ *   showQuickActions?: boolean,
+ *   layoutMode?: 'grid' | 'list',
+ *   onAssignDriver?: () => void,
+ *   onMarketplace?: () => void,
+ *   selectionCheckbox?: unknown,
+ *   onDemoCancelled?: () => void | Promise<void>,
+ * }} props
+ */
+function AvailableJobCardCompact({
+  q,
+  statusBadge = null,
+  showQuickActions = true,
+  layoutMode = 'grid',
+  onAssignDriver,
+  onMarketplace,
+  selectionCheckbox = null,
+  onDemoCancelled,
+}) {
+  const id = String(q.id)
+  const ref = q.quote_ref ? String(q.quote_ref) : id.slice(0, 8)
+  const kv = parseDetailsKeyValues(q.details)
+  const overrides = mergedAdminWorkflowForQuote(q)
+  const adjSum = (overrides.adjustments || []).reduce((s, a) => s + (Number(a.amountGbp) || 0), 0)
+  const fin = resolveFinancials(q, adjSum)
+  const badge = statusBadge ?? deriveCardStatusBadge(q)
+  const moveWhen = q.move_date ? formatDateUK(q.move_date) : '—'
+  const arrival = formatMoveArrivalSummary(q, kv)
+  const service = String(q.service || q.service_type || kv['Selected service'] || '—')
+  const volCrew = formatVolumeAndCrew(q)
+  const warningBadges = getAvailableJobWarningBadges(q)
+  const isList = layoutMode === 'list'
+
+  const paidLabel = fin.paid != null ? money(fin.paid) : '—'
+  const totalLabel = fin.customerTotal != null ? money(fin.customerTotal) : '—'
+  const balanceLabel = fin.remaining != null ? money(fin.remaining) : '—'
+
+  return (
+    <li
+      className={`flex flex-col rounded-xl border border-slate-200/90 bg-white shadow-sm ring-1 ring-slate-900/[0.03] ${
+        isList ? 'p-3 sm:flex-row sm:items-stretch sm:gap-4' : 'p-3.5'
+      }`}
+    >
+      <div className={`min-w-0 flex-1 ${isList ? 'sm:pr-2' : ''}`}>
+        {selectionCheckbox ? (
+          <div className="mb-2">{selectionCheckbox}</div>
+        ) : null}
+
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-sm font-semibold text-slate-900">{q.full_name || '—'}</p>
+            <p className="mt-0.5 truncate font-mono text-[10px] text-slate-400">{ref}</p>
+          </div>
+          <JobStatusBadge label={badge.label} tone={badge.tone} />
+        </div>
+
+        {warningBadges.length > 0 || isQuoteDemoOrTest(q) ? (
+          <div className="mt-1.5 flex flex-wrap gap-1" role="status" aria-label="Admin warnings">
+            {isQuoteDemoOrTest(q) ? <JobStatusBadge label="Demo/Test" tone="slate" /> : null}
+            {warningBadges.map((b) => (
+              <JobStatusBadge key={b.label} label={b.label} tone={b.tone} />
+            ))}
+          </div>
+        ) : null}
+
+        <dl
+          className={`mt-2 grid gap-x-3 gap-y-1 text-[11px] leading-snug text-slate-600 ${
+            isList ? 'sm:grid-cols-2 lg:grid-cols-3' : 'grid-cols-2'
+          }`}
+        >
+          <div className="col-span-2 sm:col-span-1">
+            <dt className="sr-only">Move</dt>
+            <dd className="font-medium text-slate-800">
+              {moveWhen}
+              {arrival && arrival !== '—' ? (
+                <span className="ml-1 font-normal text-slate-500">· {arrival}</span>
+              ) : null}
+            </dd>
+          </div>
+          <div className="min-w-0">
+            <dt className="text-slate-400">Service</dt>
+            <dd className="truncate font-medium text-slate-800">{service}</dd>
+          </div>
+          <div className="min-w-0">
+            <dt className="text-slate-400">Vol · crew</dt>
+            <dd className="truncate text-slate-800">{volCrew}</dd>
+          </div>
+          <div className="col-span-2 min-w-0 sm:col-span-1">
+            <dt className="text-slate-400">Pickup</dt>
+            <dd className="truncate text-slate-800">{shortAddressLine(q.pickup_address)}</dd>
+          </div>
+          <div className="col-span-2 min-w-0 sm:col-span-1">
+            <dt className="text-slate-400">Dropoff</dt>
+            <dd className="truncate text-slate-800">{shortAddressLine(q.delivery_address)}</dd>
+          </div>
+        </dl>
+
+        <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-0.5 border-t border-slate-100 pt-2 text-[11px] tabular-nums">
+          <span className="text-slate-500">
+            Total <strong className="text-slate-900">{totalLabel}</strong>
+          </span>
+          <span className="text-slate-500">
+            Paid <strong className="text-emerald-700">{paidLabel}</strong>
+          </span>
+          <span className="text-slate-500">
+            Bal <strong className="text-amber-800">{balanceLabel}</strong>
+          </span>
+        </div>
+      </div>
+
+      <div className={`shrink-0 ${isList ? 'mt-2 border-t border-slate-100 pt-2 sm:mt-0 sm:w-44 sm:border-t-0 sm:border-l sm:pt-0 sm:pl-4' : ''}`}>
+        <CancelDemoBookingAction quote={q} onApplied={onDemoCancelled} compact />
+        <JobActionsMenu
+          quoteId={id}
+          showQuickActions={showQuickActions}
+          onAssignDriver={onAssignDriver}
+          onMarketplace={onMarketplace}
+          compact
+        />
+      </div>
     </li>
   )
 }

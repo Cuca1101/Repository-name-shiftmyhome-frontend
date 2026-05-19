@@ -1,17 +1,19 @@
-import { getCatalogItem } from './inventoryCatalog'
+import { getCatalogItem as getStaticCatalogItem } from './inventoryCatalog'
 
 const MIN = 0.01
 
 /**
  * Resolved catalogue default m³ per unit for a wizard inventory line.
  * @param {{ m3: number, defaultM3?: number, isCustom?: boolean, catalogId?: string|null }} row
+ * @param {(itemId: string) => { item?: { m3?: number } } | null} [getCatalogItemFn]
  */
-export function resolveDefaultM3PerUnit(row) {
+export function resolveDefaultM3PerUnit(row, getCatalogItemFn) {
   if (row.defaultM3 != null && Number.isFinite(Number(row.defaultM3))) {
     return Math.max(MIN, Number(row.defaultM3))
   }
   if (!row.isCustom && row.catalogId) {
-    const f = getCatalogItem(row.catalogId)
+    const lookup = getCatalogItemFn ?? getStaticCatalogItem
+    const f = lookup(row.catalogId)
     if (f?.item?.m3 != null) return Math.max(MIN, Number(f.item.m3))
   }
   return Math.max(MIN, Number(row.m3) || MIN)

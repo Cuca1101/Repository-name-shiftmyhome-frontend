@@ -197,6 +197,24 @@ export default function WebsiteCmsAdmin() {
 
       {tab === 'homepage' && (
         <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm space-y-4">
+          <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-4">
+            <p className="text-sm font-semibold text-slate-800">Homepage SEO (Google &amp; social)</p>
+            <Field label="SEO title" hint="Browser tab title and search result headline.">
+              <input
+                className={inputClass}
+                value={homepage.homepageSeoTitle || ''}
+                onChange={(e) => setHomepage({ ...homepage, homepageSeoTitle: e.target.value })}
+              />
+            </Field>
+            <Field label="Meta description" hint="Shown in Google search results (aim for ~150–160 characters).">
+              <textarea
+                className={inputClass}
+                rows={3}
+                value={homepage.homepageSeoDescription || ''}
+                onChange={(e) => setHomepage({ ...homepage, homepageSeoDescription: e.target.value })}
+              />
+            </Field>
+          </div>
           <Field label="Hero title part 1">
             <input className={inputClass} value={homepage.heroTitlePart1 || ''} onChange={(e) => setHomepage({ ...homepage, heroTitlePart1: e.target.value })} />
           </Field>

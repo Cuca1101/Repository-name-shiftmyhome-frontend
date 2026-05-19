@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 import { formatDateUK } from '../../lib/formatDateDisplay'
 import { buildAdminJobQuoteDetailsViewModel, liftReadable } from '../../lib/adminJobQuoteDetailsViewModel'
 import AvailableJobInventorySection from './AvailableJobInventorySection'
+import QuotePhotosAdminSection from './QuotePhotosAdminSection'
 import { AdminField } from './AdminJobUiPrimitives'
 
 function PinIcon({ className = 'h-5 w-5' }) {
@@ -57,9 +58,19 @@ function AccessBadge({ value }) {
 const cardShell = 'overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-[0_1px_3px_rgba(15,23,42,0.06)]'
 
 /**
- * @param {{ quote: Record<string, unknown> }} props
+ * @param {{
+ *   quote: Record<string, unknown>,
+ *   jobId?: string|null,
+ *   photoQuoteRef?: string|null,
+ *   legacyPhotoFileNames?: string[],
+ * }} props
  */
-export default function AdminJobQuoteDetailsPanel({ quote: q }) {
+export default function AdminJobQuoteDetailsPanel({
+  quote: q,
+  jobId = null,
+  photoQuoteRef = null,
+  legacyPhotoFileNames = [],
+}) {
   const vm = useMemo(() => buildAdminJobQuoteDetailsViewModel(q), [q])
 
   return (
@@ -201,6 +212,18 @@ export default function AdminJobQuoteDetailsPanel({ quote: q }) {
       </div>
 
       <AvailableJobInventorySection quote={q} />
+
+      <QuotePhotosAdminSection
+        quoteRef={
+          photoQuoteRef != null && String(photoQuoteRef).trim()
+            ? String(photoQuoteRef).trim()
+            : q.quote_ref != null
+              ? String(q.quote_ref).trim()
+              : ''
+        }
+        jobId={jobId}
+        legacyPhotoFileNames={legacyPhotoFileNames}
+      />
     </div>
   )
 }

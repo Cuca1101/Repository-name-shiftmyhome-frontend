@@ -24,8 +24,11 @@ import {
   parsePricingText,
   resolveFinancials,
 } from '../lib/quoteJobAdminModel'
-import { generateQuotePdf } from '../utils/generateQuotePdf'
+import GenerateJobSheetButton from './admin-workflow/GenerateJobSheetButton'
 import { findLinkedJobForQuote, quoteIsCancelled, quoteIsCompleted } from '../lib/adminWorkflowFilters'
+import { quotePassesAvailableJobsStrict } from '../lib/adminJobListRules'
+import { isQuoteDemoOrTest } from '../lib/cancelDemoBooking'
+import CancelDemoBookingAction from './admin-workflow/CancelDemoBookingAction'
 import { applyDefaultMarketplacePayoutToQuote } from '../lib/marketplacePayoutApply'
 import { formatMarketplaceStatusSummary } from '../lib/marketplaceListingStatus'
 import AdminJobOverrideActions from './admin-workflow/AdminJobOverrideActions'
@@ -252,6 +255,22 @@ export default function AvailableJobDetails() {
     [q, jobsList],
   )
 
+  const photoQuoteRef = useMemo(() => {
+    const fromQuote = q?.quote_ref != null ? String(q.quote_ref).trim() : ''
+    if (fromQuote) return fromQuote
+    const pi = linkedJob?.price_inputs
+    if (pi && typeof pi === 'object' && pi.quoteRef != null) {
+      return String(pi.quoteRef).trim()
+    }
+    return ''
+  }, [q, linkedJob])
+
+  const legacyPhotoFileNames = useMemo(() => {
+    const pi = linkedJob?.price_inputs
+    if (!pi || typeof pi !== 'object' || !Array.isArray(pi.photoFileNames)) return []
+    return pi.photoFileNames.map((n) => String(n).trim()).filter(Boolean)
+  }, [linkedJob])
+
   const terminal = Boolean(q && (quoteIsCompleted(q, linkedJob) || quoteIsCancelled(q, linkedJob)))
 
   const adjSum = useMemo(
@@ -315,30 +334,6 @@ export default function AvailableJobDetails() {
       setStatusMessage({ type: 'error', text: e?.message || 'Could not update status.' })
     } finally {
       setStatusSaving(false)
-    }
-  }
-
-  async function handleJobSheetPdf() {
-    if (!q) return
-    try {
-      await generateQuotePdf({
-        quote_ref: q.quote_ref,
-        name: q.full_name,
-        email: q.email,
-        phone: q.phone,
-        service: q.service,
-        pickup: q.pickup_address,
-        delivery: q.delivery_address,
-        move_date: q.move_date,
-        details: q.details,
-        inventory: q.inventory_text,
-        pricing: q.pricing,
-      })
-      setToast('Job sheet PDF generated.')
-      window.setTimeout(() => setToast(''), 3000)
-    } catch (e) {
-      setToast(e?.message || 'Could not generate PDF.')
-      window.setTimeout(() => setToast(''), 5000)
     }
   }
 
@@ -509,6 +504,7 @@ export default function AvailableJobDetails() {
                     Workflow · {String(q.status)}
                   </span>
                 ) : null}
+                {isQuoteDemoOrTest(q) ? <JobStatusBadge label="Demo/Test" tone="slate" /> : null}
               </div>
             </div>
 
@@ -533,6 +529,29 @@ export default function AvailableJobDetails() {
               </div>
 
               <div className="flex w-full flex-wrap items-center justify-end gap-2">
+                <GenerateJobSheetButton
+                  quote={q}
+                  internalNotes={notesDraft}
+                  variant="secondary"
+                  className="order-0 w-full sm:w-auto"
+                  onSuccess={(msg) => {
+                    setToast(msg)
+                    window.setTimeout(() => setToast(''), 3000)
+                  }}
+                  onError={(msg) => {
+                    setToast(msg)
+                    window.setTimeout(() => setToast(''), 5000)
+                  }}
+                />
+                {quotePassesAvailableJobsStrict(q) && !terminal ? (
+                  <CancelDemoBookingAction
+                    quote={q}
+                    className="order-0 w-full sm:w-auto"
+                    onApplied={async () => {
+                      await load()
+                    }}
+                  />
+                ) : null}
                 <details ref={moreDetailsRef} className="group relative order-1">
                   <summary className="flex min-h-[44px] cursor-pointer list-none items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-900 shadow-sm hover:bg-slate-50 [&::-webkit-details-marker]:hidden">
                     More actions
@@ -567,16 +586,21 @@ export default function AvailableJobDetails() {
                     >
                       Add stairs / access charge
                     </button>
-                    <button
-                      type="button"
-                      className="block w-full px-4 py-2.5 text-left text-sm text-slate-800 hover:bg-slate-50"
-                      onClick={() => {
+                    <GenerateJobSheetButton
+                      quote={q}
+                      internalNotes={notesDraft}
+                      variant="menu"
+                      onSuccess={(msg) => {
                         closeMoreMenu()
-                        void handleJobSheetPdf()
+                        setToast(msg)
+                        window.setTimeout(() => setToast(''), 3000)
                       }}
-                    >
-                      Generate job sheet PDF
-                    </button>
+                      onError={(msg) => {
+                        closeMoreMenu()
+                        setToast(msg)
+                        window.setTimeout(() => setToast(''), 5000)
+                      }}
+                    />
                     <button
                       type="button"
                       className="block w-full px-4 py-2.5 text-left text-sm text-slate-800 hover:bg-slate-50"
@@ -775,7 +799,14 @@ export default function AvailableJobDetails() {
         </AdminCard>
       ) : null}
 
-      {tab === 'details' ? <AdminJobQuoteDetailsPanel quote={q} /> : null}
+      {tab === 'details' ? (
+        <AdminJobQuoteDetailsPanel
+          quote={q}
+          jobId={linkedJob?.id != null ? String(linkedJob.id) : null}
+          photoQuoteRef={photoQuoteRef}
+          legacyPhotoFileNames={legacyPhotoFileNames}
+        />
+      ) : null}
 
       {tab === 'pricing' ? (
         <AdminCard title="Pricing & payments">

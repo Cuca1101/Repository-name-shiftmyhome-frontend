@@ -81,10 +81,10 @@ export default function ContinueQuoteBanner() {
         <button
           type="button"
           onClick={handleDismiss}
-          className="absolute right-1.5 top-1.5 flex h-7 w-7 items-center justify-center rounded-md text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
+          className="absolute right-1 top-0.5 z-10 flex h-8 w-8 items-center justify-center rounded-md text-slate-600 transition hover:bg-slate-100 hover:text-slate-900 focus:outline-none focus-visible:bg-slate-100 focus-visible:text-slate-900 focus-visible:ring-2 focus-visible:ring-brand-500/35 focus-visible:ring-offset-1"
           aria-label="Dismiss saved quote reminder"
         >
-          <X className="h-3.5 w-3.5" aria-hidden />
+          <X className="h-4 w-4" strokeWidth={2.25} aria-hidden />
         </button>
 
         <div

@@ -1,7 +1,7 @@
 import {
   quoteHasAssignedDriver,
   quoteHasAssignedPartner,
-  quoteIsBookedOrPaid,
+  quoteIsCardPaid,
   quotePassesAvailableJobsStrict,
   quotePassesMarketplaceStrict,
 } from './adminJobListRules'
@@ -99,7 +99,7 @@ export function getAvailableJobWarningBadges(q) {
   const tomorrowYmd = addDaysYmd(todayYmd, 1)
   const deadlineMs = quoteMoveDeadlineMs(q)
   const mv = mergedAdminWorkflowForQuote(q).marketplaceVisibility
-  const bookedPaid = quoteIsBookedOrPaid(q)
+  const cardPaid = quoteIsCardPaid(q)
   const unassigned = unassignedNoDriverPartner(q)
   const notMkt = notInMarketplaceForWarnings(q)
 
@@ -112,13 +112,13 @@ export function getAvailableJobWarningBadges(q) {
     deadlineMs != null &&
     Number.isFinite(deadlineMs) &&
     deadlineMs < now &&
-    bookedPaid
+    cardPaid
   const unassignedToday =
     moveYmd != null &&
     moveYmd === todayYmd &&
     unassigned &&
     notMkt &&
-    bookedPaid
+    cardPaid
   if (overdue) out.push({ label: 'Overdue unassigned', tone: 'red' })
   else if (unassignedToday) out.push({ label: 'Unassigned today', tone: 'red' })
 
@@ -127,11 +127,11 @@ export function getAvailableJobWarningBadges(q) {
     moveYmd === tomorrowYmd &&
     unassigned &&
     notMkt &&
-    bookedPaid
+    cardPaid
   if (tomorrowNoDriver) out.push({ label: 'Tomorrow — no driver', tone: 'amber' })
 
   const noDriverPath =
-    bookedPaid &&
+    cardPaid &&
     unassigned &&
     mv !== 'visible_in_marketplace' &&
     mv !== 'assigned' &&
@@ -140,9 +140,7 @@ export function getAvailableJobWarningBadges(q) {
     !tomorrowNoDriver
   if (noDriverPath) out.push({ label: 'No driver assigned', tone: 'amber' })
 
-  const ps = String(q.payment_status ?? '').trim().toLowerCase()
-  const st = String(q.status ?? '').trim()
-  const ready = (ps === 'paid' || st === 'Booked') && unassigned && notMkt
+  const ready = cardPaid && unassigned && notMkt
   if (ready) out.push({ label: 'Ready for dispatch', tone: 'sky' })
 
   return out
@@ -159,7 +157,7 @@ export function availableJobWarningSortTier(q) {
   const moveYmd = extractMoveYmd(q.move_date)
   const tomorrowYmd = addDaysYmd(todayYmd, 1)
   const deadlineMs = quoteMoveDeadlineMs(q)
-  const bookedPaid = quoteIsBookedOrPaid(q)
+  const cardPaid = quoteIsCardPaid(q)
   const unassigned = unassignedNoDriverPartner(q)
   const notMkt = notInMarketplaceForWarnings(q)
 
@@ -169,14 +167,14 @@ export function availableJobWarningSortTier(q) {
     deadlineMs != null &&
     Number.isFinite(deadlineMs) &&
     deadlineMs < now &&
-    bookedPaid
+    cardPaid
   if (overdue) return 0
 
   const unassignedToday =
-    moveYmd != null && moveYmd === todayYmd && unassigned && notMkt && bookedPaid
+    moveYmd != null && moveYmd === todayYmd && unassigned && notMkt && cardPaid
   if (unassignedToday) return 1
 
-  if (moveYmd != null && moveYmd === tomorrowYmd && unassigned && notMkt && bookedPaid) return 2
+  if (moveYmd != null && moveYmd === tomorrowYmd && unassigned && notMkt && cardPaid) return 2
 
   const badges = getAvailableJobWarningBadges(q)
   if (badges.some((b) => b.tone === 'amber' || b.tone === 'sky')) return 3

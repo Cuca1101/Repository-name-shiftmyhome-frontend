@@ -184,6 +184,9 @@ export default function PricingEngineAdmin() {
 
         <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-card">
           <h3 className="text-lg font-semibold text-slate-900">Access charges</h3>
+          <p className="mt-1 text-sm text-slate-600">
+            Used on the quote form for floors, lift access, stairs, parking, and heavy items.
+          </p>
           <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             <Field label="Floor charge per floor (£)">
               <input
@@ -191,7 +194,7 @@ export default function PricingEngineAdmin() {
                 step="0.01"
                 min="0"
                 className={inputClass}
-                value={settings.floorChargePerFloor}
+                value={settings.floorChargePerFloor ?? 0}
                 onChange={(e) => setNum('floorChargePerFloor', e.target.value)}
               />
             </Field>
@@ -201,8 +204,22 @@ export default function PricingEngineAdmin() {
                 step="0.01"
                 min="0"
                 className={inputClass}
-                value={settings.noLiftCharge}
+                value={settings.noLiftCharge ?? 0}
                 onChange={(e) => setNum('noLiftCharge', e.target.value)}
+              />
+              <p className="mt-1.5 text-xs leading-relaxed text-slate-500">
+                One-off supplement per end when the customer is above ground floor and selects lift{' '}
+                <strong className="font-medium text-slate-700">No</strong>. Not applied on ground floor.
+              </p>
+            </Field>
+            <Field label="Stairs charge per flight (£)">
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                className={inputClass}
+                value={settings.stairsChargePerFlight ?? 0}
+                onChange={(e) => setNum('stairsChargePerFlight', e.target.value)}
               />
             </Field>
             <Field label="Long walking distance (£)">
@@ -223,16 +240,6 @@ export default function PricingEngineAdmin() {
                 className={inputClass}
                 value={settings.parkingCharge}
                 onChange={(e) => setNum('parkingCharge', e.target.value)}
-              />
-            </Field>
-            <Field label="Stairs charge per flight (£)">
-              <input
-                type="number"
-                step="0.01"
-                min="0"
-                className={inputClass}
-                value={settings.stairsChargePerFlight}
-                onChange={(e) => setNum('stairsChargePerFlight', e.target.value)}
               />
             </Field>
             <Field label="Heavy item handling per item (£)">

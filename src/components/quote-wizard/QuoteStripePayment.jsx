@@ -40,6 +40,7 @@ function PaymentForm({
   mobileReview = false,
   submitLabel,
   submitDisabled = false,
+  onPaymentSucceeded,
 }) {
   const stripe = useStripe()
   const elements = useElements()
@@ -76,10 +77,32 @@ function PaymentForm({
       }
 
       if (paymentIntent?.status === 'succeeded') {
+        let verifyData = null
         try {
-          await verifyPaymentIntent(paymentIntent.id)
+          verifyData = await verifyPaymentIntent(paymentIntent.id)
         } catch {
           /* Success page may call verify again */
+        }
+        if (typeof onPaymentSucceeded === 'function') {
+          try {
+            await onPaymentSucceeded({
+              paymentIntentId: paymentIntent.id,
+              quoteRef:
+                verifyData?.quote_ref != null
+                  ? String(verifyData.quote_ref)
+                  : verifyData?.quoteRef != null
+                    ? String(verifyData.quoteRef)
+                    : undefined,
+              jobId:
+                verifyData?.job_id != null
+                  ? String(verifyData.job_id)
+                  : verifyData?.jobId != null
+                    ? String(verifyData.jobId)
+                    : null,
+            })
+          } catch (uploadErr) {
+            console.warn('[Quote] post-payment photo upload callback failed', uploadErr)
+          }
         }
         clearQuoteDraft()
         navigate(`/payment-success?payment_intent=${encodeURIComponent(paymentIntent.id)}`)
@@ -170,6 +193,7 @@ export default function QuoteStripePayment({
   mobileReview = false,
   submitLabel,
   submitDisabled = false,
+  onPaymentSucceeded,
 }) {
   if (!clientSecret || typeof clientSecret !== 'string' || !stripePromise) {
     return (
@@ -196,6 +220,7 @@ export default function QuoteStripePayment({
           mobileReview={mobileReview}
           submitLabel={submitLabel}
           submitDisabled={submitDisabled}
+          onPaymentSucceeded={onPaymentSucceeded}
         />
       </Elements>
     </StripeFormErrorBoundary>
