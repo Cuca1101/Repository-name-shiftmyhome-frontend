@@ -266,6 +266,16 @@
     <priority>0.7</priority>
   </url>
   <url>
+    <loc>https://www.shiftmyhome.co.uk/furniture-delivery-aberdeen</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://www.shiftmyhome.co.uk/furniture-delivery-dundee</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
     <loc>https://www.shiftmyhome.co.uk/furniture-delivery-edinburgh</loc>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
@@ -276,7 +286,22 @@
     <priority>0.7</priority>
   </url>
   <url>
+    <loc>https://www.shiftmyhome.co.uk/furniture-delivery-inverness</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://www.shiftmyhome.co.uk/furniture-delivery-perth</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
     <loc>https://www.shiftmyhome.co.uk/furniture-delivery-scotland</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://www.shiftmyhome.co.uk/furniture-delivery-stirling</loc>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
@@ -291,12 +316,37 @@
     <priority>0.7</priority>
   </url>
   <url>
+    <loc>https://www.shiftmyhome.co.uk/furniture-removals-aberdeen</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://www.shiftmyhome.co.uk/furniture-removals-dundee</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
     <loc>https://www.shiftmyhome.co.uk/furniture-removals-edinburgh</loc>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
     <loc>https://www.shiftmyhome.co.uk/furniture-removals-glasgow</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://www.shiftmyhome.co.uk/furniture-removals-inverness</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://www.shiftmyhome.co.uk/furniture-removals-perth</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://www.shiftmyhome.co.uk/furniture-removals-stirling</loc>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
@@ -466,6 +516,41 @@
     <priority>0.8</priority>
   </url>
   <url>
+    <loc>https://www.shiftmyhome.co.uk/long-distance-removals-aberdeen</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://www.shiftmyhome.co.uk/long-distance-removals-dundee</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://www.shiftmyhome.co.uk/long-distance-removals-edinburgh</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://www.shiftmyhome.co.uk/long-distance-removals-glasgow</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://www.shiftmyhome.co.uk/long-distance-removals-inverness</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://www.shiftmyhome.co.uk/long-distance-removals-perth</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://www.shiftmyhome.co.uk/long-distance-removals-stirling</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
     <loc>https://www.shiftmyhome.co.uk/lossiemouth-removals</loc>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
@@ -591,12 +676,37 @@
     <priority>0.7</priority>
   </url>
   <url>
+    <loc>https://www.shiftmyhome.co.uk/office-removals-aberdeen</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://www.shiftmyhome.co.uk/office-removals-dundee</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
     <loc>https://www.shiftmyhome.co.uk/office-removals-edinburgh</loc>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
     <loc>https://www.shiftmyhome.co.uk/office-removals-glasgow</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://www.shiftmyhome.co.uk/office-removals-inverness</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://www.shiftmyhome.co.uk/office-removals-perth</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://www.shiftmyhome.co.uk/office-removals-stirling</loc>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
@@ -681,6 +791,41 @@
     <priority>0.8</priority>
   </url>
   <url>
+    <loc>https://www.shiftmyhome.co.uk/same-day-delivery-aberdeen</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://www.shiftmyhome.co.uk/same-day-delivery-dundee</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://www.shiftmyhome.co.uk/same-day-delivery-edinburgh</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://www.shiftmyhome.co.uk/same-day-delivery-glasgow</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://www.shiftmyhome.co.uk/same-day-delivery-inverness</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://www.shiftmyhome.co.uk/same-day-delivery-perth</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://www.shiftmyhome.co.uk/same-day-delivery-stirling</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
     <loc>https://www.shiftmyhome.co.uk/same-day-furniture-delivery-glasgow</loc>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
@@ -761,12 +906,37 @@
     <priority>0.7</priority>
   </url>
   <url>
+    <loc>https://www.shiftmyhome.co.uk/student-moves-aberdeen</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://www.shiftmyhome.co.uk/student-moves-dundee</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
     <loc>https://www.shiftmyhome.co.uk/student-moves-edinburgh</loc>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
     <loc>https://www.shiftmyhome.co.uk/student-moves-glasgow</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://www.shiftmyhome.co.uk/student-moves-inverness</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://www.shiftmyhome.co.uk/student-moves-perth</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://www.shiftmyhome.co.uk/student-moves-stirling</loc>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
@@ -794,6 +964,41 @@
     <loc>https://www.shiftmyhome.co.uk/uddingston-removals</loc>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://www.shiftmyhome.co.uk/urgent-removals-aberdeen</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://www.shiftmyhome.co.uk/urgent-removals-dundee</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://www.shiftmyhome.co.uk/urgent-removals-edinburgh</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://www.shiftmyhome.co.uk/urgent-removals-glasgow</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://www.shiftmyhome.co.uk/urgent-removals-inverness</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://www.shiftmyhome.co.uk/urgent-removals-perth</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://www.shiftmyhome.co.uk/urgent-removals-stirling</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
   </url>
   <url>
     <loc>https://www.shiftmyhome.co.uk/wick-removals</loc>

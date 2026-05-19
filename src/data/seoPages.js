@@ -2,6 +2,12 @@ import scotlandCities from './scotlandCities.json' with { type: 'json' }
 import { cityToSlug } from '../lib/citySlug.js'
 import { buildNearbyLocationLinks, SCOTLAND_HUB_LINKS } from '../lib/seoNearbyAreas.js'
 import { INTENT_PAGE_DEFINITIONS } from './seoIntentPages.js'
+import { buildServiceMatrixPages } from './seoServiceMatrixPages.js'
+import {
+  buildBodySections,
+  buildKeywordSentence,
+  SEO_KEYWORD_PHRASES,
+} from '../lib/seoPageBodyContent.js'
 
 export const SEO_SITE_ORIGIN = 'https://www.shiftmyhome.co.uk'
 
@@ -39,6 +45,9 @@ export const SEO_SITE_ORIGIN = 'https://www.shiftmyhome.co.uk'
  * @property {SeoFaqItem[]} faqs
  * @property {SeoRelatedLink[]} relatedLinks
  * @property {SeoRelatedLink[]} nearbyLocations
+ * @property {{ heading: string, paragraphs: string[] }[]} [bodySections]
+ * @property {string[]} [keywordPhrases]
+ * @property {string} [keywordSentence]
  */
 
 /** @type {Record<string, SeoRelatedLink[]>} */
@@ -408,7 +417,20 @@ function buildSeoPage(kind, cityName) {
     faqs: buildFaqs(kind, cityName, region),
     relatedLinks: buildRelatedLinks(cityName, citySlug, kind, path),
     nearbyLocations: buildNearbyLocationLinks(cityName, region.key, linkKind),
+    bodySections: buildBodySections(meta.label, cityName, region, variant),
+    keywordPhrases: SEO_KEYWORD_PHRASES,
+    keywordSentence: buildKeywordSentence(cityName, meta.label),
   })
+}
+
+/** @param {import('./seoIntentPages.js').IntentPageDef} def */
+function intentServiceLabel(def) {
+  if (def.serviceType === 'Man with Van') return 'man with van'
+  if (def.serviceType === 'House Removals') return 'house removals'
+  if (def.serviceType === 'Office Moves') return 'office relocations'
+  if (def.serviceType === 'Student Moves') return 'student moves'
+  if (def.serviceType === 'Furniture Delivery') return 'furniture delivery'
+  return def.h1.replace(/\s+in\s+.+$/i, '').toLowerCase()
 }
 
 /**
@@ -465,6 +487,9 @@ function buildIntentPage(def) {
     faqs: def.faqs,
     relatedLinks: related.slice(0, 10),
     nearbyLocations,
+    bodySections: buildBodySections(intentServiceLabel(def), def.cityName, region, variant),
+    keywordPhrases: SEO_KEYWORD_PHRASES,
+    keywordSentence: buildKeywordSentence(def.cityName, intentServiceLabel(def)),
   }
 }
 
@@ -494,7 +519,10 @@ function assertUniqueSeoPaths(pages) {
   }
 }
 
-const ALL_SEO_PAGES_RAW = [...removalsPages, ...manWithVanPages, ...serviceCityPages, ...intentPages]
+const BASE_SEO_PAGES = [...removalsPages, ...manWithVanPages, ...serviceCityPages, ...intentPages]
+const EXISTING_PATHS = new Set(BASE_SEO_PAGES.map((p) => p.path))
+const matrixPages = buildServiceMatrixPages(EXISTING_PATHS)
+const ALL_SEO_PAGES_RAW = [...BASE_SEO_PAGES, ...matrixPages]
 assertUniqueSeoPaths(ALL_SEO_PAGES_RAW)
 
 export const ALL_SEO_PAGES = ALL_SEO_PAGES_RAW

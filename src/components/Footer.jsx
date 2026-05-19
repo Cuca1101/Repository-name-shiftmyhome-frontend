@@ -29,6 +29,16 @@ const serviceLinks = [
   { to: '/student-moves', label: 'Student Moves' },
 ]
 
+const areaSeoLinks = [
+  { to: '/glasgow-removals', label: 'Glasgow removals' },
+  { to: '/edinburgh-removals', label: 'Edinburgh removals' },
+  { to: '/aberdeen-removals', label: 'Aberdeen removals' },
+  { to: '/dundee-removals', label: 'Dundee removals' },
+  { to: '/inverness-removals', label: 'Inverness removals' },
+  { to: '/stirling-removals', label: 'Stirling removals' },
+  { to: '/perth-removals', label: 'Perth removals' },
+]
+
 const legalLinks = [
   { to: '/terms', label: 'Terms & Conditions' },
   { to: '/privacy', label: 'Privacy Policy' },
@@ -42,7 +52,7 @@ function SocialIcon({ href, label, children }) {
       target="_blank"
       rel="noopener noreferrer"
       aria-label={label}
-      className="flex h-10 w-10 items-center justify-center rounded-full border border-slate-600 bg-slate-800 text-slate-300 transition hover:border-brand-500/50 hover:bg-slate-700 hover:text-white"
+      className="footer-social-link"
     >
       {children}
     </a>
@@ -85,18 +95,21 @@ export default function Footer() {
   }, [])
 
   return (
-    <footer className="border-t border-slate-800 bg-gradient-to-b from-slate-950 to-slate-900 text-slate-300">
+    <footer className="site-footer-premium text-slate-300">
       <div className="mx-auto min-w-0 max-w-6xl px-4 py-8 sm:px-6 sm:py-14 lg:px-8">
         <div className="grid min-w-0 gap-6 sm:grid-cols-2 sm:gap-10 lg:grid-cols-4 lg:gap-12">
           <div className="sm:col-span-2 lg:col-span-1">
             <p className="text-sm font-semibold uppercase tracking-wide text-white">About ShiftMyHome</p>
             <Link
               to="/"
-              className="mt-3 inline-block bg-transparent outline-none ring-offset-slate-900 focus-visible:ring-2 focus-visible:ring-brand-500"
+              className="footer-logo-wrap mt-3 inline-block bg-transparent outline-none ring-offset-slate-900 focus-visible:ring-2 focus-visible:ring-brand-500"
             >
               <Logo variant="dark" src={cmsFooter.logoUrl || undefined} />
             </Link>
             <p className="mt-4 max-w-sm text-sm leading-relaxed text-slate-400">{tagline}</p>
+            <p className="mt-2 max-w-sm text-xs leading-relaxed text-slate-500">
+              Scotland-wide removals and man with van services.
+            </p>
             <div className="mt-6 flex flex-wrap gap-2">
               <SocialIcon href={social.whatsapp || WHATSAPP_URL} label="WhatsApp">
                 <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 24 24" aria-hidden>
@@ -142,6 +155,16 @@ export default function Footer() {
               <p className="text-sm font-semibold uppercase tracking-wide text-white">Services</p>
               <ul className="mt-3 space-y-2 text-sm sm:mt-4 sm:space-y-2.5">
                 {serviceLinks.map(({ to, label }) => (
+                  <li key={to}>
+                    <Link to={to} className="text-slate-400 transition hover:text-brand-300">
+                      {label}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+              <p className="mt-6 text-sm font-semibold uppercase tracking-wide text-white">Areas we serve</p>
+              <ul className="mt-3 space-y-2 text-sm sm:mt-4 sm:space-y-2.5">
+                {areaSeoLinks.map(({ to, label }) => (
                   <li key={to}>
                     <Link to={to} className="text-slate-400 transition hover:text-brand-300">
                       {label}
