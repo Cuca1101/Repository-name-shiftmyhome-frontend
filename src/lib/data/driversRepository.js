@@ -16,6 +16,10 @@ const TABLE = 'drivers'
  *   partner_id: string | null,
  *   legacy_session_id: string | null,
  *   active: boolean,
+ *   address: string | null,
+ *   date_of_birth: string | null,
+ *   emergency_contact_name: string | null,
+ *   emergency_contact_phone: string | null,
  * }} FleetDriverRow
  */
 
@@ -35,6 +39,10 @@ export function fleetDriverToAdminRecord(row) {
     partnerId: row.partner_id != null ? String(row.partner_id) : '',
     userId: row.user_id != null ? String(row.user_id) : '',
     legacySessionId: row.legacy_session_id != null ? String(row.legacy_session_id) : '',
+    address: String(row.address || '').trim(),
+    dateOfBirth: row.date_of_birth ? String(row.date_of_birth).slice(0, 10) : '',
+    emergencyContactName: String(row.emergency_contact_name || '').trim(),
+    emergencyContactPhone: String(row.emergency_contact_phone || '').trim(),
   }
 }
 
@@ -58,6 +66,10 @@ export function adminRecordToFleetDriverPayload(rec) {
     partner_id: rec.partnerId ? String(rec.partnerId) : null,
     legacy_session_id: rec.legacySessionId ? String(rec.legacySessionId) : rec.id ? String(rec.id) : null,
     active: fleetStatus === 'Active',
+    address: String(rec.address || '').trim() || null,
+    date_of_birth: String(rec.dateOfBirth || '').trim() || null,
+    emergency_contact_name: String(rec.emergencyContactName || '').trim() || null,
+    emergency_contact_phone: String(rec.emergencyContactPhone || '').trim() || null,
     updated_at: new Date().toISOString(),
   }
 }

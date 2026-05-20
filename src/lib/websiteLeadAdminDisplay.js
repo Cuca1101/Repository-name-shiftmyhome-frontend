@@ -1,3 +1,5 @@
+import { eventClickLabel } from './websiteEventAnalytics'
+
 /**
  * Admin-only classification for Website Leads / Quote Funnel (display only — no tracking changes).
  */
@@ -242,4 +244,75 @@ export function computeFunnelKpisFromEvents(events) {
   }
 
   return { quoteStarts, bookings }
+}
+
+/** @param {string} label */
+export function normalizeVisitorClickLabel(label) {
+  const l = String(label || '').trim()
+  if (!l) return ''
+  if (/^Footer:\s*Admin/i.test(l)) return 'Footer: Admin'
+  if (/^Nav:\s*/i.test(l)) return l.replace(/\s+/g, ' ').slice(0, 48)
+  return l.length > 56 ? `${l.slice(0, 54)}…` : l
+}
+
+/**
+ * Badge tone for event_name (admin display only).
+ * @param {string} eventName
+ */
+export function eventBadgeTone(eventName) {
+  const n = String(eventName || '')
+  if (n === 'page_view') return 'slate'
+  if (n === 'button_click' || n === 'new_quote_from_service') return 'blue'
+  if (n === 'quote_started' || n.startsWith('quote_step_')) return 'amber'
+  if (n === 'payment_completed' || n === 'booking_completed') return 'green'
+  if (n === 'quote_abandoned') return 'orange'
+  if (n === 'payment_started') return 'violet'
+  if (n === 'quote_completed') return 'teal'
+  return 'slate'
+}
+
+/**
+ * Group noisy duplicate visitor rows for compact admin table.
+ * @param {Array<Record<string, unknown>>} events
+ * @param {{ limit?: number }} [opts]
+ */
+export function groupVisitorActivityForDisplay(events, opts = {}) {
+  const limit = Math.min(Math.max(Number(opts.limit) || 80, 1), 150)
+  const sorted = [...(events || [])].sort(
+    (a, b) => new Date(String(b.created_at)).getTime() - new Date(String(a.created_at)).getTime(),
+  )
+
+  /** @type {Map<string, { count: number, latest: Record<string, unknown>, clickLabel: string }>} */
+  const groups = new Map()
+
+  for (const ev of sorted) {
+    const rawClick = eventClickLabel(ev)
+    const clickLabel = normalizeVisitorClickLabel(rawClick) || rawClick
+    const name = String(ev.event_name || '')
+    const page = String(ev.page_path || '/')
+    const groupKey = `${name}|${page}|${clickLabel}`
+
+    const existing = groups.get(groupKey)
+    if (existing) {
+      existing.count += 1
+      if (new Date(String(ev.created_at)) > new Date(String(existing.latest.created_at))) {
+        existing.latest = ev
+      }
+    } else {
+      groups.set(groupKey, { count: 1, latest: ev, clickLabel })
+    }
+  }
+
+  return [...groups.values()]
+    .sort(
+      (a, b) =>
+        new Date(String(b.latest.created_at)).getTime() - new Date(String(a.latest.created_at)).getTime(),
+    )
+    .slice(0, limit)
+    .map((g, i) => ({
+      id: String(g.latest.id || `grp-${i}`),
+      count: g.count,
+      clickLabel: g.clickLabel,
+      event: g.latest,
+    }))
 }

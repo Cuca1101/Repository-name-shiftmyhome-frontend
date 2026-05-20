@@ -41,6 +41,7 @@ function QuoteWizardInner({ compact = false }) {
     clearQuotePhotos,
     totalM3,
     breakdown,
+    depositAmountGbp,
     customSizeM3,
     handleDistanceFromRoute,
     back,
@@ -148,6 +149,7 @@ function QuoteWizardInner({ compact = false }) {
         <Step3Details
           data={wizard}
           onChange={setWizard}
+          pricingSettings={settings}
           onGoToStep={goToStep}
           quotePhotoFiles={quotePhotoFiles}
           onQuotePhotosAdd={addQuotePhotos}
@@ -177,6 +179,7 @@ function QuoteWizardInner({ compact = false }) {
           onPaymentSucceeded={uploadCustomerPhotosAfterPayment}
           onGoToStep={goToStep}
           onBack={back}
+          depositAmountGbp={depositAmountGbp}
         />
       )}
       {stepNavButtons}

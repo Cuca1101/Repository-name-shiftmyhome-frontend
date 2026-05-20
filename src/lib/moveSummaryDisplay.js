@@ -95,8 +95,11 @@ export function buildMoveSummaryExtras(wizard) {
     })
   }
   if (wizard?.packingMaterials) {
+    const detail =
+      (wizard.packingMaterialsDetail || wizard.packingWhat || '').trim() ||
+      ''
     const text =
-      (wizard.packingWhat || '').trim() ||
+      detail ||
       (wizard.packingApproxBoxes > 0
         ? `Moving boxes: ${wizard.packingApproxBoxes} boxes`
         : 'Selected')

@@ -101,7 +101,11 @@ function PaymentForm({
                     : null,
             })
           } catch (uploadErr) {
+            const detail = uploadErr?.message ? String(uploadErr.message) : 'Photo upload failed.'
             console.warn('[Quote] post-payment photo upload callback failed', uploadErr)
+            setMsg(
+              `Payment received. ${detail} Your booking reference is in your confirmation email.`,
+            )
           }
         }
         clearQuoteDraft()

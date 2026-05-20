@@ -4,6 +4,7 @@ import AddressConfirmationSection from './AddressConfirmationSection'
 import PickupDeliveryContactsSection from './PickupDeliveryContactsSection'
 import PackingMaterialsSection from './PackingMaterialsSection'
 import QuoteWizardPhotosField from './QuoteWizardPhotosField'
+import QuotePromoCodeField from './QuotePromoCodeField'
 
 const card = 'min-w-0 rounded-xl border border-slate-200 bg-white shadow-sm'
 
@@ -68,6 +69,7 @@ export default function MobileStep3Details({
   quoteRef,
   data,
   onChange,
+  pricingSettings = null,
   onGoToStep,
   validationMessage,
   quotePhotoFiles = [],
@@ -301,7 +303,19 @@ export default function MobileStep3Details({
         ) : null}
       </div>
 
-      <PackingMaterialsSection data={data} onChange={onChange} variant="mobile" />
+      <PackingMaterialsSection
+        data={data}
+        onChange={onChange}
+        pricingSettings={pricingSettings}
+        variant="mobile"
+      />
+
+      <QuotePromoCodeField
+        data={data}
+        onChange={onChange}
+        pricingSettings={pricingSettings}
+        variant="mobile"
+      />
 
       <div className={`${card} p-3`}>
         <label className="block">

@@ -53,6 +53,9 @@ export function formatQuoteBreakdownLines(b) {
   for (const l of b.accessLines) lines.push(`${l.label}: £${l.amount.toFixed(2)}`)
   for (const l of b.extrasLines) lines.push(`${l.label}: £${l.amount.toFixed(2)}`)
   for (const l of b.surchargeLines) lines.push(`${l.label}: £${l.amount.toFixed(2)}`)
+  for (const l of b.discountLines || []) {
+    lines.push(`${l.label}: −£${l.amount.toFixed(2)}`)
+  }
   if (b.minimumApplied > 0) lines.push(`Minimum job adjustment: £${b.minimumApplied.toFixed(2)}`)
   lines.push(`Estimated total: £${b.estimatedTotal.toFixed(2)}`)
   return lines.join('\n')

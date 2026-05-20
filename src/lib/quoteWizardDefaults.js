@@ -58,5 +58,6 @@ export function initialWizardState() {
     pickupContactPhone: '',
     deliveryContactName: '',
     deliveryContactPhone: '',
+    promoCode: '',
   }
 }

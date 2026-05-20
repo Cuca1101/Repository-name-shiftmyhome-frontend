@@ -8,12 +8,13 @@ import {
   scheduleAbandonedRecoveryForRows,
 } from '../lib/data/websiteLeadsRepository'
 import { fetchWebsiteEventsForAdmin } from '../lib/data/websiteEventsRepository'
-import { eventClickLabel } from '../lib/websiteEventAnalytics'
 import {
   computeFunnelKpisFromEvents,
   computeVisitorAnalytics,
+  eventBadgeTone,
   filterQuoteLeadRows,
   filterVisitorAnalyticsEvents,
+  groupVisitorActivityForDisplay,
 } from '../lib/websiteLeadAdminDisplay'
 import { filterLeadsByRecoveryChip } from '../lib/websiteLeadRecovery'
 import { formatDateTimeUK } from '../lib/formatDateDisplay'
@@ -28,6 +29,16 @@ const LEAD_FILTERS = [
   { id: 'payment_completed', label: 'Payment Completed' },
 ]
 
+const BADGE_TONES = {
+  slate: 'bg-slate-100 text-slate-700 ring-slate-200/80',
+  blue: 'bg-blue-50 text-blue-800 ring-blue-200/80',
+  amber: 'bg-amber-50 text-amber-900 ring-amber-200/80',
+  green: 'bg-emerald-50 text-emerald-800 ring-emerald-200/80',
+  orange: 'bg-orange-50 text-orange-900 ring-orange-200/80',
+  violet: 'bg-violet-50 text-violet-800 ring-violet-200/80',
+  teal: 'bg-teal-50 text-teal-800 ring-teal-200/80',
+}
+
 function statusLabel(status) {
   const map = {
     visited: 'Visitor',
@@ -41,21 +52,34 @@ function statusLabel(status) {
   return map[status] || status
 }
 
-function StatusBadge({ status }) {
-  const tone =
-    status === 'payment_completed'
-      ? 'bg-emerald-100 text-emerald-900 ring-emerald-200'
-      : status === 'quote_completed'
-        ? 'bg-teal-100 text-teal-900 ring-teal-200'
-        : status === 'payment_started'
-          ? 'bg-violet-100 text-violet-900 ring-violet-200'
-          : status === 'quote_abandoned'
-            ? 'bg-amber-100 text-amber-950 ring-amber-200'
-            : status === 'quote_started' || status === 'step_completed'
-              ? 'bg-sky-100 text-sky-900 ring-sky-200'
-              : 'bg-slate-100 text-slate-800 ring-slate-200'
+/** @param {{ eventName: string }} props */
+function EventBadge({ eventName }) {
+  const tone = BADGE_TONES[eventBadgeTone(eventName)] || BADGE_TONES.slate
+  const label = String(eventName || '').replace(/_/g, ' ')
   return (
-    <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold ring-1 ring-inset ${tone}`}>
+    <span className={`inline-flex max-w-full truncate rounded-md px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide ring-1 ring-inset ${tone}`}>
+      {label}
+    </span>
+  )
+}
+
+function StatusBadge({ status }) {
+  const toneKey =
+    status === 'payment_completed'
+      ? 'green'
+      : status === 'quote_completed'
+        ? 'teal'
+        : status === 'payment_started'
+          ? 'violet'
+          : status === 'quote_abandoned'
+            ? 'orange'
+            : status === 'quote_started' || status === 'step_completed'
+              ? 'amber'
+              : 'slate'
+  return (
+    <span
+      className={`inline-flex rounded-md px-2 py-0.5 text-[11px] font-semibold ring-1 ring-inset ${BADGE_TONES[toneKey]}`}
+    >
       {statusLabel(status)}
     </span>
   )
@@ -67,17 +91,33 @@ function money(n) {
 }
 
 /**
+ * @param {{ value: string, max?: number, className?: string, mono?: boolean }} props
+ */
+function TruncateCell({ value, max = 32, className = '', mono = false }) {
+  const text = String(value || '').trim() || '—'
+  const short = text.length > max ? `${text.slice(0, max)}…` : text
+  return (
+    <span
+      className={`block min-w-0 max-w-full truncate ${mono ? 'font-mono' : ''} ${className}`}
+      title={text !== '—' ? text : undefined}
+    >
+      {short}
+    </span>
+  )
+}
+
+/**
  * @param {{ label: string, today: number, week: number, month: number }} props
  */
 function KpiPeriodCard({ label, today, week, month }) {
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-card sm:p-5">
-      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{label}</p>
-      <p className="mt-2 text-2xl font-bold tabular-nums text-slate-900">{today}</p>
-      <p className="mt-1 text-xs text-slate-600">
-        7d: <span className="font-semibold text-slate-800">{week}</span>
+    <div className="flex h-full min-h-[108px] flex-col justify-between rounded-xl border border-slate-200/90 bg-white px-4 py-3.5 shadow-sm">
+      <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">{label}</p>
+      <p className="mt-1 text-3xl font-bold leading-none tabular-nums tracking-tight text-slate-900">{today}</p>
+      <p className="mt-2 text-[10px] text-slate-500">
+        <span className="text-slate-600">7d</span> {week}
         <span className="mx-1 text-slate-300">·</span>
-        30d: <span className="font-semibold text-slate-800">{month}</span>
+        <span className="text-slate-600">30d</span> {month}
       </p>
     </div>
   )
@@ -88,13 +128,22 @@ function KpiPeriodCard({ label, today, week, month }) {
  */
 function AdminSection({ title, description, children }) {
   return (
-    <section className="min-w-0 space-y-4 rounded-2xl border border-slate-200 bg-slate-50/60 p-4 sm:p-6">
-      <div className="min-w-0 border-b border-slate-200/80 pb-3">
-        <h3 className="text-lg font-bold text-slate-900">{title}</h3>
-        {description ? <p className="mt-1 max-w-3xl text-sm text-slate-600">{description}</p> : null}
+    <section className="min-w-0 overflow-hidden rounded-xl border border-slate-200/90 bg-white shadow-sm">
+      <div className="sticky top-0 z-10 border-b border-slate-100 bg-white/95 px-4 py-3 backdrop-blur-sm sm:px-5">
+        <h3 className="text-base font-bold text-slate-900 sm:text-lg">{title}</h3>
+        {description ? <p className="mt-0.5 text-xs text-slate-500 sm:text-sm">{description}</p> : null}
       </div>
-      {children}
+      <div className="space-y-4 p-4 sm:p-5">{children}</div>
     </section>
+  )
+}
+
+/** @param {{ children: import('react').ReactNode, maxHeight?: string }} props */
+function TableScroll({ children, maxHeight = 'max-h-[min(420px,55vh)]' }) {
+  return (
+    <div className={`min-w-0 overflow-x-auto overscroll-x-contain ${maxHeight} overflow-y-auto`}>
+      {children}
+    </div>
   )
 }
 
@@ -212,6 +261,25 @@ function LeadDetailDrawer({ row, onClose, onRefresh }) {
   )
 }
 
+/** @param {{ items: Array<{ label: string, count: number }>, empty: string }} props */
+function CompactRankList({ items, empty }) {
+  if (!items.length) {
+    return <p className="px-3 py-5 text-xs text-slate-500">{empty}</p>
+  }
+  return (
+    <ul className="divide-y divide-slate-100/80">
+      {items.map((row) => (
+        <li key={row.label} className="flex items-center justify-between gap-2 px-3 py-2 text-xs">
+          <TruncateCell value={row.label} max={40} className="font-medium text-slate-800" />
+          <span className="shrink-0 rounded-md bg-slate-100 px-1.5 py-0.5 text-[10px] font-bold tabular-nums text-slate-700">
+            {row.count}
+          </span>
+        </li>
+      ))}
+    </ul>
+  )
+}
+
 export default function WebsiteLeadsAdmin() {
   const [searchInput, setSearchInput] = useState('')
   const [activeSearch, setActiveSearch] = useState('')
@@ -264,6 +332,10 @@ export default function WebsiteLeadsAdmin() {
 
   const cityOptions = useMemo(() => distinctCityRoutesFromLeads(allQuoteLeads), [allQuoteLeads])
   const visitorEvents = useMemo(() => filterVisitorAnalyticsEvents(events), [events])
+  const groupedVisitorRows = useMemo(
+    () => groupVisitorActivityForDisplay(visitorEvents, { limit: 80 }),
+    [visitorEvents],
+  )
   const visitorAnalytics = useMemo(() => computeVisitorAnalytics(events), [events])
   const funnelKpis = useMemo(() => computeFunnelKpisFromEvents(events), [events])
 
@@ -272,24 +344,27 @@ export default function WebsiteLeadsAdmin() {
   }, [searchInput])
 
   return (
-    <div className="min-w-0 space-y-8">
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div className="min-w-0">
-          <h2 className="text-2xl font-bold text-slate-900">Website Leads / Quote Funnel</h2>
-          <p className="mt-1 text-sm text-slate-600">
-            Visitor analytics are separated from quote leads so simple page views are not counted as abandoned quotes.
+    <div className="min-w-0 max-w-full space-y-6 pb-8">
+      <div className="flex flex-wrap items-start justify-between gap-3 rounded-xl border border-slate-200/90 bg-gradient-to-br from-slate-50 to-white px-4 py-4 sm:px-5">
+        <div className="min-w-0 flex-1">
+          <h2 className="text-xl font-bold tracking-tight text-slate-900 sm:text-2xl">
+            Website Leads / Quote Funnel
+          </h2>
+          <p className="mt-1 max-w-2xl text-xs leading-relaxed text-slate-600 sm:text-sm">
+            Visitor analytics are separated from quote leads so simple page views are not counted as
+            abandoned quotes.
           </p>
         </div>
         <button
           type="button"
           onClick={load}
-          className="min-h-[48px] shrink-0 rounded-xl border border-slate-200 bg-white px-5 py-2.5 text-sm font-semibold text-slate-800 shadow-sm hover:bg-slate-50 sm:min-h-0 sm:px-4 sm:py-2"
+          className="shrink-0 rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-800 shadow-sm transition hover:bg-slate-50"
         >
           Refresh
         </button>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+      <div className="grid grid-cols-2 gap-2.5 sm:gap-3 lg:grid-cols-5">
         <KpiPeriodCard
           label="Page views"
           today={visitorAnalytics.pageViews.today}
@@ -324,238 +399,283 @@ export default function WebsiteLeadsAdmin() {
 
       <AdminSection
         title="Visitor analytics"
-        description="Browsing and click activity from website_events — not quote leads."
+        description="Browsing and clicks — grouped to reduce noise (e.g. repeated footer admin taps)."
       >
-        <div className="grid gap-4 lg:grid-cols-2">
-          <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-card">
-            <div className="border-b border-slate-100 px-4 py-3 sm:px-5">
-              <h4 className="text-sm font-semibold text-slate-900">Most viewed pages (30d)</h4>
-            </div>
-            {visitorAnalytics.topPages.length === 0 ? (
-              <p className="px-4 py-6 text-sm text-slate-500 sm:px-5">No page views yet.</p>
-            ) : (
-              <ul className="divide-y divide-slate-100 px-4 py-1 sm:px-5">
-                {visitorAnalytics.topPages.map((row) => (
-                  <li key={row.page_path} className="flex items-center justify-between gap-3 py-2.5 text-sm">
-                    <span className="min-w-0 truncate font-medium text-slate-800">{row.page_path}</span>
-                    <span className="shrink-0 tabular-nums font-semibold text-slate-600">{row.count}</span>
-                  </li>
-                ))}
-              </ul>
-            )}
+        <div className="grid gap-3 lg:grid-cols-2">
+          <div className="min-w-0 overflow-hidden rounded-lg border border-slate-100 bg-slate-50/40">
+            <p className="border-b border-slate-100 px-3 py-2 text-xs font-semibold text-slate-800">
+              Most viewed pages (30d)
+            </p>
+            <CompactRankList
+              items={visitorAnalytics.topPages.map((r) => ({ label: r.page_path, count: r.count }))}
+              empty="No page views yet."
+            />
           </div>
-          <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-card">
-            <div className="border-b border-slate-100 px-4 py-3 sm:px-5">
-              <h4 className="text-sm font-semibold text-slate-900">Most clicked links (30d)</h4>
-            </div>
-            {visitorAnalytics.topClicks.length === 0 ? (
-              <p className="px-4 py-6 text-sm text-slate-500 sm:px-5">No clicks yet.</p>
-            ) : (
-              <ul className="divide-y divide-slate-100 px-4 py-1 sm:px-5">
-                {visitorAnalytics.topClicks.map((row) => (
-                  <li key={row.label} className="flex items-center justify-between gap-3 py-2.5 text-sm">
-                    <span className="min-w-0 truncate font-medium text-slate-800">{row.label}</span>
-                    <span className="shrink-0 tabular-nums font-semibold text-slate-600">{row.count}</span>
-                  </li>
-                ))}
-              </ul>
-            )}
+          <div className="min-w-0 overflow-hidden rounded-lg border border-slate-100 bg-slate-50/40">
+            <p className="border-b border-slate-100 px-3 py-2 text-xs font-semibold text-slate-800">
+              Most clicked links (30d)
+            </p>
+            <CompactRankList
+              items={visitorAnalytics.topClicks.map((r) => ({ label: r.label, count: r.count }))}
+              empty="No clicks yet."
+            />
           </div>
         </div>
 
-        <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-card">
-          <div className="border-b border-slate-100 px-4 py-3 sm:px-5">
-            <h4 className="text-sm font-semibold text-slate-900">Recent visitor activity</h4>
-            <p className="mt-0.5 text-xs text-slate-500">Page views, button clicks, and service-card taps only.</p>
+        <div className="min-w-0 overflow-hidden rounded-lg border border-slate-100">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 bg-slate-50/60 px-3 py-2">
+            <div>
+              <p className="text-xs font-semibold text-slate-900">Recent visitor activity</p>
+              <p className="text-[10px] text-slate-500">Newest first · identical actions grouped</p>
+            </div>
+            <span className="rounded-md bg-white px-2 py-0.5 text-[10px] font-medium text-slate-600 ring-1 ring-slate-200/80">
+              {groupedVisitorRows.length} groups
+            </span>
           </div>
-          {visitorEvents.length === 0 ? (
-            <p className="px-4 py-8 text-center text-sm text-slate-500 sm:px-5">
+
+          {groupedVisitorRows.length === 0 ? (
+            <p className="px-3 py-8 text-center text-xs text-slate-500">
               No visitor events yet. Browse the public site, then refresh.
             </p>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-slate-200 text-left text-sm">
-                <thead className="bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-500">
+            <TableScroll maxHeight="max-h-[min(380px,50vh)]">
+              <table className="w-full min-w-[320px] table-fixed text-left text-[11px]">
+                <thead className="sticky top-0 z-[1] bg-slate-100/95 text-[10px] font-semibold uppercase tracking-wide text-slate-500 backdrop-blur-sm">
                   <tr>
-                    <th className="px-3 py-2.5 sm:px-4">Time</th>
-                    <th className="px-3 py-2.5 sm:px-4">Event</th>
-                    <th className="px-3 py-2.5 sm:px-4">Click</th>
-                    <th className="px-3 py-2.5 sm:px-4">Page</th>
-                    <th className="hidden px-3 py-2.5 md:table-cell sm:px-4">Source</th>
-                    <th className="hidden px-3 py-2.5 lg:table-cell sm:px-4">Location</th>
-                    <th className="hidden px-3 py-2.5 sm:table-cell sm:px-4">IP</th>
-                    <th className="hidden px-3 py-2.5 md:table-cell sm:px-4">Device</th>
-                    <th className="px-3 py-2.5 sm:px-4">Session</th>
+                    <th className="w-[88px] px-2 py-1.5">Time</th>
+                    <th className="w-[88px] px-2 py-1.5">Event</th>
+                    <th className="hidden w-[100px] px-2 py-1.5 lg:table-cell">Click</th>
+                    <th className="px-2 py-1.5">Page</th>
+                    <th className="hidden w-[72px] px-2 py-1.5 md:table-cell">Device</th>
+                    <th className="hidden w-[100px] px-2 py-1.5 xl:table-cell">Source</th>
+                    <th className="hidden w-[88px] px-2 py-1.5 2xl:table-cell">IP</th>
+                    <th className="hidden w-[72px] px-2 py-1.5 2xl:table-cell">Session</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {visitorEvents.slice(0, 100).map((ev) => {
-                    const click = eventClickLabel(ev)
+                <tbody>
+                  {groupedVisitorRows.map((grp, idx) => {
+                    const ev = grp.event
+                    const device = [ev.device_type, ev.browser_name].filter(Boolean).join(' · ')
+                    const location = [ev.city, ev.region, ev.country].filter(Boolean).join(', ')
+                    const clickDisplay =
+                      grp.count > 1 && grp.clickLabel
+                        ? `${grp.clickLabel} · ${grp.count}×`
+                        : grp.clickLabel || '—'
                     return (
-                      <tr key={ev.id} className="hover:bg-slate-50/80">
-                        <td className="whitespace-nowrap px-3 py-2 text-slate-600 sm:px-4">
+                      <tr
+                        key={grp.id}
+                        className={`border-t border-slate-100/80 ${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'} hover:bg-sky-50/40`}
+                      >
+                        <td className="whitespace-nowrap px-2 py-1 text-slate-600">
                           {formatDateTimeUK(ev.created_at)}
                         </td>
-                        <td className="px-3 py-2 font-medium text-slate-900 sm:px-4">{ev.event_name}</td>
-                        <td className="max-w-[120px] truncate px-3 py-2 text-slate-700 sm:max-w-[140px] sm:px-4">
-                          {click || '—'}
+                        <td className="px-2 py-1">
+                          <EventBadge eventName={String(ev.event_name || '')} />
+                          <span className="mt-0.5 block truncate text-[10px] text-slate-500 lg:hidden">
+                            {clickDisplay !== '—' ? clickDisplay : null}
+                          </span>
                         </td>
-                        <td className="max-w-[100px] truncate px-3 py-2 text-slate-700 sm:max-w-[120px] sm:px-4">
-                          {ev.page_path || '—'}
+                        <td className="hidden px-2 py-1 lg:table-cell">
+                          <TruncateCell value={clickDisplay} max={28} className="text-slate-700" />
                         </td>
-                        <td className="hidden max-w-[120px] truncate px-3 py-2 text-xs text-slate-600 md:table-cell sm:px-4">
-                          {ev.referrer || '—'}
+                        <td className="px-2 py-1">
+                          <TruncateCell value={String(ev.page_path || '/')} max={36} className="text-slate-800" />
+                          {location ? (
+                            <span className="mt-0.5 block truncate text-[10px] text-slate-500 xl:hidden" title={location}>
+                              {location}
+                            </span>
+                          ) : null}
                         </td>
-                        <td className="hidden px-3 py-2 text-slate-700 lg:table-cell sm:px-4">
-                          {[ev.city, ev.region, ev.country].filter(Boolean).join(', ') || '—'}
+                        <td className="hidden px-2 py-1 md:table-cell">
+                          <TruncateCell value={device || '—'} max={18} className="text-slate-600" />
                         </td>
-                        <td className="hidden px-3 py-2 font-mono text-xs text-slate-600 sm:table-cell sm:px-4">
-                          {ev.ip_masked || '—'}
+                        <td className="hidden px-2 py-1 xl:table-cell">
+                          <TruncateCell value={String(ev.referrer || '—')} max={36} className="text-slate-500" />
                         </td>
-                        <td className="hidden px-3 py-2 text-xs text-slate-600 md:table-cell sm:px-4">
-                          {[ev.device_type, ev.browser_name].filter(Boolean).join(' · ') || '—'}
+                        <td className="hidden px-2 py-1 2xl:table-cell">
+                          <TruncateCell value={String(ev.ip_masked || '—')} max={14} mono className="text-slate-500" />
                         </td>
-                        <td className="px-3 py-2 font-mono text-xs text-slate-500 sm:px-4">
-                          {String(ev.session_id || '').slice(0, 8)}…
+                        <td className="hidden px-2 py-1 2xl:table-cell">
+                          <TruncateCell
+                            value={String(ev.session_id || '').slice(0, 8)}
+                            max={10}
+                            mono
+                            className="text-slate-500"
+                            title={String(ev.session_id || '')}
+                          />
                         </td>
                       </tr>
                     )
                   })}
                 </tbody>
               </table>
-            </div>
+            </TableScroll>
           )}
         </div>
       </AdminSection>
 
       <AdminSection
         title="Quote leads / funnel"
-        description="Real quote progress from website_leads — excludes page views and generic clicks."
+        description="Real quote progress only — excludes page views and generic clicks."
       >
-        <WebsiteLeadsRecoveryPanel
-          allRows={allQuoteLeads}
-          rows={rows}
-          recoveryChip={recoveryChip}
-          onRecoveryChipChange={setRecoveryChip}
-        />
+        <div className="sticky top-0 z-20 -mx-4 space-y-3 border-b border-slate-100 bg-white/95 px-4 py-3 backdrop-blur-sm sm:-mx-5 sm:px-5">
+          <WebsiteLeadsRecoveryPanel
+            allRows={allQuoteLeads}
+            rows={rows}
+            recoveryChip={recoveryChip}
+            onRecoveryChipChange={setRecoveryChip}
+          />
 
-        <div className="flex flex-wrap gap-2">
-          {LEAD_FILTERS.map((f) => (
-            <button
-              key={f.id}
-              type="button"
-              onClick={() => setFilter(f.id)}
-              className={`rounded-full px-3 py-1.5 text-xs font-semibold ring-1 ring-inset transition ${
-                filter === f.id
-                  ? 'bg-slate-900 text-white ring-slate-900'
-                  : 'bg-white text-slate-700 ring-slate-200 hover:bg-slate-50'
-              }`}
-            >
-              {f.label}
-            </button>
-          ))}
+          <div className="flex flex-wrap gap-1.5">
+            {LEAD_FILTERS.map((f) => (
+              <button
+                key={f.id}
+                type="button"
+                onClick={() => setFilter(f.id)}
+                className={`rounded-md px-2.5 py-1 text-[11px] font-semibold ring-1 ring-inset transition ${
+                  filter === f.id
+                    ? 'bg-slate-900 text-white ring-slate-900'
+                    : 'bg-white text-slate-700 ring-slate-200 hover:bg-slate-50'
+                }`}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
+
+          <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-end">
+            <label className="min-w-0 flex-1 sm:max-w-[200px]">
+              <span className="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+                City / route
+              </span>
+              <select
+                value={cityRoute}
+                onChange={(e) => setCityRoute(e.target.value)}
+                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-900 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500/30"
+              >
+                <option value="">All routes</option>
+                {cityOptions.map((c) => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <div className="min-w-0 flex-1">
+              <AdminRecordsSearchRow
+                searchInput={searchInput}
+                onSearchInputChange={(e) => setSearchInput(e.target.value)}
+                onSearchSubmit={runSearchNow}
+                placeholder="Search name, email, phone, quote ref…"
+              />
+            </div>
+          </div>
+
+          {error ? (
+            <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-800">{error}</p>
+          ) : null}
         </div>
 
-        <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
-          <label className="min-w-0 flex-1 sm:max-w-xs">
-            <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">
-              City / route
-            </span>
-            <select
-              value={cityRoute}
-              onChange={(e) => setCityRoute(e.target.value)}
-              className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/25"
-            >
-              <option value="">All routes</option>
-              {cityOptions.map((c) => (
-                <option key={c} value={c}>
-                  {c}
-                </option>
-              ))}
-            </select>
-          </label>
-        </div>
-
-        <AdminRecordsSearchRow
-          searchInput={searchInput}
-          onSearchInputChange={(e) => setSearchInput(e.target.value)}
-          onSearchSubmit={runSearchNow}
-          placeholder="Search name, email, phone, quote ref, path…"
-        />
-
-        {error ? (
-          <p className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{error}</p>
-        ) : null}
-
-        <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-card">
+        <div className="min-w-0 overflow-hidden rounded-lg border border-slate-100">
           {loading ? (
-            <p className="px-6 py-12 text-center text-sm text-slate-500">Loading quote leads…</p>
+            <p className="px-4 py-10 text-center text-xs text-slate-500">Loading quote leads…</p>
           ) : rows.length === 0 ? (
-            <p className="px-6 py-12 text-center text-sm text-slate-500">
-              No quote leads match this filter. Visitor browsing is listed above.
+            <p className="px-4 py-10 text-center text-xs text-slate-500">
+              No quote leads match this filter.
             </p>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-slate-200 text-left text-sm">
-                <thead className="bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-500">
+            <TableScroll maxHeight="max-h-[min(480px,60vh)]">
+              <table className="w-full min-w-[640px] text-left text-xs">
+                <thead className="sticky top-0 z-[1] bg-slate-100/95 text-[10px] font-semibold uppercase tracking-wide text-slate-500 backdrop-blur-sm">
                   <tr>
-                    <th className="px-3 py-3 sm:px-4">Status</th>
-                    <th className="px-3 py-3 sm:px-4">Recovery</th>
-                    <th className="px-3 py-3 sm:px-4">Landing</th>
-                    <th className="hidden px-3 py-3 lg:table-cell sm:px-4">Location</th>
-                    <th className="px-3 py-3 sm:px-4">Service</th>
-                    <th className="px-3 py-3 sm:px-4">Customer</th>
-                    <th className="px-3 py-3 sm:px-4">Step</th>
-                    <th className="hidden px-3 py-3 sm:table-cell sm:px-4">Total</th>
-                    <th className="px-3 py-3 sm:px-4">Quote ref</th>
-                    <th className="hidden px-3 py-3 md:table-cell sm:px-4">Last activity</th>
-                    <th className="px-3 py-3 sm:px-4" />
+                    <th className="px-2 py-2">Status</th>
+                    <th className="hidden px-2 py-2 sm:table-cell">Recovery</th>
+                    <th className="px-2 py-2">Customer</th>
+                    <th className="hidden px-2 py-2 md:table-cell">Service</th>
+                    <th className="px-2 py-2">Step</th>
+                    <th className="hidden px-2 py-2 lg:table-cell">Total</th>
+                    <th className="px-2 py-2">Quote ref</th>
+                    <th className="hidden px-2 py-2 xl:table-cell">Last</th>
+                    <th className="w-14 px-2 py-2" />
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {rows.map((row) => {
+                <tbody>
+                  {rows.map((row, idx) => {
                     const eff = row.effective_status || row.status
+                    const rowTone =
+                      eff === 'payment_completed'
+                        ? 'bg-emerald-50/70 hover:bg-emerald-50'
+                        : eff === 'quote_abandoned'
+                          ? 'bg-orange-50/50 hover:bg-orange-50/70'
+                          : idx % 2 === 0
+                            ? 'bg-white hover:bg-slate-50/80'
+                            : 'bg-slate-50/40 hover:bg-slate-50/80'
                     return (
-                      <tr key={row.id} className="hover:bg-slate-50/80">
-                        <td className="px-3 py-3 sm:px-4">
+                      <tr key={row.id} className={`border-t border-slate-100/80 ${rowTone}`}>
+                        <td className="px-2 py-2 align-top">
                           <StatusBadge status={eff} />
                         </td>
-                        <td className="px-3 py-3 sm:px-4">
+                        <td className="hidden px-2 py-2 align-top sm:table-cell">
                           <RecoveryBadge row={row} />
                         </td>
-                        <td className="max-w-[120px] px-3 py-3 sm:max-w-[140px] sm:px-4">
-                          <div className="truncate font-medium text-slate-900">{row.landing_path || '—'}</div>
-                          {row.city_route ? (
-                            <div className="truncate text-xs text-slate-500">{row.city_route}</div>
-                          ) : null}
-                        </td>
-                        <td className="hidden px-3 py-3 text-slate-700 lg:table-cell sm:px-4">
-                          {[row.city, row.region, row.country].filter(Boolean).join(', ') || '—'}
-                        </td>
-                        <td className="px-3 py-3 text-slate-700 sm:px-4">{row.service_type || '—'}</td>
-                        <td className="max-w-[160px] px-3 py-3 sm:max-w-[180px] sm:px-4">
-                          <div className="truncate font-medium text-slate-900">{row.customer_name || '—'}</div>
+                        <td className="max-w-[140px] px-2 py-2 align-top sm:max-w-[180px]">
+                          <TruncateCell
+                            value={String(row.customer_name || '—')}
+                            max={24}
+                            className="font-medium text-slate-900"
+                          />
                           {row.customer_email ? (
-                            <div className="truncate text-xs text-slate-500">{row.customer_email}</div>
+                            <TruncateCell
+                              value={String(row.customer_email)}
+                              max={28}
+                              className="mt-0.5 text-[10px] text-slate-500"
+                            />
                           ) : null}
+                          <TruncateCell
+                            value={String(row.landing_path || '')}
+                            max={22}
+                            className="mt-0.5 text-[10px] text-slate-400"
+                          />
                         </td>
-                        <td className="whitespace-nowrap px-3 py-3 text-slate-700 sm:px-4">
+                        <td className="hidden px-2 py-2 align-top text-slate-700 md:table-cell">
+                          <TruncateCell value={String(row.service_type || '—')} max={20} />
+                        </td>
+                        <td className="whitespace-nowrap px-2 py-2 align-top text-slate-700">
                           {row.current_step ? `Step ${row.current_step}` : '—'}
                         </td>
-                        <td className="hidden whitespace-nowrap px-3 py-3 text-slate-700 sm:table-cell sm:px-4">
+                        <td className="hidden whitespace-nowrap px-2 py-2 align-top tabular-nums text-slate-700 lg:table-cell">
                           {money(row.estimated_total)}
                         </td>
-                        <td className="px-3 py-3 font-mono text-xs text-slate-800 sm:px-4">
-                          {row.quote_ref || '—'}
+                        <td className="px-2 py-2 align-top">
+                          {row.quote_ref ? (
+                            row.quote_id ? (
+                              <Link
+                                to={`/admin/available-jobs/${row.quote_id}`}
+                                className="font-mono text-[11px] font-semibold text-brand-700 hover:text-brand-800"
+                                title={String(row.quote_ref)}
+                              >
+                                <TruncateCell value={String(row.quote_ref)} max={14} />
+                              </Link>
+                            ) : (
+                              <TruncateCell
+                                value={String(row.quote_ref)}
+                                max={14}
+                                mono
+                                className="font-semibold text-slate-800"
+                              />
+                            )
+                          ) : (
+                            '—'
+                          )}
                         </td>
-                        <td className="hidden whitespace-nowrap px-3 py-3 text-slate-600 md:table-cell sm:px-4">
+                        <td className="hidden whitespace-nowrap px-2 py-2 align-top text-slate-500 xl:table-cell">
                           {formatDateTimeUK(row.last_activity_at)}
                         </td>
-                        <td className="px-3 py-3 sm:px-4">
+                        <td className="px-2 py-2 align-top">
                           <button
                             type="button"
                             onClick={() => setSelected(row)}
-                            className="text-sm font-semibold text-brand-700 hover:text-brand-800"
+                            className="text-[11px] font-semibold text-brand-700 hover:text-brand-800"
                           >
                             Details
                           </button>
@@ -565,7 +685,7 @@ export default function WebsiteLeadsAdmin() {
                   })}
                 </tbody>
               </table>
-            </div>
+            </TableScroll>
           )}
         </div>
       </AdminSection>

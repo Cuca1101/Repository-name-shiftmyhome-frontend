@@ -3,6 +3,7 @@ import { Link, useSearchParams } from 'react-router-dom'
 import { Check, Copy } from 'lucide-react'
 import { verifyPaymentIntent } from '../lib/stripeCheckout'
 import { clearQuoteDraft } from '../lib/quoteDraftStorage'
+import { consumePhotoUploadNotice } from '../lib/quotePhotoUpload'
 import { trackWebsiteLeadEvent } from '../lib/websiteLeadTracker'
 
 function scrollToEl(el, block = 'center') {
@@ -14,6 +15,7 @@ export default function PaymentSuccessPage() {
   const [params] = useSearchParams()
   const paymentIntentId = params.get('payment_intent')
   const [quoteRef, setQuoteRef] = useState(null)
+  const [photoUploadNotice, setPhotoUploadNotice] = useState(() => consumePhotoUploadNotice())
   const [copied, setCopied] = useState(false)
   const successContentRef = useRef(null)
   const bookingRefSectionRef = useRef(null)
@@ -97,6 +99,15 @@ export default function PaymentSuccessPage() {
         </div>
 
         <h1 className="text-xl font-bold tracking-tight text-slate-900 sm:text-3xl">Payment successful</h1>
+
+        {photoUploadNotice ? (
+          <div
+            role="status"
+            className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-3 py-3 text-left text-sm leading-relaxed text-amber-950 sm:mt-6 sm:px-4"
+          >
+            {photoUploadNotice}
+          </div>
+        ) : null}
 
         <div className="mt-4 space-y-3 text-sm leading-relaxed text-slate-600 sm:mt-6 sm:space-y-4 sm:text-[15px]">
           {paymentIntentId ? (

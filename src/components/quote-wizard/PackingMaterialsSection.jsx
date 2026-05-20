@@ -3,8 +3,10 @@ import { Info, Minus, Plus } from 'lucide-react'
 import {
   PACKING_MATERIALS_CATALOG,
   buildPackingWhatFromQuantities,
-  getPackingMaterialUnitHelper,
+  formatPackingMaterialPriceHint,
+  normalizePackingMaterialQuantities,
   parsePackingMaterialQuantities,
+  sumBoxQuantities,
 } from '../../lib/packingMaterialsCatalog'
 
 function QtyStepper({ value, onChange, disabled, size = 'default' }) {
@@ -41,9 +43,19 @@ function QtyStepper({ value, onChange, disabled, size = 'default' }) {
 
 /**
  * Step 3 — packing materials quantity picker (mobile & desktop).
- * @param {{ data: Record<string, unknown>, onChange: (next: Record<string, unknown>) => void, variant?: 'mobile' | 'desktop' }} props
+ * @param {{
+ *   data: Record<string, unknown>,
+ *   onChange: (next: Record<string, unknown>) => void,
+ *   pricingSettings?: import('../../lib/pricingCalculator.js').PricingSettings | null,
+ *   variant?: 'mobile' | 'desktop'
+ * }} props
  */
-export default function PackingMaterialsSection({ data, onChange, variant = 'desktop' }) {
+export default function PackingMaterialsSection({
+  data,
+  onChange,
+  pricingSettings = null,
+  variant = 'desktop',
+}) {
   const isMobile = variant === 'mobile'
   const card = isMobile
     ? 'min-w-0 rounded-xl border border-slate-200 bg-white p-3 shadow-sm'
@@ -51,7 +63,12 @@ export default function PackingMaterialsSection({ data, onChange, variant = 'des
 
   const materialQty = useMemo(
     () => parsePackingMaterialQuantities(data),
-    [data.packingApproxBoxes, data.packingMaterialsDetail, data.packingWhat],
+    [
+      data.packingMaterialsQuantities,
+      data.packingApproxBoxes,
+      data.packingMaterialsDetail,
+      data.packingWhat,
+    ],
   )
 
   function set(patch) {
@@ -59,12 +76,18 @@ export default function PackingMaterialsSection({ data, onChange, variant = 'des
   }
 
   function setMaterialQty(id, qty) {
-    const next = { ...materialQty, [id]: Math.max(0, qty) }
-    const any = Object.values(next).some((v) => v > 0)
+    const next = normalizePackingMaterialQuantities({
+      ...materialQty,
+      [id]: Math.max(0, qty),
+    })
+    const detail = buildPackingWhatFromQuantities(next)
+    const any = PACKING_MATERIALS_CATALOG.some((m) => (next[m.id] || 0) > 0)
     set({
-      packingApproxBoxes: next.boxes,
+      packingMaterialsQuantities: next,
+      packingApproxBoxes: sumBoxQuantities(next),
       packingMaterials: any,
-      packingMaterialsDetail: buildPackingWhatFromQuantities(next),
+      packingMaterialsDetail: detail,
+      packingWhat: detail,
     })
   }
 
@@ -87,7 +110,7 @@ export default function PackingMaterialsSection({ data, onChange, variant = 'des
         {PACKING_MATERIALS_CATALOG.map((m) => {
           const qty = materialQty[m.id] || 0
           const selected = qty > 0
-          const unitHelper = getPackingMaterialUnitHelper(m)
+          const priceHint = formatPackingMaterialPriceHint(m, pricingSettings)
           return (
             <li
               key={m.id}
@@ -96,9 +119,12 @@ export default function PackingMaterialsSection({ data, onChange, variant = 'des
               }`}
             >
               <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0 flex-1 pr-1">
+                <div className="min-w-0 flex-1 break-words pr-1">
                   <p className="text-sm font-semibold leading-snug text-slate-900">{m.label}</p>
-                  <p className="mt-0.5 text-xs leading-relaxed text-slate-500">{unitHelper}</p>
+                  <p className="mt-0.5 text-xs leading-relaxed text-slate-600">{m.description}</p>
+                  {priceHint ? (
+                    <p className="mt-1 text-xs font-medium text-brand-700">{priceHint}</p>
+                  ) : null}
                 </div>
                 <QtyStepper
                   value={qty}

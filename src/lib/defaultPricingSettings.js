@@ -63,5 +63,22 @@ export function getDefaultPricingSettings() {
       large: 0.8,
       heavy: 1.2,
     },
+    fuelSurchargeEnabled: false,
+    fuelSurchargePerMile: 0,
+    yesLiftChargePerEnd: 0,
+    packingMaterialPerItemEnabled: false,
+    /** Legacy single box price — maps to medium when per-size prices are unset */
+    packingMaterialPriceBoxes: 0,
+    packingMaterialPriceSmallBoxes: 0,
+    packingMaterialPriceMediumBoxes: 0,
+    packingMaterialPriceLargeBoxes: 0,
+    packingMaterialPriceExtraLargeBoxes: 0,
+    packingMaterialPriceBubble: 0,
+    packingMaterialPricePaper: 0,
+    packingMaterialPriceTape: 0,
+    packingMaterialPriceMattress: 0,
+    depositAmount: 50,
+    promoCodesEnabled: false,
+    promoCodes: [],
   }
 }

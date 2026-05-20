@@ -1,4 +1,8 @@
 import { getEffectiveReassemblyItemCount } from './quoteWizardReassembly'
+import {
+  PACKING_MATERIALS_CATALOG,
+  resolvePackingMaterialUnitPrices,
+} from './packingMaterialsCatalog'
 
 /**
  * @typedef {Object} CustomSizeM3
@@ -35,6 +39,35 @@ import { getEffectiveReassemblyItemCount } from './quoteWizardReassembly'
  * @property {number} exactArrivalPremiumGbp — fixed fee for exact arrival time option
  * @property {CustomSizeM3} customSizeM3
  * @property {boolean} [basePricePerMan] — when true, `basePriceByService` is **per man** and multiplied by crew size
+ * @property {boolean} [fuelSurchargeEnabled]
+ * @property {number} [fuelSurchargePerMile]
+ * @property {number} [yesLiftChargePerEnd] — per end when lift explicitly Yes and floor above ground
+ * @property {boolean} [packingMaterialPerItemEnabled]
+ * @property {number} [packingMaterialPriceBoxes] — legacy; maps to medium when per-size unset
+ * @property {number} [packingMaterialPriceSmallBoxes]
+ * @property {number} [packingMaterialPriceMediumBoxes]
+ * @property {number} [packingMaterialPriceLargeBoxes]
+ * @property {number} [packingMaterialPriceExtraLargeBoxes]
+ * @property {number} [packingMaterialPriceBubble]
+ * @property {number} [packingMaterialPricePaper]
+ * @property {number} [packingMaterialPriceTape]
+ * @property {number} [packingMaterialPriceMattress]
+ * @property {number} [depositAmount]
+ * @property {boolean} [promoCodesEnabled]
+ * @property {{ code: string, discountType: 'percentage'|'fixed', discountValue: number }[]} [promoCodes]
+ */
+
+/**
+ * @typedef {Object} PackingMaterialQuantities
+ * @property {number} [smallBoxes]
+ * @property {number} [mediumBoxes]
+ * @property {number} [largeBoxes]
+ * @property {number} [extraLargeBoxes]
+ * @property {number} [boxes] — legacy total / medium fallback
+ * @property {number} [bubble]
+ * @property {number} [paper]
+ * @property {number} [tape]
+ * @property {number} [mattress]
  */
 
 /**
@@ -76,6 +109,8 @@ import { getEffectiveReassemblyItemCount } from './quoteWizardReassembly'
  * @property {boolean} [sameDay]
  * @property {boolean} [weekend] — if true, apply weekend % (usually derived from move date)
  * @property {boolean} [exactArrivalPremium] — exact arrival hour (premium)
+ * @property {PackingMaterialQuantities} [packingMaterialQuantities]
+ * @property {string} [promoCode]
  */
 
 /**
@@ -96,6 +131,8 @@ import { getEffectiveReassemblyItemCount } from './quoteWizardReassembly'
  * @property {number} extrasTotal
  * @property {BreakdownLine[]} surchargeLines
  * @property {number} surchargesTotal
+ * @property {BreakdownLine[]} [discountLines]
+ * @property {number} [discountTotal]
  * @property {number} subtotalBeforeSurcharges
  * @property {number} subtotalAfterSurchargesBeforeMinimum
  * @property {number} minimumJobPrice
@@ -107,6 +144,39 @@ import { getEffectiveReassemblyItemCount } from './quoteWizardReassembly'
  */
 
 const money = (n) => Math.round(n * 100) / 100
+
+/**
+ * Deposit taken at payment (admin); falls back to £50 when unset.
+ * @param {PricingSettings | null | undefined} settings
+ */
+export function resolveDepositAmountGbp(settings) {
+  const n = Number(settings?.depositAmount)
+  if (Number.isFinite(n) && n > 0) return money(n)
+  return 50
+}
+
+/**
+ * @param {{ code?: string, discountType?: string, discountValue?: number }[]} promoCodes
+ * @param {string} rawCode
+ */
+function findPromoMatch(promoCodes, rawCode) {
+  const normalized = String(rawCode || '')
+    .trim()
+    .toUpperCase()
+  if (!normalized || !Array.isArray(promoCodes)) return null
+  for (const row of promoCodes) {
+    const code = String(row?.code || '')
+      .trim()
+      .toUpperCase()
+    if (code && code === normalized) return row
+  }
+  return null
+}
+
+/** @param {Record<string, number>} prices */
+function hasAnyPackingMaterialPerItemRate(prices) {
+  return Object.values(prices).some((v) => v > 0)
+}
 
 /**
  * @param {string|undefined} isoDate
@@ -247,6 +317,30 @@ export function calculateQuote(settings, input) {
     }
   }
 
+  const yesLiftPerEnd = Number(s.yesLiftChargePerEnd) || 0
+  if (yesLiftPerEnd > 0) {
+    if (pickupFloor > 0 && pickupLiftExplicit && pickupLift) {
+      const amt = money(yesLiftPerEnd * accessCrewMult)
+      if (amt > 0) {
+        const crewHint = accessCrewMult > 1 ? ` × ${accessCrewMult} crew` : ''
+        accessLines.push({
+          label: `Lift access charge (collection)${crewHint}`,
+          amount: amt,
+        })
+      }
+    }
+    if (deliveryFloor > 0 && deliveryLiftExplicit && deliveryLift) {
+      const amt = money(yesLiftPerEnd * accessCrewMult)
+      if (amt > 0) {
+        const crewHint = accessCrewMult > 1 ? ` × ${accessCrewMult} crew` : ''
+        accessLines.push({
+          label: `Lift access charge (delivery)${crewHint}`,
+          amount: amt,
+        })
+      }
+    }
+  }
+
   if (access.longWalk) {
     const w = Number(s.longWalkingDistanceCharge) || 0
     if (w > 0) accessLines.push({ label: 'Long walking distance', amount: money(w) })
@@ -281,6 +375,13 @@ export function calculateQuote(settings, input) {
 
   const accessTotal = money(accessLines.reduce((sum, l) => sum + l.amount, 0))
 
+  const fuelEnabled = Boolean(s.fuelSurchargeEnabled)
+  const fuelPerMile = Number(s.fuelSurchargePerMile) || 0
+  let fuelSurchargeAmount = 0
+  if (fuelEnabled && fuelPerMile > 0 && distanceMiles > 0) {
+    fuelSurchargeAmount = money(distanceMiles * fuelPerMile)
+  }
+
   const extras = input.extras || {}
   /** @type {BreakdownLine[]} */
   const extrasLines = []
@@ -305,7 +406,27 @@ export function calculateQuote(settings, input) {
         amount: money(fragileFee),
       })
     }
-    if (extras.packingMaterials && materialsFee > 0) {
+  }
+
+  if (extras.packingMaterials) {
+    const matQty = extras.packingMaterialQuantities || {}
+    const unitPrices = resolvePackingMaterialUnitPrices(s)
+    const perItemActive =
+      Boolean(s.packingMaterialPerItemEnabled) && hasAnyPackingMaterialPerItemRate(unitPrices)
+    if (perItemActive) {
+      for (const def of PACKING_MATERIALS_CATALOG) {
+        const q = Math.max(0, Number(matQty[def.id]) || 0)
+        const rate = unitPrices[def.id] || 0
+        if (q > 0 && rate > 0) {
+          const lineAmt = money(q * rate)
+          const unitLabel = q === 1 ? def.unit : def.unitPlural
+          extrasLines.push({
+            label: `${def.label} (${q} ${unitLabel} × £${rate.toFixed(2)})`,
+            amount: lineAmt,
+          })
+        }
+      }
+    } else if (materialsFee > 0) {
       extrasLines.push({
         label: 'Packing materials',
         amount: money(materialsFee),
@@ -378,6 +499,13 @@ export function calculateQuote(settings, input) {
     })
   }
 
+  if (fuelSurchargeAmount > 0) {
+    extrasLines.push({
+      label: `Fuel surcharge (${distanceMiles.toFixed(1)} mi × £${fuelPerMile.toFixed(2)})`,
+      amount: fuelSurchargeAmount,
+    })
+  }
+
   const extrasTotal = money(extrasLines.reduce((sum, l) => sum + l.amount, 0))
 
   const subtotalBeforeSurcharges = money(
@@ -417,9 +545,39 @@ export function calculateQuote(settings, input) {
   const surchargesTotal = money(surchargeLines.reduce((sum, l) => sum + l.amount, 0))
   const subtotalAfterSurchargesBeforeMinimum = money(subtotalBeforeSurcharges + surchargesTotal)
 
+  /** @type {BreakdownLine[]} */
+  const discountLines = []
+  let discountTotal = 0
+  if (Boolean(s.promoCodesEnabled) && extras.promoCode) {
+    const match = findPromoMatch(s.promoCodes, extras.promoCode)
+    if (match) {
+      const val = Number(match.discountValue) || 0
+      if (val > 0) {
+        let discountAmt = 0
+        if (match.discountType === 'fixed') {
+          discountAmt = money(Math.min(subtotalAfterSurchargesBeforeMinimum, val))
+        } else {
+          const pct = Math.min(100, Math.max(0, val))
+          discountAmt = money((subtotalAfterSurchargesBeforeMinimum * pct) / 100)
+        }
+        if (discountAmt > 0) {
+          discountTotal = discountAmt
+          discountLines.push({
+            label: `Promo code (${String(match.code).trim().toUpperCase()})`,
+            amount: discountAmt,
+          })
+        }
+      }
+    }
+  }
+
+  const subtotalAfterDiscount = money(
+    Math.max(0, subtotalAfterSurchargesBeforeMinimum - discountTotal),
+  )
+
   const minimumJobPrice = Number(s.minimumJobPrice) || 0
-  const estimatedTotal = money(Math.max(subtotalAfterSurchargesBeforeMinimum, minimumJobPrice))
-  const minimumApplied = money(estimatedTotal - subtotalAfterSurchargesBeforeMinimum)
+  const estimatedTotal = money(Math.max(subtotalAfterDiscount, minimumJobPrice))
+  const minimumApplied = money(estimatedTotal - subtotalAfterDiscount)
 
   return {
     basePrice: money(basePrice),
@@ -432,6 +590,8 @@ export function calculateQuote(settings, input) {
     extrasTotal,
     surchargeLines,
     surchargesTotal,
+    discountLines,
+    discountTotal,
     subtotalBeforeSurcharges,
     subtotalAfterSurchargesBeforeMinimum,
     minimumJobPrice: money(minimumJobPrice),
@@ -461,6 +621,9 @@ export function breakdownToFlatRows(b) {
   for (const l of b.accessLines) rows.push({ label: l.label, amount: l.amount })
   for (const l of b.extrasLines) rows.push({ label: l.label, amount: l.amount })
   for (const l of b.surchargeLines) rows.push({ label: l.label, amount: l.amount })
+  for (const l of b.discountLines || []) {
+    rows.push({ label: l.label, amount: -Math.abs(l.amount) })
+  }
   if (b.minimumApplied > 0) {
     rows.push({ label: 'Minimum job price adjustment', amount: b.minimumApplied })
   }

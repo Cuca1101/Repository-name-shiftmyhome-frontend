@@ -13,6 +13,7 @@ import {
   Wrench,
 } from 'lucide-react'
 import QuoteRouteMap from '../quote-wizard/QuoteRouteMap'
+import QuoteBreakdownLines from '../quote-wizard/QuoteBreakdownLines'
 import InlineInventoryQtyControl from '../quote-wizard/InlineInventoryQtyControl'
 import { CatalogItemLucideIcon } from '../quote-wizard/inventoryLucideIcons'
 import { applyInventoryLineQuantityDelta } from '../../lib/inventoryLineQuantity'
@@ -301,7 +302,8 @@ export default function MobileQuoteMoveSummary({
         <div className="border-t border-emerald-100 bg-gradient-to-br from-emerald-50/90 to-white px-3 py-3">
           <p className="text-[10px] font-semibold uppercase tracking-wide text-emerald-800">Estimated total</p>
           <p className="mt-0.5 text-lg font-bold text-emerald-700">£{breakdown.estimatedTotal.toFixed(2)}</p>
-          <p className="mt-0.5 text-[10px] leading-snug text-slate-600">Final price confirmed by ShiftMyHome.</p>
+          <QuoteBreakdownLines breakdown={breakdown} className="mt-2" dense />
+          <p className="mt-1.5 text-[10px] leading-snug text-slate-600">Final price confirmed by ShiftMyHome.</p>
         </div>
       ) : null}
 

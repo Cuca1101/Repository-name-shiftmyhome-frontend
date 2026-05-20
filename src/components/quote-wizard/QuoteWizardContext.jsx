@@ -34,13 +34,19 @@ import {
   wizardArrivalErrorMessage,
 } from '../../lib/arrivalWizardValidation'
 import { getLocalDateYYYYMMDD } from '../../lib/moveDateLocal'
-import { uploadCustomerQuotePhotos } from '../../lib/quotePhotoUpload'
+import {
+  persistPhotoUploadNotice,
+  uploadCustomerQuotePhotos,
+} from '../../lib/quotePhotoUpload'
+import { customerJobPhotoDedupKey } from '../../lib/data/jobPhotosRepository'
 import { MAX_PHOTOS } from './QuoteWizardPhotosField'
 import { sendQuoteRequestEmailJs } from '../../utils/sendQuoteRequestEmailJs'
+import { parsePackingMaterialQuantities } from '../../lib/packingMaterialsCatalog'
 import {
   calculateQuote,
   breakdownToFlatRows,
   isWeekendDate,
+  resolveDepositAmountGbp,
 } from '../../lib/pricingCalculator'
 import {
   MOVE_DATE_PAST_ERROR,
@@ -260,6 +266,8 @@ export function QuoteWizardProvider({ children, serviceType: serviceTypeProp, al
     const sameDay = moveDate === today
     const weekend = isWeekendDate(moveDate)
 
+    const packingMaterialQuantities = parsePackingMaterialQuantities(wizard)
+
     return calculateQuote(settings, {
       serviceType,
       distanceMiles: Number(wizard.distanceMiles) || 0,
@@ -279,6 +287,7 @@ export function QuoteWizardProvider({ children, serviceType: serviceTypeProp, al
         packingApproxBoxes: wizard.packingApproxBoxes,
         packingFragile: wizard.packingFragile,
         packingMaterials: wizard.packingMaterials,
+        packingMaterialQuantities,
         dismantling: wizard.dismantling,
         dismantlingItemCount: wizard.dismantlingItemCount,
         reassembly: wizard.reassembly,
@@ -289,6 +298,7 @@ export function QuoteWizardProvider({ children, serviceType: serviceTypeProp, al
         sameDay,
         weekend,
         exactArrivalPremium: wizard.arrivalWindow === 'exact',
+        promoCode: wizard.promoCode,
       },
       crewSize:
         wizard.crewSize != null && wizard.crewSize !== ''
@@ -522,19 +532,35 @@ export function QuoteWizardProvider({ children, serviceType: serviceTypeProp, al
   /** Upload wizard photos after Stripe payment succeeds (booking already created server-side). */
   const uploadCustomerPhotosAfterPayment = useCallback(
     async (booking = {}) => {
-      if (!quotePhotoFiles.length) return
+      if (!quotePhotoFiles.length) return { warningMessage: null }
       const ref = String(booking.quoteRef || quoteRef).trim()
-      if (!ref) return
-      try {
-        await uploadCustomerQuotePhotos({
-          files: quotePhotoFiles,
-          quoteRef: ref,
-          jobId: booking.jobId ?? null,
+      if (!ref) return { warningMessage: null }
+
+      const jobId =
+        booking.jobId != null && String(booking.jobId).trim()
+          ? String(booking.jobId).trim()
+          : null
+
+      const result = await uploadCustomerQuotePhotos({
+        files: quotePhotoFiles,
+        quoteRef: ref,
+        jobId,
+      })
+
+      persistPhotoUploadNotice(result)
+
+      setQuotePhotoFiles((prev) =>
+        prev.filter((f) => !result.completedFingerprints.has(customerJobPhotoDedupKey(f))),
+      )
+
+      if (result.warningMessage) {
+        setFeedback({
+          type: 'warning',
+          text: result.warningMessage,
         })
-        setQuotePhotoFiles([])
-      } catch (photoErr) {
-        console.warn('[Quote] customer photo upload failed after payment', photoErr)
       }
+
+      return { warningMessage: result.warningMessage }
     },
     [quotePhotoFiles, quoteRef],
   )
@@ -575,19 +601,20 @@ export function QuoteWizardProvider({ children, serviceType: serviceTypeProp, al
       setCardPayment(null)
       try {
         const quote_lead = buildQuoteRowFromTemplateParams(payload.templateParams, payload.extras)
+        const depositGbp = resolveDepositAmountGbp(settings)
         const { clientSecret, paymentIntentId } = await createPaymentIntent({
           quote_ref: quoteRef,
           customer_email: wizard.email.trim(),
           customer_name: wizard.fullName.trim(),
           service_type: serviceType,
-          amount: paymentType === 'deposit' ? 50 : breakdown.estimatedTotal,
-          amount_gbp: paymentType === 'deposit' ? 50 : breakdown.estimatedTotal,
+          amount: paymentType === 'deposit' ? depositGbp : breakdown.estimatedTotal,
+          amount_gbp: paymentType === 'deposit' ? depositGbp : breakdown.estimatedTotal,
           payment_type: paymentType,
           quote_lead,
         })
         const amountLabel =
           paymentType === 'deposit'
-            ? '£50.00 deposit'
+            ? `£${depositGbp.toFixed(2)} deposit`
             : `£${breakdown.estimatedTotal.toFixed(2)} (estimated total)`
         setCardPayment({
           clientSecret,
@@ -620,6 +647,7 @@ export function QuoteWizardProvider({ children, serviceType: serviceTypeProp, al
       wizard.fullName,
       wizard.moveDate,
       serviceType,
+      settings,
     ],
   )
 
@@ -727,16 +755,16 @@ export function QuoteWizardProvider({ children, serviceType: serviceTypeProp, al
 
       let photoWarning = null
       if (quotePhotoFiles.length > 0) {
-        try {
-          await uploadCustomerQuotePhotos({
-            files: quotePhotoFiles,
-            quoteRef,
-            jobId: createdJob?.id ?? null,
-          })
-        } catch (photoErr) {
-          console.warn('[Quote] customer photo upload failed', photoErr)
-          photoWarning =
-            'Your quote was saved but some photos could not be uploaded. We may follow up for images.'
+        const photoResult = await uploadCustomerQuotePhotos({
+          files: quotePhotoFiles,
+          quoteRef,
+          jobId: createdJob?.id ?? null,
+        })
+        setQuotePhotoFiles((prev) =>
+          prev.filter((f) => !photoResult.completedFingerprints.has(customerJobPhotoDedupKey(f))),
+        )
+        if (photoResult.warningMessage) {
+          photoWarning = photoResult.warningMessage
         }
       }
 
@@ -825,6 +853,7 @@ export function QuoteWizardProvider({ children, serviceType: serviceTypeProp, al
     heavyItemCount,
     totalM3,
     breakdown,
+    depositAmountGbp: settings ? resolveDepositAmountGbp(settings) : 50,
     customSizeM3,
     handleDistanceFromRoute,
     canGoNext,

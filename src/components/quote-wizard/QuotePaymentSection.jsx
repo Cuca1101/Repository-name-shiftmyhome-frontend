@@ -75,6 +75,7 @@ function PaymentStepIndicator({ paymentChoice, stripeReady, termsReady }) {
 export default function QuotePaymentSection({
   wizard,
   breakdown,
+  depositAmountGbp = 50,
   payLoading,
   payError,
   cardPayment,
@@ -102,6 +103,11 @@ export default function QuotePaymentSection({
     estimatedTotal != null && Number.isFinite(estimatedTotal)
       ? `£${estimatedTotal.toFixed(2)}`
       : '—'
+  const depositGbp =
+    Number.isFinite(Number(depositAmountGbp)) && Number(depositAmountGbp) > 0
+      ? Number(depositAmountGbp)
+      : 50
+  const depositFormatted = `£${depositGbp.toFixed(2)}`
 
   const termsReady = confirmed && agreedToTerms
 
@@ -109,7 +115,7 @@ export default function QuotePaymentSection({
     paymentChoice === 'full'
       ? `Pay ${totalFormatted} securely`
       : paymentChoice === 'deposit'
-        ? 'Pay £50 securely'
+        ? `Pay ${depositFormatted} securely`
         : 'Pay securely'
 
   const submitDisabled = !(paymentChoice && confirmed && agreedToTerms)
@@ -316,7 +322,7 @@ export default function QuotePaymentSection({
                   paymentChoice === 'deposit' && termsReady,
                 )}
               >
-                Pay £50 now, remaining balance later
+                Pay {depositFormatted} now, remaining balance later
               </p>
               <p
                 className={optionDescClass(

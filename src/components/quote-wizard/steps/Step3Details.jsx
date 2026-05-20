@@ -4,10 +4,12 @@ import PickupDeliveryContactsSection from '../PickupDeliveryContactsSection'
 import PackingMaterialsSection from '../PackingMaterialsSection'
 import DesktopFurnitureServicesSection from '../DesktopFurnitureServicesSection'
 import QuoteWizardPhotosField from '../QuoteWizardPhotosField'
+import QuotePromoCodeField from '../QuotePromoCodeField'
 
 export default function Step3Details({
   data,
   onChange,
+  pricingSettings = null,
   onGoToStep,
   quotePhotoFiles,
   onQuotePhotosAdd,
@@ -30,6 +32,7 @@ export default function Step3Details({
         quoteRef={quoteRef}
         data={data}
         onChange={onChange}
+        pricingSettings={pricingSettings}
         onGoToStep={onGoToStep}
         validationMessage={validationMessage}
         quotePhotoFiles={quotePhotoFiles}
@@ -123,7 +126,19 @@ export default function Step3Details({
         />
       </div>
 
-      <PackingMaterialsSection data={data} onChange={onChange} variant="desktop" />
+      <PackingMaterialsSection
+        data={data}
+        onChange={onChange}
+        pricingSettings={pricingSettings}
+        variant="desktop"
+      />
+
+      <QuotePromoCodeField
+        data={data}
+        onChange={onChange}
+        pricingSettings={pricingSettings}
+        variant="desktop"
+      />
 
       <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
         <h3 className="text-sm font-bold text-slate-900">Anything else we should know?</h3>

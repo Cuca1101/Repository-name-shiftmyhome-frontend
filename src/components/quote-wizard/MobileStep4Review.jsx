@@ -50,7 +50,7 @@ export default function MobileStep4Review({
         moveDate={wizard.moveDate}
         inventoryLines={wizard.inventoryLines}
         totalM3={totalM3}
-        showPricing={false}
+        showPricing
         breakdown={breakdown}
         crewSettings={crewSettings}
       />

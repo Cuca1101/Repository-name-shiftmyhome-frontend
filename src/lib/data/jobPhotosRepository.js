@@ -140,3 +140,72 @@ export async function uploadCustomerJobPhoto(file, ctx) {
     throw dbError
   }
 }
+
+/**
+ * Stable key for deduplicating customer uploads (file name + size).
+ * @param {File} file
+ */
+export function customerJobPhotoDedupKey(file) {
+  const name = String(file?.name || '').trim().toLowerCase()
+  const size = Number(file?.size) || 0
+  return `${name}|${size}`
+}
+
+/**
+ * Existing customer photo keys for a quote (anon read policy required).
+ * @param {string} quoteRef
+ * @returns {Promise<Set<string>>}
+ */
+export async function fetchCustomerJobPhotoDedupKeys(quoteRef) {
+  const ref = String(quoteRef || '').trim()
+  if (!isValidQuoteRefForPhotos(ref) || !isSupabaseConfigured || !supabase) {
+    return new Set()
+  }
+  try {
+    const { data, error } = await supabase
+      .from(TABLE)
+      .select('file_name, size_bytes')
+      .eq('quote_ref', ref)
+      .eq('uploaded_by', JOB_PHOTO_UPLOADED_BY.CUSTOMER)
+    if (error) {
+      if (import.meta.env.DEV) {
+        console.warn('[job_photos] dedup fetch failed', error.message || error)
+      }
+      return new Set()
+    }
+    const keys = new Set()
+    for (const row of data ?? []) {
+      const name = String(row.file_name || '').trim().toLowerCase()
+      const size = Number(row.size_bytes) || 0
+      if (name) keys.add(`${name}|${size}`)
+    }
+    return keys
+  } catch (e) {
+    if (import.meta.env.DEV) {
+      console.warn('[job_photos] dedup fetch error', e)
+    }
+    return new Set()
+  }
+}
+
+/**
+ * Attach job_id to customer photos uploaded before job row existed.
+ * @param {string} quoteRef
+ * @param {string} jobId
+ */
+export async function linkCustomerJobPhotosToJobId(quoteRef, jobId) {
+  const ref = String(quoteRef || '').trim()
+  const jid = String(jobId || '').trim()
+  if (!isValidQuoteRefForPhotos(ref) || !jid || !isSupabaseConfigured || !supabase) return
+
+  const { error } = await supabase
+    .from(TABLE)
+    .update({ job_id: jid })
+    .eq('quote_ref', ref)
+    .eq('uploaded_by', JOB_PHOTO_UPLOADED_BY.CUSTOMER)
+    .is('job_id', null)
+
+  if (error && import.meta.env.DEV) {
+    console.warn('[job_photos] link job_id failed', error.message || error)
+  }
+}

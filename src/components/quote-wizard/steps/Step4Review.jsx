@@ -1,5 +1,6 @@
 import MobileStep4Review from '../MobileStep4Review'
 import DesktopStep4Review from '../DesktopStep4Review'
+import QuoteBreakdownLines from '../QuoteBreakdownLines'
 import QuoteEstimatedTotalCard from '../QuoteEstimatedTotalCard'
 import QuotePaymentSection from '../QuotePaymentSection'
 import Step4BackNav from '../Step4BackNav'
@@ -20,10 +21,14 @@ export default function Step4Review({
   onPaymentSucceeded,
   onGoToStep,
   onBack,
+  depositAmountGbp = 50,
 }) {
   return (
     <>
       <QuoteEstimatedTotalCard breakdown={breakdown} className="mb-3 md:hidden" />
+      <div className="mb-3 min-w-0 md:hidden">
+        <QuoteBreakdownLines breakdown={breakdown} dense />
+      </div>
 
       <MobileStep4Review
         quoteRef={quoteRef}
@@ -40,6 +45,7 @@ export default function Step4Review({
         <QuotePaymentSection
           wizard={wizard}
           breakdown={breakdown}
+          depositAmountGbp={depositAmountGbp}
           payLoading={payLoading}
           payError={payError}
           cardPayment={cardPayment}
@@ -56,6 +62,7 @@ export default function Step4Review({
         <QuotePaymentSection
           wizard={wizard}
           breakdown={breakdown}
+          depositAmountGbp={depositAmountGbp}
           payLoading={payLoading}
           payError={payError}
           cardPayment={cardPayment}

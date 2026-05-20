@@ -74,10 +74,54 @@ function mergeWithDefaults(raw) {
     raw.customSizeM3 && typeof raw.customSizeM3 === 'object'
       ? { ...d.customSizeM3, ...raw.customSizeM3 }
       : d.customSizeM3
-  return {
+  const promoCodes = Array.isArray(raw.promoCodes)
+    ? raw.promoCodes
+        .filter((c) => c && typeof c === 'object')
+        .map((c) => ({
+          code: String(/** @type {{ code?: string }} */ (c).code || '').trim(),
+          discountType:
+            /** @type {{ discountType?: string }} */ (c).discountType === 'fixed'
+              ? 'fixed'
+              : 'percentage',
+          discountValue: Math.max(0, Number(/** @type {{ discountValue?: unknown }} */ (c).discountValue) || 0),
+        }))
+        .filter((c) => c.code.length > 0)
+    : d.promoCodes
+
+  const merged = {
     ...d,
     ...raw,
     basePriceByService: base,
     customSizeM3: custom,
+    promoCodes,
   }
+  return normalizePackingMaterialPrices(merged)
+}
+
+/**
+ * Legacy `packingMaterialPriceBoxes` → medium when per-size prices missing.
+ * @param {import('../pricingCalculator.js').PricingSettings} merged
+ */
+function normalizePackingMaterialPrices(merged) {
+  const legacyBox = Math.max(0, Number(merged.packingMaterialPriceBoxes) || 0)
+  if (!(Number(merged.packingMaterialPriceMediumBoxes) > 0) && legacyBox > 0) {
+    merged.packingMaterialPriceMediumBoxes = legacyBox
+  }
+  const priceKeys = [
+    'packingMaterialPriceSmallBoxes',
+    'packingMaterialPriceMediumBoxes',
+    'packingMaterialPriceLargeBoxes',
+    'packingMaterialPriceExtraLargeBoxes',
+    'packingMaterialPriceBoxes',
+    'packingMaterialPriceBubble',
+    'packingMaterialPricePaper',
+    'packingMaterialPriceTape',
+    'packingMaterialPriceMattress',
+  ]
+  for (const key of priceKeys) {
+    if (merged[key] == null || !Number.isFinite(Number(merged[key]))) {
+      merged[key] = 0
+    }
+  }
+  return merged
 }
