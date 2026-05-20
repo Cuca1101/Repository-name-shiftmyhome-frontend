@@ -8,14 +8,19 @@ import {
   scheduleAbandonedRecoveryForRows,
 } from '../lib/data/websiteLeadsRepository'
 import { fetchWebsiteEventsForAdmin } from '../lib/data/websiteEventsRepository'
-import { computeWebsiteEventAnalytics, eventClickLabel } from '../lib/websiteEventAnalytics'
+import { eventClickLabel } from '../lib/websiteEventAnalytics'
+import {
+  computeFunnelKpisFromEvents,
+  computeVisitorAnalytics,
+  filterQuoteLeadRows,
+  filterVisitorAnalyticsEvents,
+} from '../lib/websiteLeadAdminDisplay'
 import { filterLeadsByRecoveryChip } from '../lib/websiteLeadRecovery'
 import { formatDateTimeUK } from '../lib/formatDateDisplay'
 import WebsiteLeadsRecoveryPanel, { RecoveryBadge } from './admin/WebsiteLeadsRecoveryPanel'
 
-const FILTERS = [
-  { id: 'all', label: 'All' },
-  { id: 'visitors', label: 'Visitors' },
+const LEAD_FILTERS = [
+  { id: 'all', label: 'All leads' },
   { id: 'started', label: 'Started Quote' },
   { id: 'abandoned', label: 'Abandoned' },
   { id: 'completed', label: 'Completed Quote' },
@@ -78,6 +83,21 @@ function KpiPeriodCard({ label, today, week, month }) {
   )
 }
 
+/**
+ * @param {{ title: string, description?: string, children: import('react').ReactNode }} props
+ */
+function AdminSection({ title, description, children }) {
+  return (
+    <section className="min-w-0 space-y-4 rounded-2xl border border-slate-200 bg-slate-50/60 p-4 sm:p-6">
+      <div className="min-w-0 border-b border-slate-200/80 pb-3">
+        <h3 className="text-lg font-bold text-slate-900">{title}</h3>
+        {description ? <p className="mt-1 max-w-3xl text-sm text-slate-600">{description}</p> : null}
+      </div>
+      {children}
+    </section>
+  )
+}
+
 function DetailRow({ label, children }) {
   return (
     <div className="grid gap-1 border-b border-slate-100 py-3 sm:grid-cols-[140px_1fr]">
@@ -88,7 +108,7 @@ function DetailRow({ label, children }) {
 }
 
 /**
- * @param {{ row: Record<string, unknown> | null, onClose: () => void }} props
+ * @param {{ row: Record<string, unknown> | null, onClose: () => void, onRefresh: () => void }} props
  */
 function LeadDetailDrawer({ row, onClose, onRefresh }) {
   const [busy, setBusy] = useState(false)
@@ -200,7 +220,7 @@ export default function WebsiteLeadsAdmin() {
   const [cityRoute, setCityRoute] = useState('')
   const [rows, setRows] = useState([])
   const [events, setEvents] = useState([])
-  const [allRowsForCities, setAllRowsForCities] = useState([])
+  const [allQuoteLeads, setAllQuoteLeads] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [selected, setSelected] = useState(null)
@@ -226,9 +246,10 @@ export default function WebsiteLeadsAdmin() {
           since: new Date(Date.now() - 30 * 86400000).toISOString(),
         }),
       ])
-      await scheduleAbandonedRecoveryForRows(all)
-      setRows(filterLeadsByRecoveryChip(list, recoveryChip))
-      setAllRowsForCities(all)
+      const quoteOnly = filterQuoteLeadRows(all)
+      await scheduleAbandonedRecoveryForRows(quoteOnly)
+      setRows(filterLeadsByRecoveryChip(filterQuoteLeadRows(list), recoveryChip))
+      setAllQuoteLeads(quoteOnly)
       setEvents(recentEvents)
     } catch (e) {
       setError(e?.message || 'Failed to load website leads.')
@@ -241,27 +262,28 @@ export default function WebsiteLeadsAdmin() {
     load()
   }, [load])
 
-  const cityOptions = useMemo(() => distinctCityRoutesFromLeads(allRowsForCities), [allRowsForCities])
-  const analytics = useMemo(() => computeWebsiteEventAnalytics(events), [events])
+  const cityOptions = useMemo(() => distinctCityRoutesFromLeads(allQuoteLeads), [allQuoteLeads])
+  const visitorEvents = useMemo(() => filterVisitorAnalyticsEvents(events), [events])
+  const visitorAnalytics = useMemo(() => computeVisitorAnalytics(events), [events])
+  const funnelKpis = useMemo(() => computeFunnelKpisFromEvents(events), [events])
 
   const runSearchNow = useCallback(() => {
     setActiveSearch(searchInput.trim())
   }, [searchInput])
 
   return (
-    <div className="space-y-6">
+    <div className="min-w-0 space-y-8">
       <div className="flex flex-wrap items-center justify-between gap-4">
-        <div>
+        <div className="min-w-0">
           <h2 className="text-2xl font-bold text-slate-900">Website Leads / Quote Funnel</h2>
           <p className="mt-1 text-sm text-slate-600">
-            Page views, clicks, and quote funnel from website_events. Visitor IP is masked for admin analytics only
-            (GDPR). Geo needs migration 032 + edge function get-visitor-context.
+            Visitor analytics are separated from quote leads so simple page views are not counted as abandoned quotes.
           </p>
         </div>
         <button
           type="button"
           onClick={load}
-          className="min-h-[48px] rounded-xl border border-slate-200 bg-white px-5 py-2.5 text-sm font-semibold text-slate-800 shadow-sm hover:bg-slate-50 sm:min-h-0 sm:px-4 sm:py-2"
+          className="min-h-[48px] shrink-0 rounded-xl border border-slate-200 bg-white px-5 py-2.5 text-sm font-semibold text-slate-800 shadow-sm hover:bg-slate-50 sm:min-h-0 sm:px-4 sm:py-2"
         >
           Refresh
         </button>
@@ -270,274 +292,285 @@ export default function WebsiteLeadsAdmin() {
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
         <KpiPeriodCard
           label="Page views"
-          today={analytics.pageViews.today}
-          week={analytics.pageViews.week}
-          month={analytics.pageViews.month}
+          today={visitorAnalytics.pageViews.today}
+          week={visitorAnalytics.pageViews.week}
+          month={visitorAnalytics.pageViews.month}
         />
         <KpiPeriodCard
-          label="Unique sessions"
-          today={analytics.uniqueSessions.today}
-          week={analytics.uniqueSessions.week}
-          month={analytics.uniqueSessions.month}
+          label="Unique visitors"
+          today={visitorAnalytics.uniqueVisitors.today}
+          week={visitorAnalytics.uniqueVisitors.week}
+          month={visitorAnalytics.uniqueVisitors.month}
         />
         <KpiPeriodCard
           label="Clicks"
-          today={analytics.clicks.today}
-          week={analytics.clicks.week}
-          month={analytics.clicks.month}
+          today={visitorAnalytics.clicks.today}
+          week={visitorAnalytics.clicks.week}
+          month={visitorAnalytics.clicks.month}
         />
         <KpiPeriodCard
           label="Quote starts"
-          today={analytics.quoteStarts.today}
-          week={analytics.quoteStarts.week}
-          month={analytics.quoteStarts.month}
+          today={funnelKpis.quoteStarts.today}
+          week={funnelKpis.quoteStarts.week}
+          month={funnelKpis.quoteStarts.month}
         />
         <KpiPeriodCard
-          label="Bookings completed"
-          today={analytics.bookings.today}
-          week={analytics.bookings.week}
-          month={analytics.bookings.month}
+          label="Completed bookings"
+          today={funnelKpis.bookings.today}
+          week={funnelKpis.bookings.week}
+          month={funnelKpis.bookings.month}
         />
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-card">
-          <div className="border-b border-slate-100 px-5 py-4">
-            <h3 className="text-base font-semibold text-slate-900">Most viewed pages (30d)</h3>
+      <AdminSection
+        title="Visitor analytics"
+        description="Browsing and click activity from website_events — not quote leads."
+      >
+        <div className="grid gap-4 lg:grid-cols-2">
+          <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-card">
+            <div className="border-b border-slate-100 px-4 py-3 sm:px-5">
+              <h4 className="text-sm font-semibold text-slate-900">Most viewed pages (30d)</h4>
+            </div>
+            {visitorAnalytics.topPages.length === 0 ? (
+              <p className="px-4 py-6 text-sm text-slate-500 sm:px-5">No page views yet.</p>
+            ) : (
+              <ul className="divide-y divide-slate-100 px-4 py-1 sm:px-5">
+                {visitorAnalytics.topPages.map((row) => (
+                  <li key={row.page_path} className="flex items-center justify-between gap-3 py-2.5 text-sm">
+                    <span className="min-w-0 truncate font-medium text-slate-800">{row.page_path}</span>
+                    <span className="shrink-0 tabular-nums font-semibold text-slate-600">{row.count}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
-          {analytics.topPages.length === 0 ? (
-            <p className="px-5 py-6 text-sm text-slate-500">No page views yet.</p>
+          <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-card">
+            <div className="border-b border-slate-100 px-4 py-3 sm:px-5">
+              <h4 className="text-sm font-semibold text-slate-900">Most clicked links (30d)</h4>
+            </div>
+            {visitorAnalytics.topClicks.length === 0 ? (
+              <p className="px-4 py-6 text-sm text-slate-500 sm:px-5">No clicks yet.</p>
+            ) : (
+              <ul className="divide-y divide-slate-100 px-4 py-1 sm:px-5">
+                {visitorAnalytics.topClicks.map((row) => (
+                  <li key={row.label} className="flex items-center justify-between gap-3 py-2.5 text-sm">
+                    <span className="min-w-0 truncate font-medium text-slate-800">{row.label}</span>
+                    <span className="shrink-0 tabular-nums font-semibold text-slate-600">{row.count}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </div>
+
+        <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-card">
+          <div className="border-b border-slate-100 px-4 py-3 sm:px-5">
+            <h4 className="text-sm font-semibold text-slate-900">Recent visitor activity</h4>
+            <p className="mt-0.5 text-xs text-slate-500">Page views, button clicks, and service-card taps only.</p>
+          </div>
+          {visitorEvents.length === 0 ? (
+            <p className="px-4 py-8 text-center text-sm text-slate-500 sm:px-5">
+              No visitor events yet. Browse the public site, then refresh.
+            </p>
           ) : (
-            <ul className="divide-y divide-slate-100 px-5 py-2">
-              {analytics.topPages.map((row) => (
-                <li key={row.page_path} className="flex items-center justify-between gap-3 py-2.5 text-sm">
-                  <span className="truncate font-medium text-slate-800">{row.page_path}</span>
-                  <span className="shrink-0 tabular-nums font-semibold text-slate-600">{row.count}</span>
-                </li>
-              ))}
-            </ul>
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-slate-200 text-left text-sm">
+                <thead className="bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  <tr>
+                    <th className="px-3 py-2.5 sm:px-4">Time</th>
+                    <th className="px-3 py-2.5 sm:px-4">Event</th>
+                    <th className="px-3 py-2.5 sm:px-4">Click</th>
+                    <th className="px-3 py-2.5 sm:px-4">Page</th>
+                    <th className="hidden px-3 py-2.5 md:table-cell sm:px-4">Source</th>
+                    <th className="hidden px-3 py-2.5 lg:table-cell sm:px-4">Location</th>
+                    <th className="hidden px-3 py-2.5 sm:table-cell sm:px-4">IP</th>
+                    <th className="hidden px-3 py-2.5 md:table-cell sm:px-4">Device</th>
+                    <th className="px-3 py-2.5 sm:px-4">Session</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {visitorEvents.slice(0, 100).map((ev) => {
+                    const click = eventClickLabel(ev)
+                    return (
+                      <tr key={ev.id} className="hover:bg-slate-50/80">
+                        <td className="whitespace-nowrap px-3 py-2 text-slate-600 sm:px-4">
+                          {formatDateTimeUK(ev.created_at)}
+                        </td>
+                        <td className="px-3 py-2 font-medium text-slate-900 sm:px-4">{ev.event_name}</td>
+                        <td className="max-w-[120px] truncate px-3 py-2 text-slate-700 sm:max-w-[140px] sm:px-4">
+                          {click || '—'}
+                        </td>
+                        <td className="max-w-[100px] truncate px-3 py-2 text-slate-700 sm:max-w-[120px] sm:px-4">
+                          {ev.page_path || '—'}
+                        </td>
+                        <td className="hidden max-w-[120px] truncate px-3 py-2 text-xs text-slate-600 md:table-cell sm:px-4">
+                          {ev.referrer || '—'}
+                        </td>
+                        <td className="hidden px-3 py-2 text-slate-700 lg:table-cell sm:px-4">
+                          {[ev.city, ev.region, ev.country].filter(Boolean).join(', ') || '—'}
+                        </td>
+                        <td className="hidden px-3 py-2 font-mono text-xs text-slate-600 sm:table-cell sm:px-4">
+                          {ev.ip_masked || '—'}
+                        </td>
+                        <td className="hidden px-3 py-2 text-xs text-slate-600 md:table-cell sm:px-4">
+                          {[ev.device_type, ev.browser_name].filter(Boolean).join(' · ') || '—'}
+                        </td>
+                        <td className="px-3 py-2 font-mono text-xs text-slate-500 sm:px-4">
+                          {String(ev.session_id || '').slice(0, 8)}…
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
           )}
         </div>
-        <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-card">
-          <div className="border-b border-slate-100 px-5 py-4">
-            <h3 className="text-base font-semibold text-slate-900">Most clicked links (30d)</h3>
-          </div>
-          {analytics.topClicks.length === 0 ? (
-            <p className="px-5 py-6 text-sm text-slate-500">No clicks yet.</p>
-          ) : (
-            <ul className="divide-y divide-slate-100 px-5 py-2">
-              {analytics.topClicks.map((row) => (
-                <li key={row.label} className="flex items-center justify-between gap-3 py-2.5 text-sm">
-                  <span className="truncate font-medium text-slate-800">{row.label}</span>
-                  <span className="shrink-0 tabular-nums font-semibold text-slate-600">{row.count}</span>
-                </li>
+      </AdminSection>
+
+      <AdminSection
+        title="Quote leads / funnel"
+        description="Real quote progress from website_leads — excludes page views and generic clicks."
+      >
+        <WebsiteLeadsRecoveryPanel
+          allRows={allQuoteLeads}
+          rows={rows}
+          recoveryChip={recoveryChip}
+          onRecoveryChipChange={setRecoveryChip}
+        />
+
+        <div className="flex flex-wrap gap-2">
+          {LEAD_FILTERS.map((f) => (
+            <button
+              key={f.id}
+              type="button"
+              onClick={() => setFilter(f.id)}
+              className={`rounded-full px-3 py-1.5 text-xs font-semibold ring-1 ring-inset transition ${
+                filter === f.id
+                  ? 'bg-slate-900 text-white ring-slate-900'
+                  : 'bg-white text-slate-700 ring-slate-200 hover:bg-slate-50'
+              }`}
+            >
+              {f.label}
+            </button>
+          ))}
+        </div>
+
+        <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
+          <label className="min-w-0 flex-1 sm:max-w-xs">
+            <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">
+              City / route
+            </span>
+            <select
+              value={cityRoute}
+              onChange={(e) => setCityRoute(e.target.value)}
+              className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/25"
+            >
+              <option value="">All routes</option>
+              {cityOptions.map((c) => (
+                <option key={c} value={c}>
+                  {c}
+                </option>
               ))}
-            </ul>
+            </select>
+          </label>
+        </div>
+
+        <AdminRecordsSearchRow
+          searchInput={searchInput}
+          onSearchInputChange={(e) => setSearchInput(e.target.value)}
+          onSearchSubmit={runSearchNow}
+          placeholder="Search name, email, phone, quote ref, path…"
+        />
+
+        {error ? (
+          <p className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{error}</p>
+        ) : null}
+
+        <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-card">
+          {loading ? (
+            <p className="px-6 py-12 text-center text-sm text-slate-500">Loading quote leads…</p>
+          ) : rows.length === 0 ? (
+            <p className="px-6 py-12 text-center text-sm text-slate-500">
+              No quote leads match this filter. Visitor browsing is listed above.
+            </p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-slate-200 text-left text-sm">
+                <thead className="bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  <tr>
+                    <th className="px-3 py-3 sm:px-4">Status</th>
+                    <th className="px-3 py-3 sm:px-4">Recovery</th>
+                    <th className="px-3 py-3 sm:px-4">Landing</th>
+                    <th className="hidden px-3 py-3 lg:table-cell sm:px-4">Location</th>
+                    <th className="px-3 py-3 sm:px-4">Service</th>
+                    <th className="px-3 py-3 sm:px-4">Customer</th>
+                    <th className="px-3 py-3 sm:px-4">Step</th>
+                    <th className="hidden px-3 py-3 sm:table-cell sm:px-4">Total</th>
+                    <th className="px-3 py-3 sm:px-4">Quote ref</th>
+                    <th className="hidden px-3 py-3 md:table-cell sm:px-4">Last activity</th>
+                    <th className="px-3 py-3 sm:px-4" />
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {rows.map((row) => {
+                    const eff = row.effective_status || row.status
+                    return (
+                      <tr key={row.id} className="hover:bg-slate-50/80">
+                        <td className="px-3 py-3 sm:px-4">
+                          <StatusBadge status={eff} />
+                        </td>
+                        <td className="px-3 py-3 sm:px-4">
+                          <RecoveryBadge row={row} />
+                        </td>
+                        <td className="max-w-[120px] px-3 py-3 sm:max-w-[140px] sm:px-4">
+                          <div className="truncate font-medium text-slate-900">{row.landing_path || '—'}</div>
+                          {row.city_route ? (
+                            <div className="truncate text-xs text-slate-500">{row.city_route}</div>
+                          ) : null}
+                        </td>
+                        <td className="hidden px-3 py-3 text-slate-700 lg:table-cell sm:px-4">
+                          {[row.city, row.region, row.country].filter(Boolean).join(', ') || '—'}
+                        </td>
+                        <td className="px-3 py-3 text-slate-700 sm:px-4">{row.service_type || '—'}</td>
+                        <td className="max-w-[160px] px-3 py-3 sm:max-w-[180px] sm:px-4">
+                          <div className="truncate font-medium text-slate-900">{row.customer_name || '—'}</div>
+                          {row.customer_email ? (
+                            <div className="truncate text-xs text-slate-500">{row.customer_email}</div>
+                          ) : null}
+                        </td>
+                        <td className="whitespace-nowrap px-3 py-3 text-slate-700 sm:px-4">
+                          {row.current_step ? `Step ${row.current_step}` : '—'}
+                        </td>
+                        <td className="hidden whitespace-nowrap px-3 py-3 text-slate-700 sm:table-cell sm:px-4">
+                          {money(row.estimated_total)}
+                        </td>
+                        <td className="px-3 py-3 font-mono text-xs text-slate-800 sm:px-4">
+                          {row.quote_ref || '—'}
+                        </td>
+                        <td className="hidden whitespace-nowrap px-3 py-3 text-slate-600 md:table-cell sm:px-4">
+                          {formatDateTimeUK(row.last_activity_at)}
+                        </td>
+                        <td className="px-3 py-3 sm:px-4">
+                          <button
+                            type="button"
+                            onClick={() => setSelected(row)}
+                            className="text-sm font-semibold text-brand-700 hover:text-brand-800"
+                          >
+                            Details
+                          </button>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
           )}
         </div>
-      </div>
-
-      <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-card">
-        <div className="border-b border-slate-100 px-5 py-4">
-          <h3 className="text-base font-semibold text-slate-900">Recent activity</h3>
-          <p className="mt-1 text-xs text-slate-500">
-            Page views, button clicks, and quote steps — newest first (last 30 days).
-          </p>
-        </div>
-        {events.length === 0 ? (
-          <p className="px-5 py-8 text-center text-sm text-slate-500">No events yet. Browse the public site, then refresh. If still empty, run migration 032_website_lead_visitor_geo.sql in Supabase.</p>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-slate-200 text-left text-sm">
-              <thead className="bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-500">
-                <tr>
-                  <th className="px-4 py-3">Time</th>
-                  <th className="px-4 py-3">Event</th>
-                  <th className="px-4 py-3">Click</th>
-                  <th className="px-4 py-3">Page</th>
-                  <th className="px-4 py-3">Source</th>
-                  <th className="px-4 py-3">Location</th>
-                  <th className="px-4 py-3">IP</th>
-                  <th className="px-4 py-3">Device</th>
-                  <th className="px-4 py-3">Session</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {events.slice(0, 150).map((ev) => {
-                  const click = eventClickLabel(ev)
-                  return (
-                    <tr key={ev.id} className="hover:bg-slate-50/80">
-                      <td className="whitespace-nowrap px-4 py-2.5 text-slate-600">
-                        {formatDateTimeUK(ev.created_at)}
-                      </td>
-                      <td className="px-4 py-2.5 font-medium text-slate-900">{ev.event_name}</td>
-                      <td className="max-w-[140px] truncate px-4 py-2.5 text-slate-700">{click || '—'}</td>
-                      <td className="max-w-[120px] truncate px-4 py-2.5 text-slate-700">{ev.page_path || '—'}</td>
-                      <td className="max-w-[140px] truncate px-4 py-2.5 text-xs text-slate-600">
-                        {ev.referrer || '—'}
-                      </td>
-                      <td className="px-4 py-2.5 text-slate-700">
-                        {[ev.city, ev.region, ev.country].filter(Boolean).join(', ') || '—'}
-                      </td>
-                      <td className="px-4 py-2.5 font-mono text-xs text-slate-600">{ev.ip_masked || '—'}</td>
-                      <td className="px-4 py-2.5 text-xs text-slate-600">
-                        {[ev.device_type, ev.browser_name].filter(Boolean).join(' · ') || '—'}
-                      </td>
-                      <td className="px-4 py-2.5 font-mono text-xs text-slate-500">
-                        {String(ev.session_id || '').slice(0, 8)}…
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
-
-      <WebsiteLeadsRecoveryPanel
-        allRows={allRowsForCities}
-        rows={rows}
-        recoveryChip={recoveryChip}
-        onRecoveryChipChange={setRecoveryChip}
-      />
-
-      <div className="flex flex-wrap gap-2">
-        {FILTERS.map((f) => (
-          <button
-            key={f.id}
-            type="button"
-            onClick={() => setFilter(f.id)}
-            className={`rounded-full px-3 py-1.5 text-xs font-semibold ring-1 ring-inset transition ${
-              filter === f.id
-                ? 'bg-slate-900 text-white ring-slate-900'
-                : 'bg-white text-slate-700 ring-slate-200 hover:bg-slate-50'
-            }`}
-          >
-            {f.label}
-          </button>
-        ))}
-      </div>
-
-      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
-        <label className="min-w-[200px]">
-          <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">
-            City / route
-          </span>
-          <select
-            value={cityRoute}
-            onChange={(e) => setCityRoute(e.target.value)}
-            className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/25"
-          >
-            <option value="">All routes</option>
-            {cityOptions.map((c) => (
-              <option key={c} value={c}>
-                {c}
-              </option>
-            ))}
-          </select>
-        </label>
-      </div>
-
-      <AdminRecordsSearchRow
-        searchInput={searchInput}
-        onSearchInputChange={(e) => setSearchInput(e.target.value)}
-        onSearchSubmit={runSearchNow}
-        placeholder="Search name, email, phone, quote ref, path…"
-      />
-
-      {error ? (
-        <p className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{error}</p>
-      ) : null}
-
-      <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-card">
-        {loading ? (
-          <p className="px-6 py-12 text-center text-sm text-slate-500">Loading…</p>
-        ) : rows.length === 0 ? (
-          <p className="px-6 py-12 text-center text-sm text-slate-500">No leads match this filter.</p>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-slate-200 text-left text-sm">
-              <thead className="bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-500">
-                <tr>
-                  <th className="px-4 py-3">Status</th>
-                  <th className="px-4 py-3">Recovery</th>
-                  <th className="px-4 py-3">Landing / city</th>
-                  <th className="px-4 py-3">Location</th>
-                  <th className="px-4 py-3">IP</th>
-                  <th className="px-4 py-3">Service</th>
-                  <th className="px-4 py-3">Customer</th>
-                  <th className="px-4 py-3">Step</th>
-                  <th className="px-4 py-3">Total</th>
-                  <th className="px-4 py-3">Quote ref</th>
-                  <th className="px-4 py-3">Last activity</th>
-                  <th className="px-4 py-3">Created</th>
-                  <th className="px-4 py-3" />
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {rows.map((row) => {
-                  const eff = row.effective_status || row.status
-                  return (
-                    <tr key={row.id} className="hover:bg-slate-50/80">
-                      <td className="px-4 py-3">
-                        <StatusBadge status={eff} />
-                      </td>
-                      <td className="px-4 py-3">
-                        <RecoveryBadge row={row} />
-                      </td>
-                      <td className="max-w-[140px] px-4 py-3">
-                        <div className="font-medium text-slate-900">{row.landing_path || '—'}</div>
-                        {row.city_route ? (
-                          <div className="text-xs text-slate-500">{row.city_route}</div>
-                        ) : null}
-                      </td>
-                      <td className="px-4 py-3 text-slate-700">{[row.city, row.region, row.country].filter(Boolean).join(', ') || '—'}
-                      </td>
-                      <td className="px-4 py-3 font-mono text-xs text-slate-600">{row.ip_masked || '—'}</td>
-                      <td className="px-4 py-3 text-slate-700">{row.service_type || '—'}</td>
-                      <td className="max-w-[180px] px-4 py-3">
-                        <div className="font-medium text-slate-900">{row.customer_name || '—'}</div>
-                        {row.customer_email ? (
-                          <div className="truncate text-xs text-slate-500">{row.customer_email}</div>
-                        ) : null}
-                        {row.customer_phone ? (
-                          <div className="text-xs text-slate-500">{row.customer_phone}</div>
-                        ) : null}
-                      </td>
-                      <td className="px-4 py-3 text-slate-700">
-                        {row.current_step ? `Step ${row.current_step}` : '—'}
-                      </td>
-                      <td className="px-4 py-3 text-slate-700">{money(row.estimated_total)}</td>
-                      <td className="px-4 py-3 font-mono text-xs text-slate-800">{row.quote_ref || '—'}</td>
-                      <td className="whitespace-nowrap px-4 py-3 text-slate-600">
-                        {formatDateTimeUK(row.last_activity_at)}
-                      </td>
-                      <td className="whitespace-nowrap px-4 py-3 text-slate-600">
-                        {formatDateTimeUK(row.created_at)}
-                      </td>
-                      <td className="px-4 py-3">
-                        <button
-                          type="button"
-                          onClick={() => setSelected(row)}
-                          className="text-sm font-semibold text-brand-700 hover:text-brand-800"
-                        >
-                          Details
-                        </button>
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
+      </AdminSection>
 
       <LeadDetailDrawer row={selected} onClose={() => setSelected(null)} onRefresh={load} />
     </div>
   )
 }
-
-
-
