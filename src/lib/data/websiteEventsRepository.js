@@ -1,5 +1,6 @@
 import { isSupabaseConfigured, supabase } from '../supabase'
 import { getWebsiteLeadSessionId } from '../websiteLeadSession'
+import { trackingDevLog } from '../trackingDevLog'
 
 const TABLE = 'website_events'
 
@@ -37,11 +38,11 @@ export async function insertWebsiteEvent(row) {
 
   const { data, error } = await supabase.from(TABLE).insert(payload).select('id').maybeSingle()
   if (error) {
-    if (isMissingTableError(error)) return null
-    if (import.meta.env.DEV) {
-      // eslint-disable-next-line no-console
-      console.warn('[website_events] insert failed', error.message)
+    if (isMissingTableError(error)) {
+      trackingDevLog('website_events', 'table missing — run migration 032')
+      return null
     }
+    trackingDevLog('website_events', 'insert failed', error.message)
     return null
   }
   return data
@@ -52,14 +53,17 @@ export async function insertWebsiteEvent(row) {
  */
 export async function fetchWebsiteEventsForAdmin(opts = {}) {
   if (!isSupabaseConfigured || !supabase) return []
-  const limit = Math.min(Math.max(Number(opts.limit) || 200, 1), 500)
-  const { data, error } = await supabase
-    .from(TABLE)
-    .select('*')
-    .order('created_at', { ascending: false })
-    .limit(limit)
+  const limit = Math.min(Math.max(Number(opts.limit) || 500, 1), 2000)
+  let query = supabase.from(TABLE).select('*').order('created_at', { ascending: false }).limit(limit)
+  if (opts.since) {
+    query = query.gte('created_at', String(opts.since))
+  }
+  const { data, error } = await query
   if (error) {
-    if (isMissingTableError(error)) return []
+    if (isMissingTableError(error)) {
+      trackingDevLog('website_events', 'table missing — run migration 032')
+      return []
+    }
     throw new Error(error.message || 'Failed to load website events.')
   }
   return data ?? []

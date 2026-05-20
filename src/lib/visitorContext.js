@@ -55,7 +55,13 @@ export async function resolveVisitorGeoContext() {
         const headers = functionsInvokeHeaders()
         if (headers) opts.headers = headers
         const { data, error } = await supabase.functions.invoke('get-visitor-context', opts)
-        if (error) return {}
+        if (error) {
+          if (import.meta.env.DEV) {
+            // eslint-disable-next-line no-console
+            console.warn('[visitor-context] edge function error', error.message)
+          }
+          return {}
+        }
         const out = {
           ip_hash: data?.ip_hash != null ? String(data.ip_hash) : null,
           ip_masked: data?.ip_masked != null ? String(data.ip_masked) : null,

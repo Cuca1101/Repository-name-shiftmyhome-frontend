@@ -1,4 +1,5 @@
 import { Navigate, Route, Routes, useParams } from 'react-router-dom'
+import WebsiteLeadPageTracker from './components/WebsiteLeadPageTracker'
 import ProtectedRoute from './components/ProtectedRoute'
 import AdminLayout from './components/AdminLayout'
 import PublicLayout from './layouts/PublicLayout'
@@ -53,7 +54,9 @@ const servicePaths = [
 
 export default function App() {
   return (
-    <Routes>
+    <>
+      <WebsiteLeadPageTracker />
+      <Routes>
       <Route path="/" element={<HomePage />} />
       <Route path="/quote" element={<QuotePage />} />
       <Route
@@ -161,5 +164,6 @@ export default function App() {
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
+    </>
   )
 }

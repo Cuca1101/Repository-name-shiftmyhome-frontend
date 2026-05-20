@@ -6,15 +6,12 @@ import HomePageSeo from '../components/seo/HomePageSeo'
 import WebsiteAnnouncementBar from '../components/WebsiteAnnouncementBar'
 import { CoverageModalProvider } from '../context/CoverageModalContext'
 import { WebsiteCmsProvider } from '../context/WebsiteCmsContext'
-import WebsiteLeadPageTracker from '../components/WebsiteLeadPageTracker'
-
 export default function PublicLayout({ children }) {
   return (
     <CoverageModalProvider>
       <WebsiteCmsProvider>
         <div className="flex min-h-screen min-w-0 w-full max-w-full flex-col clip-x">
           <HomeHashScroll />
-          <WebsiteLeadPageTracker />
           <HomePageSeo />
           <WebsiteAnnouncementBar />
           <Navbar />

@@ -32,6 +32,7 @@ export default function DesktopHero() {
             <div className="mt-5 flex flex-col gap-2.5 xs:flex-row xs:flex-wrap sm:mt-6">
               <HomeSectionLink
                 sectionId="services"
+                trackLabel="Get an Instant Quote"
                 className="btn-premium-primary min-h-[46px] w-full px-6 py-2.5 text-sm sm:w-auto sm:min-w-[200px] sm:text-[15px]"
               >
                 {h.ctaPrimaryText}

@@ -12,7 +12,7 @@ import {
   markNewQuoteFromServiceCard,
   markResumeSavedQuote,
 } from '../lib/quoteSessionMode'
-import { trackWebsiteLeadEvent } from '../lib/websiteLeadTracker'
+import { trackWebsiteClick, trackWebsiteLeadEvent } from '../lib/websiteLeadTracker'
 
 /**
  * Compact homepage reminder when an incomplete quote draft exists in localStorage.
@@ -50,6 +50,7 @@ export default function ContinueQuoteBanner() {
 
   function handleContinue() {
     markResumeSavedQuote()
+    void trackWebsiteClick('Continue saved quote', { section: 'banner', href: continuePath })
     trackWebsiteLeadEvent('saved_quote_resumed', {
       quoteRef: draft.quoteRef,
       serviceType: draft.serviceType,
@@ -65,6 +66,7 @@ export default function ContinueQuoteBanner() {
     e.preventDefault()
     clearQuoteDraft()
     markNewQuoteFromServiceCard('', '/quote')
+    void trackWebsiteClick('Start new quote', { section: 'banner', href: '/quote' })
     trackWebsiteLeadEvent('new_quote_started', {
       source: 'start_new_link',
       serviceType: '',

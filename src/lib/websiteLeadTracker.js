@@ -2,6 +2,7 @@ import { upsertWebsiteLead } from './data/websiteLeadsRepository'
 import { insertWebsiteEvent } from './data/websiteEventsRepository'
 import { getVisitorTrackingContext } from './visitorContext'
 import { getWebsiteLeadSessionId } from './websiteLeadSession'
+import { trackingDevLog } from './trackingDevLog'
 
 /** @typedef {import('./data/websiteLeadsRepository').WebsiteLeadStatus} WebsiteLeadStatus */
 
@@ -26,10 +27,16 @@ export function extractUkPostcode(address) {
 async function getCachedVisitorContext() {
   if (visitorContextCache) return visitorContextCache
   if (!visitorContextPromise) {
-    visitorContextPromise = getVisitorTrackingContext().then((ctx) => {
-      visitorContextCache = ctx
-      return ctx
-    })
+    visitorContextPromise = getVisitorTrackingContext()
+      .then((ctx) => {
+        visitorContextCache = ctx
+        return ctx
+      })
+      .catch((err) => {
+        trackingDevLog('visitor-context', 'geo lookup failed', err)
+        visitorContextCache = {}
+        return {}
+      })
   }
   return visitorContextPromise
 }
@@ -57,39 +64,110 @@ function canonicalFunnelEventName(event, step) {
 }
 
 /**
- * @param {string} eventName
- * @param {Record<string, unknown>} patch
- * @param {Record<string, unknown>} data
+ * @param {string} [explicit]
  */
-async function recordWebsiteEvent(eventName, patch, data = {}) {
-  const ctx = await getCachedVisitorContext()
-  const pagePath =
-    typeof data.returnPath === 'string' && data.returnPath
-      ? data.returnPath
-      : typeof window !== 'undefined'
-        ? window.location.pathname
-        : '/'
+function currentPagePath(explicit) {
+  if (typeof explicit === 'string' && explicit) return explicit
+  if (typeof window !== 'undefined') return window.location.pathname || '/'
+  return '/'
+}
 
-  await insertWebsiteEvent({
-    session_id: getWebsiteLeadSessionId(),
-    event_name: eventName,
-    page_path: pagePath,
-    referrer: ctx.referrer ?? patch.referrer ?? null,
-    quote_ref: patch.quote_ref ?? data.quoteRef ?? null,
-    funnel_step: data.step != null ? Number(data.step) : patch.current_step ?? null,
-    ip_address: ctx.ip_address ?? null,
-    ip_hash: ctx.ip_hash ?? null,
-    ip_masked: ctx.ip_masked ?? null,
-    city: ctx.city ?? null,
-    region: ctx.region ?? null,
-    country: ctx.country ?? null,
-    user_agent: ctx.user_agent ?? null,
-    device_type: ctx.device_type ?? null,
-    browser_name: ctx.browser_name ?? null,
-    metadata: {
-      service_type: patch.service_type ?? data.serviceType ?? null,
-      payment_type: data.paymentType ?? null,
-    },
+/**
+ * @param {string} href
+ */
+function safeHrefForMetadata(href) {
+  const h = String(href || '').trim()
+  if (!h) return null
+  if (h.startsWith('tel:') || h.startsWith('mailto:')) return h.slice(0, 120)
+  if (h.startsWith('/') || h.startsWith('#')) return h.slice(0, 200)
+  if (h.startsWith('http://') || h.startsWith('https://')) {
+    try {
+      const u = new URL(h)
+      if (u.hostname.includes('shiftmyhome.co.uk') || u.hostname.includes('wa.me')) {
+        return `${u.pathname}${u.search}`.slice(0, 200) || u.hostname
+      }
+    } catch {
+      /* ignore */
+    }
+  }
+  return null
+}
+
+/**
+ * @param {string} eventName
+ * @param {string} pagePath
+ * @param {Record<string, unknown>} [metadata]
+ * @param {Record<string, unknown>} [extra]
+ */
+async function recordWebsiteEvent(eventName, pagePath, metadata = {}, extra = {}) {
+  try {
+    const ctx = await getCachedVisitorContext()
+    const id = await insertWebsiteEvent({
+      session_id: getWebsiteLeadSessionId(),
+      event_name: eventName,
+      page_path: pagePath,
+      referrer: ctx.referrer ?? extra.referrer ?? null,
+      quote_ref: extra.quote_ref ?? null,
+      funnel_step: extra.funnel_step != null ? Number(extra.funnel_step) : null,
+      ip_address: ctx.ip_address ?? null,
+      ip_hash: ctx.ip_hash ?? null,
+      ip_masked: ctx.ip_masked ?? null,
+      city: ctx.city ?? null,
+      region: ctx.region ?? null,
+      country: ctx.country ?? null,
+      user_agent: ctx.user_agent ?? null,
+      device_type: ctx.device_type ?? null,
+      browser_name: ctx.browser_name ?? null,
+      metadata,
+    })
+    if (!id && import.meta.env.DEV) {
+      trackingDevLog('website_events', `insert returned null for ${eventName}`)
+    }
+    return id
+  } catch (err) {
+    trackingDevLog('website_events', `insert error for ${eventName}`, err)
+    return null
+  }
+}
+
+/**
+ * Lightweight page view — always writes website_events.
+ * @param {string} [path]
+ */
+export async function trackPageView(path) {
+  if (typeof window === 'undefined') return
+  const pagePath = currentPagePath(path)
+  void recordWebsiteEvent('page_view', pagePath, { type: 'page_view' })
+  void trackWebsiteLeadPatch({
+    status: 'visited',
+    funnel_event: 'page_view',
+    landing_path: pagePath,
+    city_route: cityRouteFromPath(pagePath),
+  })
+}
+
+/**
+ * Button / link click tracking.
+ * @param {string} label
+ * @param {{ href?: string, section?: string, serviceType?: string, quoteRef?: string }} [metadata]
+ */
+export async function trackWebsiteClick(label, metadata = {}) {
+  if (typeof window === 'undefined') return
+  const pagePath = currentPagePath()
+  const meta = {
+    label: String(label || 'Click').trim() || 'Click',
+    href: metadata.href != null ? safeHrefForMetadata(String(metadata.href)) : null,
+    section: metadata.section ? String(metadata.section) : null,
+    service_type: metadata.serviceType ? String(metadata.serviceType) : null,
+  }
+  void recordWebsiteEvent('button_click', pagePath, meta, {
+    quote_ref: metadata.quoteRef ?? null,
+  })
+  void trackWebsiteLeadPatch({
+    funnel_event: 'button_click',
+    landing_path: pagePath,
+    city_route: cityRouteFromPath(pagePath),
+    service_type: metadata.serviceType ?? null,
   })
 }
 
@@ -103,9 +181,7 @@ export async function trackWebsiteLeadPatch(patch) {
     const landingPath =
       typeof patch.landing_path === 'string' && patch.landing_path
         ? patch.landing_path
-        : typeof window !== 'undefined'
-          ? window.location.pathname
-          : '/'
+        : currentPagePath()
 
     const merged = {
       ...ctx,
@@ -117,7 +193,8 @@ export async function trackWebsiteLeadPatch(patch) {
     }
 
     return await upsertWebsiteLead(merged)
-  } catch {
+  } catch (err) {
+    trackingDevLog('website_leads', 'upsert failed', err)
     return null
   }
 }
@@ -127,12 +204,9 @@ export async function trackWebsiteLeadPatch(patch) {
  * @param {Record<string, unknown>} [data]
  */
 export async function trackWebsiteLeadEvent(event, data = {}) {
-  const landingPath =
-    typeof data.returnPath === 'string' && data.returnPath
-      ? data.returnPath
-      : typeof window !== 'undefined'
-        ? window.location.pathname
-        : '/'
+  const landingPath = currentPagePath(
+    typeof data.returnPath === 'string' && data.returnPath ? data.returnPath : undefined
+  )
 
   const allowPii =
     data.allowPii === true ||
@@ -237,9 +311,20 @@ export async function trackWebsiteLeadEvent(event, data = {}) {
 
   const funnelEvent = String(patch.funnel_event || event)
   const canonical = canonicalFunnelEventName(funnelEvent, patch.current_step)
-  void recordWebsiteEvent(canonical, patch, data)
+
+  const eventMeta = {
+    service_type: patch.service_type ?? data.serviceType ?? null,
+    payment_type: data.paymentType ?? null,
+  }
+
+  void recordWebsiteEvent(canonical, landingPath, eventMeta, {
+    quote_ref: patch.quote_ref ?? null,
+    funnel_step: data.step != null ? Number(data.step) : patch.current_step ?? null,
+  })
   if (event === 'payment_completed' && canonical !== 'booking_completed') {
-    void recordWebsiteEvent('booking_completed', patch, data)
+    void recordWebsiteEvent('booking_completed', landingPath, eventMeta, {
+      quote_ref: patch.quote_ref ?? null,
+    })
   }
 
   return trackWebsiteLeadPatch(patch)
@@ -262,14 +347,23 @@ export async function trackWebsiteLeadEvent(event, data = {}) {
 export function trackQuoteWizardSnapshot(opts) {
   const w = opts.wizard || {}
   const allowContact = opts.allowContactInLead === true
+  const landingPath = opts.landingPath || currentPagePath()
+  const step = opts.step
+
+  void recordWebsiteEvent(
+    step >= 1 && step <= 4 ? `quote_step_${step}` : 'step_completed',
+    landingPath,
+    { service_type: opts.serviceType },
+    { quote_ref: opts.quoteRef, funnel_step: step }
+  )
 
   return trackWebsiteLeadPatch({
     status: opts.status || (opts.step > 1 ? 'step_completed' : 'quote_started'),
     quote_ref: opts.quoteRef,
     service_type: opts.serviceType,
     current_step: opts.step,
-    landing_path: opts.landingPath || (typeof window !== 'undefined' ? window.location.pathname : '/'),
-    funnel_event: opts.step >= 1 && opts.step <= 4 ? `quote_step_${opts.step}` : 'step_completed',
+    landing_path: landingPath,
+    funnel_event: step >= 1 && step <= 4 ? `quote_step_${step}` : 'step_completed',
     ...(allowContact
       ? {
           customer_name: String(w.fullName || '').trim() || null,

@@ -8,6 +8,7 @@ import {
   scheduleAbandonedRecoveryForRows,
 } from '../lib/data/websiteLeadsRepository'
 import { fetchWebsiteEventsForAdmin } from '../lib/data/websiteEventsRepository'
+import { computeWebsiteEventAnalytics, eventClickLabel } from '../lib/websiteEventAnalytics'
 import { filterLeadsByRecoveryChip } from '../lib/websiteLeadRecovery'
 import { formatDateTimeUK } from '../lib/formatDateDisplay'
 import WebsiteLeadsRecoveryPanel, { RecoveryBadge } from './admin/WebsiteLeadsRecoveryPanel'
@@ -58,6 +59,23 @@ function StatusBadge({ status }) {
 function money(n) {
   if (n == null || n === '') return '—'
   return `£${Number(n).toFixed(2)}`
+}
+
+/**
+ * @param {{ label: string, today: number, week: number, month: number }} props
+ */
+function KpiPeriodCard({ label, today, week, month }) {
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-card sm:p-5">
+      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{label}</p>
+      <p className="mt-2 text-2xl font-bold tabular-nums text-slate-900">{today}</p>
+      <p className="mt-1 text-xs text-slate-600">
+        7d: <span className="font-semibold text-slate-800">{week}</span>
+        <span className="mx-1 text-slate-300">·</span>
+        30d: <span className="font-semibold text-slate-800">{month}</span>
+      </p>
+    </div>
+  )
 }
 
 function DetailRow({ label, children }) {
@@ -203,7 +221,10 @@ export default function WebsiteLeadsAdmin() {
           search: activeSearch,
         }),
         fetchWebsiteLeadsForAdmin({ filter: 'all' }),
-        fetchWebsiteEventsForAdmin({ limit: 150 }),
+        fetchWebsiteEventsForAdmin({
+          limit: 2000,
+          since: new Date(Date.now() - 30 * 86400000).toISOString(),
+        }),
       ])
       await scheduleAbandonedRecoveryForRows(all)
       setRows(filterLeadsByRecoveryChip(list, recoveryChip))
@@ -221,6 +242,7 @@ export default function WebsiteLeadsAdmin() {
   }, [load])
 
   const cityOptions = useMemo(() => distinctCityRoutesFromLeads(allRowsForCities), [allRowsForCities])
+  const analytics = useMemo(() => computeWebsiteEventAnalytics(events), [events])
 
   const runSearchNow = useCallback(() => {
     setActiveSearch(searchInput.trim())
@@ -232,8 +254,8 @@ export default function WebsiteLeadsAdmin() {
         <div>
           <h2 className="text-2xl font-bold text-slate-900">Website Leads / Quote Funnel</h2>
           <p className="mt-1 text-sm text-slate-600">
-            Anonymous visitors and quote progress. Abandoned = started quote with no activity for 30+ minutes.
-            Visitor IP is stored masked/hashed for admin analytics only (GDPR).
+            Page views, clicks, and quote funnel from website_events. Visitor IP is masked for admin analytics only
+            (GDPR). Geo needs migration 032 + edge function get-visitor-context.
           </p>
         </div>
         <button
@@ -245,16 +267,85 @@ export default function WebsiteLeadsAdmin() {
         </button>
       </div>
 
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+        <KpiPeriodCard
+          label="Page views"
+          today={analytics.pageViews.today}
+          week={analytics.pageViews.week}
+          month={analytics.pageViews.month}
+        />
+        <KpiPeriodCard
+          label="Unique sessions"
+          today={analytics.uniqueSessions.today}
+          week={analytics.uniqueSessions.week}
+          month={analytics.uniqueSessions.month}
+        />
+        <KpiPeriodCard
+          label="Clicks"
+          today={analytics.clicks.today}
+          week={analytics.clicks.week}
+          month={analytics.clicks.month}
+        />
+        <KpiPeriodCard
+          label="Quote starts"
+          today={analytics.quoteStarts.today}
+          week={analytics.quoteStarts.week}
+          month={analytics.quoteStarts.month}
+        />
+        <KpiPeriodCard
+          label="Bookings completed"
+          today={analytics.bookings.today}
+          week={analytics.bookings.week}
+          month={analytics.bookings.month}
+        />
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-card">
+          <div className="border-b border-slate-100 px-5 py-4">
+            <h3 className="text-base font-semibold text-slate-900">Most viewed pages (30d)</h3>
+          </div>
+          {analytics.topPages.length === 0 ? (
+            <p className="px-5 py-6 text-sm text-slate-500">No page views yet.</p>
+          ) : (
+            <ul className="divide-y divide-slate-100 px-5 py-2">
+              {analytics.topPages.map((row) => (
+                <li key={row.page_path} className="flex items-center justify-between gap-3 py-2.5 text-sm">
+                  <span className="truncate font-medium text-slate-800">{row.page_path}</span>
+                  <span className="shrink-0 tabular-nums font-semibold text-slate-600">{row.count}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+        <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-card">
+          <div className="border-b border-slate-100 px-5 py-4">
+            <h3 className="text-base font-semibold text-slate-900">Most clicked links (30d)</h3>
+          </div>
+          {analytics.topClicks.length === 0 ? (
+            <p className="px-5 py-6 text-sm text-slate-500">No clicks yet.</p>
+          ) : (
+            <ul className="divide-y divide-slate-100 px-5 py-2">
+              {analytics.topClicks.map((row) => (
+                <li key={row.label} className="flex items-center justify-between gap-3 py-2.5 text-sm">
+                  <span className="truncate font-medium text-slate-800">{row.label}</span>
+                  <span className="shrink-0 tabular-nums font-semibold text-slate-600">{row.count}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </div>
+
       <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-card">
         <div className="border-b border-slate-100 px-5 py-4">
-          <h3 className="text-base font-semibold text-slate-900">Recent funnel events</h3>
+          <h3 className="text-base font-semibold text-slate-900">Recent activity</h3>
           <p className="mt-1 text-xs text-slate-500">
-            Latest page views and quote steps with approximate location (requires migration 032 + edge function
-            get-visitor-context).
+            Page views, button clicks, and quote steps — newest first (last 30 days).
           </p>
         </div>
         {events.length === 0 ? (
-          <p className="px-5 py-8 text-center text-sm text-slate-500">No events recorded yet.</p>
+          <p className="px-5 py-8 text-center text-sm text-slate-500">No events yet. Browse the public site, then refresh. If still empty, run migration 032_website_lead_visitor_geo.sql in Supabase.</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-slate-200 text-left text-sm">
@@ -262,6 +353,7 @@ export default function WebsiteLeadsAdmin() {
                 <tr>
                   <th className="px-4 py-3">Time</th>
                   <th className="px-4 py-3">Event</th>
+                  <th className="px-4 py-3">Click</th>
                   <th className="px-4 py-3">Page</th>
                   <th className="px-4 py-3">Source</th>
                   <th className="px-4 py-3">Location</th>
@@ -271,28 +363,32 @@ export default function WebsiteLeadsAdmin() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {events.map((ev) => (
-                  <tr key={ev.id} className="hover:bg-slate-50/80">
-                    <td className="whitespace-nowrap px-4 py-2.5 text-slate-600">
-                      {formatDateTimeUK(ev.created_at)}
-                    </td>
-                    <td className="px-4 py-2.5 font-medium text-slate-900">{ev.event_name}</td>
-                    <td className="max-w-[120px] truncate px-4 py-2.5 text-slate-700">{ev.page_path || '—'}</td>
-                    <td className="max-w-[140px] truncate px-4 py-2.5 text-xs text-slate-600">
-                      {ev.referrer || '—'}
-                    </td>
-                    <td className="px-4 py-2.5 text-slate-700">
-                      {[ev.city, ev.region, ev.country].filter(Boolean).join(', ') || '—'}
-                    </td>
-                    <td className="px-4 py-2.5 font-mono text-xs text-slate-600">{ev.ip_masked || '—'}</td>
-                    <td className="px-4 py-2.5 text-xs text-slate-600">
-                      {[ev.device_type, ev.browser_name].filter(Boolean).join(' · ') || '—'}
-                    </td>
-                    <td className="px-4 py-2.5 font-mono text-xs text-slate-500">
-                      {String(ev.session_id || '').slice(0, 8)}…
-                    </td>
-                  </tr>
-                ))}
+                {events.slice(0, 150).map((ev) => {
+                  const click = eventClickLabel(ev)
+                  return (
+                    <tr key={ev.id} className="hover:bg-slate-50/80">
+                      <td className="whitespace-nowrap px-4 py-2.5 text-slate-600">
+                        {formatDateTimeUK(ev.created_at)}
+                      </td>
+                      <td className="px-4 py-2.5 font-medium text-slate-900">{ev.event_name}</td>
+                      <td className="max-w-[140px] truncate px-4 py-2.5 text-slate-700">{click || '—'}</td>
+                      <td className="max-w-[120px] truncate px-4 py-2.5 text-slate-700">{ev.page_path || '—'}</td>
+                      <td className="max-w-[140px] truncate px-4 py-2.5 text-xs text-slate-600">
+                        {ev.referrer || '—'}
+                      </td>
+                      <td className="px-4 py-2.5 text-slate-700">
+                        {[ev.city, ev.region, ev.country].filter(Boolean).join(', ') || '—'}
+                      </td>
+                      <td className="px-4 py-2.5 font-mono text-xs text-slate-600">{ev.ip_masked || '—'}</td>
+                      <td className="px-4 py-2.5 text-xs text-slate-600">
+                        {[ev.device_type, ev.browser_name].filter(Boolean).join(' · ') || '—'}
+                      </td>
+                      <td className="px-4 py-2.5 font-mono text-xs text-slate-500">
+                        {String(ev.session_id || '').slice(0, 8)}…
+                      </td>
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
           </div>
