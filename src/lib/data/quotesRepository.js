@@ -5,6 +5,14 @@ const QUOTES_TABLE = 'quotes'
 /** Homepage contact section — matches admin filter & reporting */
 export const HOME_PAGE_QUOTE_SOURCE = 'home_page_quote_form'
 
+/** Sources shown in Admin → Quote Requests (public lead forms only). */
+export const PUBLIC_QUOTE_REQUEST_SOURCES = [
+  HOME_PAGE_QUOTE_SOURCE,
+  'website',
+  'public_quote_request',
+  'quote_request',
+]
+
 /**
  * @returns {string} SMH-YYYY-XXXXXX (6 digits)
  */
@@ -40,36 +48,38 @@ export async function insertHomePageQuoteLead(form) {
     for (let attempt = 0; attempt < 8; attempt += 1) {
       const candidate = generateQuoteRef()
       const row = buildHomePageQuoteRow({ ...form, quote_ref: candidate })
-      const { data, error } = await supabase.from(QUOTES_TABLE).insert(row).select('id, quote_ref').single()
-      if (!error && data) {
-        return { id: data.id, quote_ref: data.quote_ref }
+      const { error } = await supabase.from(QUOTES_TABLE).insert(row)
+      if (!error) {
+        return { id: '', quote_ref: row.quote_ref }
       }
       if (error?.code === '23505') {
         continue
       }
-      const detail = error?.message || String(error)
-      throw new Error(
-        `Could not save your quote: ${detail}. If a column is missing, run migration 005_quotes_source_column.sql in Supabase.`,
-      )
+      throw new Error(formatHomePageQuoteInsertError(error))
     }
     throw new Error('Could not allocate a unique quote reference. Please try again.')
   }
 
   const row = buildHomePageQuoteRow({ ...form, quote_ref: quoteRef })
-  const { data, error } = await supabase.from(QUOTES_TABLE).insert(row).select('id, quote_ref').single()
+  const { error } = await supabase.from(QUOTES_TABLE).insert(row)
 
   if (error) {
-    const detail = error.message || String(error)
     if (error.code === '23505') {
       throw new Error(
         'This quote reference is already in use. Leave it blank to get a new one, or use the reference we emailed you.',
       )
     }
-    throw new Error(
-      `Could not save your quote: ${detail}. If a column is missing, run migration 005_quotes_source_column.sql in Supabase.`,
-    )
+    throw new Error(formatHomePageQuoteInsertError(error))
   }
-  return { id: data.id, quote_ref: data.quote_ref }
+  return { id: '', quote_ref: row.quote_ref }
+}
+
+/**
+ * @param {{ message?: string, code?: string }} error
+ */
+function formatHomePageQuoteInsertError(error) {
+  const detail = error?.message || String(error)
+  return `Could not save your quote: ${detail}. Ask your administrator to run Supabase migration 047_quotes_public_lead_insert_rls.sql.`
 }
 
 /**

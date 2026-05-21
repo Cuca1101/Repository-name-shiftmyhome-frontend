@@ -94,8 +94,8 @@ export default function HomePageQuoteRequestsAdmin() {
         <div>
           <h2 className="text-2xl font-bold text-slate-900">Quote requests</h2>
           <p className="mt-1 text-sm text-slate-600">
-            Simple enquiry form on the homepage — saved with{' '}
-            <code className="rounded bg-slate-100 px-1">source = home_page_quote_form</code>.
+            Simple enquiry form on the homepage — public leads with source{' '}
+            <code className="rounded bg-slate-100 px-1">home_page_quote_form</code> (and related public sources).
           </p>
         </div>
         <button

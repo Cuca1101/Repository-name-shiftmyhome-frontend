@@ -1,6 +1,6 @@
 import { sanitizeAdminIlikeTerm } from '../adminSearch'
 import { isSupabaseConfigured, supabase } from '../supabase'
-import { HOME_PAGE_QUOTE_SOURCE } from './quotesRepository'
+import { HOME_PAGE_QUOTE_SOURCE, PUBLIC_QUOTE_REQUEST_SOURCES } from './quotesRepository'
 
 const QUOTES_TABLE = 'quotes'
 
@@ -209,7 +209,7 @@ export async function fetchHomePageQuoteRequests(searchTerm = '') {
   let q = supabase
     .from(QUOTES_TABLE)
     .select('*')
-    .eq('source', HOME_PAGE_QUOTE_SOURCE)
+    .in('source', PUBLIC_QUOTE_REQUEST_SOURCES)
     .order('created_at', { ascending: false })
 
   const safe = sanitizeAdminIlikeTerm(searchTerm)
