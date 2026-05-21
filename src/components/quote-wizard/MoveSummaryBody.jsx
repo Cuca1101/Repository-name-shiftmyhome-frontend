@@ -12,7 +12,6 @@ import {
   formatCompactArrivalLine,
   formatWizardServiceExtrasSummary,
 } from '../../lib/emailQuotePayload'
-import QuoteBreakdownLines from './QuoteBreakdownLines'
 
 function truncate(s, max = 42) {
   if (!s) return '—'
@@ -262,7 +261,6 @@ export default function MoveSummaryBody({
           <p className="mt-1 text-xl font-bold tracking-tight text-emerald-700 sm:text-2xl">
             £{breakdown.estimatedTotal.toFixed(2)}
           </p>
-          <QuoteBreakdownLines breakdown={breakdown} className="mt-3 border-t border-emerald-100/80 pt-3" dense />
           <p className="mt-2 text-[11px] leading-relaxed text-slate-600">
             Updates as you add details. Final price confirmed by ShiftMyHome.
           </p>

@@ -108,6 +108,14 @@ export default function QuotePaymentSection({
       ? Number(depositAmountGbp)
       : 50
   const depositFormatted = `£${depositGbp.toFixed(2)}`
+  const remainingBalanceGbp =
+    estimatedTotal != null &&
+    Number.isFinite(estimatedTotal) &&
+    estimatedTotal > depositGbp
+      ? estimatedTotal - depositGbp
+      : null
+  const remainingBalanceFormatted =
+    remainingBalanceGbp != null ? `£${remainingBalanceGbp.toFixed(2)}` : null
 
   const termsReady = confirmed && agreedToTerms
 
@@ -207,7 +215,7 @@ export default function QuotePaymentSection({
   const amountLabel = cardPayment?.amountLabel || ''
 
   return (
-    <div ref={rootRef} className="min-w-0 space-y-3 md:space-y-4">
+    <div ref={rootRef} data-quote-field="payment" className="min-w-0 space-y-3 md:space-y-4">
       <div className={card}>
         <h3 className="text-sm font-bold text-slate-900 md:text-base">
           Choose how you&apos;d like to pay
@@ -275,6 +283,31 @@ export default function QuotePaymentSection({
               : 'Please confirm your details and accept the terms above first.'}
           </p>
         </div>
+
+        {estimatedTotal != null && Number.isFinite(estimatedTotal) ? (
+          <dl className="mt-3 space-y-1.5 rounded-lg border border-emerald-100/90 bg-emerald-50/50 px-3 py-2.5 text-sm md:mt-4">
+            <div className="flex items-baseline justify-between gap-3">
+              <dt className="font-medium text-slate-800">Estimated total</dt>
+              <dd className="font-bold tabular-nums text-emerald-700">{totalFormatted}</dd>
+            </div>
+            {paymentChoice === 'deposit' && depositAllowed ? (
+              <>
+                <div className="flex items-baseline justify-between gap-3 text-xs md:text-sm">
+                  <dt className="text-slate-700">Pay today (deposit)</dt>
+                  <dd className="font-semibold tabular-nums text-slate-900">{depositFormatted}</dd>
+                </div>
+                {remainingBalanceFormatted ? (
+                  <div className="flex items-baseline justify-between gap-3 text-xs md:text-sm">
+                    <dt className="text-slate-700">Remaining balance</dt>
+                    <dd className="font-semibold tabular-nums text-slate-900">
+                      {remainingBalanceFormatted}
+                    </dd>
+                  </div>
+                ) : null}
+              </>
+            ) : null}
+          </dl>
+        ) : null}
 
         {!depositAllowed ? (
           <p className="mt-3 text-xs leading-relaxed text-slate-600 md:mt-4 md:text-sm">
@@ -348,7 +381,15 @@ export default function QuotePaymentSection({
           </p>
         ) : null}
 
-        {payError ? <p className="mt-3 text-xs text-red-700 md:text-sm">{payError}</p> : null}
+        {payError ? (
+          <p
+            className="quote-error mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-800 md:text-sm"
+            role="alert"
+            data-quote-error="true"
+          >
+            {payError}
+          </p>
+        ) : null}
 
         <div
           ref={stripeSectionRef}

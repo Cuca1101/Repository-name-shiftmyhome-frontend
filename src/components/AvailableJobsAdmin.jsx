@@ -1,9 +1,32 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { fetchQuotesForAdmin } from '../lib/data/quotesAdminRepository'
 import { quotePassesAvailableJobsStrict } from '../lib/adminJobListRules'
+import {
+  availableJobIdSet,
+  findNewAvailableJobIds,
+  formatNewJobToastMessage,
+  pickJobsByIds,
+} from '../lib/availableJobsNewJobNotify'
+import {
+  playAvailableJobsAlertSound,
+  readAvailableJobsSoundEnabled,
+  readAvailableJobsSoundUnlocked,
+  unlockAvailableJobsSound,
+  writeAvailableJobsSoundEnabled,
+} from '../lib/availableJobsSoundAlerts'
 import JobCard from './admin-workflow/JobCard'
+import AdminJobListSections from './admin-workflow/AdminJobListSections'
 import AdminRecordsSearchRow from './admin/AdminRecordsSearchRow'
+import MarketplacePricingSettingsPanel from './admin-workflow/MarketplacePricingSettingsPanel'
+import AutoMarketplaceHoldToggle from './admin-workflow/AutoMarketplaceHoldToggle'
+import { runAutoMarketplaceTick } from '../lib/autoMarketplacePublish'
+import { loadMarketplacePricingDefaults } from '../lib/marketplacePricingDefaultsStore'
+
+const POLL_MS = 12_000
+const AUTO_MARKETPLACE_MS = 60_000
+const HIGHLIGHT_MS = 4_000
+const NOTIFY_DEBOUNCE_MS = 450
 
 const FILTERS = [
   { key: 'all_paid', label: 'All paid' },
@@ -79,37 +102,174 @@ export default function AvailableJobsAdmin() {
   const extendJourneyId = (searchParams.get('extendJourney') || '').trim()
   const [filterKey, setFilterKey] = useState('all_paid')
   const [sortKey, setSortKey] = useState('paid_newest')
-  const [viewMode, setViewMode] = useState('grid')
+  const [viewMode, setViewMode] = useState('list')
   const [searchInput, setSearchInput] = useState('')
   const [activeSearch, setActiveSearch] = useState('')
   const [rows, setRows] = useState([])
   const [loading, setLoading] = useState(true)
+  const [isRefreshing, setIsRefreshing] = useState(false)
   const [error, setError] = useState('')
   const [selectedIds, setSelectedIds] = useState(() => new Set())
+  const [highlightIds, setHighlightIds] = useState(() => new Set())
+  const [toast, setToast] = useState('')
+  const [soundEnabled, setSoundEnabled] = useState(() => readAvailableJobsSoundEnabled())
+  const [soundUnlocked, setSoundUnlocked] = useState(() => readAvailableJobsSoundUnlocked())
+
+  const knownIdsRef = useRef(new Set())
+  const notifyReadyRef = useRef(false)
+  const refreshInFlightRef = useRef(false)
+  const notifyDebounceRef = useRef(null)
+  const pendingNotifyIdsRef = useRef([])
+  const latestRowsRef = useRef([])
 
   useEffect(() => {
     const t = setTimeout(() => setActiveSearch(searchInput.trim()), 300)
     return () => clearTimeout(t)
   }, [searchInput])
 
+  const fetchFilteredRows = useCallback(async () => {
+    const list = await fetchQuotesForAdmin(filterKey, activeSearch)
+    return list.filter(quotePassesAvailableJobsStrict)
+  }, [filterKey, activeSearch])
+
+  const applySelectionFilter = useCallback((filtered) => {
+    setSelectedIds((prev) => new Set([...prev].filter((id) => filtered.some((r) => String(r.id) === id))))
+  }, [])
+
+  const flushNewJobNotifications = useCallback(() => {
+    const ids = [...new Set(pendingNotifyIdsRef.current)]
+    pendingNotifyIdsRef.current = []
+    if (!ids.length || !notifyReadyRef.current) return
+
+    const jobs = pickJobsByIds(latestRowsRef.current, ids)
+    setToast(formatNewJobToastMessage(jobs))
+    window.setTimeout(() => setToast(''), 6000)
+
+    setHighlightIds((prev) => {
+      const next = new Set(prev)
+      for (const id of ids) next.add(id)
+      return next
+    })
+    window.setTimeout(() => {
+      setHighlightIds((prev) => {
+        const next = new Set(prev)
+        for (const id of ids) next.delete(id)
+        return next
+      })
+    }, HIGHLIGHT_MS)
+
+    if (soundEnabled && soundUnlocked) {
+      void playAvailableJobsAlertSound()
+    }
+  }, [soundEnabled, soundUnlocked])
+
+  const queueNewJobNotifications = useCallback(
+    (filtered, newIds) => {
+      if (!newIds.length) return
+      latestRowsRef.current = filtered
+      pendingNotifyIdsRef.current = [...pendingNotifyIdsRef.current, ...newIds]
+      if (notifyDebounceRef.current) window.clearTimeout(notifyDebounceRef.current)
+      notifyDebounceRef.current = window.setTimeout(() => {
+        notifyDebounceRef.current = null
+        flushNewJobNotifications()
+      }, NOTIFY_DEBOUNCE_MS)
+    },
+    [flushNewJobNotifications],
+  )
+
+  const mergeRows = useCallback(
+    (filtered, { notify }) => {
+      latestRowsRef.current = filtered
+      if (notify) {
+        const newIds = findNewAvailableJobIds(knownIdsRef.current, filtered)
+        if (newIds.length > 0) queueNewJobNotifications(filtered, newIds)
+      }
+      knownIdsRef.current = availableJobIdSet(filtered)
+      setRows(filtered)
+      applySelectionFilter(filtered)
+    },
+    [applySelectionFilter, queueNewJobNotifications],
+  )
+
   const load = useCallback(async () => {
     setLoading(true)
     setError('')
+    notifyReadyRef.current = false
+    if (notifyDebounceRef.current) {
+      window.clearTimeout(notifyDebounceRef.current)
+      notifyDebounceRef.current = null
+    }
+    pendingNotifyIdsRef.current = []
     try {
-      const list = await fetchQuotesForAdmin(filterKey, activeSearch)
-      const filtered = list.filter(quotePassesAvailableJobsStrict)
+      const filtered = await fetchFilteredRows()
+      knownIdsRef.current = availableJobIdSet(filtered)
+      latestRowsRef.current = filtered
       setRows(filtered)
-      setSelectedIds((prev) => new Set([...prev].filter((id) => filtered.some((r) => String(r.id) === id))))
+      applySelectionFilter(filtered)
+      notifyReadyRef.current = true
     } catch (e) {
       setError(e?.message || 'Failed to load quotes.')
     } finally {
       setLoading(false)
     }
-  }, [filterKey, activeSearch])
+  }, [applySelectionFilter, fetchFilteredRows])
+
+  const silentRefresh = useCallback(async () => {
+    if (refreshInFlightRef.current || loading) return
+    refreshInFlightRef.current = true
+    setIsRefreshing(true)
+    try {
+      const filtered = await fetchFilteredRows()
+      mergeRows(filtered, { notify: true })
+    } catch {
+      /* keep current list on background failure */
+    } finally {
+      refreshInFlightRef.current = false
+      setIsRefreshing(false)
+    }
+  }, [fetchFilteredRows, loading, mergeRows])
+
+  const runAutoMarketplace = useCallback(async () => {
+    const defs = loadMarketplacePricingDefaults()
+    if (!defs.autoMarketplace.enabled || rows.length === 0) return
+    try {
+      const { published } = await runAutoMarketplaceTick(rows)
+      if (published > 0) {
+        const filtered = await fetchFilteredRows()
+        mergeRows(filtered, { notify: false })
+      }
+    } catch {
+      /* non-fatal */
+    }
+  }, [rows, fetchFilteredRows, mergeRows])
 
   useEffect(() => {
-    load()
+    void load()
   }, [load])
+
+  useEffect(() => {
+    const defs = loadMarketplacePricingDefaults()
+    if (!defs.autoMarketplace.enabled) return undefined
+    void runAutoMarketplace()
+    const id = window.setInterval(() => void runAutoMarketplace(), AUTO_MARKETPLACE_MS)
+    return () => window.clearInterval(id)
+  }, [runAutoMarketplace])
+
+  useEffect(() => {
+    if (!notifyReadyRef.current) return undefined
+    const tick = () => {
+      if (document.visibilityState === 'visible') void silentRefresh()
+    }
+    const id = window.setInterval(tick, POLL_MS)
+    return () => window.clearInterval(id)
+  }, [silentRefresh, filterKey, activeSearch])
+
+  useEffect(
+    () => () => {
+      if (notifyDebounceRef.current) window.clearTimeout(notifyDebounceRef.current)
+    },
+    [],
+  )
 
   const sortedRows = useMemo(() => {
     const copy = [...rows]
@@ -126,6 +286,20 @@ export default function AvailableJobsAdmin() {
     if (sortedRows.length > 0) return ''
     return activeSearch ? 'No jobs found.' : 'No Available Jobs yet.'
   }, [loading, sortedRows.length, activeSearch])
+
+  async function enableSoundAlerts() {
+    const ok = await unlockAvailableJobsSound()
+    if (ok) {
+      setSoundUnlocked(true)
+      setSoundEnabled(true)
+    }
+  }
+
+  function toggleSoundAlerts() {
+    const next = !soundEnabled
+    writeAvailableJobsSoundEnabled(next)
+    setSoundEnabled(next)
+  }
 
   function toggleSelected(id) {
     const sid = String(id)
@@ -151,12 +325,26 @@ export default function AvailableJobsAdmin() {
 
   return (
     <div className="space-y-5">
+      {toast ? (
+        <div
+          className="fixed bottom-4 right-4 z-[80] max-w-sm rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-950 shadow-lg"
+          role="status"
+          aria-live="polite"
+        >
+          {toast}
+        </div>
+      ) : null}
+
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <h2 className="text-2xl font-bold text-slate-900">Available Jobs</h2>
           <p className="mt-1 max-w-2xl text-sm text-slate-600">
             Only card-paid bookings waiting for assignment appear here. Open a job for marketplace controls,
             assignment, and payment history. Unpaid leads stay in Website Leads / Quote Funnel.
+            <span className="mt-1 block text-xs text-slate-500">
+              List updates automatically every {Math.round(POLL_MS / 1000)} seconds.
+              {isRefreshing ? ' · Updating…' : null}
+            </span>
             {extendJourneyId ? (
               <span className="mt-2 block font-semibold text-indigo-800">
                 Adding to saved journey — selections merge into that journey when you open the planner.
@@ -175,13 +363,49 @@ export default function AvailableJobsAdmin() {
           </button>
           <button
             type="button"
-            onClick={load}
-            className="rounded-lg border border-slate-200 bg-white px-3.5 py-2 text-sm font-semibold text-slate-800 shadow-sm hover:bg-slate-50"
+            onClick={() => void silentRefresh()}
+            disabled={loading || isRefreshing}
+            className="rounded-lg border border-slate-200 bg-white px-3.5 py-2 text-sm font-semibold text-slate-800 shadow-sm hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            Refresh
+            {isRefreshing ? 'Refreshing…' : 'Refresh'}
           </button>
         </div>
       </div>
+
+      {!soundUnlocked ? (
+        <div className="flex flex-col gap-3 rounded-xl border border-amber-200/90 bg-amber-50/80 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-sm text-amber-950">
+            Hear a short alert when a new paid job appears on this board. Your browser requires one click to allow
+            sound.
+          </p>
+          <button
+            type="button"
+            onClick={() => void enableSoundAlerts()}
+            className="shrink-0 rounded-lg bg-amber-900 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-amber-800"
+          >
+            Enable job sound alerts
+          </button>
+        </div>
+      ) : (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-200/90 bg-slate-50/80 px-4 py-2.5">
+          <span className="text-sm text-slate-700">Sound alerts for new jobs</span>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={soundEnabled}
+            onClick={toggleSoundAlerts}
+            className={`rounded-lg px-3 py-1.5 text-sm font-semibold shadow-sm ${
+              soundEnabled
+                ? 'bg-emerald-600 text-white hover:bg-emerald-500'
+                : 'border border-slate-200 bg-white text-slate-800 hover:bg-slate-100'
+            }`}
+          >
+            Sound alerts: {soundEnabled ? 'On' : 'Off'}
+          </button>
+        </div>
+      )}
+
+      <MarketplacePricingSettingsPanel marketplaceQuotes={[]} onApplied={load} compact />
 
       <AdminRecordsSearchRow
         searchInput={searchInput}
@@ -225,16 +449,6 @@ export default function AvailableJobsAdmin() {
           <div className="inline-flex rounded-lg border border-slate-200 bg-white p-0.5 shadow-sm" role="group" aria-label="View mode">
             <button
               type="button"
-              onClick={() => setViewMode('grid')}
-              className={`rounded-md px-2.5 py-1.5 text-xs font-semibold ${
-                viewMode === 'grid' ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-50'
-              }`}
-              aria-pressed={viewMode === 'grid'}
-            >
-              Grid
-            </button>
-            <button
-              type="button"
               onClick={() => setViewMode('list')}
               className={`rounded-md px-2.5 py-1.5 text-xs font-semibold ${
                 viewMode === 'list' ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-50'
@@ -242,6 +456,16 @@ export default function AvailableJobsAdmin() {
               aria-pressed={viewMode === 'list'}
             >
               List
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode('grid')}
+              className={`rounded-md px-2.5 py-1.5 text-xs font-semibold ${
+                viewMode === 'grid' ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-50'
+              }`}
+              aria-pressed={viewMode === 'grid'}
+            >
+              Grid
             </button>
           </div>
         </div>
@@ -264,21 +488,24 @@ export default function AvailableJobsAdmin() {
           {emptyMessage}
         </p>
       ) : (
-        <ul
-          className={
-            viewMode === 'list'
-              ? 'flex flex-col gap-2'
-              : 'grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4'
-          }
-        >
-          {sortedRows.map((q) => (
+        <AdminJobListSections
+          jobs={sortedRows}
+          viewMode={viewMode}
+          renderJob={(q) => (
             <JobCard
-              key={String(q.id)}
               q={q}
               listVariant="available"
               layoutMode={viewMode}
-              showQuickActions
-              onDemoCancelled={load}
+              highlight={highlightIds.has(String(q.id))}
+              secondarySlot={
+                <AutoMarketplaceHoldToggle
+                  q={q}
+                  onUpdated={async () => {
+                    const filtered = await fetchFilteredRows()
+                    mergeRows(filtered, { notify: false })
+                  }}
+                />
+              }
               selectionCheckbox={
                 <label className="flex cursor-pointer items-center gap-1.5 text-[11px] font-medium text-slate-600">
                   <input
@@ -291,8 +518,8 @@ export default function AvailableJobsAdmin() {
                 </label>
               }
             />
-          ))}
-        </ul>
+          )}
+        />
       )}
     </div>
   )

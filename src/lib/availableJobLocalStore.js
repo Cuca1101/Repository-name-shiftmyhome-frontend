@@ -27,6 +27,7 @@ const STORAGE_KEY = 'smh_admin_available_job_v1'
  *   marketplacePayoutManualOverride?: boolean,
  *   marketplaceDeductionSnapshot?: { type: 'percentage' | 'fixed', value: number } | null,
  *   partnerDashboardHidden?: boolean,
+ *   autoMarketplaceHold?: boolean,
  * }} AvailableJobAdminOverrides
  */
 

@@ -28,6 +28,12 @@ import {
   step3ContactDetailsError,
   step3ContactDetailsValid,
 } from '../../lib/quoteWizardStep3ContactScroll'
+import {
+  QUOTE_ERROR_SCROLL_HINTS,
+  resolveStep1ScrollHint,
+  resolveStep2ScrollHint,
+  scheduleQuoteValidationScroll,
+} from '../../lib/quoteWizardScrollToError'
 import { isMobileViewport } from '../../lib/arrivalTimeSlots'
 import {
   isWizardArrivalValid,
@@ -220,7 +226,10 @@ export function QuoteWizardProvider({ children, serviceType: serviceTypeProp, al
         const s = await fetchPricingSettings()
         if (!c) setSettings(s)
       } catch {
-        if (!c) setFeedback({ type: 'error', text: 'Could not load pricing. Refresh and try again.' })
+        if (!c) {
+          setFeedback({ type: 'error', text: 'Could not load pricing. Refresh and try again.' })
+          scheduleQuoteValidationScroll({ hint: QUOTE_ERROR_SCROLL_HINTS.feedback })
+        }
       } finally {
         if (!c) setLoadingSettings(false)
       }
@@ -429,6 +438,12 @@ export function QuoteWizardProvider({ children, serviceType: serviceTypeProp, al
         type: 'error',
         text: 'Please select an address from the suggestions so we can calculate the route.',
       })
+      scheduleQuoteValidationScroll({
+        hint: resolveStep1ScrollHint(
+          wizard,
+          'Please select an address from the suggestions so we can calculate the route.',
+        ),
+      })
       return
     }
     if (
@@ -437,27 +452,39 @@ export function QuoteWizardProvider({ children, serviceType: serviceTypeProp, al
       !isMoveDateOnOrAfterToday(wizard.moveDate)
     ) {
       setFeedback({ type: 'error', text: MOVE_DATE_PAST_ERROR })
+      scheduleQuoteValidationScroll({ hint: QUOTE_ERROR_SCROLL_HINTS.moveDate })
       return
     }
     if (step === 1 && !isWizardArrivalValid(wizard)) {
-      setFeedback({ type: 'error', text: wizardArrivalErrorMessage(wizard) })
+      const arrivalMsg = wizardArrivalErrorMessage(wizard)
+      setFeedback({ type: 'error', text: arrivalMsg })
+      scheduleQuoteValidationScroll({
+        hint: QUOTE_ERROR_SCROLL_HINTS.arrival,
+      })
       return
     }
     if (!canGoNext()) {
       if (step === 2) {
         if (!(Number(wizard.crewSize) >= 1 && Number(wizard.crewSize) <= 4)) {
           setFeedback({ type: 'error', text: 'Please select a crew size before continuing.' })
+          scheduleQuoteValidationScroll({ hint: QUOTE_ERROR_SCROLL_HINTS.crewSize })
         } else if (wizard.inventoryLines.length === 0) {
           setFeedback({ type: 'error', text: 'Add at least one item to your inventory.' })
+          scheduleQuoteValidationScroll({ hint: QUOTE_ERROR_SCROLL_HINTS.inventory })
         } else {
           setFeedback({ type: 'error', text: 'Please complete the required fields.' })
+          scheduleQuoteValidationScroll({ hint: resolveStep2ScrollHint(wizard) })
         }
       } else if (step === 3) {
         const { message, field } = step3ContactDetailsError(wizard)
         setFeedback({ type: 'error', text: message })
         scrollToStep3ContactField(field)
+      } else if (step === 1) {
+        setFeedback({ type: 'error', text: 'Please complete the required fields.' })
+        scheduleQuoteValidationScroll({ hint: resolveStep1ScrollHint(wizard) })
       } else {
         setFeedback({ type: 'error', text: 'Please complete the required fields.' })
+        scheduleQuoteValidationScroll({ hint: QUOTE_ERROR_SCROLL_HINTS.feedback })
       }
       return
     }
@@ -569,18 +596,22 @@ export function QuoteWizardProvider({ children, serviceType: serviceTypeProp, al
     async (paymentType) => {
       if (paymentType === 'full' && !breakdown) {
         setPayError('Your quote total is still calculating. Please wait a moment and try again.')
+        scheduleQuoteValidationScroll({ hint: QUOTE_ERROR_SCROLL_HINTS.payment })
         return
       }
       if (!isMoveDateOnOrAfterToday(wizard.moveDate)) {
         setPayError(MOVE_DATE_PAST_ERROR)
+        scheduleQuoteValidationScroll({ hint: QUOTE_ERROR_SCROLL_HINTS.payment })
         return
       }
       if (wizard.phone.trim().length <= 5) {
         setPayError('Please add your phone number on step 3 before paying.')
+        scheduleQuoteValidationScroll({ hint: QUOTE_ERROR_SCROLL_HINTS.payment })
         return
       }
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(wizard.email.trim())) {
         setPayError('Please add a valid email on step 3 before paying.')
+        scheduleQuoteValidationScroll({ hint: QUOTE_ERROR_SCROLL_HINTS.payment })
         return
       }
 
@@ -589,10 +620,12 @@ export function QuoteWizardProvider({ children, serviceType: serviceTypeProp, al
         payload = buildQuotePayloadForSave()
       } catch (e) {
         setPayError(e?.message ?? 'Could not prepare your quote for payment.')
+        scheduleQuoteValidationScroll({ hint: QUOTE_ERROR_SCROLL_HINTS.payment })
         return
       }
       if (!payload) {
         setPayError('Please complete your quote details before paying.')
+        scheduleQuoteValidationScroll({ hint: QUOTE_ERROR_SCROLL_HINTS.payment })
         return
       }
 
@@ -635,6 +668,7 @@ export function QuoteWizardProvider({ children, serviceType: serviceTypeProp, al
         })
       } catch (e) {
         setPayError(e?.message ?? 'Payment could not start.')
+        scheduleQuoteValidationScroll({ hint: QUOTE_ERROR_SCROLL_HINTS.payment })
       } finally {
         setPayLoading(false)
       }
@@ -655,6 +689,7 @@ export function QuoteWizardProvider({ children, serviceType: serviceTypeProp, al
     if (!breakdown || !settings) return
     if (!isMoveDateOnOrAfterToday(wizard.moveDate)) {
       setFeedback({ type: 'error', text: MOVE_DATE_PAST_ERROR })
+      scheduleQuoteValidationScroll({ hint: QUOTE_ERROR_SCROLL_HINTS.moveDate })
       return
     }
     if (!isEmailJsReady()) {
@@ -662,6 +697,7 @@ export function QuoteWizardProvider({ children, serviceType: serviceTypeProp, al
         type: 'error',
         text: EMAILJS_TEMPLATE_ID_GUIDE,
       })
+      scheduleQuoteValidationScroll({ hint: QUOTE_ERROR_SCROLL_HINTS.feedback })
       return
     }
 
@@ -799,6 +835,7 @@ export function QuoteWizardProvider({ children, serviceType: serviceTypeProp, al
       setLastQuoteData(null)
       const msg = err?.text || err?.message || 'Something went wrong.'
       setFeedback({ type: 'error', text: typeof msg === 'string' ? msg : 'Submit failed.' })
+      scheduleQuoteValidationScroll({ hint: QUOTE_ERROR_SCROLL_HINTS.feedback })
     } finally {
       setSubmitting(false)
     }

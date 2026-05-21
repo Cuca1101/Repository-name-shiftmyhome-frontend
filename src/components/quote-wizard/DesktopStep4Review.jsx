@@ -1,4 +1,3 @@
-import QuoteBreakdownLines from './QuoteBreakdownLines'
 import QuoteEstimatedTotalCard from './QuoteEstimatedTotalCard'
 
 function EditLink({ label, step, onGoToStep }) {
@@ -27,11 +26,6 @@ export default function DesktopStep4Review({ breakdown, onGoToStep }) {
       </div>
 
       <QuoteEstimatedTotalCard breakdown={breakdown} />
-
-      <div className="min-w-0 rounded-2xl border border-slate-200 bg-white px-5 py-4 shadow-sm">
-        <p className="text-sm font-semibold text-slate-900">Price breakdown</p>
-        <QuoteBreakdownLines breakdown={breakdown} className="mt-3" />
-      </div>
 
       <div className="rounded-2xl border border-sky-200/80 bg-gradient-to-br from-sky-50/90 to-white px-5 py-4 text-sm leading-relaxed text-sky-950 shadow-sm">
         <p className="font-semibold text-sky-900">Need to change something?</p>

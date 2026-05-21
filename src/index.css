@@ -62,6 +62,27 @@
 
 /* Preserve desktop-like structure on phones: tighter spacing, smaller type, no overflow. */
 @layer components {
+  [data-quote-field],
+  [data-quote-error='true'],
+  [data-quote-wizard-feedback='true'] {
+    scroll-margin-top: 5.5rem;
+  }
+
+  .quote-error-highlight {
+    animation: quote-error-pulse 2.2s ease-out;
+    outline: 2px solid rgb(248 113 113 / 0.55);
+    outline-offset: 2px;
+  }
+
+  @keyframes quote-error-pulse {
+    0%,
+    100% {
+      outline-color: rgb(248 113 113 / 0.15);
+    }
+    25% {
+      outline-color: rgb(248 113 113 / 0.7);
+    }
+  }
   .home-container {
     @apply mx-auto w-full min-w-0 max-w-site px-4 sm:px-6 lg:px-8;
   }
@@ -492,5 +513,17 @@
   .admin-main-compact .text-2xl {
     font-size: 1.25rem;
     line-height: 1.75rem;
+  }
+}
+
+@keyframes available-job-highlight {
+  0% {
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.45);
+  }
+  40% {
+    box-shadow: 0 0 0 6px rgba(16, 185, 129, 0.15);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0);
   }
 }

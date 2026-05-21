@@ -203,7 +203,9 @@ function QuoteWizardInner({ compact = false }) {
         {feedback.text && (
           <div
             role="alert"
-            className={`mb-4 rounded-xl border px-4 py-3 text-sm md:mb-6 ${
+            data-quote-wizard-feedback="true"
+            data-quote-error={feedback.type === 'error' ? 'true' : undefined}
+            className={`quote-error mb-4 rounded-xl border px-4 py-3 text-sm md:mb-6 ${
               feedback.type === 'success'
                 ? 'border-emerald-200 bg-emerald-50 text-emerald-900'
                 : feedback.type === 'warning'

@@ -64,6 +64,7 @@ export default function MobileStep2Inventory({
         value={crewSize}
         onChange={onCrewSizeChange}
         crewSettings={crewSettings}
+        invalid={Boolean(validationMessage && /crew size/i.test(validationMessage))}
       />
 
       <div className="px-0.5">
@@ -80,14 +81,15 @@ export default function MobileStep2Inventory({
 
       {validationMessage ? (
         <p
-          className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-medium text-red-800"
+          className="quote-error rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-medium text-red-800"
           role="alert"
+          data-quote-error="true"
         >
           {validationMessage}
         </p>
       ) : null}
 
-      <div ref={catalogSectionRef} className={`${card} overflow-hidden p-3`}>
+      <div ref={catalogSectionRef} data-quote-field="inventory" className={`${card} overflow-hidden p-3`}>
         <div className="-mx-1 flex min-w-0 snap-x snap-mandatory gap-2.5 overflow-x-auto overscroll-x-contain scroll-smooth px-1 pb-2.5 touch-pan-x [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {categoryOrder.map((key) => {
             const c = inventoryByCategory[key]

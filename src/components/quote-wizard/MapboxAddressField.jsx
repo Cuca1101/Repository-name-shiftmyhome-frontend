@@ -117,9 +117,17 @@ export default function MapboxAddressField({
     return null
   }
 
+  const quoteField =
+    addressKey === 'pickupAddress'
+      ? 'pickup-address'
+      : addressKey === 'deliveryAddress'
+        ? 'delivery-address'
+        : undefined
+
   return (
     <div
       ref={rootRef}
+      data-quote-field={quoteField}
       className={`relative min-w-0 ${open && suggestions.length > 0 ? 'z-20' : 'z-0'}`}
     >
       <label className="mb-1.5 block text-sm font-medium text-slate-700">

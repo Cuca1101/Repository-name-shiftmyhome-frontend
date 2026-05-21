@@ -3,6 +3,8 @@ import { Link } from 'react-router-dom'
 import { LEAD_STATUSES } from '../constants/leadStatus'
 import { fetchAllJobs, countLegacyQuotes } from '../lib/data/jobsRepository'
 import { fetchQuotePaymentStats } from '../lib/data/quotesAdminRepository'
+import ProductionDataCleanupModal from '../components/admin/ProductionDataCleanupModal'
+import { showDemoAdminUi } from '../lib/adminProductionMode'
 
 export default function AdminHome() {
   const [jobs, setJobs] = useState([])
@@ -10,6 +12,7 @@ export default function AdminHome() {
   const [quoteStats, setQuoteStats] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [cleanupOpen, setCleanupOpen] = useState(false)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -48,7 +51,9 @@ export default function AdminHome() {
       <div className="admin-surface sm:p-6">
         <h2 className="text-base font-bold tracking-tight text-slate-900 xxs:text-lg sm:text-2xl">Overview</h2>
         <p className="mt-2 max-w-2xl text-sm leading-relaxed text-slate-600">
-          Snapshot of job cards from the live pricing flow.{' '}
+          Snapshot of job cards from the live pricing flow. Before go-live, run{' '}
+          <strong className="font-semibold text-slate-800">Clear test data</strong> to archive pre-launch
+          quotes and journeys.{' '}
           {legacyQuotes > 0 && (
             <span className="text-slate-500">
               Legacy <code className="rounded-md bg-slate-100 px-1.5 py-0.5 text-xs">quotes</code> rows:{' '}
@@ -134,13 +139,24 @@ export default function AdminHome() {
                   Available Jobs
                 </Link>
               </li>
+              {showDemoAdminUi() ? (
+                <li>
+                  <Link
+                    to="/admin/jobs"
+                    className="inline-flex min-h-[44px] items-center rounded-xl border border-slate-200 bg-white px-5 py-2.5 text-sm font-semibold text-slate-800 shadow-sm transition hover:border-slate-300 hover:bg-slate-50"
+                  >
+                    Job cards (legacy)
+                  </Link>
+                </li>
+              ) : null}
               <li>
-                <Link
-                  to="/admin/jobs"
-                  className="inline-flex min-h-[44px] items-center rounded-xl border border-slate-200 bg-white px-5 py-2.5 text-sm font-semibold text-slate-800 shadow-sm transition hover:border-slate-300 hover:bg-slate-50"
+                <button
+                  type="button"
+                  onClick={() => setCleanupOpen(true)}
+                  className="inline-flex min-h-[44px] items-center rounded-xl border border-red-200 bg-red-50 px-5 py-2.5 text-sm font-semibold text-red-900 shadow-sm transition hover:bg-red-100"
                 >
-                  Job cards
-                </Link>
+                  Clear test data for go-live…
+                </button>
               </li>
               <li>
                 <Link
@@ -162,6 +178,11 @@ export default function AdminHome() {
           </div>
         </>
       )}
+      <ProductionDataCleanupModal
+        open={cleanupOpen}
+        onClose={() => setCleanupOpen(false)}
+        onDone={load}
+      />
     </div>
   )
 }

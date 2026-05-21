@@ -52,6 +52,8 @@ export function buildAdminJobQuoteDetailsViewModel(q) {
       deliveryAddress: '',
       pickupAddressShort: '—',
       deliveryAddressShort: '—',
+      pickupCity: '—',
+      deliveryCity: '—',
     }
   }
 
@@ -112,6 +114,9 @@ export function buildAdminJobQuoteDetailsViewModel(q) {
   const pickupAddress = String(q.pickup_address || '').trim()
   const deliveryAddress = String(q.delivery_address || '').trim()
 
+  const pickupCity = cityFromAddress(pickupAddress)
+  const deliveryCity = cityFromAddress(deliveryAddress)
+
   return {
     kvFlat,
     distanceDisplay,
@@ -135,5 +140,21 @@ export function buildAdminJobQuoteDetailsViewModel(q) {
     deliveryAddress,
     pickupAddressShort: pickupAddress ? shortAddressLine(pickupAddress, 42) : '—',
     deliveryAddressShort: deliveryAddress ? shortAddressLine(deliveryAddress, 42) : '—',
+    pickupCity,
+    deliveryCity,
   }
+}
+
+/**
+ * @param {string} address
+ */
+function cityFromAddress(address) {
+  const s = String(address || '').trim()
+  if (!s) return '—'
+  const parts = s.split(',').map((p) => p.trim()).filter(Boolean)
+  if (parts.length >= 2) {
+    const candidate = parts[parts.length - 2]
+    if (candidate && !/^[A-Z]{1,2}\d/i.test(candidate)) return candidate
+  }
+  return parts[0] || '—'
 }

@@ -40,7 +40,17 @@ import {
 } from '../lib/journeyFinance'
 import { computeMarketplacePayoutFromCustomerTotal } from '../lib/marketplacePayoutMath'
 import JourneyRouteMap from './admin-workflow/JourneyRouteMap'
-import JourneyPlannerSavedList from './JourneyPlannerSavedList'
+import JourneyPlannerList from './journey-planner/JourneyPlannerList'
+import JourneyPlannerHelpPanel from './journey-planner/JourneyPlannerHelpPanel'
+import JourneyCompletionGuidance from './journey-planner/JourneyCompletionGuidance'
+import JourneyAssignDriverButton from './journey-planner/JourneyAssignDriverButton'
+import JourneyRemoveJobModal from './journey-planner/JourneyRemoveJobModal'
+import JourneyStopCard from './journey-planner/JourneyStopCard'
+import {
+  executeRemoveJobFromJourney,
+  quotesWithoutQuote,
+  stopsWithoutQuote,
+} from '../lib/journeyRemoveJob'
 
 const DRAFT_IDS_KEY = 'smh_journey_draft_quote_ids'
 
@@ -183,6 +193,11 @@ export default function JourneyPlannerPage() {
   const [scheduleOrderWarning, setScheduleOrderWarning] = useState('')
   const [scheduleOptimizing, setScheduleOptimizing] = useState(false)
   const [draggingStopIndex, setDraggingStopIndex] = useState(null)
+  const [expandedStopIds, setExpandedStopIds] = useState(() => new Set())
+  const [removingJob, setRemovingJob] = useState(false)
+  const [removeTarget, setRemoveTarget] = useState(
+    /** @type {{ quoteId: string, jobRef: string, customerName: string } | null} */ (null),
+  )
   const [payoutManuallySet, setPayoutManuallySet] = useState(false)
   const [adjustPriceOpen, setAdjustPriceOpen] = useState(false)
   const [adjustDraft, setAdjustDraft] = useState('')
@@ -416,6 +431,15 @@ export default function JourneyPlannerPage() {
     }
   }, [selectedQuoteIds, journeyIdFromUrl])
 
+  const quotesById = useMemo(() => {
+    /** @type {Record<string, Record<string, unknown>>} */
+    const m = {}
+    for (const q of quotes) {
+      if (q?.id != null) m[String(q.id)] = q
+    }
+    return m
+  }, [quotes])
+
   const totals = useMemo(
     () => computeJourneyTotals(stops, totalDriveSeconds),
     [stops, totalDriveSeconds],
@@ -601,15 +625,92 @@ export default function JourneyPlannerPage() {
     void attemptApplyStops(next)
   }
 
-  function removeJobFromJourney(quoteId) {
+  function requestRemoveJobFromJourney(quoteId, meta) {
     const qid = String(quoteId || '').trim()
     if (!qid) return
-    if (!window.confirm('Remove this job from the journey (pickup and delivery stops)?')) return
-    const nextStops = stops.filter((s) => s.quoteId !== qid)
-    const nextQuotes = quotes.filter((q) => String(q.id) !== qid)
-    setQuotes(nextQuotes)
-    setScheduleOrderWarning('')
-    void applyRouteForStops(nextStops)
+    setRemoveTarget({
+      quoteId: qid,
+      jobRef: meta?.jobRef || '',
+      customerName: meta?.customerName || '',
+    })
+  }
+
+  async function confirmRemoveJobFromJourney() {
+    if (!removeTarget) return
+    const qid = removeTarget.quoteId
+    setRemovingJob(true)
+    setSaveMsg('')
+    setSaveMsgIsError(false)
+    try {
+      if (!savedJourneyId || !journeyRecord) {
+        const nextStops = stopsWithoutQuote(stops, qid)
+        const nextQuotes = quotesWithoutQuote(quotes, qid)
+        setQuotes(nextQuotes)
+        setScheduleOrderWarning('')
+        await applyRouteForStops(nextStops)
+        setSaveMsg('Job removed from this draft. Save the journey to persist.')
+        setRemoveTarget(null)
+        return
+      }
+
+      const result = await executeRemoveJobFromJourney({
+        journeyId: savedJourneyId,
+        journey: journeyRecord,
+        quoteId: qid,
+        stops,
+        quotes,
+        mapboxToken: token,
+        withdrawFromMarketplaceIfListed: marketplaceListed,
+      })
+
+      if (result.marketplaceWithdrawn) {
+        setMarketplaceListed(false)
+      }
+
+      const { journey: j, stops: dbStops } = await fetchJourneyWithStops(savedJourneyId)
+      if (j) setJourneyRecord(j)
+
+      const orderedIds = []
+      const seen = new Set()
+      for (const s of dbStops) {
+        const sid = s.quote_id != null ? String(s.quote_id).trim() : ''
+        if (sid && !seen.has(sid)) {
+          seen.add(sid)
+          orderedIds.push(sid)
+        }
+      }
+      const rows = orderedIds.length > 0 ? await fetchQuotesByIds(orderedIds) : []
+      setQuotes(rows)
+
+      const refToQuoteId = new Map(rows.map((q) => [String(q.quote_ref || '').trim(), String(q.id)]))
+      const modelStops = dbStops.map(dbStopToModel).map((s) => {
+        const sqid = String(s.quoteId || '').trim()
+        if (sqid) return s
+        const fromRef = refToQuoteId.get(String(s.jobRef || '').trim())
+        return fromRef ? { ...s, quoteId: fromRef } : s
+      })
+
+      setScheduleOrderWarning('')
+      await applyRouteForStops(modelStops)
+
+      if (!result.empty && !journeyRecord?.journey_payout_manually_set) {
+        const suggested = suggestJourneyMarketplacePayoutFromQuotes(rows)
+        if (suggested) setJourneyPayoutInput(String(suggested.payout.toFixed(2)))
+      }
+
+      setSaveMsg(
+        result.empty
+          ? 'Job removed. Journey is empty — add jobs or delete this draft.'
+          : `Job removed.${result.marketplaceWithdrawn ? ' Withdrawn from marketplace.' : ''} Totals updated.`,
+      )
+      setListRefreshKey((k) => k + 1)
+      setRemoveTarget(null)
+    } catch (e) {
+      setSaveMsgIsError(true)
+      setSaveMsg(e?.message || 'Could not remove job.')
+    } finally {
+      setRemovingJob(false)
+    }
   }
 
   async function onOptimize() {
@@ -805,19 +906,22 @@ export default function JourneyPlannerPage() {
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <h2 className="text-2xl font-bold text-slate-900">Journey planner</h2>
-            <p className="mt-1 max-w-2xl text-sm text-slate-600">
-              Build multi-stop bundles from Available Jobs, save a journey, then adjust payout and stop order before
-              sending to the marketplace. Pickup must stay before delivery for each job.
+            <p className="mt-1 text-sm text-slate-600">
+              Build multi-stop bundles from Available Jobs, save a journey, then open it for the operational view or
+              edit stops and payout before marketplace publish.
             </p>
           </div>
           <Link
             to="/admin/available-jobs"
             className="min-h-[44px] rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-800 shadow-sm hover:bg-slate-50"
           >
-            Back to Available Jobs
+            Available Jobs
           </Link>
         </div>
-        <JourneyPlannerSavedList refreshKey={listRefreshKey} embed />
+        <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_17rem]">
+          <JourneyPlannerList refreshKey={listRefreshKey} />
+          <JourneyPlannerHelpPanel className="lg:sticky lg:top-4 lg:self-start" />
+        </div>
       </div>
     )
   }
@@ -857,13 +961,29 @@ export default function JourneyPlannerPage() {
             ready.
           </p>
         </div>
-        <button
-          type="button"
-          onClick={() => navigate('/admin/available-jobs')}
-          className="min-h-[44px] rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-800 shadow-sm hover:bg-slate-50"
-        >
-          Back to Available Jobs
-        </button>
+        <div className="flex flex-wrap gap-2">
+          {savedJourneyId ? (
+            <Link
+              to={`/admin/journey-planner/view/${encodeURIComponent(savedJourneyId)}`}
+              className="min-h-[44px] rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-800 shadow-sm hover:bg-slate-50"
+            >
+              Journey view
+            </Link>
+          ) : null}
+          <Link
+            to="/admin/journey-planner"
+            className="min-h-[44px] rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-800 shadow-sm hover:bg-slate-50"
+          >
+            All journeys
+          </Link>
+          <button
+            type="button"
+            onClick={() => navigate('/admin/available-jobs')}
+            className="min-h-[44px] rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-800 shadow-sm hover:bg-slate-50"
+          >
+            Available Jobs
+          </button>
+        </div>
       </div>
 
       <section className="overflow-hidden rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-white shadow-lg">
@@ -1006,72 +1126,94 @@ export default function JourneyPlannerPage() {
             ))}
           </div>
         ) : null}
-        <div className="flex flex-wrap gap-2 border-t border-white/10 bg-black/20 p-4 sm:p-5">
-          <button
-            type="button"
-            disabled={saving || stops.length === 0}
-            onClick={() => void onSave()}
-            className="min-h-[44px] rounded-xl bg-white px-4 py-2 text-sm font-semibold text-slate-900 hover:bg-slate-100 disabled:opacity-45"
-          >
-            {saving ? 'Saving…' : 'Save journey'}
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setEditMode((editing) => {
-                if (!editing) setSummaryTitleOverride(displayTitle)
-                return !editing
-              })
-            }}
-            className="min-h-[44px] rounded-xl border border-white/25 bg-transparent px-4 py-2 text-sm font-semibold text-white hover:bg-white/10"
-          >
-            {editMode ? 'Done editing' : 'Edit journey'}
-          </button>
-          <button
-            type="button"
-            onClick={() => openAdjustPriceModal()}
-            className="min-h-[44px] rounded-xl border border-white/25 bg-transparent px-4 py-2 text-sm font-semibold text-white hover:bg-white/10"
-          >
-            Adjust price
-          </button>
-          {savedJourneyId ? (
-            <Link
-              to={`/admin/available-jobs?extendJourney=${encodeURIComponent(savedJourneyId)}`}
-              className="min-h-[44px] inline-flex items-center justify-center rounded-xl border border-white/25 px-4 py-2 text-sm font-semibold text-white hover:bg-white/10"
-            >
-              Add jobs
-            </Link>
-          ) : null}
-          <button
-            type="button"
-            disabled={
-              sendingMarketplace ||
-              marketplaceListed ||
-              stops.length === 0 ||
-              !savedJourneyId ||
-              journeyPayoutNumeric == null
-            }
-            onClick={() => void onSendMarketplace()}
-            className="min-h-[44px] rounded-xl bg-emerald-500 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-45"
-          >
-            {sendingMarketplace ? 'Sending…' : 'Send journey to marketplace'}
-          </button>
-          <button
-            type="button"
-            disabled
-            title="Fleet driver assignment from the journey planner is not available yet. Assign from each job's Available Job page."
-            className="min-h-[44px] rounded-xl border border-white/25 px-4 py-2 text-sm font-semibold text-white opacity-45 cursor-not-allowed"
-          >
-            Assign internal driver
-          </button>
-          <button
-            type="button"
-            disabled
-            title="Partner assignment from the journey planner is not available yet."
-            className="min-h-[44px] rounded-xl border border-white/25 px-4 py-2 text-sm font-semibold text-white opacity-45 cursor-not-allowed"
-          >
-            Assign partner
-          </button>
+        <div className="border-t border-white/10 bg-black/20 p-4 sm:p-5">
+          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Dispatch</p>
+          <div className="mt-3 flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+            <div className="flex w-full flex-col gap-2 sm:max-w-xs">
+              <JourneyAssignDriverButton
+                variant="primary"
+                className="[&_button]:bg-white [&_button]:text-slate-900 [&_button]:hover:bg-slate-100"
+                journey={journeyRecord}
+                journeyId={savedJourneyId}
+                quotes={quotes}
+                stops={stops}
+                onAssigned={async () => {
+                  const ids = [...new Set(stops.map((s) => s.quoteId).filter(Boolean))]
+                  if (ids.length > 0) {
+                    const rows = await fetchQuotesByIds(ids)
+                    setQuotes(rows)
+                  }
+                  if (savedJourneyId) {
+                    const { journey: j } = await fetchJourneyWithStops(savedJourneyId)
+                    if (j) setJourneyRecord(j)
+                  }
+                  setListRefreshKey((k) => k + 1)
+                }}
+              />
+              {savedJourneyId ? (
+                <Link
+                  to={`/admin/journey-planner/view/${encodeURIComponent(savedJourneyId)}`}
+                  className="min-h-[44px] inline-flex items-center justify-center rounded-xl border border-white/25 px-4 py-2 text-center text-sm font-semibold text-white hover:bg-white/10"
+                >
+                  Journey view
+                </Link>
+              ) : null}
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                disabled={saving || stops.length === 0}
+                onClick={() => void onSave()}
+                className="min-h-[44px] rounded-xl border border-white/25 bg-white/10 px-4 py-2 text-sm font-semibold text-white hover:bg-white/15 disabled:opacity-45"
+              >
+                {saving ? 'Saving…' : 'Save journey'}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setEditMode((editing) => {
+                    if (!editing) setSummaryTitleOverride(displayTitle)
+                    return !editing
+                  })
+                }}
+                className="min-h-[44px] rounded-xl border border-white/25 px-4 py-2 text-sm font-semibold text-white hover:bg-white/10"
+              >
+                {editMode ? 'Done editing' : 'Edit journey'}
+              </button>
+              <button
+                type="button"
+                onClick={() => openAdjustPriceModal()}
+                className="min-h-[44px] rounded-xl border border-white/25 px-4 py-2 text-sm font-semibold text-white hover:bg-white/10"
+              >
+                Adjust price
+              </button>
+              {savedJourneyId ? (
+                <Link
+                  to={`/admin/available-jobs?extendJourney=${encodeURIComponent(savedJourneyId)}`}
+                  className="min-h-[44px] inline-flex items-center justify-center rounded-xl border border-white/25 px-4 py-2 text-sm font-semibold text-white hover:bg-white/10"
+                >
+                  Add jobs
+                </Link>
+              ) : null}
+              <button
+                type="button"
+                disabled={
+                  sendingMarketplace ||
+                  marketplaceListed ||
+                  stops.length === 0 ||
+                  !savedJourneyId ||
+                  journeyPayoutNumeric == null
+                }
+                onClick={() => void onSendMarketplace()}
+                className="min-h-[44px] rounded-xl border border-emerald-400/60 bg-emerald-600/90 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-500 disabled:opacity-45"
+              >
+                {sendingMarketplace ? 'Sending…' : 'Send to marketplace'}
+              </button>
+            </div>
+          </div>
+        </div>
+        <div className="border-t border-white/10 px-4 py-3 sm:px-5">
+          <JourneyCompletionGuidance variant="dark" />
         </div>
       </section>
 
@@ -1209,8 +1351,11 @@ export default function JourneyPlannerPage() {
                 </button>
               </div>
             ) : null}
-            <ul className="mt-4 space-y-3">
-            {stops.map((s, i) => (
+            <ul className="mt-3 space-y-2">
+            {stops.map((s, i) => {
+              const quote = s.quoteId ? quotesById[s.quoteId] : null
+              const open = expandedStopIds.has(s.id)
+              return (
               <li
                 key={s.id}
                 onDragOver={(e) => {
@@ -1224,114 +1369,52 @@ export default function JourneyPlannerPage() {
                   reorderDragDrop(from, i)
                   setDraggingStopIndex(null)
                 }}
-                className={`rounded-2xl border border-slate-200 bg-slate-50/80 p-4 shadow-sm ring-1 ring-slate-900/[0.04] sm:p-5 ${
-                  draggingStopIndex === i ? 'ring-2 ring-brand-500' : ''
-                }`}
+                className={draggingStopIndex === i ? 'rounded-xl ring-2 ring-brand-500' : ''}
               >
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div className="flex min-w-0 flex-1 gap-3">
-                    <div className="flex flex-col items-center gap-1">
-                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-slate-900 text-sm font-bold text-white">
-                        {i + 1}
-                      </div>
-                      <span
-                        title="Drag to reorder"
-                        draggable
-                        onDragStart={(e) => {
-                          e.dataTransfer.setData('text/plain', String(i))
-                          e.dataTransfer.effectAllowed = 'move'
-                          setDraggingStopIndex(i)
-                        }}
-                        onDragEnd={() => setDraggingStopIndex(null)}
-                        className="cursor-grab select-none rounded border border-dashed border-slate-300 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-slate-500 hover:border-slate-400 hover:text-slate-700 active:cursor-grabbing"
-                        aria-label="Drag to reorder stop"
-                      >
-                        ⋮⋮
-                      </span>
-                    </div>
-                    <div className="min-w-0">
-                      <p className="font-mono text-sm font-bold text-slate-900">
-                        {i + 1}. {s.kind === 'pickup' ? 'PICKUP' : 'DELIVERY'} — {s.jobRef || '—'}
-                      </p>
-                      <span
-                        className={`mt-1 inline-block rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${
-                          s.kind === 'pickup' ? 'bg-indigo-100 text-indigo-800' : 'bg-emerald-100 text-emerald-800'
-                        }`}
-                      >
-                        {s.kind === 'pickup' ? 'Pickup' : 'Delivery'}
-                      </span>
-                      <p className="mt-1 text-sm font-semibold text-slate-800">{s.customerName || '—'}</p>
-                      <p className="mt-1 text-sm text-slate-700">{s.address}</p>
-                    </div>
-                  </div>
-                  <div className="flex max-w-full shrink-0 flex-wrap justify-end gap-1">
-                    {editMode && s.kind === 'pickup' && s.quoteId ? (
-                      <button
-                        type="button"
-                        onClick={() => removeJobFromJourney(s.quoteId)}
-                        className="rounded-lg border border-red-200 bg-red-50 px-2 py-1 text-xs font-semibold text-red-800 hover:bg-red-100"
-                      >
-                        Remove job
-                      </button>
-                    ) : null}
-                    <button
-                      type="button"
-                      disabled={i === 0}
-                      onClick={() => moveStopToTop(i)}
-                      className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-40"
+                <JourneyStopCard
+                  stop={s}
+                  index={i}
+                  quote={quote}
+                  open={open}
+                  onToggle={() => {
+                    setExpandedStopIds((prev) => {
+                      const next = new Set(prev)
+                      if (next.has(s.id)) next.delete(s.id)
+                      else next.add(s.id)
+                      return next
+                    })
+                  }}
+                  mode="editor"
+                  onRemoveJob={requestRemoveJobFromJourney}
+                  editorActions={{
+                    onMoveUp: () => moveStop(i, -1),
+                    onMoveDown: () => moveStop(i, 1),
+                    onMoveTop: () => moveStopToTop(i),
+                    onMoveBottom: () => moveStopToBottom(i),
+                    canMoveUp: i > 0,
+                    canMoveDown: i < stops.length - 1,
+                    removingJob,
+                  }}
+                  dragHandle={
+                    <span
+                      title="Drag to reorder"
+                      draggable
+                      onDragStart={(e) => {
+                        e.dataTransfer.setData('text/plain', String(i))
+                        e.dataTransfer.effectAllowed = 'move'
+                        setDraggingStopIndex(i)
+                      }}
+                      onDragEnd={() => setDraggingStopIndex(null)}
+                      onClick={(e) => e.stopPropagation()}
+                      className="cursor-grab select-none rounded border border-dashed border-slate-300 px-1 py-px text-[9px] font-bold uppercase tracking-wide text-slate-500 hover:border-slate-400 active:cursor-grabbing"
+                      aria-label="Drag to reorder stop"
                     >
-                      Top
-                    </button>
-                    <button
-                      type="button"
-                      disabled={i >= stops.length - 1}
-                      onClick={() => moveStopToBottom(i)}
-                      className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-40"
-                    >
-                      Bottom
-                    </button>
-                    <button
-                      type="button"
-                      disabled={i === 0}
-                      onClick={() => moveStop(i, -1)}
-                      className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-40"
-                    >
-                      Up
-                    </button>
-                    <button
-                      type="button"
-                      disabled={i >= stops.length - 1}
-                      onClick={() => moveStop(i, 1)}
-                      className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-40"
-                    >
-                      Down
-                    </button>
-                  </div>
-                </div>
-                <dl className="mt-4 grid gap-2 text-xs text-slate-600 sm:grid-cols-2">
-                  <div>
-                    <dt className="font-semibold text-slate-500">Time window</dt>
-                    <dd className="font-medium text-slate-900">{s.timeWindow || '—'}</dd>
-                  </div>
-                  <div>
-                    <dt className="font-semibold text-slate-500">Customer</dt>
-                    <dd className="font-medium text-slate-900">{s.customerName || '—'}</dd>
-                  </div>
-                  <div>
-                    <dt className="font-semibold text-slate-500">Load / unload</dt>
-                    <dd className="font-medium text-slate-900">{s.serviceMinutes} min</dd>
-                  </div>
-                  <div>
-                    <dt className="font-semibold text-slate-500">Volume / crew</dt>
-                    <dd className="font-medium text-slate-900">{s.volumeCrew || '—'}</dd>
-                  </div>
-                  <div className="sm:col-span-2">
-                    <dt className="font-semibold text-slate-500">Notes</dt>
-                    <dd className="font-medium text-slate-900">{s.notes || '—'}</dd>
-                  </div>
-                </dl>
+                      ⋮⋮
+                    </span>
+                  }
+                />
               </li>
-            ))}
+            )})}
             </ul>
             <div
               className="mt-2 rounded-lg border border-dashed border-slate-200 px-3 py-2 text-center text-[11px] font-medium text-slate-500"
@@ -1353,7 +1436,10 @@ export default function JourneyPlannerPage() {
         ) : null}
       </section>
 
-      <JourneyPlannerSavedList refreshKey={listRefreshKey} embed />
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_17rem]">
+        <JourneyPlannerList refreshKey={listRefreshKey} compact />
+        <JourneyPlannerHelpPanel className="lg:sticky lg:top-4 lg:self-start" />
+      </div>
 
       {adjustPriceOpen ? (
         <div
@@ -1467,6 +1553,16 @@ export default function JourneyPlannerPage() {
           </div>
         </div>
       ) : null}
+
+      <JourneyRemoveJobModal
+        open={removeTarget != null}
+        jobRef={removeTarget?.jobRef || ''}
+        customerName={removeTarget?.customerName || ''}
+        listedOnMarketplace={marketplaceListed}
+        removing={removingJob}
+        onClose={() => !removingJob && setRemoveTarget(null)}
+        onConfirm={confirmRemoveJobFromJourney}
+      />
     </div>
   )
 }

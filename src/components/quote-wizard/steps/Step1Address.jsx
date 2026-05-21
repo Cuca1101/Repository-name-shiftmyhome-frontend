@@ -169,7 +169,7 @@ export default function Step1Address({
           </>
         ) : (
           <>
-            <div className={field}>
+            <div className={field} data-quote-field="pickup-address">
               <label className={label} htmlFor="pickupAddress-fallback">
                 <span className="inline-flex items-center gap-2">
                   <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-brand-600 text-xs font-bold text-white">
@@ -188,7 +188,7 @@ export default function Step1Address({
                 placeholder="Postcode or full address"
               />
             </div>
-            <div className={field}>
+            <div className={field} data-quote-field="delivery-address">
               <label className={label} htmlFor="deliveryAddress-fallback">
                 <span className="inline-flex items-center gap-2">
                   <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-emerald-600 text-xs font-bold text-white">
@@ -239,14 +239,14 @@ export default function Step1Address({
           </select>
         </label>
 
-        <div className={field}>
+        <div className={field} data-quote-field="pickup-access">
           <FloorSelect
             label="Pickup floor"
             value={data.pickupFloor}
             onChange={(v) => set('pickupFloor', v)}
           />
         </div>
-        <div className={field}>
+        <div className={field} data-quote-field="delivery-access">
           <FloorSelect
             label="Delivery floor"
             value={data.deliveryFloor}
@@ -271,7 +271,7 @@ export default function Step1Address({
           />
         </div>
 
-        <label className={field}>
+        <label className={field} data-quote-field="move-date">
           <span className={label}>Move date</span>
           <input
             type="date"
@@ -282,11 +282,11 @@ export default function Step1Address({
             className={input}
           />
         </label>
-        <div className={`${field} hidden sm:col-span-2 md:block`}>
+        <div className={`${field} hidden sm:col-span-2 md:block`} data-quote-field="arrival">
           <Step1ArrivalFields data={data} onChange={onChange} error={arrivalError} />
         </div>
 
-        <div className={`${field} col-span-2 md:hidden`}>
+        <div className={`${field} col-span-2 md:hidden`} data-quote-field="arrival">
           <MobileStep1ArrivalWindow data={data} onChange={onChange} error={arrivalError} />
         </div>
 

@@ -193,6 +193,36 @@ export async function fetchCustomerJobPhotoDedupKeys(quoteRef) {
  * @param {string} quoteRef
  * @param {string} jobId
  */
+/**
+ * Remove job photo metadata and storage objects for a quote ref (test cleanup only).
+ * @param {string} quoteRef
+ * @returns {Promise<{ deleted: number, errors: string[] }>}
+ */
+export async function deleteJobPhotosForQuoteRef(quoteRef) {
+  const ref = String(quoteRef || '').trim()
+  if (!ref || !isSupabaseConfigured || !supabase) {
+    return { deleted: 0, errors: [] }
+  }
+
+  const { data, error } = await supabase.from(TABLE).select('id, storage_path').eq('quote_ref', ref)
+  if (error) throw error
+  const rows = data ?? []
+  if (!rows.length) return { deleted: 0, errors: [] }
+
+  const paths = rows.map((r) => String(r.storage_path || '').trim()).filter(Boolean)
+  if (paths.length) {
+    const { error: storageErr } = await supabase.storage.from(JOB_PHOTO_BUCKET).remove(paths)
+    if (storageErr) {
+      return { deleted: 0, errors: [storageErr.message || 'Storage delete failed'] }
+    }
+  }
+
+  const ids = rows.map((r) => r.id).filter(Boolean)
+  const { error: delErr } = await supabase.from(TABLE).delete().in('id', ids)
+  if (delErr) throw delErr
+  return { deleted: ids.length, errors: [] }
+}
+
 export async function linkCustomerJobPhotosToJobId(quoteRef, jobId) {
   const ref = String(quoteRef || '').trim()
   const jid = String(jobId || '').trim()

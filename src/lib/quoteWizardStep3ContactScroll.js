@@ -1,29 +1,17 @@
+import {
+  quoteContactFieldSelector,
+  scheduleQuoteValidationScroll,
+} from './quoteWizardScrollToError'
+
 /**
- * Scroll/focus Step 3 "Your details" (contact) fields on validation — desktop vs mobile sections.
+ * Scroll/focus Step 3 "Your details" (contact) fields on validation.
  * @param {'fullName'|'phone'|'email'} [field]
  */
 export function scrollToStep3ContactField(field) {
-  if (typeof window === 'undefined' || typeof document === 'undefined') return
-
-  const mobile = window.matchMedia('(max-width: 767px)').matches
-  const suffix = mobile ? 'mobile' : 'desktop'
-  const section = document.getElementById(`quote-wizard-contact-details-${suffix}`)
-  if (section) {
-    section.scrollIntoView({ behavior: 'smooth', block: 'start' })
-  }
-
-  if (!field) return
-
-  const input = document.getElementById(`quote-wizard-${field}-${suffix}`)
-  if (!input || typeof input.focus !== 'function') return
-
-  window.setTimeout(() => {
-    try {
-      input.focus({ preventScroll: true })
-    } catch {
-      input.focus()
-    }
-  }, 350)
+  scheduleQuoteValidationScroll({
+    contactField: field,
+    hint: field ? quoteContactFieldSelector(field) : '[data-quote-field="contact-details"]',
+  })
 }
 
 /**

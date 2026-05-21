@@ -1,4 +1,6 @@
 import { mergedAdminWorkflowForQuote } from './quoteAdminWorkflowMerge'
+import { isProductionAdmin } from './adminProductionMode'
+import { shouldHideQuoteFromAdminInbox } from './demoTestRecordDetection'
 
 /**
  * Admin job inbox rules (quotes row + merged session when DB columns absent).
@@ -52,6 +54,7 @@ export function quoteOperationalStatusLower(q) {
  * @param {Record<string, unknown>} q
  */
 export function quotePassesAvailableJobsStrict(q) {
+  if (isProductionAdmin() && shouldHideQuoteFromAdminInbox(q)) return false
   if (q?.bundled_journey_id != null && String(q.bundled_journey_id).trim() !== '') return false
   if (!quoteIsCardPaid(q)) return false
   const st = String(q.status ?? '').trim()

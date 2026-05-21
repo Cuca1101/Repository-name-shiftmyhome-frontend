@@ -343,7 +343,18 @@ export default function Step2Inventory({
         value={crewSize}
         onChange={onCrewSizeChange}
         crewSettings={crewSettings}
+        invalid={Boolean(validationMessage && /crew size/i.test(validationMessage))}
       />
+
+      {validationMessage ? (
+        <p
+          className="quote-error rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-800"
+          role="alert"
+          data-quote-error="true"
+        >
+          {validationMessage}
+        </p>
+      ) : null}
 
       <div className="flex min-w-0 snap-x snap-mandatory gap-2 overflow-x-auto pb-1 sm:flex-wrap sm:overflow-visible sm:pb-0">
         {categoryOrder.map((key) => {
@@ -377,7 +388,11 @@ export default function Step2Inventory({
         className="mt-4"
       />
 
-      <div ref={resultsPanelRef} className="min-w-0 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:p-6">
+      <div
+        ref={resultsPanelRef}
+        data-quote-field="inventory"
+        className="min-w-0 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:p-6"
+      >
         {isSearchMode ? (
           <div>
             <h3 className="text-sm font-bold text-slate-900">Search results</h3>

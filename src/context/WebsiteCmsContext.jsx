@@ -7,6 +7,7 @@ import {
   DEFAULT_NAVBAR,
   DEFAULT_FOOTER,
   DEFAULT_ANNOUNCEMENT,
+  normalizeAnnouncement,
   getDefaultServiceCards,
   DEFAULT_REVIEWS,
 } from '../lib/websiteCmsDefaults'
@@ -52,7 +53,7 @@ export function WebsiteCmsProvider({ children }) {
     const coverage = cms?.coverage ?? DEFAULT_COVERAGE
     const navbar = cms?.navbar ?? DEFAULT_NAVBAR
     const footer = cms?.footer ?? DEFAULT_FOOTER
-    const announcement = cms?.announcement ?? DEFAULT_ANNOUNCEMENT
+    const announcement = normalizeAnnouncement(cms?.announcement ?? DEFAULT_ANNOUNCEMENT)
     const serviceCards = cms?.serviceCards?.length ? cms.serviceCards : getDefaultServiceCards()
     const reviews = cms?.reviews?.length ? cms.reviews : DEFAULT_REVIEWS
     const galleryItems = cms?.galleryItems?.length ? cms.galleryItems : []

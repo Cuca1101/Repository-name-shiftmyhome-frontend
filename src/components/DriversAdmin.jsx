@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
+import DriverChargeQuickActions from './admin-driver-charges/DriverChargeQuickActions'
 import { fetchQuotesForAdmin } from '../lib/data/quotesAdminRepository'
 import { fetchAllJobs } from '../lib/data/jobsRepository'
 import { fetchFleetDrivers, upsertFleetDriver, setFleetDriverUserId } from '../lib/data/driversRepository'
@@ -424,7 +426,16 @@ export default function DriversAdmin() {
                     <dd className="mt-1 line-clamp-3 text-slate-800">{notes}</dd>
                   </div>
                 </dl>
+                <div className="mt-3">
+                  <DriverChargeQuickActions driverId={String(d.id)} onUpdated={reloadDrivers} />
+                </div>
                 <div className="mt-4 flex flex-wrap gap-2">
+                  <Link
+                    to="/admin/driver-payments"
+                    className="inline-flex min-h-[40px] flex-1 items-center justify-center rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-900 shadow-sm hover:bg-rose-100"
+                  >
+                    Payments
+                  </Link>
                   <button
                     type="button"
                     onClick={() => openView(d)}

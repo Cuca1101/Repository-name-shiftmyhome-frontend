@@ -19,6 +19,7 @@ import {
 import { filterLeadsByRecoveryChip } from '../lib/websiteLeadRecovery'
 import { formatDateTimeUK } from '../lib/formatDateDisplay'
 import WebsiteLeadsRecoveryPanel, { RecoveryBadge } from './admin/WebsiteLeadsRecoveryPanel'
+import WebsiteFunnelCleanupModal from './admin/WebsiteFunnelCleanupModal'
 
 const LEAD_FILTERS = [
   { id: 'all', label: 'All leads' },
@@ -292,6 +293,7 @@ export default function WebsiteLeadsAdmin() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [selected, setSelected] = useState(null)
+  const [cleanupOpen, setCleanupOpen] = useState(false)
 
   useEffect(() => {
     const t = setTimeout(() => setActiveSearch(searchInput.trim()), 300)
@@ -355,14 +357,29 @@ export default function WebsiteLeadsAdmin() {
             abandoned quotes.
           </p>
         </div>
-        <button
-          type="button"
-          onClick={load}
-          className="shrink-0 rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-800 shadow-sm transition hover:bg-slate-50"
-        >
-          Refresh
-        </button>
+        <div className="flex shrink-0 flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setCleanupOpen(true)}
+            className="rounded-lg border border-slate-200 bg-white px-3.5 py-2 text-sm font-semibold text-slate-800 shadow-sm transition hover:bg-slate-50"
+          >
+            Cleanup
+          </button>
+          <button
+            type="button"
+            onClick={load}
+            className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-800 shadow-sm transition hover:bg-slate-50"
+          >
+            Refresh
+          </button>
+        </div>
       </div>
+
+      <WebsiteFunnelCleanupModal
+        open={cleanupOpen}
+        onClose={() => setCleanupOpen(false)}
+        onCleaned={load}
+      />
 
       <div className="grid grid-cols-2 gap-2.5 sm:gap-3 lg:grid-cols-5">
         <KpiPeriodCard

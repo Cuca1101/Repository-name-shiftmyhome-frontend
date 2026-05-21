@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import AdminRecordsSearchRow from './admin/AdminRecordsSearchRow'
+import { filterQuotesForProductionInbox } from '../lib/demoTestRecordDetection'
 import { fetchHomePageQuoteRequests } from '../lib/data/quotesAdminRepository'
 import { fetchJobIdsForQuoteRefs } from '../lib/data/jobsRepository'
 import { formatDateTimeUK, formatDateUK } from '../lib/formatDateDisplay'
@@ -26,7 +27,7 @@ export default function HomePageQuoteRequestsAdmin() {
     setError('')
     try {
       const list = await fetchHomePageQuoteRequests(activeSearch)
-      setRows(list)
+      setRows(filterQuotesForProductionInbox(list))
     } catch (e) {
       setError(e?.message || 'Failed to load quote requests.')
     } finally {

@@ -9,6 +9,10 @@ import {
 } from '../lib/data/driverLivePositionsRepository'
 import { getFleetDriversCached, loadFleetDriversForAdmin } from '../lib/adminFleetDrivers'
 import { isSupabaseConfigured, supabase } from '../lib/supabase'
+import {
+  filterJourneysForProductionInbox,
+  filterQuotesForProductionInbox,
+} from '../lib/demoTestRecordDetection'
 import { formatDateUK } from '../lib/formatDateDisplay'
 import { geocodeAddressCached } from '../lib/operationsMapGeocodeCache'
 import {
@@ -165,9 +169,9 @@ export default function OperationsMapPage() {
         fetchAllJobs(),
         fetchAllJourneysForAdmin(200),
       ])
-      setQuotes(Array.isArray(q) ? q : [])
+      setQuotes(filterQuotesForProductionInbox(Array.isArray(q) ? q : []))
       setJobs(Array.isArray(j) ? j : [])
-      setJourneys(Array.isArray(jr) ? jr : [])
+      setJourneys(filterJourneysForProductionInbox(Array.isArray(jr) ? jr : []))
       const ids = (Array.isArray(jr) ? jr : []).map((x) => String(x?.id || '').trim()).filter(Boolean)
       const stops = await fetchJourneyStopsForJourneyIds(ids)
       setJourneyStops(Array.isArray(stops) ? stops : [])

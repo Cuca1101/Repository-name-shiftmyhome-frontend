@@ -1,0 +1,17 @@
+-- Run in Supabase SQL Editor after migration 042.
+-- 1) Set PIN (replace 1234 with your PIN):
+-- UPDATE public.admin_config_secrets
+-- SET marketplace_settings_pin_hash = crypt('1234', gen_salt('bf')),
+--     updated_at = now()
+-- WHERE id = 'default';
+--
+-- 2) Verify row exists (hash prefix only — never share full hash):
+-- SELECT id,
+--        left(marketplace_settings_pin_hash, 4) AS hash_prefix,
+--        length(marketplace_settings_pin_hash) AS hash_len,
+--        updated_at
+-- FROM public.admin_config_secrets
+-- WHERE id = 'default';
+--
+-- 3) Test RPC (expect true):
+-- SELECT public.verify_marketplace_settings_pin('1234');

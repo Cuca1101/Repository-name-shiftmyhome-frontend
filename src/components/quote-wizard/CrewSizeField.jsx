@@ -131,6 +131,7 @@ export default function CrewSizeField({
   onChange,
   crewSettings,
   descriptionId,
+  invalid = false,
 }) {
   const crewOptions = buildCrewOptions(crewSettings)
   const finalCrewOptions = crewOptions.length > 0 ? crewOptions : [{ value: 2, label: '2 Men', enabled: true }]
@@ -144,7 +145,13 @@ export default function CrewSizeField({
         : 'grid-cols-3'
 
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-5">
+    <div
+      data-quote-field="crew-size"
+      aria-invalid={invalid || undefined}
+      className={`rounded-2xl border bg-white p-4 sm:p-5 ${
+        invalid ? 'border-red-300 ring-1 ring-red-200/80' : 'border-slate-200'
+      }`}
+    >
       <span className={`${labelCls} md:hidden`} id={labelId}>
         Crew size (required for pricing)
       </span>

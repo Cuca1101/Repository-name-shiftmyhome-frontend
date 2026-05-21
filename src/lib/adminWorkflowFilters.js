@@ -5,6 +5,17 @@ import {
   quotePassesActiveStrict,
   quotePassesMarketplaceStrict,
 } from './adminJobListRules'
+import {
+  shouldHideJourneyFromAdminInbox,
+  shouldHideQuoteFromAdminInbox,
+} from './demoTestRecordDetection'
+import { isProductionAdmin } from './adminProductionMode'
+
+/** @param {Record<string, unknown>} q */
+function quoteVisibleInProductionAdmin(q) {
+  if (!isProductionAdmin()) return true
+  return !shouldHideQuoteFromAdminInbox(q)
+}
 
 /** @param {Record<string, unknown>} job */
 function jobQuoteRef(job) {
@@ -118,6 +129,7 @@ export function filterMarketplaceQuotes(quotes, jobs) {
   if (!Array.isArray(quotes)) return []
   const jobRows = Array.isArray(jobs) ? jobs : []
   return quotes.filter((q) => {
+    if (!quoteVisibleInProductionAdmin(q)) return false
     const j = findLinkedJobForQuote(q, jobRows)
     if (quoteIsCancelled(q, j) || quoteIsCompleted(q, j)) return false
     return quotePassesMarketplaceStrict(q)
@@ -129,7 +141,11 @@ export function filterMarketplaceQuotes(quotes, jobs) {
  */
 export function filterMarketplaceJourneys(journeys) {
   if (!Array.isArray(journeys)) return []
-  return journeys.filter((j) => j && typeof j === 'object' && journeyPassesMarketplaceStrict(j))
+  return journeys.filter((j) => {
+    if (!j || typeof j !== 'object') return false
+    if (isProductionAdmin() && shouldHideJourneyFromAdminInbox(j)) return false
+    return journeyPassesMarketplaceStrict(j)
+  })
 }
 
 /**
@@ -138,6 +154,7 @@ export function filterMarketplaceJourneys(journeys) {
  */
 export function filterActiveQuotes(quotes, jobs) {
   return quotes.filter((q) => {
+    if (!quoteVisibleInProductionAdmin(q)) return false
     const j = findLinkedJobForQuote(q, jobs)
     if (quoteIsCancelled(q, j) || quoteIsCompleted(q, j)) return false
     return quotePassesActiveStrict(q)
@@ -149,7 +166,10 @@ export function filterActiveQuotes(quotes, jobs) {
  * @param {Record<string, unknown>[]} jobs
  */
 export function filterCompletedQuotes(quotes, jobs) {
-  return quotes.filter((q) => quoteIsInCompletedJobsInbox(q, findLinkedJobForQuote(q, jobs)))
+  return quotes.filter((q) => {
+    if (!quoteVisibleInProductionAdmin(q)) return false
+    return quoteIsInCompletedJobsInbox(q, findLinkedJobForQuote(q, jobs))
+  })
 }
 
 /**
@@ -157,7 +177,10 @@ export function filterCompletedQuotes(quotes, jobs) {
  * @param {Record<string, unknown>[]} jobs
  */
 export function filterCancelledQuotes(quotes, jobs) {
-  return quotes.filter((q) => quoteIsInCancelledJobsInbox(q, findLinkedJobForQuote(q, jobs)))
+  return quotes.filter((q) => {
+    if (!quoteVisibleInProductionAdmin(q)) return false
+    return quoteIsInCancelledJobsInbox(q, findLinkedJobForQuote(q, jobs))
+  })
 }
 
 export { quoteHasAssignedDriver, quoteHasAssignedPartner } from './adminJobListRules'

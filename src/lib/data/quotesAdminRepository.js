@@ -22,6 +22,22 @@ const QUOTE_ASSIGNMENT_SAFE_KEYS = new Set([
   'admin_cancellation_reason',
   'completed_at',
   'cancelled_at',
+  'driver_payout_amount',
+  'partner_payout_amount',
+  'platform_profit_amount',
+  'platform_margin_percent',
+  'driver_payout_manual_override',
+  'partner_payout_manual_override',
+  'payout_status',
+  'payout_notes',
+  'payout_paid_amount',
+  'payout_paid_at',
+  'payout_payment_method',
+  'payout_reference',
+  'payout_updated_at',
+  'auto_marketplace_hold',
+  'auto_marketplace_eligible_at',
+  'auto_marketplace_sent_at',
 ])
 
 /**

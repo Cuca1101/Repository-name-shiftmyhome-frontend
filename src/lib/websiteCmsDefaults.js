@@ -90,6 +90,103 @@ export const DEFAULT_ANNOUNCEMENT = {
   showCloseButton: true,
 }
 
+/** @param {string} iso YYYY-MM-DD */
+function parseLocalDateStartMs(iso) {
+  const s = String(iso || '').trim().slice(0, 10)
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return null
+  const t = new Date(`${s}T00:00:00`).getTime()
+  return Number.isFinite(t) ? t : null
+}
+
+/** @param {string} iso YYYY-MM-DD */
+function parseLocalDateEndMs(iso) {
+  const s = String(iso || '').trim().slice(0, 10)
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return null
+  const t = new Date(`${s}T23:59:59.999`).getTime()
+  return Number.isFinite(t) ? t : null
+}
+
+/**
+ * @param {unknown} saved
+ * @returns {typeof DEFAULT_ANNOUNCEMENT}
+ */
+export function normalizeAnnouncement(saved) {
+  const merged = mergeSection(DEFAULT_ANNOUNCEMENT, saved)
+  const raw = saved && typeof saved === 'object' ? /** @type {Record<string, unknown>} */ (saved) : {}
+  const enabled =
+    raw.enabled === true || raw.enabled === 'true' || merged.enabled === true
+  const messageText = String(merged.messageText || '').trim()
+  const buttonText = String(merged.buttonText || '').trim()
+  const buttonLink = String(merged.buttonLink || '').trim()
+  const startDate = String(merged.startDate || '').trim().slice(0, 10)
+  const endDate = String(merged.endDate || '').trim().slice(0, 10)
+  const style = String(merged.backgroundStyle || 'blue')
+  const backgroundStyle =
+    style === 'christmas' || style === 'green' || style === 'warning' ? style : 'blue'
+
+  return {
+    enabled,
+    messageText,
+    buttonText,
+    buttonLink,
+    startDate,
+    endDate,
+    backgroundStyle,
+    showCloseButton: raw.showCloseButton !== false && merged.showCloseButton !== false,
+  }
+}
+
+/**
+ * @param {Record<string, unknown>} data
+ * @returns {typeof DEFAULT_ANNOUNCEMENT}
+ */
+export function serializeAnnouncement(data) {
+  return normalizeAnnouncement(data)
+}
+
+/**
+ * @param {typeof DEFAULT_ANNOUNCEMENT} announcement
+ */
+export function isAnnouncementDateActive(announcement) {
+  const now = Date.now()
+  const start = parseLocalDateStartMs(announcement.startDate)
+  const end = parseLocalDateEndMs(announcement.endDate)
+  if (start != null && now < start) return false
+  if (end != null && now > end) return false
+  return true
+}
+
+/**
+ * @param {typeof DEFAULT_ANNOUNCEMENT} announcement
+ */
+export function isAnnouncementVisible(announcement) {
+  const a = normalizeAnnouncement(announcement)
+  return Boolean(a.enabled && a.messageText && isAnnouncementDateActive(a))
+}
+
+/**
+ * Stable localStorage key — changes when admin edits announcement content/settings.
+ * @param {typeof DEFAULT_ANNOUNCEMENT} announcement
+ */
+export function announcementDismissStorageKey(announcement) {
+  const a = normalizeAnnouncement(announcement)
+  const sig = [
+    a.enabled,
+    a.messageText,
+    a.buttonText,
+    a.buttonLink,
+    a.startDate,
+    a.endDate,
+    a.backgroundStyle,
+    a.showCloseButton,
+  ].join('\u0001')
+  let hash = 0
+  for (let i = 0; i < sig.length; i++) {
+    hash = (Math.imul(31, hash) + sig.charCodeAt(i)) | 0
+  }
+  return `smh_announcement_dismissed_${hash >>> 0}`
+}
+
 const CARD_TITLES = { 'office-moves': 'Office Move' }
 const CARD_DESCRIPTIONS = {
   'house-removals': 'Full or partial moves of any size.',

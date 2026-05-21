@@ -19,10 +19,23 @@ import { findLinkedJobForQuote, quoteIsCancelled, quoteIsCompleted } from '../..
 
 const OPS_MARKETPLACE = 'Available / Marketplace'
 
-function btnBase(compact) {
-  return compact
-    ? 'inline-flex min-h-[34px] items-center justify-center rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-[11px] font-semibold text-slate-800 shadow-sm hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-45'
-    : 'inline-flex min-h-[40px] items-center justify-center rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-800 shadow-sm hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-45'
+/**
+ * @param {'default'|'compact'|'cardFooter'} layout
+ * @param {'default'|'danger'} [tone]
+ */
+function btnClass(layout, tone = 'default') {
+  const base =
+    'inline-flex min-h-[36px] shrink-0 items-center justify-center rounded-lg px-3 text-xs font-semibold shadow-sm transition disabled:cursor-not-allowed disabled:opacity-45'
+  if (tone === 'danger') {
+    return `${base} border border-red-300 bg-white text-red-800 hover:bg-red-50`
+  }
+  if (layout === 'cardFooter') {
+    return `${base} border border-slate-200/90 bg-white text-slate-800 hover:bg-slate-50`
+  }
+  if (layout === 'compact') {
+    return `${base} min-h-[34px] border border-slate-200 bg-white px-2.5 py-1.5 text-[11px] text-slate-800 hover:bg-slate-50`
+  }
+  return `${base} min-h-[40px] rounded-xl border border-slate-200 bg-white px-3 py-2 text-slate-800 hover:bg-slate-50`
 }
 
 /**
@@ -30,6 +43,7 @@ function btnBase(compact) {
  *   quote: Record<string, unknown>,
  *   jobs?: Record<string, unknown>[],
  *   compact?: boolean,
+ *   layout?: 'default' | 'compact' | 'cardFooter',
  *   onApplied?: () => void | Promise<void>,
  *   showTriggerButtons?: boolean,
  * }} AdminJobOverrideActionsProps
@@ -48,9 +62,17 @@ function btnBase(compact) {
  */
 
 const AdminJobOverrideActions = forwardRef(function AdminJobOverrideActions(
-  { quote, jobs = [], compact = false, onApplied, showTriggerButtons = true },
+  {
+    quote,
+    jobs = [],
+    compact = false,
+    layout: layoutProp,
+    onApplied,
+    showTriggerButtons = true,
+  },
   ref,
 ) {
+  const layout = layoutProp ?? (compact ? 'compact' : 'default')
   const id = String(quote?.id || '').trim()
   const job = useMemo(() => (jobs.length ? findLinkedJobForQuote(quote, jobs) : null), [quote, jobs])
   const merged = useMemo(() => mergedAdminWorkflowForQuote(quote), [quote])
@@ -438,42 +460,50 @@ const AdminJobOverrideActions = forwardRef(function AdminJobOverrideActions(
 
   if (!id) return null
 
-  const wrap = compact ? 'mt-3 space-y-2 border-t border-slate-100 pt-3' : 'mt-4 space-y-3 border-t border-slate-200 pt-4'
-  const grid = compact ? 'grid grid-cols-2 gap-1.5' : 'flex flex-wrap gap-2'
+  const wrap =
+    layout === 'cardFooter'
+      ? 'min-w-0 space-y-2'
+      : layout === 'compact'
+        ? 'mt-3 space-y-2 border-t border-slate-100 pt-3'
+        : 'mt-4 space-y-3 border-t border-slate-200 pt-4'
+  const grid =
+    layout === 'cardFooter' ? 'flex flex-wrap gap-2' : layout === 'compact' ? 'grid grid-cols-2 gap-2' : 'flex flex-wrap gap-2'
 
   return (
     <div className={showTriggerButtons ? wrap : 'contents'}>
       {showTriggerButtons ? (
         <>
-          <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Admin overrides</p>
+          <p className="text-[10px] font-bold uppercase tracking-wide text-slate-500">
+            {layout === 'cardFooter' ? 'Dispatch actions' : 'Admin overrides'}
+          </p>
           {err ? <p className="text-xs text-red-700">{err}</p> : null}
           <div className={grid}>
             {!isDone ? (
-              <button type="button" disabled={busy} className={btnBase(compact)} onClick={openComplete}>
+              <button type="button" disabled={busy} className={btnClass(layout)} onClick={openComplete}>
                 Mark completed
               </button>
             ) : null}
             {!isCancelled ? (
-              <button type="button" disabled={busy} className={btnBase(compact)} onClick={openCancel}>
+              <button type="button" disabled={busy} className={btnClass(layout, 'danger')} onClick={openCancel}>
                 Mark cancelled
               </button>
             ) : null}
             {!isDone && !isCancelled ? (
-              <button type="button" disabled={busy} className={btnBase(compact)} onClick={openReturn}>
+              <button type="button" disabled={busy} className={btnClass(layout)} onClick={openReturn}>
                 Return to marketplace
               </button>
             ) : null}
             {!isDone && !isCancelled ? (
-              <button type="button" disabled={busy} className={btnBase(compact)} onClick={openDriver}>
+              <button type="button" disabled={busy} className={btnClass(layout)} onClick={openDriver}>
                 Reassign driver
               </button>
             ) : null}
             {!isDone && !isCancelled ? (
-              <button type="button" disabled={busy} className={btnBase(compact)} onClick={openPartner}>
+              <button type="button" disabled={busy} className={btnClass(layout)} onClick={openPartner}>
                 Reassign partner
               </button>
             ) : null}
-            <button type="button" disabled={busy} className={btnBase(compact)} onClick={openNote}>
+            <button type="button" disabled={busy} className={btnClass(layout)} onClick={openNote}>
               Add admin note
             </button>
           </div>
@@ -487,7 +517,7 @@ const AdminJobOverrideActions = forwardRef(function AdminJobOverrideActions(
         </p>
       ) : null}
 
-      {showTriggerButtons && merged.adminNotesLog ? (
+      {showTriggerButtons && layout !== 'cardFooter' && merged.adminNotesLog ? (
         <details className="mt-2 text-[10px] text-slate-600">
           <summary className="cursor-pointer font-semibold text-slate-700">Audit log</summary>
           <pre className="mt-1 max-h-36 overflow-auto whitespace-pre-wrap rounded-lg border border-slate-100 bg-slate-50/90 p-2 font-mono text-[10px] text-slate-700">

@@ -8,6 +8,8 @@ import {
   DEFAULT_FOOTER,
   DEFAULT_ANNOUNCEMENT,
   mergeSection,
+  normalizeAnnouncement,
+  serializeAnnouncement,
 } from '../websiteCmsDefaults'
 
 const SETTINGS_ID = 'default'
@@ -51,7 +53,7 @@ export async function fetchWebsiteCmsPublic() {
       coverage: mergeSection(DEFAULT_COVERAGE, row?.coverage),
       navbar: mergeSection(DEFAULT_NAVBAR, row?.navbar),
       footer: mergeSection(DEFAULT_FOOTER, row?.footer),
-      announcement: mergeSection(DEFAULT_ANNOUNCEMENT, row?.announcement),
+      announcement: normalizeAnnouncement(row?.announcement),
       serviceCards: cardsRes.data?.length ? cardsRes.data : null,
       reviews: reviewsRes.data?.length ? reviewsRes.data : null,
       galleryItems: galleryItems?.length ? galleryItems : null,
@@ -89,7 +91,7 @@ export async function fetchWebsiteCmsAdmin() {
       coverage: mergeSection(DEFAULT_COVERAGE, row?.coverage),
       navbar: mergeSection(DEFAULT_NAVBAR, row?.navbar),
       footer: mergeSection(DEFAULT_FOOTER, row?.footer),
-      announcement: mergeSection(DEFAULT_ANNOUNCEMENT, row?.announcement),
+      announcement: normalizeAnnouncement(row?.announcement),
     },
     serviceCards: cardsRes.data ?? [],
     reviews: reviewsRes.data ?? [],
@@ -107,9 +109,12 @@ export async function saveWebsiteSettingsSection(sectionKey, data) {
     .eq('id', SETTINGS_ID)
     .maybeSingle()
 
+  const sectionData =
+    sectionKey === 'announcement' ? serializeAnnouncement(/** @type {Record<string, unknown>} */ (data)) : data
+
   const payload = {
     id: SETTINGS_ID,
-    [sectionKey]: data,
+    [sectionKey]: sectionData,
     updated_at: new Date().toISOString(),
   }
 

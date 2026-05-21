@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
 import {
-  fetchAssignedByActor,
   fetchQuoteByIdForAdmin,
   updateQuoteWorkflowAssignment,
   updateQuoteWorkflowAssignmentSilent,
@@ -9,8 +8,7 @@ import {
 } from '../lib/data/quotesAdminRepository'
 import { HOME_PAGE_QUOTE_SOURCE } from '../lib/data/quotesRepository'
 import { fetchAllJobs } from '../lib/data/jobsRepository'
-import { removeJobAssignmentForQuote } from '../lib/data/driverAssignmentSync'
-import { formatDateTimeUK, formatDateUK } from '../lib/formatDateDisplay'
+import { formatDateTimeUK } from '../lib/formatDateDisplay'
 import { stripeDashboardSearchUrl } from '../lib/stripeDashboardUrl'
 import {
   loadAvailableJobAdminOverrides,
@@ -27,16 +25,16 @@ import {
 import GenerateJobSheetButton from './admin-workflow/GenerateJobSheetButton'
 import { findLinkedJobForQuote, quoteIsCancelled, quoteIsCompleted } from '../lib/adminWorkflowFilters'
 import { quotePassesAvailableJobsStrict } from '../lib/adminJobListRules'
-import { isQuoteDemoOrTest } from '../lib/cancelDemoBooking'
-import CancelDemoBookingAction from './admin-workflow/CancelDemoBookingAction'
-import { applyDefaultMarketplacePayoutToQuote } from '../lib/marketplacePayoutApply'
+import CancelBookingAction from './admin-workflow/CancelBookingAction'
+import { publishQuoteToMarketplace } from '../lib/marketplacePublishQuote'
+import AutoMarketplaceHoldToggle from './admin-workflow/AutoMarketplaceHoldToggle'
 import { formatMarketplaceStatusSummary } from '../lib/marketplaceListingStatus'
 import AdminJobOverrideActions from './admin-workflow/AdminJobOverrideActions'
 import AdminJobQuoteDetailsPanel from './admin-workflow/AdminJobQuoteDetailsPanel'
-import JobStatusBadge from './admin-workflow/JobStatusBadge'
-import { buildAdminJobQuoteDetailsViewModel, liftReadable } from '../lib/adminJobQuoteDetailsViewModel'
+import { buildAdminJobQuoteDetailsViewModel } from '../lib/adminJobQuoteDetailsViewModel'
 import AdminJobDetailsSidebar from './admin-workflow/AdminJobDetailsSidebar'
-import { AdminChip } from './admin-workflow/AdminJobUiPrimitives'
+import JobDetailsOpsHeader from './admin-workflow/JobDetailsOpsHeader'
+import JobDetailsOverviewOps from './admin-workflow/JobDetailsOverviewOps'
 
 const WORKFLOW_STATUSES = ['New', 'Contacted', 'Quoted', 'Booked', 'Completed', 'Cancelled']
 
@@ -51,13 +49,6 @@ const TABS = [
 function money(n) {
   if (n == null || n === '') return '—'
   return `£${Number(n).toFixed(2)}`
-}
-
-function paymentTone(ps) {
-  const p = String(ps || '').toLowerCase()
-  if (p === 'paid') return 'emerald'
-  if (p === 'deposit_paid') return 'sky'
-  return 'slate'
 }
 
 /**
@@ -101,77 +92,6 @@ function DlItem({ label, value }) {
     <div className="min-w-0">
       <dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">{label}</dt>
       <dd className="mt-1 whitespace-pre-wrap text-sm text-slate-900">{value ?? '—'}</dd>
-    </div>
-  )
-}
-
-function PinMini({ className = 'h-4 w-4' }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" aria-hidden>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
-      <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 10.5c0 7-9 13-9 13s-9-6-9-13a9 9 0 1 1 18 0Z" />
-    </svg>
-  )
-}
-
-/** @param {{ vm: Record<string, unknown>, q: Record<string, unknown> }} props */
-function JobDetailsInsightsStrip({ vm, q }) {
-  const paidTone = paymentTone(q.payment_status)
-  const chipPaidTone = paidTone === 'emerald' ? 'emerald' : paidTone === 'sky' ? 'sky' : 'slate'
-  return (
-    <div className="space-y-4">
-      <div className="grid gap-3 lg:grid-cols-2">
-        <div className="flex gap-3 rounded-xl border border-violet-100 bg-white p-4 shadow-sm ring-1 ring-slate-900/[0.03]">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-violet-600 text-white shadow-sm">
-            <PinMini className="h-5 w-5" />
-          </div>
-          <div className="min-w-0 flex-1">
-            <p className="text-[10px] font-bold uppercase tracking-wide text-violet-800">Pickup route</p>
-            <p className="mt-1 text-sm font-semibold leading-snug text-slate-900">{q.pickup_address || '—'}</p>
-            <div className="mt-3 flex flex-wrap gap-2">
-              <span className="rounded-md bg-violet-50 px-2 py-0.5 text-[11px] font-bold text-violet-900 ring-1 ring-violet-100">
-                {vm.distanceDisplay}
-              </span>
-              <span className="rounded-md bg-slate-50 px-2 py-0.5 text-[11px] font-semibold text-slate-700 ring-1 ring-slate-200/80">
-                {vm.arrivalLine}
-              </span>
-            </div>
-          </div>
-        </div>
-        <div className="flex gap-3 rounded-xl border border-emerald-100 bg-white p-4 shadow-sm ring-1 ring-slate-900/[0.03]">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-emerald-600 text-white shadow-sm">
-            <PinMini className="h-5 w-5" />
-          </div>
-          <div className="min-w-0 flex-1">
-            <p className="text-[10px] font-bold uppercase tracking-wide text-emerald-800">Dropoff route</p>
-            <p className="mt-1 text-sm font-semibold leading-snug text-slate-900">{q.delivery_address || '—'}</p>
-            <div className="mt-3 flex flex-wrap gap-2">
-              <span className="rounded-md bg-emerald-50 px-2 py-0.5 text-[11px] font-bold text-emerald-900 ring-1 ring-emerald-100">
-                {vm.distanceDisplay}
-              </span>
-              <span className="rounded-md bg-slate-50 px-2 py-0.5 text-[11px] font-semibold text-slate-700 ring-1 ring-slate-200/80">
-                {vm.arrivalLine}
-              </span>
-            </div>
-          </div>
-        </div>
-      </div>
-      <div className="flex flex-wrap gap-2">
-        <AdminChip label="Lift (P/U)" value={liftReadable(vm.pickupLiftRaw)} tone="slate" />
-        <AdminChip label="Lift (D/O)" value={liftReadable(vm.deliveryLiftRaw)} tone="slate" />
-        <AdminChip
-          label="Parking"
-          value={String(vm.parking).length > 36 ? `${String(vm.parking).slice(0, 34)}…` : String(vm.parking)}
-          tone="amber"
-        />
-        <AdminChip
-          label="Walking"
-          value={String(vm.walking).length > 24 ? `${String(vm.walking).slice(0, 22)}…` : String(vm.walking)}
-          tone="sky"
-        />
-        <AdminChip label="Crew size" value={vm.crewDisplay} tone="slate" />
-        <AdminChip label="Paid status" value={vm.paidLabel} tone={chipPaidTone} />
-      </div>
     </div>
   )
 }
@@ -367,19 +287,10 @@ export default function AvailableJobDetails() {
 
   async function assignToMarketplace() {
     if (!id || !q) return
-    const ts = new Date().toISOString()
-    const mergedQuote = {
-      ...q,
-      marketplace_visibility: 'visible_in_marketplace',
-      assigned_driver_id: null,
-      assigned_driver_name: null,
-      assigned_partner_id: null,
-      assigned_partner_company: null,
-      operational_status: null,
-    }
     try {
       setAssignmentSaving(true)
-      if (!isSupabaseConfigured) {
+      const result = await publishQuoteToMarketplace(id, q)
+      if (result.localOnly) {
         persistOverrides({
           ...overrides,
           marketplaceVisibility: 'visible_in_marketplace',
@@ -388,28 +299,12 @@ export default function AvailableJobDetails() {
           operationalStatus: '',
           partnerDashboardHidden: false,
         })
-        await applyDefaultMarketplacePayoutToQuote(mergedQuote)
         setOverrides(loadAvailableJobAdminOverrides(id))
         setToast('Marketplace listing saved locally. Connect the database to sync with the server.')
-        window.setTimeout(() => setToast(''), 5000)
-        return
+      } else {
+        await load()
+        setToast('Job is now visible on the marketplace. Partner payout has been calculated.')
       }
-      const by = await fetchAssignedByActor()
-      await updateQuoteWorkflowAssignment(id, {
-        marketplace_visibility: 'visible_in_marketplace',
-        assigned_driver_id: null,
-        assigned_driver_name: null,
-        assigned_partner_id: null,
-        assigned_partner_company: null,
-        operational_status: null,
-        assigned_at: ts,
-        assigned_by: by,
-      })
-      await updateQuoteWorkflowAssignmentSilent(id, { partner_dashboard_hidden: false })
-      await removeJobAssignmentForQuote(id)
-      await applyDefaultMarketplacePayoutToQuote(mergedQuote)
-      await load()
-      setToast('Job is now visible on the marketplace. Partner payout has been calculated.')
       window.setTimeout(() => setToast(''), 5000)
     } catch (e) {
       setToast(e?.message || 'Could not list job on marketplace.')
@@ -459,239 +354,168 @@ export default function AvailableJobDetails() {
         <p className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{error}</p>
       ) : null}
 
-      <header className="overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-[0_4px_24px_-8px_rgba(15,23,42,0.1)]">
-        <nav className="border-b border-slate-100 bg-slate-50/60 px-4 py-2.5 sm:px-6" aria-label="Breadcrumb">
-          <ol className="flex flex-wrap items-center gap-2 text-xs font-medium text-slate-500">
-            <li>
-              <Link to={backHref} className="text-brand-700 transition hover:text-brand-800 hover:underline">
-                {backLabel}
-              </Link>
-            </li>
-            <li className="text-slate-300" aria-hidden>
-              /
-            </li>
-            <li className="font-semibold text-slate-800">Job details</li>
-          </ol>
-        </nav>
-
-        <div className="p-5 sm:p-6 lg:p-8">
-          <div className="flex flex-col gap-8 xl:flex-row xl:items-start xl:justify-between">
-            <div className="min-w-0 flex-1 space-y-4">
-              <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-slate-500">Job reference</p>
-              <p className="font-mono text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">
-                {String(q.quote_ref || q.id)}
-              </p>
-              <h1 className="text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">{q.full_name || 'Customer'}</h1>
-              <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm text-slate-600">
-                <span>
-                  <span className="font-semibold text-slate-400">Move date</span>{' '}
-                  <span className="font-semibold text-slate-900">{q.move_date ? formatDateUK(q.move_date) : '—'}</span>
-                </span>
-                <span className="hidden h-4 w-px bg-slate-200 sm:inline" aria-hidden />
-                <span>
-                  <span className="font-semibold text-slate-400">Created</span>{' '}
-                  <span className="text-slate-800">{formatDateTimeUK(q.created_at)}</span>
-                </span>
-              </div>
-              <div className="flex flex-wrap items-center gap-2">
-                <JobStatusBadge label={workflowBadge.label} tone={workflowBadge.tone} />
-                <JobStatusBadge
-                  label={String(q.payment_status || 'unpaid').replace(/_/g, ' ')}
-                  tone={paymentTone(q.payment_status)}
-                />
-                {String(q.status || '').trim() ? (
-                  <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-800">
-                    Workflow · {String(q.status)}
-                  </span>
-                ) : null}
-                {isQuoteDemoOrTest(q) ? <JobStatusBadge label="Demo/Test" tone="slate" /> : null}
-              </div>
-            </div>
-
-            <div className="flex w-full flex-col gap-4 xl:w-auto xl:max-w-md xl:items-end">
-              <div className="grid w-full grid-cols-3 gap-2 rounded-2xl border border-slate-100 bg-slate-50/90 p-3 sm:max-w-md">
-                <div className="text-center">
-                  <p className="text-[10px] font-bold uppercase tracking-wide text-slate-500">Total</p>
-                  <p className="mt-1 text-sm font-bold tabular-nums text-slate-900">
-                    {fin?.customerTotal != null ? money(fin.customerTotal) : '—'}
-                  </p>
-                </div>
-                <div className="text-center">
-                  <p className="text-[10px] font-bold uppercase tracking-wide text-slate-500">Paid</p>
-                  <p className="mt-1 text-sm font-bold tabular-nums text-emerald-700">{money(fin?.paid)}</p>
-                </div>
-                <div className="text-center">
-                  <p className="text-[10px] font-bold uppercase tracking-wide text-slate-500">Balance</p>
-                  <p className="mt-1 text-sm font-bold tabular-nums text-amber-800">
-                    {fin?.remaining != null ? money(fin.remaining) : '—'}
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex w-full flex-wrap items-center justify-end gap-2">
-                <GenerateJobSheetButton
-                  quote={q}
-                  internalNotes={notesDraft}
-                  variant="secondary"
-                  className="order-0 w-full sm:w-auto"
-                  onSuccess={(msg) => {
-                    setToast(msg)
+      <JobDetailsOpsHeader
+        q={q}
+        vm={detailsVm}
+        fin={fin}
+        workflowBadge={workflowBadge}
+        overrides={overrides}
+        backHref={backHref}
+        backLabel={backLabel}
+      >
+        <div className="flex w-full flex-col gap-2 sm:flex-row sm:flex-wrap sm:justify-end">
+          <GenerateJobSheetButton
+            quote={q}
+            internalNotes={notesDraft}
+            variant="secondary"
+            className="w-full sm:w-auto"
+            onSuccess={(msg) => {
+              setToast(msg)
+              window.setTimeout(() => setToast(''), 3000)
+            }}
+            onError={(msg) => {
+              setToast(msg)
+              window.setTimeout(() => setToast(''), 5000)
+            }}
+          />
+          {quotePassesAvailableJobsStrict(q) && !terminal ? (
+            <CancelBookingAction
+              quote={q}
+              className="w-full sm:w-auto"
+              onApplied={async () => {
+                await load()
+              }}
+            />
+          ) : null}
+          <details ref={moreDetailsRef} className="group relative w-full sm:w-auto">
+            <summary className="flex min-h-[44px] cursor-pointer list-none items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-900 shadow-sm hover:bg-slate-50 [&::-webkit-details-marker]:hidden">
+              More actions
+              <span className="ml-1 text-slate-400" aria-hidden>
+                ▾
+              </span>
+            </summary>
+            <div className="absolute right-0 top-full z-30 mt-1 min-w-[14rem] rounded-xl border border-slate-200 bg-white py-1 shadow-lg">
+              <button
+                type="button"
+                className="block w-full px-4 py-2.5 text-left text-sm text-slate-800 hover:bg-slate-50"
+                onClick={() => {
+                  closeMoreMenu()
+                  setAdjustOpen(true)
+                }}
+              >
+                Add adjustment
+              </button>
+              <button
+                type="button"
+                disabled
+                title="Additional inventory editing is not available yet. Use job notes or pricing adjustments."
+                className="block w-full cursor-not-allowed px-4 py-2.5 text-left text-sm text-slate-500 opacity-65"
+              >
+                Add more items
+              </button>
+              <button
+                type="button"
+                disabled
+                title="Access-based repricing from this menu is not available yet."
+                className="block w-full cursor-not-allowed px-4 py-2.5 text-left text-sm text-slate-500 opacity-65"
+              >
+                Add stairs / access charge
+              </button>
+              <GenerateJobSheetButton
+                quote={q}
+                internalNotes={notesDraft}
+                variant="menu"
+                onSuccess={(msg) => {
+                  closeMoreMenu()
+                  setToast(msg)
+                  window.setTimeout(() => setToast(''), 3000)
+                }}
+                onError={(msg) => {
+                  closeMoreMenu()
+                  setToast(msg)
+                  window.setTimeout(() => setToast(''), 5000)
+                }}
+              />
+              <button
+                type="button"
+                className="block w-full px-4 py-2.5 text-left text-sm text-slate-800 hover:bg-slate-50"
+                onClick={() => {
+                  closeMoreMenu()
+                  const subj = encodeURIComponent(`Job ${q.quote_ref || ''}`)
+                  const em = String(q.email || '').trim()
+                  if (!em) {
+                    setToast('No customer email on file.')
                     window.setTimeout(() => setToast(''), 3000)
-                  }}
-                  onError={(msg) => {
-                    setToast(msg)
-                    window.setTimeout(() => setToast(''), 5000)
-                  }}
-                />
-                {quotePassesAvailableJobsStrict(q) && !terminal ? (
-                  <CancelDemoBookingAction
-                    quote={q}
-                    className="order-0 w-full sm:w-auto"
-                    onApplied={async () => {
-                      await load()
-                    }}
-                  />
-                ) : null}
-                <details ref={moreDetailsRef} className="group relative order-1">
-                  <summary className="flex min-h-[44px] cursor-pointer list-none items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-900 shadow-sm hover:bg-slate-50 [&::-webkit-details-marker]:hidden">
-                    More actions
-                    <span className="ml-1 text-slate-400" aria-hidden>
-                      ▾
-                    </span>
-                  </summary>
-                  <div className="absolute right-0 top-full z-30 mt-1 min-w-[14rem] rounded-xl border border-slate-200 bg-white py-1 shadow-lg">
-                    <button
-                      type="button"
-                      className="block w-full px-4 py-2.5 text-left text-sm text-slate-800 hover:bg-slate-50"
-                      onClick={() => {
-                        closeMoreMenu()
-                        setAdjustOpen(true)
-                      }}
-                    >
-                      Add adjustment
-                    </button>
-                    <button
-                      type="button"
-                      disabled
-                      title="Additional inventory editing is not available yet. Use job notes or pricing adjustments."
-                      className="block w-full cursor-not-allowed px-4 py-2.5 text-left text-sm text-slate-500 opacity-65"
-                    >
-                      Add more items
-                    </button>
-                    <button
-                      type="button"
-                      disabled
-                      title="Access-based repricing from this menu is not available yet."
-                      className="block w-full cursor-not-allowed px-4 py-2.5 text-left text-sm text-slate-500 opacity-65"
-                    >
-                      Add stairs / access charge
-                    </button>
-                    <GenerateJobSheetButton
-                      quote={q}
-                      internalNotes={notesDraft}
-                      variant="menu"
-                      onSuccess={(msg) => {
-                        closeMoreMenu()
-                        setToast(msg)
-                        window.setTimeout(() => setToast(''), 3000)
-                      }}
-                      onError={(msg) => {
-                        closeMoreMenu()
-                        setToast(msg)
-                        window.setTimeout(() => setToast(''), 5000)
-                      }}
-                    />
-                    <button
-                      type="button"
-                      className="block w-full px-4 py-2.5 text-left text-sm text-slate-800 hover:bg-slate-50"
-                      onClick={() => {
-                        closeMoreMenu()
-                        const subj = encodeURIComponent(`Job ${q.quote_ref || ''}`)
-                        const em = String(q.email || '').trim()
-                        if (!em) {
-                          setToast('No customer email on file.')
-                          window.setTimeout(() => setToast(''), 3000)
-                          return
-                        }
-                        window.location.href = `mailto:${em}?subject=${subj}`
-                      }}
-                    >
-                      Send customer email
-                    </button>
-                    <button
-                      type="button"
-                      className="block w-full px-4 py-2.5 text-left text-sm text-red-800 hover:bg-red-50"
-                      onClick={() => {
-                        closeMoreMenu()
-                        overrideActionsRef.current?.openMarkCancelled?.()
-                      }}
-                    >
-                      Cancel job
-                    </button>
-                    <button
-                      type="button"
-                      className="block w-full px-4 py-2.5 text-left text-sm text-slate-800 hover:bg-slate-50"
-                      onClick={() => {
-                        closeMoreMenu()
-                        setTab('notes')
-                        requestAnimationFrame(() => {
-                          const el = debugDetailsRef.current
-                          if (el) {
-                            el.open = true
-                            el.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
-                          }
-                        })
-                      }}
-                    >
-                      Open raw debug data
-                    </button>
-                  </div>
-                </details>
-                <button
-                  type="button"
-                  disabled={terminal}
-                  onClick={() => overrideActionsRef.current?.openMarkComplete?.()}
-                  className="order-2 min-h-[44px] rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40"
-                >
-                  Mark completed
-                </button>
-                {listedOnMarketplace ? (
-                  <button
-                    type="button"
-                    disabled={terminal || assignmentSaving}
-                    className="order-3 min-h-[44px] rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-900 shadow-sm hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
-                    onClick={() => {
-                      overrideActionsRef.current?.openReturnToMarketplace?.()
-                    }}
-                  >
-                    Return to marketplace…
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    disabled={terminal || assignmentSaving}
-                    onClick={() => void assignToMarketplace()}
-                    className="order-3 min-h-[44px] rounded-xl bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-40"
-                  >
-                    {assignmentSaving ? 'Saving…' : 'Send to marketplace'}
-                  </button>
-                )}
-              </div>
+                    return
+                  }
+                  window.location.href = `mailto:${em}?subject=${subj}`
+                }}
+              >
+                Send customer email
+              </button>
+              <button
+                type="button"
+                className="block w-full px-4 py-2.5 text-left text-sm text-red-800 hover:bg-red-50"
+                onClick={() => {
+                  closeMoreMenu()
+                  overrideActionsRef.current?.openMarkCancelled?.()
+                }}
+              >
+                Cancel job
+              </button>
+              <button
+                type="button"
+                className="block w-full px-4 py-2.5 text-left text-sm text-slate-800 hover:bg-slate-50"
+                onClick={() => {
+                  closeMoreMenu()
+                  setTab('notes')
+                  requestAnimationFrame(() => {
+                    const el = debugDetailsRef.current
+                    if (el) {
+                      el.open = true
+                      el.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+                    }
+                  })
+                }}
+              >
+                Open raw debug data
+              </button>
             </div>
-          </div>
-        </div>
-
-        <div className="border-t border-slate-100 bg-gradient-to-br from-slate-50/80 via-white to-slate-50/40 px-4 py-5 sm:px-6 lg:px-8">
-          {detailsVm ? (
-            <JobDetailsInsightsStrip vm={detailsVm} q={q} />
+          </details>
+          <button
+            type="button"
+            disabled={terminal}
+            onClick={() => overrideActionsRef.current?.openMarkComplete?.()}
+            className="min-h-[44px] w-full rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40 sm:w-auto"
+          >
+            Mark completed
+          </button>
+          {listedOnMarketplace ? (
+            <button
+              type="button"
+              disabled={terminal || assignmentSaving}
+              className="min-h-[44px] w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-900 shadow-sm hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40 sm:w-auto"
+              onClick={() => {
+                overrideActionsRef.current?.openReturnToMarketplace?.()
+              }}
+            >
+              Return to marketplace…
+            </button>
           ) : (
-            <p className="text-sm text-slate-600">
-              Route summary could not be built for this job (missing or unexpected quote fields). Other tabs below
-              still work.
-            </p>
+            <button
+              type="button"
+              disabled={terminal || assignmentSaving}
+              onClick={() => void assignToMarketplace()}
+              className="min-h-[44px] w-full rounded-xl bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-40 sm:w-auto"
+            >
+              {assignmentSaving ? 'Saving…' : 'Send to marketplace'}
+            </button>
           )}
+          {quotePassesAvailableJobsStrict(q) ? (
+            <AutoMarketplaceHoldToggle q={q} onUpdated={load} />
+          ) : null}
         </div>
-      </header>
+      </JobDetailsOpsHeader>
 
       <div
         role="tablist"
@@ -709,6 +533,7 @@ export default function AvailableJobDetails() {
                 ? 'border-brand-600 text-slate-900'
                 : 'border-transparent text-slate-500 hover:border-slate-300 hover:text-slate-800'
             }`}
+            data-tab={t.id}
             onClick={() => setTab(t.id)}
           >
             {t.label}
@@ -716,58 +541,28 @@ export default function AvailableJobDetails() {
         ))}
       </div>
 
-      <div className="mt-6 grid grid-cols-1 gap-8 xl:mt-8 xl:grid-cols-[minmax(0,1fr)_18rem] xl:items-start">
+      <div className="mt-5 grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_17rem] xl:items-start">
         <div className="min-w-0 space-y-6">
       {tab === 'overview' ? (
-        <AdminCard title="Overview">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-end">
-            <label className="min-w-0 flex-1">
-              <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">
-                Workflow status
-              </span>
-              <select
-                value={statusDraft}
-                onChange={(e) => setStatusDraft(e.target.value)}
-                className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/25"
-              >
-                {statusOptions.map((s) => (
-                  <option key={s} value={s}>
-                    {s}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <button
-              type="button"
-              disabled={statusSaving || statusDraft === q.status}
-              onClick={() => void saveWorkflowStatus()}
-              className="min-h-[48px] shrink-0 rounded-xl bg-slate-900 px-6 py-3 text-sm font-semibold text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50 sm:min-h-[44px]"
-            >
-              {statusSaving ? 'Saving…' : 'Save workflow status'}
-            </button>
-          </div>
-          {statusMessage.text ? (
-            <p
-              className={`mt-3 text-sm ${
-                statusMessage.type === 'success' ? 'text-emerald-800' : 'text-red-800'
-              }`}
-            >
-              {statusMessage.text}
-            </p>
-          ) : null}
-          <dl className="mt-6 grid gap-4 border-t border-slate-100 pt-6 text-sm sm:grid-cols-2 lg:grid-cols-3">
-            <DlItem label="Operational status" value={(overrides.operationalStatus || '').trim() || '—'} />
-            <DlItem label="Payment status" value={q.payment_status ?? '—'} />
-            <DlItem
-              label="Original quote total"
-              value={fin?.baseQuoteTotal != null ? money(fin.baseQuoteTotal) : '—'}
-            />
-            <DlItem label="Adjustments (sum)" value={money(adjSum)} />
-            <DlItem label="Customer total" value={fin?.customerTotal != null ? money(fin.customerTotal) : '—'} />
-            <DlItem label="Paid amount" value={money(fin?.paid)} />
-            <DlItem label="Remaining balance" value={fin?.remaining != null ? money(fin.remaining) : '—'} />
-          </dl>
-        </AdminCard>
+        <JobDetailsOverviewOps
+          q={q}
+          overrides={overrides}
+          fin={fin}
+          adjSum={adjSum}
+          vm={detailsVm}
+          statusDraft={statusDraft}
+          statusOptions={statusOptions}
+          statusSaving={statusSaving}
+          statusMessage={statusMessage}
+          onStatusDraftChange={setStatusDraft}
+          onSaveWorkflowStatus={() => void saveWorkflowStatus()}
+          notesDraft={notesDraft}
+          photoQuoteRef={photoQuoteRef}
+          jobId={linkedJob?.id != null ? String(linkedJob.id) : null}
+          legacyPhotoFileNames={legacyPhotoFileNames}
+          onOpenTab={setTab}
+          onReload={load}
+        />
       ) : null}
 
       {tab === 'assignment' ? (

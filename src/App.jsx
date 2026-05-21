@@ -27,11 +27,14 @@ import ActiveJobsAdmin from './components/ActiveJobsAdmin'
 import CompletedJobsAdmin from './components/CompletedJobsAdmin'
 import CancelledJobsAdmin from './components/CancelledJobsAdmin'
 import DriversAdmin from './components/DriversAdmin'
+import DriverPaymentsAdmin from './pages/DriverPaymentsAdmin'
 import PartnersAdmin from './components/PartnersAdmin'
 import HomePageQuoteRequestsAdmin from './components/HomePageQuoteRequestsAdmin'
 import WebsiteLeadsAdmin from './components/WebsiteLeadsAdmin'
+import AdminAnalyticsPage from './pages/AdminAnalyticsPage'
 import AvailableJobDetails from './components/AvailableJobDetails'
 import JourneyPlannerPage from './components/JourneyPlannerPage'
+import JourneyViewPage from './components/journey-planner/JourneyViewPage'
 import OperationsMapPage from './components/OperationsMapPage'
 import PaymentSuccessPage from './pages/PaymentSuccessPage'
 import PaymentCancelledPage from './pages/PaymentCancelledPage'
@@ -139,15 +142,18 @@ export default function App() {
         }
       >
         <Route index element={<AdminHome />} />
+        <Route path="analytics" element={<AdminAnalyticsPage />} />
         <Route path="operations-map" element={<OperationsMapPage />} />
         <Route path="available-jobs/:id" element={<AvailableJobDetails />} />
         <Route path="available-jobs" element={<AvailableJobsAdmin />} />
+        <Route path="journey-planner/view/:journeyId" element={<JourneyViewPage />} />
         <Route path="journey-planner" element={<JourneyPlannerPage />} />
         <Route path="marketplace" element={<MarketplaceJobsAdmin />} />
         <Route path="active-jobs" element={<ActiveJobsAdmin />} />
         <Route path="completed-jobs" element={<CompletedJobsAdmin />} />
         <Route path="cancelled-jobs" element={<CancelledJobsAdmin />} />
         <Route path="drivers" element={<DriversAdmin />} />
+        <Route path="driver-payments" element={<DriverPaymentsAdmin />} />
         <Route path="partners" element={<PartnersAdmin />} />
         <Route path="quote-requests" element={<HomePageQuoteRequestsAdmin />} />
         <Route path="website-leads" element={<WebsiteLeadsAdmin />} />

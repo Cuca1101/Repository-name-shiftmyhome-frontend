@@ -51,6 +51,7 @@ export default function Step3Details({
 
       <div
         id="quote-wizard-contact-details-desktop"
+        data-quote-field="contact-details"
         className="scroll-mt-24 rounded-2xl border border-brand-100 bg-gradient-to-br from-brand-50/40 to-white p-5 sm:p-6"
       >
         <h3 className="text-sm font-bold text-slate-900">Your details</h3>
@@ -92,6 +93,16 @@ export default function Step3Details({
           </label>
         </div>
       </div>
+
+      {validationMessage ? (
+        <p
+          className="quote-error rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-800"
+          role="alert"
+          data-quote-error="true"
+        >
+          {validationMessage}
+        </p>
+      ) : null}
 
       <PickupDeliveryContactsSection data={data} onChange={onChange} variant="desktop" />
 

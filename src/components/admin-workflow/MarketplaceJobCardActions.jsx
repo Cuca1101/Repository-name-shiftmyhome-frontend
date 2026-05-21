@@ -67,7 +67,7 @@ export default function MarketplaceJobCardActions({ quote, onApplied }) {
   if (!listed) return null
 
   return (
-    <div className="mt-3 space-y-2 border-t border-slate-100 pt-3">
+    <div className="space-y-2">
       <div className="flex flex-wrap gap-2">
         <button
           type="button"

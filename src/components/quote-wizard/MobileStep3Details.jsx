@@ -134,7 +134,11 @@ export default function MobileStep3Details({
         </div>
       </div>
 
-      <div id="quote-wizard-contact-details-mobile" className={`${card} scroll-mt-24 p-3`}>
+      <div
+        id="quote-wizard-contact-details-mobile"
+        data-quote-field="contact-details"
+        className={`${card} scroll-mt-24 p-3`}
+      >
         <h3 className="text-sm font-bold text-slate-900">Your details</h3>
         <div className="mt-3 space-y-3">
           <label className="block">
@@ -187,8 +191,9 @@ export default function MobileStep3Details({
 
       {validationMessage ? (
         <p
-          className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-medium text-red-800"
+          className="quote-error rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-medium text-red-800"
           role="alert"
+          data-quote-error="true"
         >
           {validationMessage}
         </p>

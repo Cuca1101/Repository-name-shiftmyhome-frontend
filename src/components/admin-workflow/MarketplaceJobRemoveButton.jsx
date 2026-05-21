@@ -33,7 +33,7 @@ export default function MarketplaceJobRemoveButton({ quote, onApplied }) {
       type="button"
       disabled={busy}
       onClick={() => void onRemove()}
-      className="inline-flex min-h-[44px] w-full items-center justify-center rounded-xl border-2 border-red-300 bg-red-50 px-4 py-2.5 text-center text-sm font-bold text-red-900 shadow-sm hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-50"
+      className="inline-flex min-h-[34px] w-full items-center justify-center rounded-lg border border-red-300 bg-white px-3 py-1.5 text-center text-xs font-semibold text-red-800 shadow-sm hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
     >
       {busy ? 'Removing…' : 'Remove from marketplace'}
     </button>

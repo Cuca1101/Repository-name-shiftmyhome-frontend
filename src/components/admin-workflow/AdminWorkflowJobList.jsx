@@ -18,7 +18,10 @@ import MarketplacePricingSettingsPanel from './MarketplacePricingSettingsPanel'
 import MarketplaceJourneyCard from './MarketplaceJourneyCard'
 import MarketplaceJobCardActions from './MarketplaceJobCardActions'
 import JobCard from './JobCard'
+import AdminJobListSections from './AdminJobListSections'
 import AdminJobOverrideActions from './AdminJobOverrideActions'
+import MarketplaceJobRemoveButton from './MarketplaceJobRemoveButton'
+import DriverChargeQuickActions from '../admin-driver-charges/DriverChargeQuickActions'
 
 /** @typedef {'marketplace' | 'active' | 'completed' | 'cancelled'} WorkflowKind */
 
@@ -145,6 +148,7 @@ export default function AdminWorkflowJobList({ workflow, title, description }) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [payFilter, setPayFilter] = useState('all')
+  const [viewMode, setViewMode] = useState('list')
   const [page, setPage] = useState(0)
 
   const marketplaceQuotesAll = useMemo(() => {
@@ -192,7 +196,7 @@ export default function AdminWorkflowJobList({ workflow, title, description }) {
 
   useEffect(() => {
     setPage(0)
-  }, [workflow, activeSearch, payFilter])
+  }, [workflow, activeSearch, payFilter, viewMode])
 
   const filtered = useMemo(() => {
     const qSafe = Array.isArray(quotes) ? quotes : []
@@ -309,6 +313,32 @@ export default function AdminWorkflowJobList({ workflow, title, description }) {
               }`
             : `${filtered.length} job${filtered.length === 1 ? '' : 's'}`}
         </span>
+        <div
+          className="inline-flex rounded-lg border border-slate-200 bg-white p-0.5 shadow-sm"
+          role="group"
+          aria-label="View mode"
+        >
+          <button
+            type="button"
+            onClick={() => setViewMode('list')}
+            className={`rounded-md px-2.5 py-1.5 text-xs font-semibold ${
+              viewMode === 'list' ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-50'
+            }`}
+            aria-pressed={viewMode === 'list'}
+          >
+            List
+          </button>
+          <button
+            type="button"
+            onClick={() => setViewMode('grid')}
+            className={`rounded-md px-2.5 py-1.5 text-xs font-semibold ${
+              viewMode === 'grid' ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-50'
+            }`}
+            aria-pressed={viewMode === 'grid'}
+          >
+            Grid
+          </button>
+        </div>
       </div>
 
       {error && (
@@ -342,32 +372,54 @@ export default function AdminWorkflowJobList({ workflow, title, description }) {
           {workflow === 'marketplace' && marketplaceJourneys.length > 0 ? (
             <h3 className="text-xs font-bold uppercase tracking-wide text-slate-500">Single marketplace jobs</h3>
           ) : null}
-          <ul className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-            {pageSlice.map((q) => {
+          <AdminJobListSections
+            jobs={viewMode === 'list' ? filtered : pageSlice}
+            viewMode={viewMode}
+            renderJob={(q) => {
               const job = findLinkedJobForQuote(q, jobs)
               const rows = buildWorkflowRows(workflow, q, job)
               const badge = workflowStatusBadge(workflow, q, job)
+              const driverId =
+                q.assigned_driver_id != null ? String(q.assigned_driver_id) : ''
+              const chargeActions =
+                (workflow === 'active' || workflow === 'completed') && driverId ? (
+                  <DriverChargeQuickActions
+                    driverId={driverId}
+                    quoteId={q.id != null ? String(q.id) : null}
+                    jobId={job?.id != null ? String(job.id) : null}
+                    quoteRef={String(q.quote_ref || '')}
+                    onUpdated={load}
+                  />
+                ) : null
+
+              const secondarySlot =
+                workflow === 'marketplace' ? (
+                  <div className="flex w-full flex-col gap-2">
+                    <MarketplaceJobRemoveButton quote={q} onApplied={load} />
+                    <MarketplaceJobCardActions quote={q} onApplied={load} />
+                  </div>
+                ) : workflow === 'active' ? (
+                  <div className="flex w-full flex-col gap-2">
+                    <AdminJobOverrideActions quote={q} jobs={jobs} layout="cardFooter" onApplied={load} />
+                    {chargeActions}
+                  </div>
+                ) : workflow === 'completed' && chargeActions ? (
+                  <div className="flex w-full flex-col gap-2">{chargeActions}</div>
+                ) : null
+
               return (
                 <JobCard
-                  key={String(q.id)}
                   q={q}
-                  listVariant={workflow === 'marketplace' ? 'marketplace' : null}
-                  marketplaceOnApplied={workflow === 'marketplace' ? load : undefined}
+                  listVariant={workflow}
+                  layoutMode={viewMode}
                   statusBadge={badge}
                   workflowRows={rows}
-                  showQuickActions={false}
-                  adminSlot={
-                    workflow === 'active' ? (
-                      <AdminJobOverrideActions quote={q} jobs={jobs} compact onApplied={load} />
-                    ) : workflow === 'marketplace' ? (
-                      <MarketplaceJobCardActions quote={q} onApplied={load} />
-                    ) : null
-                  }
+                  secondarySlot={secondarySlot}
                 />
               )
-            })}
-          </ul>
-          {totalPages > 1 ? (
+            }}
+          />
+          {viewMode === 'grid' && totalPages > 1 ? (
             <div className="flex flex-wrap items-center justify-center gap-2 border-t border-slate-200 pt-4">
               <button
                 type="button"
