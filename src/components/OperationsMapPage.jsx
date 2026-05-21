@@ -13,6 +13,7 @@ import {
   filterJourneysForProductionInbox,
   filterQuotesForProductionInbox,
 } from '../lib/demoTestRecordDetection'
+import { subscribeAdminDataRefresh } from '../lib/adminDataRefresh'
 import { formatDateUK } from '../lib/formatDateDisplay'
 import { geocodeAddressCached } from '../lib/operationsMapGeocodeCache'
 import {
@@ -188,6 +189,8 @@ export default function OperationsMapPage() {
   useEffect(() => {
     void loadCore()
   }, [loadCore])
+
+  useEffect(() => subscribeAdminDataRefresh(loadCore), [loadCore])
 
   useEffect(() => {
     if (!isSupabaseConfigured || !supabase) return undefined

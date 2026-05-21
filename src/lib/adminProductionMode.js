@@ -11,5 +11,10 @@ export function isProductionAdmin() {
 
 /** Show demo badges, legacy test cancel helpers, etc. */
 export function showDemoAdminUi() {
-  return !isProductionAdmin()
+  return import.meta.env.VITE_SHOW_DEMO_ADMIN_UI === 'true'
+}
+
+/** Hide archived/test/demo rows in admin lists unless demo UI is enabled. */
+export function shouldApplyProductionAdminFilters() {
+  return import.meta.env.VITE_SHOW_DEMO_ADMIN_UI !== 'true'
 }

@@ -6,6 +6,7 @@ function serviceTypeForPath(path) {
 }
 import { HOME_SERVICE_CARD_IMAGES } from '../constants/homeServiceCardImages'
 import { fetchPricingSettings } from '../lib/data/pricingSettingsRepository'
+import { buildServiceCardPriceBySlug } from '../lib/serviceCardDisplayPrice'
 import { useWebsiteCms } from '../context/WebsiteCmsContext'
 
 /** Shared service card data for homepage desktop + mobile grids. */
@@ -30,16 +31,7 @@ export function useServiceGridCards() {
     }
   }, [])
 
-  const priceBySlug = useMemo(() => {
-    const b = settings?.basePriceByService
-    if (!b) return {}
-    const out = {}
-    for (const s of SERVICE_PAGES) {
-      const v = b[s.serviceType]
-      out[s.slug] = typeof v === 'number' && Number.isFinite(v) ? `£${Math.round(v)}` : null
-    }
-    return out
-  }, [settings])
+  const priceBySlug = useMemo(() => buildServiceCardPriceBySlug(settings), [settings])
 
   const cards = useMemo(() => {
     if (hasCmsServiceCards) {

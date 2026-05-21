@@ -13,9 +13,19 @@ import { fetchQuotesForAdmin } from '../../lib/data/quotesAdminRepository'
 import { fetchWebsiteFunnelCleanupStats } from '../../lib/data/websiteFunnelCleanupRepository'
 
 /**
- * @param {{ open: boolean, onClose: () => void, onDone?: () => void | Promise<void> }} props
+ * @param {{
+ *   open: boolean,
+ *   onClose: () => void,
+ *   onDone?: () => void | Promise<void>,
+ *   showPinHint?: boolean,
+ * }} props
  */
-export default function ProductionDataCleanupModal({ open, onClose, onDone }) {
+export default function ProductionDataCleanupModal({
+  open,
+  onClose,
+  onDone,
+  showPinHint = false,
+}) {
   const [loading, setLoading] = useState(false)
   const [busy, setBusy] = useState(false)
   const [progress, setProgress] = useState('')
@@ -28,6 +38,9 @@ export default function ProductionDataCleanupModal({ open, onClose, onDone }) {
   const [msg, setMsg] = useState('')
   const [err, setErr] = useState('')
   const [confirmText, setConfirmText] = useState('')
+  const [lastResult, setLastResult] = useState(
+    /** @type {Awaited<ReturnType<typeof runAdminTestDataCleanup>> | null} */ (null),
+  )
 
   const loadPreview = useCallback(async () => {
     setLoading(true)
@@ -60,6 +73,7 @@ export default function ProductionDataCleanupModal({ open, onClose, onDone }) {
       setMsg('')
       setErr('')
       setProgress('')
+      setLastResult(null)
       void loadPreview()
     }
   }, [open, loadPreview])
@@ -74,10 +88,6 @@ export default function ProductionDataCleanupModal({ open, onClose, onDone }) {
     setMsg('')
     setProgress('Starting…')
     try {
-      downloadCleanupCsv(
-        exportQuotesCleanupCsv(preview.archiveQuotes),
-        `smh-prelaunch-quotes-backup-${new Date().toISOString().slice(0, 10)}.csv`,
-      )
       const result = await runAdminTestDataCleanup({
         archiveQuotes: true,
         hideTestJourneys: true,
@@ -88,6 +98,7 @@ export default function ProductionDataCleanupModal({ open, onClose, onDone }) {
         useServerBatch: true,
         onProgress: setProgress,
       })
+      setLastResult(result)
       if (result.errors.length) {
         setErr(`Completed with ${result.errors.length} error(s). First: ${result.errors[0]}`)
       }
@@ -98,9 +109,13 @@ export default function ProductionDataCleanupModal({ open, onClose, onDone }) {
         result.photosDeleted ? `${result.photosDeleted} photo(s) removed` : null,
         result.chargesWaived ? `${result.chargesWaived} charge(s) waived` : null,
         result.funnelEvents || result.funnelLeads
-          ? `Funnel: ${result.funnelEvents} event(s), ${result.funnelLeads} lead(s) cleared`
+          ? `Funnel cleared: ${result.funnelEvents} events, ${result.funnelLeads} leads`
           : null,
-        `${result.preview.protectedQuotes} Stripe/paid booking(s) kept`,
+        `${result.skippedProtected} protected (Stripe-linked) skipped`,
+        `Lists after refresh: ${result.quotesAfter.length} quote(s), ${result.journeysAfter.length} journey(s) visible`,
+        result.quotesRemainingVisible > 0
+          ? `Warning: ${result.quotesRemainingVisible} non-protected row(s) still visible — re-run or check DB`
+          : null,
       ].filter(Boolean)
       setMsg(parts.join('. ') + '.')
       await onDone?.()
@@ -138,10 +153,14 @@ export default function ProductionDataCleanupModal({ open, onClose, onDone }) {
         <h2 id="prod-cleanup-title" className="text-lg font-bold text-slate-900">
           Clear all existing test/demo admin data
         </h2>
+        {showPinHint ? (
+          <p className="mt-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-900">
+            Protected verification complete. Confirm below to archive pre-launch test data.
+          </p>
+        ) : null}
         <p className="mt-2 text-sm text-slate-600">
-          Prepares admin for live launch. Archives every quote that is not a real Stripe-linked payment,
-          hides journeys, cancels linked job cards, clears funnel test data, and downloads a CSV backup
-          first. Pricing, items library, CMS, and driver accounts are not changed.
+          Archives quotes without a real Stripe payment ID, hides journeys, clears funnel test rows, and
+          downloads a CSV backup first. Only Stripe-linked live payments are kept.
         </p>
 
         {loading ? (
@@ -149,23 +168,25 @@ export default function ProductionDataCleanupModal({ open, onClose, onDone }) {
         ) : preview ? (
           <ul className="mt-4 space-y-2 rounded-xl bg-slate-50 p-3 text-sm text-slate-800">
             <li>
-              <span className="font-semibold">{archiveCount}</span> quote(s) to archive (all pre-launch
-              except protected)
+              <span className="font-semibold">{archiveCount}</span> quote(s) to archive
             </li>
             <li>
               <span className="font-semibold">{journeyCount}</span> journey(s) to archive
             </li>
             <li>
-              <span className="font-semibold">{preview.linkedJobCards}</span> linked job card(s) to cancel
+              <span className="font-semibold">{preview.linkedJobCards}</span> job card(s) to cancel
             </li>
             <li>
-              <span className="font-semibold">{protectedCount}</span> protected (paid / Stripe) — kept
+              <span className="font-semibold">{preview.marketplaceVisibleCount ?? 0}</span> marketplace
+              listing(s) today
+            </li>
+            <li>
+              <span className="font-semibold">{protectedCount}</span> Stripe-linked — kept
             </li>
             {preview.funnelEvents != null ? (
               <li>
-                <span className="font-semibold">{preview.funnelEvents}</span> funnel event(s),{' '}
-                <span className="font-semibold">{preview.funnelLeads}</span> lead row(s) eligible for
-                cleanup
+                Funnel: <span className="font-semibold">{preview.funnelEvents}</span> events,{' '}
+                <span className="font-semibold">{preview.funnelLeads}</span> leads
               </li>
             ) : null}
           </ul>

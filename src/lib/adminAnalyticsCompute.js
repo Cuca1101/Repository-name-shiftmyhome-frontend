@@ -7,8 +7,7 @@ import {
   quoteIsCompleted,
 } from './adminWorkflowFilters'
 import { quotePassesAvailableJobsStrict } from './adminJobListRules'
-import { shouldHideQuoteFromAdminInbox } from './demoTestRecordDetection'
-import { isProductionAdmin } from './adminProductionMode'
+import { quoteVisibleInAdminLists } from './adminProductionFilters'
 import { resolveJobPayoutAccounting } from './jobPayoutAccounting'
 import { resolveJobPayoutWithDriverCharges } from './driverChargeAccounting'
 import { aggregateDriverChargeKpis } from './driverPaymentsModel'
@@ -164,7 +163,7 @@ export function buildAdminAnalyticsModel(quotes, jobs, driverCharges = []) {
  */
 export function filterQuotesForAnalytics(quotes, range, filters = {}) {
   return quotes.filter((q) => {
-    if (isProductionAdmin() && shouldHideQuoteFromAdminInbox(q)) return false
+    if (!quoteVisibleInAdminLists(q)) return false
     if (!quoteInRange(q, range.start, range.end)) return false
     const ps = String(q.payment_status || '')
     if (ps !== 'paid' && ps !== 'deposit_paid') return false

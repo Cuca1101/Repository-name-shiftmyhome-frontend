@@ -22,6 +22,7 @@ import AdminJobListSections from './AdminJobListSections'
 import AdminJobOverrideActions from './AdminJobOverrideActions'
 import MarketplaceJobRemoveButton from './MarketplaceJobRemoveButton'
 import DriverChargeQuickActions from '../admin-driver-charges/DriverChargeQuickActions'
+import { subscribeAdminDataRefresh } from '../../lib/adminDataRefresh'
 
 /** @typedef {'marketplace' | 'active' | 'completed' | 'cancelled'} WorkflowKind */
 
@@ -193,6 +194,8 @@ export default function AdminWorkflowJobList({ workflow, title, description }) {
   useEffect(() => {
     load()
   }, [load])
+
+  useEffect(() => subscribeAdminDataRefresh(load), [load])
 
   useEffect(() => {
     setPage(0)

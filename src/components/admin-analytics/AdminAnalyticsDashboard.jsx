@@ -22,6 +22,8 @@ import {
   filterQuotesForAnalytics,
   money,
 } from '../../lib/adminAnalyticsCompute'
+import { filterProductionAdminQuotes } from '../../lib/adminProductionFilters'
+import { subscribeAdminDataRefresh } from '../../lib/adminDataRefresh'
 import { fetchQuotesForAdminAnalytics } from '../../lib/data/adminAnalyticsRepository'
 import { fetchAllJobs } from '../../lib/data/jobsRepository'
 import { fetchAllDriverCharges } from '../../lib/data/driverChargesRepository'
@@ -86,7 +88,7 @@ export default function AdminAnalyticsDashboard() {
         fetchAllJobs(),
         fetchAllDriverCharges(),
       ])
-      setQuotes(qList)
+      setQuotes(filterProductionAdminQuotes(qList))
       setJobs(jList)
       setDriverCharges(cList)
     } catch (e) {
@@ -99,6 +101,8 @@ export default function AdminAnalyticsDashboard() {
   useEffect(() => {
     void load()
   }, [load])
+
+  useEffect(() => subscribeAdminDataRefresh(load), [load])
 
   const baseModel = useMemo(
     () => buildAdminAnalyticsModel(quotes, jobs, driverCharges),

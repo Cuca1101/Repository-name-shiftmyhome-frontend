@@ -38,6 +38,10 @@ const QUOTE_ASSIGNMENT_SAFE_KEYS = new Set([
   'auto_marketplace_hold',
   'auto_marketplace_eligible_at',
   'auto_marketplace_sent_at',
+  'is_test',
+  'archived_for_go_live',
+  'admin_notified_at',
+  'admin_notification_intent_id',
 ])
 
 /**

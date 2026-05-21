@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { Check, Copy } from 'lucide-react'
-import { verifyPaymentIntent } from '../lib/stripeCheckout'
+import { verifyPaymentIntent, scheduleAdminAvailableJobNotification } from '../lib/stripeCheckout'
 import { clearQuoteDraft } from '../lib/quoteDraftStorage'
 import { consumePhotoUploadNotice } from '../lib/quotePhotoUpload'
 import { trackWebsiteLeadEvent } from '../lib/websiteLeadTracker'
@@ -27,6 +27,10 @@ export default function PaymentSuccessPage() {
     ;(async () => {
       try {
         const data = await verifyPaymentIntent(paymentIntentId)
+        scheduleAdminAvailableJobNotification({
+          paymentIntentId,
+          quoteId: data?.quote_id != null ? String(data.quote_id) : undefined,
+        })
         if (!cancelled && data?.quote_ref && typeof data.quote_ref === 'string') {
           const ref = data.quote_ref.trim()
           setQuoteRef(ref)

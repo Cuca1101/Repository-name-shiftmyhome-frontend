@@ -52,6 +52,27 @@ export default function PricingEngineAdmin() {
     }))
   }
 
+  function setDisplayPrice(service, value) {
+    const trimmed = String(value).trim()
+    const n = parseFloat(trimmed)
+    setSettings((prev) => {
+      const next = { ...(prev.displayPriceByService || {}) }
+      if (trimmed === '' || !Number.isFinite(n) || n <= 0) {
+        delete next[service]
+      } else {
+        next[service] = n
+      }
+      return { ...prev, displayPriceByService: next }
+    })
+  }
+
+  function displayPriceInputValue(service) {
+    const map = settings.displayPriceByService
+    if (!map || !Object.prototype.hasOwnProperty.call(map, service)) return ''
+    const v = map[service]
+    return typeof v === 'number' && Number.isFinite(v) ? String(v) : ''
+  }
+
   function setCustomSize(key, value) {
     const n = parseFloat(value)
     setSettings((prev) => ({
@@ -105,6 +126,8 @@ export default function PricingEngineAdmin() {
 
   const inputClass =
     'w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-slate-900 shadow-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/30'
+  const displayInputClass =
+    'w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm text-slate-800 shadow-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20'
 
   return (
     <div className="space-y-6">
@@ -147,21 +170,49 @@ export default function PricingEngineAdmin() {
               </span>
             </span>
           </label>
+          <p className="mt-3 text-xs leading-relaxed text-slate-500">
+            Display prices only change the homepage/service card &ldquo;From £&hellip;&rdquo; text. They do not affect
+            quote calculations.
+          </p>
           <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {SERVICE_TYPES.map((s) => (
-              <Field key={s} label={s}>
-                <div className="flex items-center gap-2">
-                  <span className="text-slate-500">£</span>
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    className={inputClass}
-                    value={settings.basePriceByService?.[s] ?? 0}
-                    onChange={(e) => setBase(s, e.target.value)}
-                  />
-                </div>
-              </Field>
+              <div
+                key={s}
+                className="rounded-xl border border-slate-100 bg-slate-50/50 p-4"
+              >
+                <p className="text-sm font-semibold text-slate-900">{s}</p>
+                <label className="mt-3 block">
+                  <span className="text-xs font-medium text-slate-700">Base price</span>
+                  <span className="mt-0.5 block text-[11px] text-slate-500">Used for quote calculation</span>
+                  <div className="mt-1.5 flex items-center gap-2">
+                    <span className="text-slate-500">£</span>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      className={inputClass}
+                      value={settings.basePriceByService?.[s] ?? 0}
+                      onChange={(e) => setBase(s, e.target.value)}
+                    />
+                  </div>
+                </label>
+                <label className="mt-3 block">
+                  <span className="text-xs font-medium text-slate-600">Display price</span>
+                  <span className="mt-0.5 block text-[11px] text-slate-500">Card display price (homepage only)</span>
+                  <div className="mt-1.5 flex items-center gap-2">
+                    <span className="text-sm text-slate-400">£</span>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      placeholder="Default"
+                      className={displayInputClass}
+                      value={displayPriceInputValue(s)}
+                      onChange={(e) => setDisplayPrice(s, e.target.value)}
+                    />
+                  </div>
+                </label>
+              </div>
             ))}
           </div>
         </div>

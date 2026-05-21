@@ -7,6 +7,7 @@ import { Lock } from 'lucide-react'
  *   onClose: () => void,
  *   onUnlock: (creds: { password?: string, pin?: string }) => Promise<{ ok: boolean, error?: string }>,
  *   title?: string,
+ *   description?: string,
  * }} props
  */
 export default function UnlockProtectedSettingsModal({
@@ -14,6 +15,7 @@ export default function UnlockProtectedSettingsModal({
   onClose,
   onUnlock,
   title = 'Unlock protected settings',
+  description = 'Verify with your admin password or PIN. Unlock lasts 30 minutes for this browser session.',
 }) {
   const [password, setPassword] = useState('')
   const [pin, setPin] = useState('')
@@ -71,9 +73,7 @@ export default function UnlockProtectedSettingsModal({
             <h2 id="unlock-protected-settings-title" className="text-lg font-bold text-slate-900">
               {title}
             </h2>
-            <p className="mt-1 text-sm text-slate-600">
-              Verify with your admin password or PIN. Unlock lasts 30 minutes for this browser session.
-            </p>
+            <p className="mt-1 text-sm text-slate-600">{description}</p>
           </div>
         </div>
 

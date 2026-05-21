@@ -2,7 +2,7 @@ import { Component, useState } from 'react'
 import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js'
 import { useNavigate } from 'react-router-dom'
 import { stripePromise } from '../../lib/stripePromise'
-import { verifyPaymentIntent } from '../../lib/stripeCheckout'
+import { verifyPaymentIntent, scheduleAdminAvailableJobNotification } from '../../lib/stripeCheckout'
 import { clearQuoteDraft } from '../../lib/quoteDraftStorage'
 
 function paymentElementOptions(customerEmail) {
@@ -80,6 +80,10 @@ function PaymentForm({
         let verifyData = null
         try {
           verifyData = await verifyPaymentIntent(paymentIntent.id)
+          scheduleAdminAvailableJobNotification({
+            paymentIntentId: paymentIntent.id,
+            quoteId: verifyData?.quote_id != null ? String(verifyData.quote_id) : undefined,
+          })
         } catch {
           /* Success page may call verify again */
         }

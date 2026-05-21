@@ -14,6 +14,7 @@ import {
 } from '../../lib/journeyPlannerDisplay'
 import { isSupabaseConfigured } from '../../lib/supabase'
 import { filterJourneysForProductionInbox } from '../../lib/demoTestRecordDetection'
+import { subscribeAdminDataRefresh } from '../../lib/adminDataRefresh'
 import { fetchDriverNamesByIds } from '../../lib/journeyFleetDrivers'
 import JourneyListCard from './JourneyListCard'
 
@@ -87,6 +88,8 @@ export default function JourneyPlannerList({ refreshKey = 0, compact = false }) 
   useEffect(() => {
     void load()
   }, [load, refreshKey])
+
+  useEffect(() => subscribeAdminDataRefresh(load), [load])
 
   const filtered = useMemo(() => {
     const byTab = filterJourneysByTab(rows, tab)

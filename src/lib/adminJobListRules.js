@@ -1,6 +1,5 @@
 import { mergedAdminWorkflowForQuote } from './quoteAdminWorkflowMerge'
-import { isProductionAdmin } from './adminProductionMode'
-import { shouldHideQuoteFromAdminInbox } from './demoTestRecordDetection'
+import { quoteVisibleInAdminLists } from './adminProductionFilters'
 
 /**
  * Admin job inbox rules (quotes row + merged session when DB columns absent).
@@ -54,7 +53,7 @@ export function quoteOperationalStatusLower(q) {
  * @param {Record<string, unknown>} q
  */
 export function quotePassesAvailableJobsStrict(q) {
-  if (isProductionAdmin() && shouldHideQuoteFromAdminInbox(q)) return false
+  if (!quoteVisibleInAdminLists(q)) return false
   if (q?.bundled_journey_id != null && String(q.bundled_journey_id).trim() !== '') return false
   if (!quoteIsCardPaid(q)) return false
   const st = String(q.status ?? '').trim()
@@ -75,6 +74,7 @@ export function quotePassesAvailableJobsStrict(q) {
  * @param {Record<string, unknown>} q
  */
 export function quotePassesMarketplaceStrict(q) {
+  if (!quoteVisibleInAdminLists(q)) return false
   if (q?.bundled_journey_id != null && String(q.bundled_journey_id).trim() !== '') return false
   const mv = mergedAdminWorkflowForQuote(q).marketplaceVisibility
   if (mv !== 'visible_in_marketplace') return false
@@ -115,6 +115,7 @@ export function journeyPassesMarketplaceStrict(j) {
  * @param {Record<string, unknown>} q
  */
 export function quotePassesActiveStrict(q) {
+  if (!quoteVisibleInAdminLists(q)) return false
   const assigned =
     quoteHasAssignedDriver(q) || quoteHasAssignedPartner(q) || quoteMarketplaceJobAccepted(q)
   if (!assigned) return false

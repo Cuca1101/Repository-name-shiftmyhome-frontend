@@ -22,6 +22,8 @@ import MarketplacePricingSettingsPanel from './admin-workflow/MarketplacePricing
 import AutoMarketplaceHoldToggle from './admin-workflow/AutoMarketplaceHoldToggle'
 import { runAutoMarketplaceTick } from '../lib/autoMarketplacePublish'
 import { loadMarketplacePricingDefaults } from '../lib/marketplacePricingDefaultsStore'
+import { subscribeAdminDataRefresh } from '../lib/adminDataRefresh'
+import { sendAdminAvailableJobTestEmail } from '../lib/adminAvailableJobTestEmail'
 
 const POLL_MS = 12_000
 const AUTO_MARKETPLACE_MS = 60_000
@@ -112,6 +114,8 @@ export default function AvailableJobsAdmin() {
   const [selectedIds, setSelectedIds] = useState(() => new Set())
   const [highlightIds, setHighlightIds] = useState(() => new Set())
   const [toast, setToast] = useState('')
+  const [testEmailBusy, setTestEmailBusy] = useState(false)
+  const [testEmailToast, setTestEmailToast] = useState(null)
   const [soundEnabled, setSoundEnabled] = useState(() => readAvailableJobsSoundEnabled())
   const [soundUnlocked, setSoundUnlocked] = useState(() => readAvailableJobsSoundUnlocked())
 
@@ -247,6 +251,8 @@ export default function AvailableJobsAdmin() {
     void load()
   }, [load])
 
+  useEffect(() => subscribeAdminDataRefresh(load), [load])
+
   useEffect(() => {
     const defs = loadMarketplacePricingDefaults()
     if (!defs.autoMarketplace.enabled) return undefined
@@ -311,6 +317,29 @@ export default function AvailableJobsAdmin() {
     })
   }
 
+  const showTestEmailToast = useCallback((message, variant) => {
+    setTestEmailToast({ message, variant })
+    window.setTimeout(() => setTestEmailToast(null), variant === 'error' ? 8000 : 5000)
+  }, [])
+
+  async function handleSendTestAdminEmail() {
+    if (testEmailBusy) return
+    setTestEmailBusy(true)
+    setTestEmailToast(null)
+    try {
+      const result = await sendAdminAvailableJobTestEmail()
+      if (result.ok) {
+        showTestEmailToast(result.message || 'Test email sent', 'success')
+      } else {
+        showTestEmailToast(result.message || 'Could not send test email.', 'error')
+      }
+    } catch (e) {
+      showTestEmailToast(e?.message || 'Could not send test email.', 'error')
+    } finally {
+      setTestEmailBusy(false)
+    }
+  }
+
   function addToJourney() {
     if (selectedIds.size === 0) return
     const quoteIds = sortedRows.filter((q) => selectedIds.has(String(q.id))).map((q) => String(q.id))
@@ -332,6 +361,20 @@ export default function AvailableJobsAdmin() {
           aria-live="polite"
         >
           {toast}
+        </div>
+      ) : null}
+
+      {testEmailToast ? (
+        <div
+          className={`fixed bottom-4 left-4 z-[80] max-w-sm rounded-xl border px-4 py-3 text-sm font-semibold shadow-lg sm:left-auto sm:right-4 ${
+            testEmailToast.variant === 'error'
+              ? 'border-red-200 bg-red-50 text-red-950'
+              : 'border-emerald-200 bg-emerald-50 text-emerald-950'
+          }`}
+          role="status"
+          aria-live="polite"
+        >
+          {testEmailToast.message}
         </div>
       ) : null}
 
@@ -369,7 +412,23 @@ export default function AvailableJobsAdmin() {
           >
             {isRefreshing ? 'Refreshing…' : 'Refresh'}
           </button>
+          <button
+            type="button"
+            onClick={() => void handleSendTestAdminEmail()}
+            disabled={testEmailBusy || loading}
+            className="rounded-lg border border-slate-200 bg-white px-3.5 py-2 text-sm font-semibold text-slate-800 shadow-sm hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+            title="Send sample admin job notification to admin@shiftmyhome.co.uk"
+          >
+            {testEmailBusy ? 'Sending test…' : 'Send test email'}
+          </button>
         </div>
+      </div>
+
+      <div className="rounded-xl border border-slate-200/90 bg-slate-50/60 px-4 py-3">
+        <p className="text-sm font-semibold text-slate-900">Admin job email notifications</p>
+        <p className="mt-1 text-xs text-slate-600">
+          Sends a sample message via Resend to verify delivery. Does not create jobs or mark bookings as notified.
+        </p>
       </div>
 
       {!soundUnlocked ? (

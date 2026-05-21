@@ -1,5 +1,6 @@
 import { isSupabaseConfigured, supabase } from '../supabase'
 import { getDefaultPricingSettings } from '../defaultPricingSettings'
+import { sanitizeDisplayPriceByService } from '../serviceCardDisplayPrice'
 import { LS_PRICING } from '../localStorageKeys'
 
 const TABLE = 'pricing_settings'
@@ -88,10 +89,13 @@ function mergeWithDefaults(raw) {
         .filter((c) => c.code.length > 0)
     : d.promoCodes
 
+  const displayPriceByService = sanitizeDisplayPriceByService(raw.displayPriceByService)
+
   const merged = {
     ...d,
     ...raw,
     basePriceByService: base,
+    displayPriceByService,
     customSizeM3: custom,
     promoCodes,
   }

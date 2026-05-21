@@ -58,6 +58,8 @@ export async function cancelBookingForQuote(quoteId, quote = {}, opts = {}) {
     cancelled_at: ts,
     admin_cancellation_reason: reason,
     marketplace_visibility: 'cancelled',
+    archived_for_go_live: true,
+    is_test: true,
     admin_notes_log: log,
     assigned_at: ts,
     assigned_by: actor,
@@ -71,7 +73,10 @@ export async function cancelBookingForQuote(quoteId, quote = {}, opts = {}) {
 
   if (isSupabaseConfigured) {
     await updateQuoteWorkflowAssignment(id, patch)
-    const testResult = await updateQuoteWorkflowAssignmentSilent(id, { is_test: true })
+    const testResult = await updateQuoteWorkflowAssignmentSilent(id, {
+      is_test: true,
+      archived_for_go_live: true,
+    })
     isTestStored = Boolean(testResult.savedRemote)
     await removeJobAssignmentForQuote(id)
   } else {

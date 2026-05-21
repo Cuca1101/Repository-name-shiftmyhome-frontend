@@ -10,6 +10,7 @@ import {
 } from '../inventorySearchUtils'
 import InventorySelectionVolumeRow from '../InventorySelectionVolumeRow'
 import { resolveDefaultM3PerUnit } from '../inventoryLineDefaults'
+import { applyInventoryLineQuantityDelta, catalogLineForItem } from '../../../lib/inventoryLineQuantity'
 import CrewSizeField from '../CrewSizeField'
 import MobileStep2Inventory from '../MobileStep2Inventory'
 import {
@@ -21,10 +22,6 @@ import {
 function newLineId() {
   if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID()
   return `L-${Date.now()}-${Math.random().toString(16).slice(2)}`
-}
-
-function catalogLineForItem(lines, itemId) {
-  return lines.find((l) => !l.isCustom && l.catalogId === itemId) ?? null
 }
 
 export default function Step2Inventory({
@@ -112,7 +109,13 @@ export default function Step2Inventory({
     const found = getCatalogItem(itemId)
     if (!found) return
     const { item, categoryKey, categoryLabel } = found
-    const idx = lines.findIndex((l) => !l.isCustom && l.catalogId === itemId)
+    let idx = lines.findIndex((l) => !l.isCustom && l.catalogId != null && String(l.catalogId) === String(itemId))
+    if (idx < 0 && item.name) {
+      const norm = item.name.trim().toLowerCase()
+      idx = lines.findIndex(
+        (l) => !l.isCustom && String(l.name ?? '').trim().toLowerCase() === norm,
+      )
+    }
     if (idx >= 0) {
       const next = [...lines]
       next[idx] = { ...next[idx], quantity: next[idx].quantity + 1 }
@@ -138,13 +141,7 @@ export default function Step2Inventory({
   }
 
   function bump(lineId, delta) {
-    onLinesChange(
-      lines
-        .map((r) =>
-          r.lineId === lineId ? { ...r, quantity: Math.max(0, r.quantity + delta) } : r,
-        )
-        .filter((r) => r.quantity > 0),
-    )
+    onLinesChange(applyInventoryLineQuantityDelta(lines, lineId, delta))
   }
 
   function addCustom() {
@@ -202,7 +199,7 @@ export default function Step2Inventory({
     'w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/25'
 
   function renderCatalogRow(item, highlightQuery, emphasizeMatch) {
-    const line = catalogLineForItem(lines, item.id)
+    const line = catalogLineForItem(lines, item.id, item.name)
     const qty = line?.quantity ?? 0
     const volumeHint = ITEM_VOLUME_HINT[item.id]
     const perUnitVol = Number(item.m3) || 0
@@ -249,12 +246,12 @@ export default function Step2Inventory({
   }
 
   function renderMobileCatalogRow(item, highlightQuery, emphasizeMatch) {
-    const line = catalogLineForItem(lines, item.id)
+    const line = catalogLineForItem(lines, item.id, item.name)
     const qty = line?.quantity ?? 0
     return (
       <li
         key={item.id}
-        className={`flex min-h-[52px] items-center gap-2 rounded-lg border px-2 py-2 ${
+        className={`flex min-h-[52px] min-w-0 items-center gap-2 rounded-lg border px-2 py-2 ${
           emphasizeMatch ? 'border-amber-200 bg-amber-50/50' : 'border-slate-100 bg-slate-50/80'
         }`}
       >
@@ -273,12 +270,15 @@ export default function Step2Inventory({
             )}
           </p>
         </div>
-        <InlineInventoryQtyControl
-          quantity={qty}
-          onAdd={() => addFromCatalog(item.id)}
-          onDecrement={() => line && bump(line.lineId, -1)}
-          onIncrement={() => (line ? bump(line.lineId, 1) : addFromCatalog(item.id))}
-        />
+        <div className="shrink-0">
+          <InlineInventoryQtyControl
+            compact
+            quantity={qty}
+            onAdd={() => addFromCatalog(item.id)}
+            onDecrement={() => line && bump(line.lineId, -1)}
+            onIncrement={() => (line ? bump(line.lineId, 1) : addFromCatalog(item.id))}
+          />
+        </div>
       </li>
     )
   }

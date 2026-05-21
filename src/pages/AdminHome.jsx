@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { LEAD_STATUSES } from '../constants/leadStatus'
 import { fetchAllJobs, countLegacyQuotes } from '../lib/data/jobsRepository'
 import { fetchQuotePaymentStats } from '../lib/data/quotesAdminRepository'
-import ProductionDataCleanupModal from '../components/admin/ProductionDataCleanupModal'
+import GoLiveCleanupGate from '../components/admin/GoLiveCleanupGate'
 import { showDemoAdminUi } from '../lib/adminProductionMode'
 
 export default function AdminHome() {
@@ -178,7 +178,7 @@ export default function AdminHome() {
           </div>
         </>
       )}
-      <ProductionDataCleanupModal
+      <GoLiveCleanupGate
         open={cleanupOpen}
         onClose={() => setCleanupOpen(false)}
         onDone={load}

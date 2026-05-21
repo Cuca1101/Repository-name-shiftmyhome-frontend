@@ -115,7 +115,8 @@ export default function MobileQuoteMoveSummary({
   crewSettings,
   showOnDesktop = false,
 }) {
-  const itemsEditable = step === 3 && typeof onInventoryLinesChange === 'function'
+  const itemsEditable =
+    (step === 2 || step === 3) && typeof onInventoryLinesChange === 'function'
   const [itemsOpen, setItemsOpen] = useState(false)
 
   const selectedLines = (inventoryLines || []).filter((l) => l.quantity > 0)

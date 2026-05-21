@@ -6,15 +6,15 @@ import {
   quotePassesMarketplaceStrict,
 } from './adminJobListRules'
 import {
-  shouldHideJourneyFromAdminInbox,
-  shouldHideQuoteFromAdminInbox,
-} from './demoTestRecordDetection'
-import { isProductionAdmin } from './adminProductionMode'
+  journeyVisibleInAdminLists,
+  quoteVisibleInAdminLists,
+} from './adminProductionFilters'
+import { shouldHideArchivedTestDemoInProduction } from './demoTestRecordDetection'
 
 /** @param {Record<string, unknown>} q */
 function quoteVisibleInProductionAdmin(q) {
-  if (!isProductionAdmin()) return true
-  return !shouldHideQuoteFromAdminInbox(q)
+  if (shouldHideArchivedTestDemoInProduction(q)) return false
+  return quoteVisibleInAdminLists(q)
 }
 
 /** @param {Record<string, unknown>} job */
@@ -143,7 +143,7 @@ export function filterMarketplaceJourneys(journeys) {
   if (!Array.isArray(journeys)) return []
   return journeys.filter((j) => {
     if (!j || typeof j !== 'object') return false
-    if (isProductionAdmin() && shouldHideJourneyFromAdminInbox(j)) return false
+    if (!journeyVisibleInAdminLists(j)) return false
     return journeyPassesMarketplaceStrict(j)
   })
 }

@@ -89,7 +89,7 @@ export default function MobileStep2Inventory({
         </p>
       ) : null}
 
-      <div ref={catalogSectionRef} data-quote-field="inventory" className={`${card} overflow-hidden p-3`}>
+      <div ref={catalogSectionRef} data-quote-field="inventory" className={`${card} min-w-0 p-3`}>
         <div className="-mx-1 flex min-w-0 snap-x snap-mandatory gap-2.5 overflow-x-auto overscroll-x-contain scroll-smooth px-1 pb-2.5 touch-pan-x [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {categoryOrder.map((key) => {
             const c = inventoryByCategory[key]

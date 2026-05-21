@@ -96,6 +96,16 @@ export function loadAvailableJobAdminOverrides(quoteId) {
  * @param {string} quoteId
  * @param {Partial<AvailableJobAdminOverrides>} patch
  */
+/** Clear all session workflow overrides (after go-live cleanup). */
+export function clearAllAvailableJobAdminOverrides() {
+  if (typeof sessionStorage === 'undefined') return
+  try {
+    sessionStorage.removeItem(STORAGE_KEY)
+  } catch {
+    /* ignore */
+  }
+}
+
 export function saveAvailableJobAdminOverrides(quoteId, patch) {
   const id = String(quoteId || '').trim()
   if (!id) return

@@ -4,6 +4,7 @@ import { Check, ShieldCheck } from 'lucide-react'
 import { isDepositPaymentAllowedForMoveDate } from '../../lib/moveDateLocal'
 import { trackWebsiteLeadEvent } from '../../lib/websiteLeadTracker'
 import QuoteStripePayment from './QuoteStripePayment'
+import { shouldShowStripeTestModeWarning, stripeTestModeWarningMessage } from '../../lib/stripeConfig'
 
 /** Step 4 mounts twice (mobile + desktop columns); detect visibility without document-wide MutationObserver. */
 function usePanelVisible(rootRef) {
@@ -378,6 +379,15 @@ export default function QuotePaymentSection({
             {termsReady
               ? 'Please select a payment option to continue.'
               : 'Please confirm your details and accept the terms to choose a payment option.'}
+          </p>
+        ) : null}
+
+        {shouldShowStripeTestModeWarning() ? (
+          <p
+            className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-950 md:text-sm"
+            role="status"
+          >
+            {stripeTestModeWarningMessage()}
           </p>
         ) : null}
 

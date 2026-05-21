@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { showDemoAdminUi } from '../lib/adminProductionMode'
+import StripeModeBanner from './admin/StripeModeBanner'
 
 const mainSections = [
   {
@@ -445,7 +446,8 @@ export default function AdminLayout() {
         </header>
 
         <main className="admin-main-compact flex-1 px-2.5 py-4 xxs:px-3 xs:px-4 sm:px-6 sm:py-8 lg:px-8">
-          <div className="mx-auto min-w-0 max-w-7xl">
+          <div className="mx-auto min-w-0 max-w-7xl space-y-4">
+            <StripeModeBanner />
             <Outlet />
           </div>
         </main>

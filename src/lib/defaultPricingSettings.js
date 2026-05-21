@@ -19,6 +19,8 @@ export function getDefaultPricingSettings() {
 
   return {
     basePriceByService,
+    /** Homepage card prices only; empty = use {@link getDefaultServiceCardDisplayPrices} at display time. */
+    displayPriceByService: {},
     pricePerMile: 1.6,
     pricePerCubicMetre: 48,
     minimumJobPrice: 85,

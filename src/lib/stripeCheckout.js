@@ -1,6 +1,5 @@
 import { supabase, isSupabaseConfigured } from './supabase'
-
-const stripePublishableKey = (import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY || '').trim()
+import { assertStripePublishableKeyConfigured } from './stripeConfig'
 
 /**
  * Edge Functions return JSON `{ error: "..." }` on failure; parse it for a useful UI message.
@@ -45,12 +44,7 @@ function functionsInvokeHeaders() {
 }
 
 function assertStripeFrontendKey() {
-  if (!stripePublishableKey) {
-    throw new Error('Card payments are not configured. Set VITE_STRIPE_PUBLISHABLE_KEY (pk_test_… or pk_live_…) in .env.')
-  }
-  if (!stripePublishableKey.startsWith('pk_')) {
-    throw new Error('VITE_STRIPE_PUBLISHABLE_KEY must be your publishable payment key (starts with pk_).')
-  }
+  assertStripePublishableKeyConfigured()
 }
 
 /**
@@ -117,3 +111,9 @@ export async function verifyPaymentIntent(paymentIntentId) {
 
   return data
 }
+
+/**
+ * Notify admin inbox (Resend) after payment verified — idempotent on server.
+ * @param {{ paymentIntentId?: string, quoteId?: string }} params
+ */
+export { notifyAdminAvailableJobAfterPayment, scheduleAdminAvailableJobNotification } from './adminAvailableJobNotify'

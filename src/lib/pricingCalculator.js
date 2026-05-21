@@ -15,6 +15,7 @@ import {
 /**
  * @typedef {Object} PricingSettings
  * @property {Record<string, number>} basePriceByService
+ * @property {Record<string, number>} [displayPriceByService] — homepage card "From £..." only; not used in quotes
  * @property {number} pricePerMile
  * @property {number} pricePerCubicMetre
  * @property {number} minimumJobPrice

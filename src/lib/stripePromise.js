@@ -1,6 +1,6 @@
 import { loadStripe } from '@stripe/stripe-js'
+import { getStripePublishableKey, isStripePublishableConfigured } from './stripeConfig'
 
-/** Browser-only — must match VITE_STRIPE_PUBLISHABLE_KEY (pk_test_… / pk_live_…). */
-const key = (import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY || '').trim().replace(/^["']|["']$/g, '')
+const key = getStripePublishableKey()
 
-export const stripePromise = key.startsWith('pk_') ? loadStripe(key) : null
+export const stripePromise = isStripePublishableConfigured() ? loadStripe(key) : null

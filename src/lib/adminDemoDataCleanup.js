@@ -1,4 +1,6 @@
+import { notifyAdminDataRefresh } from './adminDataRefresh'
 import { cancelBookingForQuote } from './cancelDemoBooking'
+import { clearAllAvailableJobAdminOverrides } from './availableJobLocalStore'
 import {
   filterJourneysForProductionInbox,
   filterQuotesForProductionInbox,
@@ -7,6 +9,7 @@ import {
   shouldHideJourneyFromAdminInbox,
   shouldHideQuoteFromAdminInbox,
 } from './demoTestRecordDetection'
+import { quotePassesAvailableJobsStrict, quotePassesMarketplaceStrict } from './adminJobListRules'
 import {
   fetchLiveLaunchCleanupStats,
   runLiveLaunchCleanupBatch,
@@ -43,6 +46,9 @@ export function buildAdminCleanupPreview(quotes, journeys, jobs = [], extra = {}
   )
 
   const archiveRefs = new Set(quoteRows.map((q) => String(q.quote_ref || '').trim()).filter(Boolean))
+  const marketplaceVisible = (Array.isArray(quotes) ? quotes : []).filter((q) =>
+    quotePassesMarketplaceStrict(q),
+  )
   const linkedJobs = (Array.isArray(jobs) ? jobs : []).filter((j) => {
     const pi = j?.price_inputs
     const ref =
@@ -63,6 +69,7 @@ export function buildAdminCleanupPreview(quotes, journeys, jobs = [], extra = {}
     funnelLeads: extra.funnelLeads ?? null,
     testPhotos: extra.photos ?? null,
     testCharges: extra.charges ?? null,
+    marketplaceVisibleCount: marketplaceVisible.length,
   }
 }
 
@@ -124,13 +131,7 @@ async function archiveQuotesClientSide(archiveQuotes) {
     const id = String(q.id || '').trim()
     if (!id) continue
     try {
-      const op = String(q.operational_status || '').toLowerCase()
-      const cancelled = q.cancelled_at || op === 'cancelled'
-      if (!cancelled) {
-        await cancelBookingForQuote(id, q, { reason: 'PRE-LAUNCH TEST DATA ARCHIVED' })
-      } else if (isSupabaseConfigured) {
-        await updateQuoteWorkflowAssignmentSilent(id, { is_test: true })
-      }
+      await cancelBookingForQuote(id, q, { reason: 'PRE-LAUNCH TEST DATA ARCHIVED' })
       archived += 1
     } catch (e) {
       errors.push(`${q.quote_ref || id}: ${e?.message || 'failed'}`)
@@ -274,30 +275,34 @@ export async function runAdminTestDataCleanup(opts = {}) {
   const archiveIds = preview.archiveQuotes.map((q) => String(q.id || '').trim()).filter(Boolean)
 
   if (opts.archiveQuotes !== false) {
+    let serverOk = false
     if (opts.useServerBatch !== false && isSupabaseConfigured) {
       onProgress('Archiving quotes (server)…')
       let pass = 0
-      while (pass < 80) {
-        pass += 1
-        try {
+      try {
+        while (pass < 80) {
+          pass += 1
           const batch = await runLiveLaunchCleanupBatch(200)
           archived += batch.quotesArchived
           journeysHidden += batch.journeysArchived
           if (batch.quotesArchived === 0 && batch.journeysArchived === 0) break
-        } catch (e) {
-          if (pass === 1) {
-            onProgress('Server batch unavailable — using client archive…')
-            const client = await archiveQuotesClientSide(preview.archiveQuotes)
-            archived = client.archived
-            errors.push(...client.errors)
-          } else {
-            errors.push(e?.message || 'Server batch failed')
-          }
-          break
         }
+        serverOk = true
+      } catch (e) {
+        errors.push(`Server batch: ${e?.message || 'unavailable'}`)
       }
-    } else {
-      onProgress('Archiving quotes…')
+    }
+
+    const remaining = (await fetchQuotesForAdmin('all', '')).filter((q) =>
+      isQuoteSafeForTestArchive(q),
+    )
+    if (remaining.length > 0) {
+      onProgress(`Archiving ${remaining.length} remaining quote(s) (client)…`)
+      const client = await archiveQuotesClientSide(remaining)
+      archived += client.archived
+      errors.push(...client.errors)
+    } else if (!serverOk && preview.archiveQuotes.length > 0) {
+      onProgress('Archiving quotes (client)…')
       const client = await archiveQuotesClientSide(preview.archiveQuotes)
       archived = client.archived
       errors.push(...client.errors)
@@ -342,8 +347,14 @@ export async function runAdminTestDataCleanup(opts = {}) {
     }
   }
 
+  clearAllAvailableJobAdminOverrides()
+  notifyAdminDataRefresh({ source: 'go-live-cleanup' })
+
   const quotesAfter = filterQuotesForProductionInbox(await fetchQuotesForAdmin('all', ''))
   const journeysAfter = filterJourneysForProductionInbox(await fetchAllJourneysForAdmin())
+  const stillVisible = (await fetchQuotesForAdmin('all', '')).filter((q) =>
+    quotePassesAvailableJobsStrict(q),
+  )
 
   return {
     preview,
@@ -358,6 +369,9 @@ export async function runAdminTestDataCleanup(opts = {}) {
     errors,
     quotesAfter,
     journeysAfter,
+    quotesRemainingVisible: stillVisible.length,
+    skippedProtected: preview.protectedQuotes,
+    failed: errors.length,
   }
 }
 
