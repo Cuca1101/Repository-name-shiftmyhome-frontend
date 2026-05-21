@@ -2,12 +2,12 @@ import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { PackagePlus } from 'lucide-react'
 import { useQuoteInventoryCatalog } from '../useQuoteInventoryCatalog'
 import InlineInventoryQtyControl from '../InlineInventoryQtyControl'
-import InventorySearchBar from '../InventorySearchBar'
 import HighlightedInventoryName from '../HighlightedInventoryName'
-import {
-  INVENTORY_SEARCH_EMPTY_MESSAGE,
-  matchesInventorySearch,
-} from '../inventorySearchUtils'
+import InventorySearchDropdown, {
+  InventorySearchDropdownEmpty,
+  keepSearchDropdownFocus,
+} from '../InventorySearchDropdown'
+import { filterAndSortInventorySearchResults } from '../inventorySearchUtils'
 import InventorySelectionVolumeRow from '../InventorySelectionVolumeRow'
 import { resolveDefaultM3PerUnit } from '../inventoryLineDefaults'
 import { applyInventoryLineQuantityDelta, catalogLineForItem } from '../../../lib/inventoryLineQuantity'
@@ -65,35 +65,12 @@ export default function Step2Inventory({
     [getFlattenedCatalogEntries],
   )
 
-  const searchGrouped = useMemo(() => {
-    const q = searchQuery.trim()
-    if (!q) return []
-    const filtered = flatCatalogEntries.filter((e) =>
-      matchesInventorySearch(e.item.name, q),
-    )
-    const m = new Map()
-    for (const e of filtered) {
-      if (!m.has(e.categoryKey)) {
-        m.set(e.categoryKey, { label: e.categoryLabel, entries: [] })
-      }
-      m.get(e.categoryKey).entries.push(e)
-    }
-    return categoryOrder.filter((k) => m.has(k)).map((k) => ({
-      categoryKey: k,
-      label: m.get(k).label,
-      entries: m.get(k).entries,
-    }))
-  }, [flatCatalogEntries, searchQuery, categoryOrder])
+  const searchResults = useMemo(
+    () => filterAndSortInventorySearchResults(flatCatalogEntries, searchQuery),
+    [flatCatalogEntries, searchQuery],
+  )
 
-  const isSearchMode = searchQuery.trim().length > 0
-
-  useEffect(() => {
-    if (!isSearchMode) return
-    const id = requestAnimationFrame(() => {
-      resultsPanelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
-    })
-    return () => cancelAnimationFrame(id)
-  }, [isSearchMode, searchQuery, searchGrouped.length])
+  const searchDropdownOpen = searchQuery.trim().length > 0
 
   const totalM3 = useMemo(() => {
     let t = 0
@@ -245,6 +222,54 @@ export default function Step2Inventory({
     )
   }
 
+  function renderSearchResultRow(entry, compact = false) {
+    const { item, categoryLabel } = entry
+    const line = catalogLineForItem(lines, item.id, item.name)
+    const qty = line?.quantity ?? 0
+    const highlightQuery = searchQuery.trim()
+    const perUnitVol = Number(item.m3) || 0
+    return (
+      <li
+        key={item.id}
+        className={`flex min-w-0 items-center gap-2 border-b border-slate-100 px-3 py-2.5 last:border-b-0 ${
+          compact ? 'min-h-[52px]' : 'min-h-[56px]'
+        }`}
+      >
+        <div
+          className={`flex shrink-0 items-center justify-center rounded-lg bg-white text-brand-700 ring-1 ring-slate-200/80 ${
+            compact ? 'h-9 w-9' : 'h-10 w-10'
+          }`}
+          aria-hidden
+        >
+          <CatalogItemLucideIcon itemId={item.id} className={compact ? 'h-4 w-4' : 'h-5 w-5'} />
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className={`font-semibold leading-snug text-slate-900 ${compact ? 'text-sm' : 'text-sm'}`}>
+            {highlightQuery ? (
+              <HighlightedInventoryName name={item.name} query={highlightQuery} />
+            ) : (
+              item.name
+            )}
+          </p>
+          <p className="mt-0.5 text-xs text-slate-500">
+            {categoryLabel}
+            <span className="text-slate-400"> · </span>
+            {perUnitVol.toFixed(2)} m³
+          </p>
+        </div>
+        <div className="shrink-0" onMouseDown={keepSearchDropdownFocus}>
+          <InlineInventoryQtyControl
+            compact
+            quantity={qty}
+            onAdd={() => addFromCatalog(item.id)}
+            onDecrement={() => line && bump(line.lineId, -1)}
+            onIncrement={() => (line ? bump(line.lineId, 1) : addFromCatalog(item.id))}
+          />
+        </div>
+      </li>
+    )
+  }
+
   function renderMobileCatalogRow(item, highlightQuery, emphasizeMatch) {
     const line = catalogLineForItem(lines, item.id, item.name)
     const qty = line?.quantity ?? 0
@@ -302,10 +327,11 @@ export default function Step2Inventory({
         searchId={searchId}
         searchQuery={searchQuery}
         setSearchQuery={setSearchQuery}
+        searchDropdownOpen={searchDropdownOpen}
+        searchResults={searchResults}
+        renderSearchResultRow={renderSearchResultRow}
         activeCategory={activeCategory}
         setActiveCategory={setActiveCategory}
-        isSearchMode={isSearchMode}
-        searchGrouped={searchGrouped}
         cat={cat}
         customName={customName}
         setCustomName={setCustomName}
@@ -381,44 +407,28 @@ export default function Step2Inventory({
         })}
       </div>
 
-      <InventorySearchBar
+      <InventorySearchDropdown
         id={searchId}
         value={searchQuery}
         onChange={setSearchQuery}
-        className="mt-4"
-      />
+        catalogLoading={catalogLoading}
+        open={searchDropdownOpen}
+        className="relative z-30 mt-4"
+      >
+        {searchResults.length === 0 ? (
+          <InventorySearchDropdownEmpty />
+        ) : (
+          <ul className="min-w-0 py-0.5">{searchResults.map((e) => renderSearchResultRow(e, false))}</ul>
+        )}
+      </InventorySearchDropdown>
 
       <div
         ref={resultsPanelRef}
         data-quote-field="inventory"
-        className="min-w-0 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:p-6"
+        className="relative z-0 mt-4 min-w-0 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:p-6"
       >
-        {isSearchMode ? (
-          <div>
-            <h3 className="text-sm font-bold text-slate-900">Search results</h3>
-            {searchGrouped.length === 0 ? (
-              <p className="mt-4 text-sm text-slate-600" role="status" aria-live="polite">
-                {INVENTORY_SEARCH_EMPTY_MESSAGE}
-              </p>
-            ) : (
-              <div className="mt-4 space-y-6">
-                {searchGrouped.map(({ categoryKey, label, entries }) => (
-                  <div key={categoryKey}>
-                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                      {label}
-                    </p>
-                    <ul className="mt-2 grid grid-cols-2 gap-2 xxs:gap-2.5 sm:gap-3">
-                      {entries.map(({ item }) =>
-                        renderCatalogRow(item, searchQuery.trim(), true),
-                      )}
-                    </ul>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        ) : catalogLoading ? (
-          <p className="mt-4 text-sm text-slate-600">Loading items…</p>
+        {catalogLoading ? (
+          <p className="text-sm text-slate-600">Loading items…</p>
         ) : cat ? (
           <div>
             <h3 className="text-sm font-bold text-slate-900">{cat.label}</h3>
@@ -427,7 +437,7 @@ export default function Step2Inventory({
             </ul>
           </div>
         ) : (
-          <p className="mt-4 text-sm text-slate-600">No items in this category.</p>
+          <p className="text-sm text-slate-600">No items in this category.</p>
         )}
       </div>
 

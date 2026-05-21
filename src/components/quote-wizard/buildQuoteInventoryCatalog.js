@@ -113,7 +113,7 @@ export function createInventoryCatalogHelpers(catalog) {
       for (const key of categoryOrder) {
         const cat = inventoryByCategory[key]
         if (!cat) continue
-        const found = cat.items.find((item) => item.id === itemId)
+        const found = cat.items.find((item) => String(item.id) === String(itemId))
         if (found) {
           return { categoryKey: key, categoryLabel: cat.label, item: found }
         }

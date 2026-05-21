@@ -1,8 +1,9 @@
 import { useRef } from 'react'
 import { ClipboardList } from 'lucide-react'
 import CrewSizeField from './CrewSizeField'
-import InventorySearchBar from './InventorySearchBar'
-import { INVENTORY_SEARCH_EMPTY_MESSAGE } from './inventorySearchUtils'
+import InventorySearchDropdown, {
+  InventorySearchDropdownEmpty,
+} from './InventorySearchDropdown'
 import { CategoryLucideIcon } from './inventoryLucideIcons'
 
 const card = 'min-w-0 rounded-xl border border-slate-200 bg-white shadow-sm'
@@ -29,8 +30,9 @@ export default function MobileStep2Inventory({
   setSearchQuery,
   activeCategory,
   setActiveCategory,
-  isSearchMode,
-  searchGrouped,
+  searchDropdownOpen,
+  searchResults,
+  renderSearchResultRow,
   cat,
   customName,
   setCustomName,
@@ -112,38 +114,33 @@ export default function MobileStep2Inventory({
           })}
         </div>
 
-        <InventorySearchBar id={searchId} value={searchQuery} onChange={setSearchQuery} className="mt-2" />
+        <InventorySearchDropdown
+          id={searchId}
+          value={searchQuery}
+          onChange={setSearchQuery}
+          catalogLoading={catalogLoading}
+          open={searchDropdownOpen}
+          className="relative z-30 mt-2"
+        >
+          {searchResults.length === 0 ? (
+            <InventorySearchDropdownEmpty />
+          ) : (
+            <ul className="min-w-0 py-0.5">
+              {searchResults.map((e) => renderSearchResultRow(e, true))}
+            </ul>
+          )}
+        </InventorySearchDropdown>
 
-        <div ref={resultsPanelRef} className="mt-3 min-w-0">
-          {isSearchMode ? (
-            <div>
-              <h3 className="text-xs font-bold uppercase tracking-wide text-slate-500">Search results</h3>
-              {searchGrouped.length === 0 ? (
-                <p className="mt-3 text-sm text-slate-600" role="status">
-                  {INVENTORY_SEARCH_EMPTY_MESSAGE}
-                </p>
-              ) : (
-                <div className="mt-2 space-y-4">
-                  {searchGrouped.map(({ categoryKey, label, entries }) => (
-                    <div key={categoryKey}>
-                      <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">{label}</p>
-                      <ul className="mt-1.5 space-y-1">
-                        {entries.map(({ item }) => renderCatalogRow(item, searchQuery.trim(), true))}
-                      </ul>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          ) : catalogLoading ? (
-            <p className="mt-3 text-sm text-slate-600">Loading items…</p>
+        <div ref={resultsPanelRef} className="relative z-0 mt-3 min-w-0">
+          {catalogLoading ? (
+            <p className="text-sm text-slate-600">Loading items…</p>
           ) : cat ? (
             <div>
               <h3 className="text-xs font-bold uppercase tracking-wide text-slate-500">{cat.label}</h3>
               <ul className="mt-1.5 space-y-1">{cat.items.map((item) => renderCatalogRow(item, '', false))}</ul>
             </div>
           ) : (
-            <p className="mt-3 text-sm text-slate-600">No items in this category.</p>
+            <p className="text-sm text-slate-600">No items in this category.</p>
           )}
         </div>
       </div>

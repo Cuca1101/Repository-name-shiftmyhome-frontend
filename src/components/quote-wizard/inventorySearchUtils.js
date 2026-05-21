@@ -4,6 +4,8 @@ export const INVENTORY_SEARCH_PLACEHOLDER = 'Search items (e.g. sofa, TV, table)
 export const INVENTORY_SEARCH_EMPTY_MESSAGE =
   'Item not found? Add it as a custom item below'
 
+export const INVENTORY_SEARCH_NO_MATCHES = 'No matching items found'
+
 /**
  * Match if every whitespace-separated token appears in `name` (case-insensitive).
  * @param {string} name
@@ -15,6 +17,59 @@ export function matchesInventorySearch(name, query) {
   const tokens = q.split(/\s+/).filter(Boolean)
   const n = name.toLowerCase()
   return tokens.every((t) => n.includes(t))
+}
+
+/**
+ * Search item name and category label (full catalogue).
+ * @param {{ item: { name: string }, categoryLabel: string }} entry
+ * @param {string} query
+ */
+export function matchesInventoryCatalogEntry(entry, query) {
+  const q = query.trim().toLowerCase()
+  if (!q) return false
+  const tokens = q.split(/\s+/).filter(Boolean)
+  const name = String(entry.item?.name ?? '').toLowerCase()
+  const category = String(entry.categoryLabel ?? '').toLowerCase()
+  const combined = `${name} ${category}`
+  return tokens.every((t) => combined.includes(t))
+}
+
+/**
+ * Higher = better match for sorting search dropdown results.
+ * @param {{ item: { name: string }, categoryLabel: string }} entry
+ * @param {string} query
+ */
+export function inventorySearchMatchScore(entry, query) {
+  const q = query.trim().toLowerCase()
+  if (!q) return 0
+  const name = String(entry.item?.name ?? '').toLowerCase()
+  const category = String(entry.categoryLabel ?? '').toLowerCase()
+  let score = 0
+  if (name === q) score += 100
+  else if (name.startsWith(q)) score += 80
+  else if (name.includes(q)) score += 50
+  const tokens = q.split(/\s+/).filter(Boolean)
+  for (const t of tokens) {
+    if (name.includes(t)) score += 12
+    if (category.includes(t)) score += 6
+    const words = name.split(/\s+/)
+    if (words.some((w) => w.startsWith(t))) score += 8
+  }
+  return score
+}
+
+/**
+ * @param {Array<{ item: { name: string }, categoryLabel: string }>} entries
+ * @param {string} query
+ * @param {number} [limit]
+ */
+export function filterAndSortInventorySearchResults(entries, query, limit = 80) {
+  const q = query.trim()
+  if (!q) return []
+  return entries
+    .filter((e) => matchesInventoryCatalogEntry(e, q))
+    .sort((a, b) => inventorySearchMatchScore(b, q) - inventorySearchMatchScore(a, q))
+    .slice(0, limit)
 }
 
 function mergeIntervals(intervals) {
