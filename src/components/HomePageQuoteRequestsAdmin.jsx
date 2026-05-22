@@ -3,14 +3,12 @@ import { Link } from 'react-router-dom'
 import AdminRecordsSearchRow from './admin/AdminRecordsSearchRow'
 import { filterQuotesForProductionInbox } from '../lib/demoTestRecordDetection'
 import { fetchHomePageQuoteRequests } from '../lib/data/quotesAdminRepository'
-import { fetchJobIdsForQuoteRefs } from '../lib/data/jobsRepository'
 import { formatDateTimeUK, formatDateUK } from '../lib/formatDateDisplay'
 
 export default function HomePageQuoteRequestsAdmin() {
   const [searchInput, setSearchInput] = useState('')
   const [activeSearch, setActiveSearch] = useState('')
   const [rows, setRows] = useState([])
-  const [jobIdByQuoteRef, setJobIdByQuoteRef] = useState(() => ({}))
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [copiedKey, setCopiedKey] = useState(null)
@@ -39,26 +37,6 @@ export default function HomePageQuoteRequestsAdmin() {
     load()
   }, [load])
 
-  useEffect(() => {
-    const refs = rows.map((r) => r.quote_ref).filter(Boolean)
-    if (refs.length === 0) {
-      setJobIdByQuoteRef({})
-      return
-    }
-    let cancelled = false
-    ;(async () => {
-      try {
-        const map = await fetchJobIdsForQuoteRefs(refs.map((s) => String(s).trim()))
-        if (!cancelled) setJobIdByQuoteRef(map)
-      } catch {
-        if (!cancelled) setJobIdByQuoteRef({})
-      }
-    })()
-    return () => {
-      cancelled = true
-    }
-  }, [rows])
-
   const runSearchNow = useCallback(() => {
     setActiveSearch(searchInput.trim())
   }, [searchInput])
@@ -75,17 +53,14 @@ export default function HomePageQuoteRequestsAdmin() {
     }
   }
 
-  function quoteRefHref(q) {
-    const ref = q.quote_ref ? String(q.quote_ref).trim() : ''
-    const jobId = ref ? jobIdByQuoteRef[ref] : null
-    if (jobId) return `/admin/jobs/${jobId}`
-    return `/admin/available-jobs/${q.id}`
+  function leadDetailHref(q) {
+    return `/admin/quote-requests/${q.id}`
   }
 
   const emptyMessage = useMemo(() => {
     if (loading) return ''
     if (rows.length > 0) return ''
-    return activeSearch ? 'No jobs found.' : 'No quote requests yet.'
+    return activeSearch ? 'No quote requests found.' : 'No quote requests yet.'
   }, [loading, rows.length, activeSearch])
 
   return (
@@ -150,8 +125,8 @@ export default function HomePageQuoteRequestsAdmin() {
                           {ref ? (
                             <div className="flex flex-wrap items-center gap-2">
                               <Link
-                                to={quoteRefHref(q)}
-                                title={jobIdByQuoteRef[ref.trim()] ? 'Open job details' : 'Open Available Jobs'}
+                                to={leadDetailHref(q)}
+                                title="Open lead detail"
                                 className="font-mono text-xs font-semibold text-brand-700 hover:underline"
                               >
                                 {ref}
@@ -207,7 +182,7 @@ export default function HomePageQuoteRequestsAdmin() {
                         {ref ? (
                           <div className="flex flex-wrap items-center gap-2">
                             <Link
-                              to={quoteRefHref(q)}
+                              to={leadDetailHref(q)}
                               className="font-mono text-sm font-bold text-brand-700 hover:underline"
                             >
                               {ref}
@@ -227,10 +202,10 @@ export default function HomePageQuoteRequestsAdmin() {
                         <p className="text-xs text-slate-600">{q.email}</p>
                       </div>
                       <Link
-                        to={`/admin/available-jobs/${q.id}`}
+                        to={leadDetailHref(q)}
                         className="inline-flex min-h-[48px] w-full shrink-0 items-center justify-center rounded-xl bg-brand-600 px-4 py-3 text-sm font-semibold text-white sm:w-auto"
                       >
-                        Full details
+                        View lead
                       </Link>
                     </div>
                     <dl className="mt-3 grid gap-2 text-sm text-slate-700 sm:grid-cols-2">

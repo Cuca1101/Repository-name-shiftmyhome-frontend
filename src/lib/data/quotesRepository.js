@@ -1,4 +1,5 @@
 import { isSupabaseConfigured, supabase } from '../supabase'
+import { isSupabasePublicConfigured, supabasePublic } from '../supabasePublicClient'
 
 const QUOTES_TABLE = 'quotes'
 
@@ -39,16 +40,19 @@ export function generateQuoteRef() {
  * @returns {Promise<{ id: string, quote_ref: string }>}
  */
 export async function insertHomePageQuoteLead(form) {
-  if (!isSupabaseConfigured || !supabase) {
+  if (!isSupabasePublicConfigured || !supabasePublic) {
     throw new Error('Supabase is not configured (set VITE_SUPABASE_URL and key in .env).')
   }
+
+  /** Always anon — main client may carry an admin session from the same browser tab. */
+  const db = supabasePublic
 
   let quoteRef = (form.quote_ref || '').trim()
   if (!quoteRef) {
     for (let attempt = 0; attempt < 8; attempt += 1) {
       const candidate = generateQuoteRef()
       const row = buildHomePageQuoteRow({ ...form, quote_ref: candidate })
-      const { error } = await supabase.from(QUOTES_TABLE).insert(row)
+      const { error } = await db.from(QUOTES_TABLE).insert(row)
       if (!error) {
         return { id: '', quote_ref: row.quote_ref }
       }
@@ -61,7 +65,7 @@ export async function insertHomePageQuoteLead(form) {
   }
 
   const row = buildHomePageQuoteRow({ ...form, quote_ref: quoteRef })
-  const { error } = await supabase.from(QUOTES_TABLE).insert(row)
+  const { error } = await db.from(QUOTES_TABLE).insert(row)
 
   if (error) {
     if (error.code === '23505') {
@@ -79,7 +83,10 @@ export async function insertHomePageQuoteLead(form) {
  */
 function formatHomePageQuoteInsertError(error) {
   const detail = error?.message || String(error)
-  return `Could not save your quote: ${detail}. Ask your administrator to run Supabase migration 047_quotes_public_lead_insert_rls.sql.`
+  if (/row-level security/i.test(detail)) {
+    return `Could not save your quote: ${detail}. If you are logged into Admin in this browser, refresh the page and try again in a private window, or ask your administrator to run migration 047_quotes_public_lead_insert_rls.sql.`
+  }
+  return `Could not save your quote: ${detail}.`
 }
 
 /**

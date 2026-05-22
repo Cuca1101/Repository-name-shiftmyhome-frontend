@@ -201,6 +201,57 @@ export async function fetchQuotePaymentStats() {
  * @param {string} [searchTerm] matches quote_ref, name, phone, email, pickup, delivery (partial ilike)
  * @returns {Promise<Record<string, unknown>[]>}
  */
+/** @param {Record<string, unknown>|null|undefined} row */
+export function isPublicQuoteRequestRow(row) {
+  const src = String(row?.source ?? '').trim()
+  return PUBLIC_QUOTE_REQUEST_SOURCES.includes(src)
+}
+
+/**
+ * Single public quote-request lead for Admin → Quote Requests detail.
+ *
+ * @param {string} id quote UUID
+ * @returns {Promise<Record<string, unknown>|undefined>}
+ */
+export async function fetchPublicQuoteRequestById(id) {
+  const row = await fetchQuoteByIdForAdmin(id)
+  if (!row || !isPublicQuoteRequestRow(row)) return undefined
+  return row
+}
+
+/**
+ * Delete one public quote-request lead (homepage / public forms only).
+ *
+ * @param {string} id quote UUID
+ */
+export async function deletePublicQuoteRequest(id) {
+  if (!isSupabaseConfigured || !supabase) {
+    throw new Error('Supabase is not configured.')
+  }
+  const quoteId = String(id || '').trim()
+  if (!quoteId) throw new Error('Missing quote id.')
+
+  const { error } = await supabase
+    .from(QUOTES_TABLE)
+    .delete()
+    .eq('id', quoteId)
+    .in('source', PUBLIC_QUOTE_REQUEST_SOURCES)
+
+  if (error) throw error
+}
+
+/**
+ * Mark lead as not valid / lost (workflow Cancelled + reason).
+ *
+ * @param {string} id quote UUID
+ */
+export async function markPublicQuoteRequestLost(id) {
+  await updateQuoteWorkflowStatus(id, 'Cancelled')
+  await updateQuoteWorkflowAssignmentSilent(id, {
+    admin_cancellation_reason: 'Lead not valid',
+  })
+}
+
 export async function fetchHomePageQuoteRequests(searchTerm = '') {
   if (!isSupabaseConfigured || !supabase) {
     return []
