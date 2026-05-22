@@ -1,3 +1,4 @@
+import { getMinimumCrewForQuote, isLabourAccessLine } from './crewPricingRules'
 import { getEffectiveReassemblyItemCount } from './quoteWizardReassembly'
 import {
   PACKING_MATERIALS_CATALOG,
@@ -40,6 +41,7 @@ import {
  * @property {number} exactArrivalPremiumGbp — fixed fee for exact arrival time option
  * @property {CustomSizeM3} customSizeM3
  * @property {boolean} [basePricePerMan] — when true, `basePriceByService` is **per man** and multiplied by crew size
+ * @property {number} [oneManLabourDiscountPercent] — flat-base: % off labour when 1 man selected (default 15)
  * @property {boolean} [fuelSurchargeEnabled]
  * @property {number} [fuelSurchargePerMile]
  * @property {number} [yesLiftChargePerEnd] — per end when lift explicitly Yes and floor above ground
@@ -140,7 +142,8 @@ import {
  * @property {number} minimumApplied
  * @property {number} estimatedTotal
  * @property {boolean} [basePriceUsesPerManPricing]
- * @property {number} [crewSizeUsedInPricing] — effective crew (large-move minimum applied when relevant)
+ * @property {number} [crewSizeUsedInPricing] — effective crew (minimums + large-move rules applied)
+ * @property {number} [crewSizeSelected] — crew size from the customer quote step
  * @property {number} [basePricePerManUnit] — per-man rate before multiplication (when per-man pricing)
  */
 
@@ -230,13 +233,18 @@ export function calculateQuote(settings, input) {
   const selectedCrew =
     Number.isFinite(crewRaw) && crewRaw >= 1 && crewRaw <= 4 ? Math.round(crewRaw) : 2
 
+  const stairsFlightsEarly = Math.max(0, Number(input.access?.stairsFlights) || 0)
+  const heavyItemCountEarly = Math.max(0, Number(input.access?.heavyItemCount) || 0)
+
   const largeMoveThreshold = Math.max(0, Number(s.largeMoveVolumeThresholdM3) || 0)
   const minCrewForLargeMoves = Math.max(1, Math.min(4, Number(s.minimumCrewForLargeMoves) || 1))
+  const minCrewForService = getMinimumCrewForQuote(input.serviceType, heavyItemCountEarly)
   const baseCrewSize = 2
-  const effectiveCrewSize =
-    largeMoveThreshold > 0 && totalCubicMetres >= largeMoveThreshold
-      ? Math.max(selectedCrew, minCrewForLargeMoves)
-      : selectedCrew
+  let effectiveCrewSize = Math.max(selectedCrew, minCrewForService)
+  if (largeMoveThreshold > 0 && totalCubicMetres >= largeMoveThreshold) {
+    effectiveCrewSize = Math.max(effectiveCrewSize, minCrewForLargeMoves)
+  }
+  effectiveCrewSize = Math.max(1, Math.min(4, effectiveCrewSize))
 
   const basePriceRaw = Number(s.basePriceByService?.[input.serviceType]) || 0
   const basePricePerMan = Boolean(s.basePricePerMan)
@@ -549,6 +557,34 @@ export function calculateQuote(settings, input) {
   /** @type {BreakdownLine[]} */
   const discountLines = []
   let discountTotal = 0
+
+  const oneManPct = Math.min(100, Math.max(0, Number(s.oneManLabourDiscountPercent) ?? 15))
+  const applyOneManLabourDiscount =
+    !basePriceUsesPerManPricing &&
+    selectedCrew === 1 &&
+    effectiveCrewSize === 1 &&
+    oneManPct > 0
+
+  if (applyOneManLabourDiscount) {
+    let labourSubtotal = money(basePrice + volumePrice)
+    for (const line of accessLines) {
+      if (isLabourAccessLine(line.label)) labourSubtotal = money(labourSubtotal + line.amount)
+    }
+    for (const line of extrasLines) {
+      if (String(line.label).startsWith('Crew size surcharge')) {
+        labourSubtotal = money(labourSubtotal + line.amount)
+      }
+    }
+    const oneManDiscountAmt = money((labourSubtotal * oneManPct) / 100)
+    if (oneManDiscountAmt > 0) {
+      discountTotal = money(discountTotal + oneManDiscountAmt)
+      discountLines.push({
+        label: `One-man labour discount (${oneManPct}%)`,
+        amount: oneManDiscountAmt,
+      })
+    }
+  }
+
   if (Boolean(s.promoCodesEnabled) && extras.promoCode) {
     const match = findPromoMatch(s.promoCodes, extras.promoCode)
     if (match) {
@@ -562,7 +598,7 @@ export function calculateQuote(settings, input) {
           discountAmt = money((subtotalAfterSurchargesBeforeMinimum * pct) / 100)
         }
         if (discountAmt > 0) {
-          discountTotal = discountAmt
+          discountTotal = money(discountTotal + discountAmt)
           discountLines.push({
             label: `Promo code (${String(match.code).trim().toUpperCase()})`,
             amount: discountAmt,
@@ -600,6 +636,7 @@ export function calculateQuote(settings, input) {
     estimatedTotal,
     basePriceUsesPerManPricing,
     crewSizeUsedInPricing: effectiveCrewSize,
+    crewSizeSelected: selectedCrew,
     basePricePerManUnit: basePriceUsesPerManPricing ? money(basePriceRaw) : undefined,
   }
 }

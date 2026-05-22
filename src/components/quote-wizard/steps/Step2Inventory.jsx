@@ -31,6 +31,7 @@ export default function Step2Inventory({
   crewSize,
   onCrewSizeChange,
   crewSettings,
+  crewRestrictions,
   quoteRef,
   validationMessage = '',
 }) {
@@ -173,7 +174,7 @@ export default function Step2Inventory({
   const cat = inventoryByCategory[activeCategory]
 
   const input =
-    'w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/25'
+    'box-border min-h-[36px] w-full min-w-0 max-w-full rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-sm leading-snug text-slate-900 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/25 md:min-h-[48px] md:rounded-xl md:px-3 md:py-2.5'
 
   function renderCatalogRow(item, highlightQuery, emphasizeMatch) {
     const line = catalogLineForItem(lines, item.id, item.name)
@@ -232,7 +233,7 @@ export default function Step2Inventory({
       <li
         key={item.id}
         className={`flex min-w-0 items-center gap-2 border-b border-slate-100 px-3 py-2.5 last:border-b-0 ${
-          compact ? 'min-h-[52px]' : 'min-h-[56px]'
+          compact ? 'min-h-[44px]' : 'min-h-[48px]'
         }`}
       >
         <div
@@ -321,6 +322,7 @@ export default function Step2Inventory({
         crewSize={crewSize}
         onCrewSizeChange={onCrewSizeChange}
         crewSettings={crewSettings}
+        crewRestrictions={crewRestrictions}
         crewFieldId={crewFieldId}
         crewHintId={crewHintId}
         validationMessage={validationMessage}
@@ -369,6 +371,8 @@ export default function Step2Inventory({
         value={crewSize}
         onChange={onCrewSizeChange}
         crewSettings={crewSettings}
+        oneManAllowed={crewRestrictions?.oneManAllowed !== false}
+        oneManDisabledReason={crewRestrictions?.message || ''}
         invalid={Boolean(validationMessage && /crew size/i.test(validationMessage))}
       />
 

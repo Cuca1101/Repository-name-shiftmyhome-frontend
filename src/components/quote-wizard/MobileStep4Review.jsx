@@ -1,4 +1,5 @@
 import MobileQuoteMoveSummary from '../mobile/MobileQuoteMoveSummary'
+import MobileStepTitleWithRef from './MobileStepTitleWithRef'
 
 /**
  * Mobile-only Step 4 review & payment (&lt; md).
@@ -13,15 +14,19 @@ export default function MobileStep4Review({
   onDistanceFromRoute,
 }) {
   return (
-    <div className="min-w-0 space-y-3 md:hidden">
+    <div data-quote-step="4" className="box-border min-w-0 w-full space-y-1.5 md:hidden">
       <div>
-        <h2 className="text-lg font-bold text-slate-900">Review &amp; payment</h2>
-        <p className="mt-1 text-sm leading-snug text-slate-600">
+        <MobileStepTitleWithRef
+          title="Review & payment"
+          quoteRef={quoteRef}
+          titleClassName="md:text-lg"
+        />
+        <p className="mt-1 text-xs leading-snug text-slate-600 md:text-sm">
           Check your move details, then pay securely to confirm your booking.
         </p>
       </div>
 
-      <div className="rounded-2xl border border-sky-200/80 bg-gradient-to-br from-sky-50/90 to-white px-4 py-3 text-sm leading-snug text-sky-950 shadow-sm">
+      <div className="rounded-lg border border-sky-200/80 bg-gradient-to-br from-sky-50/90 to-white px-3 py-2.5 text-xs leading-snug text-sky-950 shadow-sm md:rounded-2xl md:px-4 md:py-3 md:text-sm">
         <p className="font-semibold text-sky-900">Need to change something?</p>
         <p className="mt-1 text-sky-900/90">
           Go back to earlier steps to edit — your quote reference stays the same and your estimate

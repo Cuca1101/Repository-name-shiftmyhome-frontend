@@ -4,10 +4,15 @@ import { fetchDrivingRoute, metersToMiles } from '../../lib/mapboxRouteApi'
 
 const UK_CENTER = { lng: -4.2, lat: 55.5 }
 const UK_ZOOM = 5.2
+const ROUTE_FETCH_TIMEOUT_MS = 12000
 
 const MSG_NO_TOKEN = 'Map unavailable - token missing'
-
 const MSG_ROUTE_FAIL = 'Could not calculate route, please check addresses'
+const MSG_ROUTE_TIMEOUT = 'Route is taking longer than expected. Check your connection or try again.'
+
+const DEFAULT_MAP_SHELL =
+  'relative h-[100px] min-h-[100px] xxs:h-[110px] xxs:min-h-[110px] xs:h-[130px] xs:min-h-[130px] mb:h-[160px] mb:min-h-[160px] sm:h-[200px] sm:min-h-[200px] lg:h-[260px] lg:min-h-[260px] w-full min-w-0 overflow-hidden rounded-2xl'
+const COMPACT_MAP_SHELL = 'relative h-24 min-h-[6rem] w-full min-w-0 overflow-hidden rounded-lg md:rounded-2xl'
 
 class MapErrorBoundary extends Component {
   constructor(props) {
@@ -83,6 +88,21 @@ function mkMarkerEl(label, bg) {
   return el
 }
 
+function containerHasSize(el) {
+  if (!el) return false
+  const rect = el.getBoundingClientRect()
+  return rect.width >= 2 && rect.height >= 2
+}
+
+function fetchDrivingRouteTimed(a, b, token, ms = ROUTE_FETCH_TIMEOUT_MS) {
+  return Promise.race([
+    fetchDrivingRoute(a, b, token).then((route) => ({ route, timedOut: false })),
+    new Promise((resolve) => {
+      window.setTimeout(() => resolve({ route: null, timedOut: true }), ms)
+    }),
+  ])
+}
+
 /**
  * @param {{
  *   pickupLng: number | null,
@@ -90,6 +110,7 @@ function mkMarkerEl(label, bg) {
  *   deliveryLng: number | null,
  *   deliveryLat: number | null,
  *   distanceMiles?: number,
+ *   compact?: boolean,
  *   onDistanceFromRoute?: (payload: { type: 'ok', miles: number } | { type: 'failed' } | { type: 'incomplete' }) => void,
  * }} props
  */
@@ -98,13 +119,16 @@ function QuoteRouteMapInner({
   pickupLat,
   deliveryLng,
   deliveryLat,
-  distanceMiles,
+  compact = false,
   onDistanceFromRoute,
 }) {
   const token = import.meta.env.VITE_MAPBOX_TOKEN
   const containerRef = useRef(null)
+  const shellRef = useRef(null)
   const mapRef = useRef(null)
   const markersRef = useRef([])
+  const routeRequestRef = useRef(0)
+  const onDistanceRef = useRef(onDistanceFromRoute)
   const [mapReadyTick, setMapReadyTick] = useState(0)
 
   const [debounced, setDebounced] = useState(() => ({
@@ -115,6 +139,8 @@ function QuoteRouteMapInner({
   }))
 
   const [overlay, setOverlay] = useState(null)
+
+  onDistanceRef.current = onDistanceFromRoute
 
   useEffect(() => {
     const t = window.setTimeout(() => {
@@ -139,37 +165,84 @@ function QuoteRouteMapInner({
         mapRef.current = null
       }
       setMapReadyTick(0)
-      return
+      return undefined
     }
 
-    const el = containerRef.current
-    if (!el || mapRef.current) return
+    const shellEl = shellRef.current
+    if (!shellEl) return undefined
 
-    mapboxgl.accessToken = token
-    const map = new mapboxgl.Map({
-      container: el,
-      style: 'mapbox://styles/mapbox/light-v11',
-      center: [UK_CENTER.lng, UK_CENTER.lat],
-      zoom: UK_ZOOM,
-      attributionControl: true,
-    })
-    map.addControl(new mapboxgl.NavigationControl({ visualizePitch: false }), 'top-right')
-    mapRef.current = map
+    let disposed = false
 
-    map.on('load', () => {
+    const resizeMap = () => {
+      const map = mapRef.current
+      if (!map) return
       try {
         map.resize()
       } catch {
         /* ignore */
       }
-      setMapReadyTick((n) => n + 1)
-    })
+    }
 
-    map.on('error', (e) => {
-      console.warn('[QuoteRouteMap] map error', e?.error ?? e)
-    })
+    const initMap = () => {
+      const el = containerRef.current
+      if (disposed || mapRef.current || !el || !containerHasSize(el)) return
+
+      mapboxgl.accessToken = token
+      const map = new mapboxgl.Map({
+        container: el,
+        style: 'mapbox://styles/mapbox/light-v11',
+        center: [UK_CENTER.lng, UK_CENTER.lat],
+        zoom: UK_ZOOM,
+        attributionControl: true,
+      })
+      map.addControl(new mapboxgl.NavigationControl({ visualizePitch: false }), 'top-right')
+      mapRef.current = map
+
+      map.on('load', () => {
+        resizeMap()
+        setMapReadyTick((n) => n + 1)
+      })
+
+      map.on('error', (e) => {
+        console.warn('[QuoteRouteMap] map error', e?.error ?? e)
+      })
+    }
+
+    initMap()
+
+    const resizeObserver =
+      typeof ResizeObserver !== 'undefined'
+        ? new ResizeObserver(() => {
+            if (mapRef.current) {
+              resizeMap()
+            } else {
+              initMap()
+            }
+          })
+        : null
+    resizeObserver?.observe(shellEl)
+
+    const intersectionObserver =
+      typeof IntersectionObserver !== 'undefined'
+        ? new IntersectionObserver(
+            (entries) => {
+              if (!entries.some((entry) => entry.isIntersecting)) return
+              if (mapRef.current) {
+                resizeMap()
+                setMapReadyTick((n) => n + 1)
+              } else {
+                initMap()
+              }
+            },
+            { threshold: 0.01 },
+          )
+        : null
+    intersectionObserver?.observe(shellEl)
 
     return () => {
+      disposed = true
+      resizeObserver?.disconnect()
+      intersectionObserver?.disconnect()
       if (mapRef.current) {
         try {
           mapRef.current.remove()
@@ -180,27 +253,28 @@ function QuoteRouteMapInner({
       }
       setMapReadyTick(0)
     }
-  }, [token])
+  }, [token, compact])
 
   useEffect(() => {
     const map = mapRef.current
-    if (!token || !map) return
+    if (!token || !map) return undefined
 
     let cancelled = false
+    const requestId = ++routeRequestRef.current
+
+    const setOverlayIfCurrent = (value) => {
+      if (!cancelled && requestId === routeRequestRef.current) {
+        setOverlay(value)
+      }
+    }
 
     const run = async () => {
       if (!map.loaded()) {
-        map.once('load', run)
         return
       }
-      if (cancelled) return
+      if (cancelled || requestId !== routeRequestRef.current) return
 
       const { plng, plat, dlng, dlat } = debounced
-
-      console.log('[QuoteRouteMap] Mapbox token exists:', true)
-      console.log('[QuoteRouteMap] Pickup coordinates:', plng, plat)
-      console.log('[QuoteRouteMap] Delivery coordinates:', dlng, dlat)
-      console.log('[QuoteRouteMap] Stored distance (miles):', Number(distanceMiles) > 0 ? distanceMiles : '—')
 
       clearMarkers(markersRef)
       clearRoute(map)
@@ -215,23 +289,17 @@ function QuoteRouteMapInner({
       }
 
       if (coordsReady(plng, plat, dlng, dlat)) {
-        setOverlay('calculating')
+        setOverlayIfCurrent('calculating')
         const pickup = { lng: plng, lat: plat }
         const delivery = { lng: dlng, lat: dlat }
-        let route
-        try {
-          route = await fetchDrivingRoute(pickup, delivery, token)
-        } catch {
-          route = null
-        }
-        if (cancelled) return
+        const { route, timedOut } = await fetchDrivingRouteTimed(pickup, delivery, token)
+        if (cancelled || requestId !== routeRequestRef.current) return
 
         const miles = route ? metersToMiles(route.distanceMeters) : null
-        console.log('[QuoteRouteMap] Route distance (miles):', miles != null ? miles : '—')
 
         if (!route) {
-          setOverlay('route-error')
-          onDistanceFromRoute?.({ type: 'failed' })
+          setOverlayIfCurrent(timedOut ? 'route-timeout' : 'route-error')
+          onDistanceRef.current?.({ type: 'failed' })
           try {
             map.flyTo({
               center: [(pickup.lng + delivery.lng) / 2, (pickup.lat + delivery.lat) / 2],
@@ -252,7 +320,7 @@ function QuoteRouteMapInner({
         }
 
         if (typeof miles === 'number') {
-          onDistanceFromRoute?.({ type: 'ok', miles })
+          onDistanceRef.current?.({ type: 'ok', miles })
         }
 
         map.addSource('route', {
@@ -288,13 +356,13 @@ function QuoteRouteMapInner({
 
         const bounds = new mapboxgl.LngLatBounds()
         route.geometry.coordinates.forEach((coord) => bounds.extend(coord))
-        map.fitBounds(bounds, { padding: 48, maxZoom: 12, duration: 0 })
-        setOverlay(null)
+        map.fitBounds(bounds, { padding: compact ? 28 : 48, maxZoom: 12, duration: 0 })
+        setOverlayIfCurrent(null)
         return
       }
 
-      onDistanceFromRoute?.({ type: 'incomplete' })
-      setOverlay(null)
+      onDistanceRef.current?.({ type: 'incomplete' })
+      setOverlayIfCurrent(null)
 
       if (pickupOk && !deliveryOk) {
         const mA = new mapboxgl.Marker({ element: mkMarkerEl('A', '#2563eb'), anchor: 'bottom' })
@@ -317,40 +385,60 @@ function QuoteRouteMapInner({
       map.flyTo({ center: [UK_CENTER.lng, UK_CENTER.lat], zoom: UK_ZOOM, duration: 0 })
     }
 
-    run()
+    const onMapLoad = () => {
+      void run()
+    }
+
+    if (!map.loaded()) {
+      map.once('load', onMapLoad)
+    } else {
+      void run()
+    }
 
     return () => {
       cancelled = true
+      if (!map.loaded()) {
+        try {
+          map.off('load', onMapLoad)
+        } catch {
+          /* ignore */
+        }
+      }
     }
-  }, [debounced, token, onDistanceFromRoute, distanceMiles, mapReadyTick])
+  }, [debounced, token, mapReadyTick, compact])
 
   const showMap = Boolean(token)
+  const mapShellClass = compact ? COMPACT_MAP_SHELL : DEFAULT_MAP_SHELL
+  const overlayMessage =
+    overlay === 'route-error' ? MSG_ROUTE_FAIL : overlay === 'route-timeout' ? MSG_ROUTE_TIMEOUT : null
 
   return (
-    <div className="quote-route-map overflow-hidden rounded-lg border border-slate-200 bg-slate-100 shadow-card ring-1 ring-slate-100 sm:rounded-2xl">
+    <div className="quote-route-map w-full min-w-0 overflow-hidden rounded-lg border border-slate-200 bg-slate-100 shadow-card ring-1 ring-slate-100 sm:rounded-2xl">
       {!showMap ? (
-        <div className="flex h-[100px] min-h-[100px] xxs:h-[110px] xxs:min-h-[110px] xs:h-[130px] xs:min-h-[130px] mb:h-[160px] mb:min-h-[160px] sm:h-[200px] sm:min-h-[200px] lg:h-[260px] lg:min-h-[260px] w-full items-center justify-center rounded-2xl bg-slate-50 px-4 text-center">
+        <div className={`flex ${mapShellClass} items-center justify-center bg-slate-50 px-4 text-center`}>
           <p className="text-sm leading-relaxed text-slate-700">{MSG_NO_TOKEN}</p>
         </div>
       ) : (
-        <div className="relative h-[100px] min-h-[100px] xxs:h-[110px] xxs:min-h-[110px] xs:h-[130px] xs:min-h-[130px] mb:h-[160px] mb:min-h-[160px] sm:h-[200px] sm:min-h-[200px] lg:h-[260px] lg:min-h-[260px] w-full overflow-hidden rounded-2xl">
-          <div ref={containerRef} className="h-full w-full" aria-label="Route map" />
+        <div ref={shellRef} className={mapShellClass}>
+          <div ref={containerRef} className="h-full w-full min-w-0" aria-label="Route map" />
 
           {overlay === 'calculating' && (
             <div className="pointer-events-none absolute inset-0 z-10 flex flex-col items-center justify-center bg-white/80">
               <span
-                className="h-9 w-9 animate-spin rounded-full border-2 border-brand-500 border-t-transparent"
+                className="h-7 w-7 animate-spin rounded-full border-2 border-brand-500 border-t-transparent md:h-9 md:w-9"
                 aria-hidden
               />
-              <p className="mt-3 text-xs font-medium text-slate-600">Calculating route...</p>
+              <p className="mt-2 text-[11px] font-medium text-slate-600 md:mt-3 md:text-xs">
+                Calculating route...
+              </p>
             </div>
           )}
 
-          {overlay === 'route-error' && (
+          {overlayMessage ? (
             <div className="absolute inset-0 z-10 flex items-center justify-center bg-white/90 px-4 text-center">
-              <p className="max-w-[300px] text-sm leading-relaxed text-slate-700">{MSG_ROUTE_FAIL}</p>
+              <p className="max-w-[300px] text-xs leading-relaxed text-slate-700 md:text-sm">{overlayMessage}</p>
             </div>
-          )}
+          ) : null}
         </div>
       )}
     </div>
@@ -358,9 +446,6 @@ function QuoteRouteMapInner({
 }
 
 export default function QuoteRouteMap(props) {
-  const token = import.meta.env.VITE_MAPBOX_TOKEN
-  console.log('[QuoteRouteMap] Mapbox token exists:', Boolean(token))
-
   return (
     <MapErrorBoundary>
       <QuoteRouteMapInner {...props} />

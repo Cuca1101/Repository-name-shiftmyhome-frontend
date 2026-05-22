@@ -14,14 +14,14 @@ const SHORT_LABELS = {
 
 export default function WizardProgress({ step }) {
   return (
-    <div className="mb-3 rounded-xl border border-slate-200 bg-white p-2 shadow-card xxs:mb-3.5 xxs:p-2.5 xs:rounded-2xl xs:p-3 sm:mb-8 sm:p-6">
-      <div className="relative mb-2 h-1.5 overflow-hidden rounded-full bg-slate-100 xxs:mb-2.5 xs:mb-3 sm:mb-6 sm:h-2">
+    <div className="mb-1.5 rounded-lg border border-slate-200 bg-white p-1 shadow-card md:mb-8 md:rounded-xl md:p-6">
+      <div className="relative mb-1 h-1 overflow-hidden rounded-full bg-slate-100 md:mb-6 md:h-2">
         <div
           className="absolute left-0 top-0 h-full rounded-full bg-gradient-to-r from-brand-600 to-emerald-500 transition-all duration-300 ease-out"
           style={{ width: `${((step - 1) / (STEPS.length - 1)) * 100}%` }}
         />
       </div>
-      <ol className="grid grid-cols-4 gap-1 text-[0.55rem] font-semibold leading-tight text-slate-500 xxs:gap-1.5 xxs:text-[0.6rem] xs:text-[0.65rem] ph:text-[0.7rem] sm:gap-2 sm:text-sm">
+      <ol className="grid grid-cols-4 gap-0.5 text-[0.5625rem] font-semibold leading-tight text-slate-500 md:gap-2 md:text-sm">
         {STEPS.map((s) => (
           <li
             key={s.n}
@@ -30,7 +30,7 @@ export default function WizardProgress({ step }) {
             }`}
           >
             <span
-              className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[0.65rem] tabular-nums xxs:h-6 xxs:w-6 xs:h-7 xs:w-7 sm:h-8 sm:w-8 sm:text-sm ${
+              className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[0.625rem] tabular-nums md:h-8 md:w-8 md:text-sm ${
                 step === s.n
                   ? 'bg-brand-600 text-white shadow-md ring-2 ring-brand-200'
                   : step > s.n

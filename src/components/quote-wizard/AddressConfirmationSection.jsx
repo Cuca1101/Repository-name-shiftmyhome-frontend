@@ -35,7 +35,7 @@ export default function AddressConfirmationSection({
   }
 
   const shell = isMobile
-    ? 'min-w-0 rounded-xl border border-emerald-200/80 bg-gradient-to-br from-emerald-50/50 to-white p-3 shadow-sm ring-1 ring-emerald-100/60'
+    ? 'box-border min-w-0 w-full rounded-lg border border-emerald-200/80 bg-gradient-to-br from-emerald-50/50 to-white p-2.5 shadow-sm ring-1 ring-emerald-100/60'
     : 'rounded-xl border border-emerald-200/80 bg-gradient-to-br from-emerald-50/50 to-white p-4 shadow-sm ring-1 ring-emerald-100/60'
 
   const btnPrimary =

@@ -21,10 +21,16 @@ export function formatFloorLabel(n) {
   return o ? o.label : String(n)
 }
 
-const labelClass = 'mb-1.5 block text-sm font-medium text-slate-700'
+/** Lift question only when floor is above ground (1st+). */
+export function floorNeedsLiftQuestion(floor) {
+  return floor != null && Number(floor) > 0
+}
+
+const labelClass =
+  'mb-1 block text-xs font-medium leading-snug text-slate-700 sm:mb-1.5 sm:text-sm'
 
 const triggerBase =
-  'flex h-12 w-full min-w-0 items-center justify-between gap-2 rounded-xl border border-slate-200 bg-white px-4 text-left text-base shadow-sm outline-none transition sm:text-sm'
+  'box-border flex h-10 w-full min-w-0 items-center justify-between gap-2 rounded-lg border border-slate-200 bg-white px-3 text-left text-sm shadow-sm outline-none transition sm:h-12 sm:rounded-xl sm:px-4 sm:text-base'
 
 const triggerInteractive =
   'hover:border-slate-300 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/25'
@@ -60,7 +66,7 @@ export default function FloorSelect({ label: labelText, value, onChange }) {
   }
 
   return (
-    <div ref={rootRef} className="relative min-w-0">
+    <div ref={rootRef} className="relative box-border min-w-0 w-full">
       <label className={labelClass} htmlFor={id} id={`${id}-label`}>
         {labelText}
       </label>
@@ -102,7 +108,7 @@ export default function FloorSelect({ label: labelText, value, onChange }) {
                   type="button"
                   role="option"
                   aria-selected={isSelected}
-                  className={`flex w-full cursor-pointer items-center px-4 py-2.5 text-left text-sm text-slate-800 transition hover:bg-slate-50 ${
+                  className={`flex w-full cursor-pointer items-center px-3 py-2 text-left text-sm text-slate-800 transition hover:bg-slate-50 sm:px-4 sm:py-2.5 ${
                     isSelected ? 'bg-brand-50 font-medium text-brand-900' : ''
                   }`}
                   onClick={() => pick(o.value)}

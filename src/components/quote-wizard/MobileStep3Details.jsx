@@ -1,12 +1,14 @@
-﻿import { ClipboardList, Minus, Plus } from 'lucide-react'
+﻿import { Minus, Plus } from 'lucide-react'
+import MobileStepTitleWithRef from './MobileStepTitleWithRef'
 import { reassemblySameAsDismantlingPatch } from '../../lib/quoteWizardReassembly'
 import AddressConfirmationSection from './AddressConfirmationSection'
 import PickupDeliveryContactsSection from './PickupDeliveryContactsSection'
 import PackingMaterialsSection from './PackingMaterialsSection'
 import QuoteWizardPhotosField from './QuoteWizardPhotosField'
 import QuotePromoCodeField from './QuotePromoCodeField'
+import { quoteMobileInput, quoteMobileLabel } from '../../lib/quoteMobileUiClasses'
 
-const card = 'min-w-0 rounded-xl border border-slate-200 bg-white shadow-sm'
+const card = 'box-border min-w-0 w-full rounded-lg border border-slate-200 bg-white shadow-sm md:rounded-xl'
 
 function QtyStepper({ value, onChange, disabled }) {
   const n = Math.max(0, Number(value) || 0)
@@ -48,7 +50,7 @@ function YesNoChoice({ value, onChange }) {
           role="radio"
           aria-checked={value === opt.v}
           onClick={() => onChange(opt.v)}
-          className={`min-h-[44px] flex-1 rounded-xl border px-3 text-sm font-semibold transition active:scale-[0.98] ${
+          className={`min-h-[36px] flex-1 rounded-lg border px-2.5 text-xs font-semibold transition active:scale-[0.98] md:min-h-[44px] md:rounded-xl md:px-3 md:text-sm ${
             value === opt.v
               ? 'border-brand-500 bg-brand-50 text-brand-900 ring-1 ring-brand-500/20'
               : 'border-slate-200 bg-white text-slate-700'
@@ -77,9 +79,8 @@ export default function MobileStep3Details({
   onQuotePhotoRemove,
   onQuotePhotosClear,
 }) {
-  const input =
-    'w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-base text-slate-900 shadow-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/25'
-  const label = 'mb-1.5 block text-sm font-medium text-slate-700'
+  const input = quoteMobileInput
+  const label = quoteMobileLabel
 
   const assemblyMode = !data.reassembly ? 'none' : data.reassemblySameAsDismantling ? 'same' : 'different'
 
@@ -123,24 +124,21 @@ export default function MobileStep3Details({
   }
 
   return (
-    <div className="min-w-0 space-y-3 md:hidden">
-      <div className={`${card} flex items-center gap-3 p-3`}>
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-brand-50 text-brand-600">
-          <ClipboardList className="h-5 w-5" aria-hidden />
-        </div>
-        <div className="min-w-0 flex-1">
-          <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Quote reference</p>
-          <p className="truncate font-mono text-sm font-bold text-brand-800">{quoteRef}</p>
-        </div>
+    <div data-quote-step="3" className="box-border min-w-0 w-full space-y-1.5 md:hidden">
+      <div className="px-0.5">
+        <MobileStepTitleWithRef title="Details" quoteRef={quoteRef} titleClassName="md:text-lg" />
+        <p className="mt-0.5 text-[10px] leading-snug text-slate-600 md:text-xs">
+          Extras, access notes, and how we reach you.
+        </p>
       </div>
 
       <div
         id="quote-wizard-contact-details-mobile"
         data-quote-field="contact-details"
-        className={`${card} scroll-mt-24 p-3`}
+        className={`${card} scroll-mt-24 p-2.5 md:p-3`}
       >
-        <h3 className="text-sm font-bold text-slate-900">Your details</h3>
-        <div className="mt-3 space-y-3">
+        <h3 className="text-xs font-bold text-slate-900 md:text-sm">Your details</h3>
+        <div className="mt-2 space-y-2 md:mt-3 md:space-y-3">
           <label className="block">
             <span className={label}>Full name</span>
             <input
@@ -199,9 +197,9 @@ export default function MobileStep3Details({
         </p>
       ) : null}
 
-      <div className={`${card} p-3`}>
+      <div className={`${card} p-2.5 md:p-3`}>
         <label className="block">
-          <span className="text-sm font-bold text-slate-900">Special instructions</span>
+          <span className="text-xs font-bold text-slate-900 md:text-sm">Special instructions</span>
           <textarea
             rows={3}
             value={data.specialInstructions}
@@ -212,8 +210,8 @@ export default function MobileStep3Details({
         </label>
       </div>
 
-      <div className={`${card} p-3`}>
-        <p className="text-sm font-bold text-slate-900">Do you need help dismantling furniture?</p>
+      <div className={`${card} p-2.5 md:p-3`}>
+        <p className="text-xs font-bold text-slate-900 md:text-sm">Do you need help dismantling furniture?</p>
         <YesNoChoice value={Boolean(data.dismantling)} onChange={setDismantlingYes} />
         {data.dismantling ? (
           <div className="mt-3 space-y-3 border-t border-slate-100 pt-3">

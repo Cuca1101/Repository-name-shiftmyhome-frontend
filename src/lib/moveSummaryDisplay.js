@@ -1,4 +1,5 @@
 import { FLOOR_OPTIONS } from '../components/quote-wizard/FloorSelect'
+import { formatCrewSizeLabel, formatMoveSummaryCrewForPricing } from './crewPricingRules'
 import { formatCompactArrivalLine } from './emailQuotePayload'
 import { formatDateUK } from './formatDateDisplay'
 import { getEffectiveReassemblyItemCount } from './quoteWizardReassembly'
@@ -27,17 +28,10 @@ export function formatMoveSummaryArrival(wizard) {
     .trim()
 }
 
+export { formatMoveSummaryCrewForPricing }
+
 export function formatMoveSummaryCrewSize(crewSize, crewSettings) {
-  const n = Number(crewSize)
-  if (!(n >= 1 && n <= 4)) return ''
-  const options = [
-    { value: 1, label: '1 Man', enabled: crewSettings?.crewSizeOneEnabled !== false },
-    { value: 2, label: '2 Men', enabled: crewSettings?.crewSizeTwoEnabled !== false },
-    { value: 3, label: '3 Men', enabled: crewSettings?.crewSizeThreeEnabled !== false },
-    { value: 4, label: '4 Men', enabled: Boolean(crewSettings?.crewSizeFourEnabled) },
-  ].filter((o) => o.enabled)
-  const match = options.find((o) => o.value === n)
-  return match?.label ?? `${n} ${n === 1 ? 'Man' : 'Men'}`
+  return formatCrewSizeLabel(crewSize, crewSettings)
 }
 
 export function formatMoveSummaryDistance(distanceMiles) {

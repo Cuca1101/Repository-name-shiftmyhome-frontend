@@ -1,12 +1,13 @@
 import { useRef } from 'react'
-import { ClipboardList } from 'lucide-react'
 import CrewSizeField from './CrewSizeField'
+import MobileStepTitleWithRef from './MobileStepTitleWithRef'
 import InventorySearchDropdown, {
   InventorySearchDropdownEmpty,
 } from './InventorySearchDropdown'
 import { CategoryLucideIcon } from './inventoryLucideIcons'
+import { quoteMobileHelper } from '../../lib/quoteMobileUiClasses'
 
-const card = 'min-w-0 rounded-xl border border-slate-200 bg-white shadow-sm'
+const card = 'box-border min-w-0 w-full rounded-lg border border-slate-200 bg-white shadow-sm md:rounded-xl'
 
 /**
  * App-style mobile Step 2 inventory UI (&lt; md only).
@@ -22,6 +23,7 @@ export default function MobileStep2Inventory({
   crewSize,
   onCrewSizeChange,
   crewSettings,
+  crewRestrictions,
   crewFieldId,
   crewHintId,
   validationMessage,
@@ -49,29 +51,10 @@ export default function MobileStep2Inventory({
   const catalogSectionRef = categoriesRef || useRef(null)
 
   return (
-    <div className="min-w-0 space-y-3 md:hidden">
-      <div className={`${card} flex items-center gap-3 p-3`}>
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-brand-50 text-brand-600">
-          <ClipboardList className="h-5 w-5" aria-hidden />
-        </div>
-        <div className="min-w-0 flex-1">
-          <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Quote reference</p>
-          <p className="truncate font-mono text-sm font-bold text-brand-800">{quoteRef}</p>
-        </div>
-      </div>
-
-      <CrewSizeField
-        id={crewFieldId}
-        descriptionId={crewHintId}
-        value={crewSize}
-        onChange={onCrewSizeChange}
-        crewSettings={crewSettings}
-        invalid={Boolean(validationMessage && /crew size/i.test(validationMessage))}
-      />
-
+    <div data-quote-step="2" className="box-border min-w-0 w-full space-y-1.5 md:hidden">
       <div className="px-0.5">
-        <h2 className="text-lg font-bold text-slate-900">Inventory</h2>
-        <p className="mt-0.5 text-xs leading-snug text-slate-600">
+        <MobileStepTitleWithRef title="Items" quoteRef={quoteRef} titleClassName="md:text-lg" />
+        <p className={`mt-0.5 ${quoteMobileHelper}`}>
           Add items from the categories below. Your selections appear in the move summary below.
         </p>
         {catalogLoading ? (
@@ -80,6 +63,17 @@ export default function MobileStep2Inventory({
           <p className="mt-1 text-[11px] text-slate-500">Using your Items Library catalogue.</p>
         ) : null}
       </div>
+
+      <CrewSizeField
+        id={crewFieldId}
+        descriptionId={crewHintId}
+        value={crewSize}
+        onChange={onCrewSizeChange}
+        crewSettings={crewSettings}
+        oneManAllowed={crewRestrictions?.oneManAllowed !== false}
+        oneManDisabledReason={crewRestrictions?.message || ''}
+        invalid={Boolean(validationMessage && /crew size/i.test(validationMessage))}
+      />
 
       {validationMessage ? (
         <p
@@ -91,7 +85,7 @@ export default function MobileStep2Inventory({
         </p>
       ) : null}
 
-      <div ref={catalogSectionRef} data-quote-field="inventory" className={`${card} min-w-0 p-3`}>
+      <div ref={catalogSectionRef} data-quote-field="inventory" className={`${card} p-2.5 md:p-3`}>
         <div className="-mx-1 flex min-w-0 snap-x snap-mandatory gap-2.5 overflow-x-auto overscroll-x-contain scroll-smooth px-1 pb-2.5 touch-pan-x [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {categoryOrder.map((key) => {
             const c = inventoryByCategory[key]

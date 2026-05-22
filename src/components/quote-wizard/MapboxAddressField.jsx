@@ -2,7 +2,7 @@ import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import { searchGeocodingSuggestions } from '../../lib/mapboxRouteApi'
 
 const inputClass =
-  'min-h-[44px] w-full max-w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-base text-slate-900 shadow-sm outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/25 sm:min-h-[48px] sm:px-4'
+  'box-border min-h-[38px] w-full min-w-0 max-w-full rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-sm leading-snug text-slate-900 shadow-sm outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/25 sm:min-h-[48px] sm:rounded-xl sm:px-4 sm:text-base'
 
 /**
  * Mapbox Geocoding autocomplete. Saves full address text + lng/lat when user picks a suggestion.
@@ -128,12 +128,12 @@ export default function MapboxAddressField({
     <div
       ref={rootRef}
       data-quote-field={quoteField}
-      className={`relative min-w-0 ${open && suggestions.length > 0 ? 'z-20' : 'z-0'}`}
+      className={`relative box-border min-w-0 w-full ${open && suggestions.length > 0 ? 'z-20' : 'z-0'}`}
     >
-      <label className="mb-1.5 block text-sm font-medium text-slate-700">
-        <span className="inline-flex items-center gap-2">
+      <label className="mb-1 block text-xs font-medium leading-snug text-slate-700 sm:mb-1.5 sm:text-sm">
+        <span className="inline-flex items-center gap-1.5 sm:gap-2">
           <span
-            className={`flex h-7 w-7 items-center justify-center rounded-lg text-xs font-bold text-white ${markerClassName}`}
+            className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-[10px] font-bold text-white sm:h-7 sm:w-7 sm:rounded-lg sm:text-xs ${markerClassName}`}
           >
             {markerLetter}
           </span>

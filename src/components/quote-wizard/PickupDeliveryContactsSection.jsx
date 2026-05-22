@@ -1,4 +1,5 @@
 import { resolveDeliveryContact, resolvePickupContact } from '../../lib/quoteWizardContactFields'
+import { quoteMobileInput, quoteMobileLabel } from '../../lib/quoteMobileUiClasses'
 
 /**
  * Step 3 — pickup & delivery contact toggles and optional alternate contacts.
@@ -11,11 +12,11 @@ import { resolveDeliveryContact, resolvePickupContact } from '../../lib/quoteWiz
 export default function PickupDeliveryContactsSection({ data, onChange, variant = 'desktop' }) {
   const isMobile = variant === 'mobile'
   const input = isMobile
-    ? 'w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-base text-slate-900 shadow-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/25'
+    ? quoteMobileInput
     : 'w-full max-w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-base text-slate-900 shadow-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/25 sm:px-4 sm:py-3'
-  const label = 'mb-1.5 block text-sm font-medium text-slate-700'
+  const label = isMobile ? quoteMobileLabel : 'mb-1.5 block text-sm font-medium text-slate-700'
   const card = isMobile
-    ? 'min-w-0 rounded-xl border border-slate-200 bg-white p-3 shadow-sm'
+    ? 'box-border min-w-0 w-full rounded-lg border border-slate-200 bg-white p-2.5 shadow-sm'
     : 'rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6'
 
   const pickupSame = data.pickupContactSameAsCustomer !== false
@@ -30,12 +31,16 @@ export default function PickupDeliveryContactsSection({ data, onChange, variant 
 
   return (
     <div className={card}>
-      <h3 className="text-sm font-bold text-slate-900">Pickup &amp; delivery contacts</h3>
-      <p className="mt-1 text-xs leading-relaxed text-slate-600 sm:text-sm">
+      <h3 className={`font-bold text-slate-900 ${isMobile ? 'text-xs' : 'text-sm'}`}>Pickup &amp; delivery contacts</h3>
+      <p className={`mt-1 leading-relaxed text-slate-600 ${isMobile ? 'text-[11px]' : 'text-xs sm:text-sm'}`}>
         Who should our crew contact at each address? By default we use your booking details.
       </p>
-      <div className="mt-4 space-y-3">
-        <label className="flex min-h-[48px] cursor-pointer items-start gap-3 rounded-xl border border-slate-100 bg-slate-50/80 p-4">
+      <div className={`${isMobile ? 'mt-2 space-y-2' : 'mt-4 space-y-3'}`}>
+        <label
+          className={`flex cursor-pointer items-start gap-2.5 rounded-lg border border-slate-100 bg-slate-50/80 ${
+            isMobile ? 'min-h-[40px] p-2.5' : 'min-h-[48px] gap-3 rounded-xl p-4'
+          }`}
+        >
           <input
             id="pickup-contact-same"
             type="checkbox"

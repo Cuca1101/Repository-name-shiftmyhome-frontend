@@ -5,7 +5,7 @@ import { useWebsiteCms } from '../../context/WebsiteCmsContext'
 import { coerceUseHeroVideo } from '../../lib/heroCmsVideo'
 import { DEFAULT_HOMEPAGE } from '../../lib/websiteCmsDefaults'
 
-/** Desktop homepage hero — unchanged premium layout (md+). */
+/** Desktop homepage hero — text left on light blue, video right (md+). */
 export default function DesktopHero() {
   const { homepage } = useWebsiteCms()
   const h = homepage ?? DEFAULT_HOMEPAGE
@@ -14,10 +14,10 @@ export default function DesktopHero() {
   const heroVideoUrl = h.heroVideoUrl || ''
 
   return (
-    <section id="home" className="scroll-mt-[76px] overflow-hidden bg-white">
-      <div className="home-container">
-        <div className="grid min-w-0 items-center gap-6 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)] lg:gap-8 xl:gap-10">
-          <div className="py-6 sm:py-8 lg:py-10">
+    <section id="home" className="hero-desktop-split scroll-mt-[76px] overflow-hidden bg-white">
+      <div className="hero-desktop-split-grid grid min-w-0 lg:grid-cols-2 lg:items-stretch">
+        <div className="hero-text-panel flex min-w-0 flex-col justify-center">
+          <div className="home-container py-8 sm:py-10 lg:max-w-none lg:py-12 lg:pl-8 lg:pr-6 xl:pl-10 xl:pr-8">
             <h1 className="text-balance text-[1.75rem] font-extrabold leading-[1.12] tracking-tight text-navy sm:text-4xl lg:text-[2.65rem] lg:leading-[1.08]">
               {h.heroTitlePart1}{' '}
               <span className="bg-gradient-to-r from-brand-600 via-brand-500 to-cyan-500 bg-clip-text text-transparent">
@@ -64,16 +64,15 @@ export default function DesktopHero() {
               <HomeTrustRow embedded trustpilotText={h.trustpilotText} />
             </div>
           </div>
+        </div>
 
-          <div className="relative mx-auto w-full max-w-xl lg:max-w-none">
-            <div className="relative aspect-[4/3] overflow-hidden rounded-2xl sm:aspect-[5/4] lg:aspect-auto lg:min-h-[380px] lg:rounded-none lg:rounded-l-2xl xl:min-h-[420px]">
-              <HeroBackgroundMedia
-                imageUrl={heroImage}
-                videoUrl={heroVideoUrl}
-                useVideo={useHeroVideo}
-              />
-            </div>
-          </div>
+        <div className="hero-media-panel relative min-h-[16rem] sm:min-h-[20rem] lg:min-h-[26rem] xl:min-h-[30rem]">
+          <HeroBackgroundMedia
+            imageUrl={heroImage}
+            videoUrl={heroVideoUrl}
+            useVideo={useHeroVideo}
+            overlay="panel-edge"
+          />
         </div>
       </div>
     </section>

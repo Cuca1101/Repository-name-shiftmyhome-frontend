@@ -33,6 +33,8 @@ export function getDefaultPricingSettings() {
     weekendSurchargePercent: 15,
     extraHelperPrice: 45,
     crewSurchargePerExtraMember: 45,
+    /** Flat-base mode: % off labour (base + volume + labour access) when customer selects 1 man. */
+    oneManLabourDiscountPercent: 15,
     /** When true, each service base price is per crew member — total base = rate × crew size from the quote (no separate extra-crew surcharge). */
     basePricePerMan: false,
     crewSizeOneEnabled: true,

@@ -23,10 +23,10 @@ const OPTIONS = [
 ]
 
 const selectClass =
-  'min-h-[44px] w-full max-w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-base text-slate-900 shadow-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/25'
-const labelClass = 'mb-1.5 block text-sm font-medium text-slate-700'
+  'box-border min-h-[38px] w-full min-w-0 max-w-full rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-sm leading-snug text-slate-900 shadow-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/25'
+const labelClass = 'mb-1 block text-xs font-medium leading-snug text-slate-700'
 const optionBtn =
-  'flex min-h-[56px] w-full items-center gap-3 rounded-xl border border-slate-200 bg-white px-3 py-3 text-left shadow-sm transition'
+  'flex min-h-[46px] w-full min-w-0 items-center gap-2.5 rounded-lg border border-slate-200 bg-white px-2.5 py-2.5 text-left shadow-sm transition'
 function mobileMode(data) {
   if (data.arrivalWindow === 'exact') return 'exact'
   if (data.arrivalWindow === MOBILE_FLEX_VALUE) return MOBILE_FLEX_VALUE
@@ -163,7 +163,7 @@ export default function MobileStep1ArrivalWindow({ data, onChange, error = '' })
   const isPlaceholder = displayLabel === 'Choose arrival time'
 
   return (
-    <div className="min-w-0 space-y-1.5">
+    <div className="box-border min-w-0 w-full space-y-1">
       <span className={labelClass} id="mobile-arrival-window-label">
         Preferred arrival window
       </span>
@@ -174,7 +174,7 @@ export default function MobileStep1ArrivalWindow({ data, onChange, error = '' })
         aria-labelledby="mobile-arrival-window-label"
         aria-haspopup="dialog"
         aria-expanded={open}
-        className="flex min-h-[48px] w-full min-w-0 items-center justify-between gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-left text-base shadow-sm outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/25"
+        className="box-border flex min-h-[38px] w-full min-w-0 items-center justify-between gap-2 rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-left text-sm shadow-sm outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/25"
       >
         <span
           className={`min-w-0 flex-1 truncate text-sm leading-snug ${

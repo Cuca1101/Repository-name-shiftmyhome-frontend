@@ -8,6 +8,7 @@ import {
   parsePackingMaterialQuantities,
   sumBoxQuantities,
 } from '../../lib/packingMaterialsCatalog'
+import { quoteMobileHelper } from '../../lib/quoteMobileUiClasses'
 
 function QtyStepper({ value, onChange, disabled, size = 'default' }) {
   const n = Math.max(0, Number(value) || 0)
@@ -58,7 +59,7 @@ export default function PackingMaterialsSection({
 }) {
   const isMobile = variant === 'mobile'
   const card = isMobile
-    ? 'min-w-0 rounded-xl border border-slate-200 bg-white p-3 shadow-sm'
+    ? 'box-border min-w-0 w-full rounded-lg border border-slate-200 bg-white p-2.5 shadow-sm'
     : 'rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6'
 
   const materialQty = useMemo(

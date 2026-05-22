@@ -20,7 +20,7 @@ import {
   buildMoveSummaryExtras,
   formatDateUK,
   formatMoveSummaryArrival,
-  formatMoveSummaryCrewSize,
+  formatMoveSummaryCrewForPricing,
   formatMoveSummaryDistance,
   formatMoveSummaryFloorLabel,
   formatMoveSummaryInventoryCount,
@@ -28,7 +28,7 @@ import {
   hasMoveSummaryRouteData,
 } from '../../lib/moveSummaryDisplay'
 
-const card = 'min-w-0 rounded-xl border border-slate-200 bg-white shadow-sm'
+const card = 'box-border min-w-0 w-full rounded-lg border border-slate-200 bg-white shadow-sm md:rounded-xl'
 
 function truncate(s, max = 72) {
   if (!s) return ''
@@ -40,11 +40,11 @@ function SummaryRow({ icon: Icon, iconClass = 'text-slate-400', label, value }) 
   const text = value != null ? String(value).trim() : ''
   if (!text) return null
   return (
-    <div className="flex gap-2.5 border-b border-slate-100 py-2 last:border-b-0">
-      <Icon className={`mt-0.5 h-4 w-4 shrink-0 ${iconClass}`} aria-hidden />
+    <div className="flex gap-2 border-b border-slate-100 py-1.5 last:border-b-0 md:gap-2.5 md:py-2">
+      <Icon className={`mt-0.5 h-3.5 w-3.5 shrink-0 md:h-4 md:w-4 ${iconClass}`} aria-hidden />
       <div className="min-w-0 flex-1">
-        <p className="text-[10px] font-medium uppercase tracking-wide text-slate-500">{label}</p>
-        <p className="mt-0.5 text-sm font-semibold leading-snug text-slate-900">{text}</p>
+        <p className="text-[9px] font-medium uppercase tracking-wide text-slate-500 md:text-[10px]">{label}</p>
+        <p className="mt-0.5 text-xs font-semibold leading-snug text-slate-900 md:text-sm">{text}</p>
       </div>
     </div>
   )
@@ -122,7 +122,11 @@ export default function MobileQuoteMoveSummary({
   const selectedLines = (inventoryLines || []).filter((l) => l.quantity > 0)
   const totalItemUnits = selectedLines.reduce((s, l) => s + Math.max(0, Number(l.quantity) || 0), 0)
   const itemCountLabel = formatMoveSummaryInventoryCount(inventoryLines)
-  const crewLabel = formatMoveSummaryCrewSize(wizard?.crewSize, crewSettings)
+  const crewLabel = formatMoveSummaryCrewForPricing(
+    wizard?.crewSize,
+    breakdown?.crewSizeUsedInPricing,
+    crewSettings,
+  )
   const arrival = formatMoveSummaryArrival(wizard)
   const distanceLabel = formatMoveSummaryDistance(distanceMiles)
   const pickupFloorLabel = formatMoveSummaryFloorLabel(pickupFloor)
@@ -148,20 +152,21 @@ export default function MobileQuoteMoveSummary({
 
   return (
     <div className={`${card} overflow-hidden ${showOnDesktop ? '' : 'md:hidden'}`}>
-      <div className="border-b border-slate-100 bg-gradient-to-br from-slate-50/90 to-white px-3 py-2.5">
+      <div className="border-b border-slate-100 bg-gradient-to-br from-slate-50/90 to-white px-2.5 py-2 md:px-3 md:py-2.5">
         <div className="flex items-center gap-2">
-          <ClipboardList className="h-4 w-4 shrink-0 text-brand-600" aria-hidden />
+          <ClipboardList className="h-3.5 w-3.5 shrink-0 text-brand-600 md:h-4 md:w-4" aria-hidden />
           <div className="min-w-0 flex-1">
-            <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Quote reference</p>
-            <p className="truncate font-mono text-sm font-bold text-brand-800">{quoteRef}</p>
+            <p className="quote-ref-mobile-label font-semibold uppercase tracking-wide text-slate-500">Quote reference</p>
+            <p className="quote-ref-mobile-value truncate font-mono font-bold text-brand-800 md:text-sm">{quoteRef}</p>
           </div>
         </div>
       </div>
 
       {showRoute ? (
         <div className="px-3 pt-3">
-          <div className="overflow-hidden rounded-xl border border-slate-100 bg-slate-50/80 [&_.quote-route-map]:rounded-xl [&_.quote-route-map]:border-0 [&_.quote-route-map]:shadow-none [&_.quote-route-map]:ring-0 [&_.quote-route-map_.relative]:!h-[120px] [&_.quote-route-map_.relative]:!min-h-[120px] [&_.quote-route-map_.relative]:!max-h-[120px]">
+          <div className="quote-route-map-compact overflow-hidden rounded-lg border border-slate-100 bg-slate-50/80 md:rounded-xl [&_.quote-route-map]:rounded-lg [&_.quote-route-map]:border-0 [&_.quote-route-map]:shadow-none [&_.quote-route-map]:ring-0 md:[&_.quote-route-map]:rounded-xl">
             <QuoteRouteMap
+              compact
               pickupLng={pickupLng}
               pickupLat={pickupLat}
               deliveryLng={deliveryLng}

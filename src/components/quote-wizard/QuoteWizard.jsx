@@ -41,6 +41,7 @@ function QuoteWizardInner({ compact = false }) {
     clearQuotePhotos,
     totalM3,
     breakdown,
+    crewRestrictions,
     depositAmountGbp,
     customSizeM3,
     handleDistanceFromRoute,
@@ -79,10 +80,11 @@ function QuoteWizardInner({ compact = false }) {
     onInventoryLinesChange: (inventoryLines) =>
       setWizard((w) => ({ ...w, inventoryLines })),
     totalM3,
-    showPricing: step >= 4,
+    showPricing: step >= 2,
     breakdown,
     serviceType,
     crewSettings: settings,
+    crewRestrictions,
   }
 
   const stepNavButtons =
@@ -138,6 +140,7 @@ function QuoteWizardInner({ compact = false }) {
           crewSize={wizard.crewSize}
           onCrewSizeChange={(crewSize) => setWizard((w) => ({ ...w, crewSize }))}
           crewSettings={settings}
+          crewRestrictions={crewRestrictions}
           quoteRef={quoteRef}
           onGoToStep={goToStep}
           validationMessage={
@@ -191,11 +194,11 @@ function QuoteWizardInner({ compact = false }) {
       id="quote"
       className={
         compact
-          ? 'quote-wizard-section quote-wizard-section--embedded scroll-mt-20 py-3 md:py-5'
-          : 'quote-wizard-section scroll-mt-24 border-t border-slate-200 bg-slate-50 py-4 md:border-t md:py-14'
+          ? 'quote-flow-scope quote-wizard-section quote-wizard-section--embedded scroll-mt-20 py-1.5 md:py-5'
+          : 'quote-flow-scope quote-wizard-section scroll-mt-24 border-t border-slate-200 bg-slate-50 py-1.5 md:border-t md:py-14'
       }
     >
-      <div className="mx-auto min-w-0 w-full max-w-6xl px-3 md:px-6 lg:px-8">
+      <div className="mx-auto box-border min-w-0 w-full max-w-6xl px-2 md:px-6 lg:px-8">
         <div id="quote-wizard-top">
           <WizardProgress step={step} />
         </div>
@@ -205,7 +208,7 @@ function QuoteWizardInner({ compact = false }) {
             role="alert"
             data-quote-wizard-feedback="true"
             data-quote-error={feedback.type === 'error' ? 'true' : undefined}
-            className={`quote-error mb-4 rounded-xl border px-4 py-3 text-sm md:mb-6 ${
+            className={`quote-error mb-2 rounded-lg border px-3 py-2 text-xs leading-snug md:mb-6 md:rounded-xl md:px-4 md:py-3 md:text-sm ${
               feedback.type === 'success'
                 ? 'border-emerald-200 bg-emerald-50 text-emerald-900'
                 : feedback.type === 'warning'
@@ -244,9 +247,9 @@ function QuoteWizardInner({ compact = false }) {
         ) : (
           <>
             {/* Mobile: steps → open summary (map + details) → in-flow nav */}
-            <div className="block space-y-3 md:hidden">
+            <div className="block space-y-1.5 md:hidden">
               <div
-                className={`min-w-0 rounded-xl border border-slate-200 bg-white p-3 shadow-card${compact ? ' quote-wizard-card' : ''}`}
+                className={`box-border min-w-0 w-full rounded-xl border border-slate-200 bg-white p-2 shadow-card${compact ? ' quote-wizard-card' : ''}`}
               >
                 {stepPanel}
               </div>

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import {
   coerceUseHeroVideo,
-  normalizeHeroVideoUrl,
+  heroVideoMimeFromUrl,
   resolveHeroVideoPlaybackUrl,
 } from '../lib/heroCmsVideo'
 
@@ -13,6 +13,7 @@ import {
  *   videoUrl?: string,
  *   useVideo?: boolean,
  *   imageAriaLabel?: string,
+ *   overlay?: 'none' | 'panel-edge',
  * }} props
  */
 export default function HeroBackgroundMedia({
@@ -20,9 +21,11 @@ export default function HeroBackgroundMedia({
   videoUrl = '',
   useVideo = false,
   imageAriaLabel = 'Professional home removals',
+  overlay = 'none',
 }) {
   const playbackUrl = resolveHeroVideoPlaybackUrl(videoUrl)
   const wantsVideo = coerceUseHeroVideo(useVideo) && playbackUrl.length > 0
+  const videoMime = heroVideoMimeFromUrl(playbackUrl)
   const [videoFailed, setVideoFailed] = useState(false)
 
   useEffect(() => {
@@ -47,9 +50,9 @@ export default function HeroBackgroundMedia({
   )
 
   return (
-    <>
+    <div className="absolute inset-0 overflow-hidden" aria-hidden>
       <div
-        className="absolute inset-0 z-0 bg-cover bg-[center_42%] transition-transform duration-700 ease-premium lg:hover:scale-[1.02]"
+        className="hero-bg-image absolute inset-0 z-0 bg-cover bg-center"
         style={{ backgroundImage: `url(${imageUrl})` }}
         role="img"
         aria-label={imageAriaLabel}
@@ -58,13 +61,13 @@ export default function HeroBackgroundMedia({
         <video
           ref={attachVideoRef}
           key={playbackUrl}
-          className="absolute inset-0 z-[1] h-full w-full object-cover object-[center_right]"
+          className="hero-bg-video absolute inset-0 z-[1] h-full w-full"
           src={playbackUrl}
           autoPlay
           muted
           loop
           playsInline
-          preload="auto"
+          preload="metadata"
           aria-hidden
           onLoadedData={(e) => {
             const el = e.currentTarget
@@ -72,10 +75,13 @@ export default function HeroBackgroundMedia({
             void el.play().catch(() => {})
           }}
           onError={() => setVideoFailed(true)}
-        />
+        >
+          <source src={playbackUrl} type={videoMime || 'video/mp4'} />
+        </video>
       ) : null}
-      <div className="hero-image-fade absolute inset-0 z-[2] lg:hidden" aria-hidden />
-      <div className="hero-media-overlay-desktop absolute inset-0 z-[2] hidden lg:block" aria-hidden />
-    </>
+      {overlay === 'panel-edge' ? (
+        <div className="hero-media-panel-edge absolute inset-0 z-[2]" aria-hidden />
+      ) : null}
+    </div>
   )
 }

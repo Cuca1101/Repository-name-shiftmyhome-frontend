@@ -130,7 +130,7 @@ export default function SeoLandingPage() {
         />
         <div className="seo-hero-overlay absolute inset-0" aria-hidden />
         <div className="seo-hero-glow absolute inset-0" aria-hidden />
-        <div className="seo-hero-content relative mx-auto min-w-0 max-w-6xl px-4 py-6 sm:px-6 sm:py-10 lg:px-8 lg:py-12">
+        <div className="seo-hero-content relative mx-auto box-border min-w-0 max-w-6xl px-2.5 py-3 sm:px-6 sm:py-10 lg:px-8 lg:py-12">
           <nav className="text-xs font-medium text-brand-200/90 sm:text-sm" aria-label="Breadcrumb">
             <Link to="/" className="transition hover:text-white">
               Home

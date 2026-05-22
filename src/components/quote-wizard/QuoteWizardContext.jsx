@@ -48,6 +48,7 @@ import { customerJobPhotoDedupKey } from '../../lib/data/jobPhotosRepository'
 import { MAX_PHOTOS } from './QuoteWizardPhotosField'
 import { sendQuoteRequestEmailJs } from '../../utils/sendQuoteRequestEmailJs'
 import { parsePackingMaterialQuantities } from '../../lib/packingMaterialsCatalog'
+import { getQuoteCrewRestrictions } from '../../lib/crewPricingRules'
 import {
   calculateQuote,
   breakdownToFlatRows,
@@ -268,8 +269,19 @@ export function QuoteWizardProvider({ children, serviceType: serviceTypeProp, al
     return Math.round(t * 100) / 100
   }, [wizard.inventoryLines])
 
+  const crewRestrictions = useMemo(
+    () => getQuoteCrewRestrictions({ serviceType, heavyItemCount }),
+    [serviceType, heavyItemCount],
+  )
+
+  useEffect(() => {
+    if (!crewRestrictions.oneManAllowed && Number(wizard.crewSize) === 1) {
+      setWizard((w) => ({ ...w, crewSize: 2 }))
+    }
+  }, [crewRestrictions.oneManAllowed, wizard.crewSize])
+
   const breakdown = useMemo(() => {
-    if (step < 4 || !settings) return null
+    if (step < 2 || !settings) return null
     const moveDate = wizard.moveDate
     const today = getLocalDateYYYYMMDD()
     const sameDay = moveDate === today
@@ -889,6 +901,7 @@ export function QuoteWizardProvider({ children, serviceType: serviceTypeProp, al
     lineItems,
     heavyItemCount,
     totalM3,
+    crewRestrictions,
     breakdown,
     depositAmountGbp: settings ? resolveDepositAmountGbp(settings) : 50,
     customSizeM3,

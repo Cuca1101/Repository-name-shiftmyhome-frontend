@@ -9,11 +9,13 @@ export default function ServiceQuoteLayout({ children }) {
   return (
     <CoverageModalProvider>
       <WebsiteCmsProvider>
-        <div className="flex min-h-screen min-w-0 w-full max-w-full flex-col clip-x">
+        <div className="quote-flow-layout flex min-h-screen min-w-0 w-full max-w-full flex-col clip-x" data-quote-flow>
           <QuoteNavbar />
-          <main className="min-w-0 flex-1 w-full max-w-full overflow-x-hidden pb-24 md:pb-0">{children}</main>
+          <main className="box-border min-w-0 flex-1 w-full max-w-full overflow-x-hidden pb-[4.25rem] md:pb-0">
+            {children}
+          </main>
           <Footer />
-          <WhatsAppButton />
+          <WhatsAppButton variant="quote-flow" />
         </div>
       </WebsiteCmsProvider>
     </CoverageModalProvider>

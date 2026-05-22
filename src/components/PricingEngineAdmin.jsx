@@ -644,6 +644,17 @@ export default function PricingEngineAdmin() {
                 onChange={(e) => setNum('crewSurchargePerExtraMember', e.target.value)}
               />
             </Field>
+            <Field label="One-man labour discount (%) — flat base mode">
+              <input
+                type="number"
+                step="1"
+                min="0"
+                max="100"
+                className={inputClass}
+                value={settings.oneManLabourDiscountPercent ?? 15}
+                onChange={(e) => setNum('oneManLabourDiscountPercent', e.target.value)}
+              />
+            </Field>
             <Field label="Large move threshold (m³)">
               <input
                 type="number"

@@ -1,17 +1,18 @@
 import { User, Users } from 'lucide-react'
 
-const labelCls = 'mb-1.5 block text-sm font-medium text-slate-700'
+const labelCls =
+  'mb-1 block text-xs font-medium leading-snug text-slate-700 md:mb-1.5 md:text-sm'
 
 const MOBILE_CREW_META = {
-  1: { hint: 'Small items' },
-  2: { hint: 'Standard move' },
-  3: { hint: 'Large/heavy' },
+  1: { hint: 'Lower labour cost' },
+  2: { hint: 'Standard price' },
+  3: { hint: 'Extra helper' },
 }
 
 const DESKTOP_CREW_META = {
-  1: { hint: 'Small moves & few items' },
-  2: { hint: 'Standard home move' },
-  3: { hint: 'Larger or heavier loads' },
+  1: { hint: '15% off labour (where allowed)' },
+  2: { hint: 'Standard price' },
+  3: { hint: 'Standard + extra helper' },
   4: { hint: 'Maximum capacity' },
 }
 
@@ -98,7 +99,7 @@ function CrewOptionCard({ option, selected, onSelect, variant }) {
       role="radio"
       aria-checked={selected}
       onClick={() => onSelect(option.value)}
-      className={`relative flex min-h-[88px] flex-col items-center justify-center rounded-xl border px-1.5 py-2.5 text-center shadow-sm transition duration-200 active:scale-[0.97] ${
+      className={`relative flex min-h-[66px] flex-col items-center justify-center rounded-lg border px-1 py-1.5 text-center shadow-sm transition duration-200 active:scale-[0.97] md:min-h-[88px] md:rounded-xl md:px-1.5 md:py-2.5 ${
         selected
           ? 'border-brand-500 bg-brand-50 ring-2 ring-brand-500/25'
           : 'border-slate-200 bg-white hover:border-slate-300'
@@ -132,15 +133,21 @@ export default function CrewSizeField({
   crewSettings,
   descriptionId,
   invalid = false,
+  oneManAllowed = true,
+  oneManDisabledReason = '',
 }) {
-  const crewOptions = buildCrewOptions(crewSettings)
-  const finalCrewOptions = crewOptions.length > 0 ? crewOptions : [{ value: 2, label: '2 Men', enabled: true }]
-  const mobileCrewOptions = finalCrewOptions.filter((o) => o.value >= 1 && o.value <= 3)
+  const crewOptions = buildCrewOptions(crewSettings).map((o) =>
+    o.value === 1 && !oneManAllowed ? { ...o, enabled: false } : o,
+  )
+  const finalCrewOptions = crewOptions.filter((o) => o.enabled)
+  const fallbackOptions = [{ value: 2, label: '2 Men', enabled: true }]
+  const displayOptions = finalCrewOptions.length > 0 ? finalCrewOptions : fallbackOptions
+  const mobileCrewOptions = displayOptions.filter((o) => o.value >= 1 && o.value <= 3)
   const labelId = `${id}-label`
   const desktopGridCols =
-    finalCrewOptions.length >= 4
+    displayOptions.length >= 4
       ? 'sm:grid-cols-2 lg:grid-cols-4'
-      : finalCrewOptions.length === 2
+      : displayOptions.length === 2
         ? 'grid-cols-2'
         : 'grid-cols-3'
 
@@ -148,7 +155,7 @@ export default function CrewSizeField({
     <div
       data-quote-field="crew-size"
       aria-invalid={invalid || undefined}
-      className={`rounded-2xl border bg-white p-4 sm:p-5 ${
+      className={`box-border w-full min-w-0 rounded-xl border bg-white p-2 md:rounded-2xl md:p-5 ${
         invalid ? 'border-red-300 ring-1 ring-red-200/80' : 'border-slate-200'
       }`}
     >
@@ -185,7 +192,7 @@ export default function CrewSizeField({
         aria-describedby={descriptionId}
       >
         <div className={`mt-1 grid gap-3 ${desktopGridCols}`}>
-          {finalCrewOptions.map((o) => (
+          {displayOptions.map((o) => (
             <CrewOptionCard
               key={o.value}
               option={o}
@@ -197,9 +204,15 @@ export default function CrewSizeField({
         </div>
       </div>
 
-      <p id={descriptionId} className="mt-2 text-xs text-slate-600">
-        Crew size affects loading time and your quote. Choose before continuing — you can change it
-        here anytime on this step.
+      {!oneManAllowed && oneManDisabledReason ? (
+        <p className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-2 text-[11px] leading-snug text-amber-900 md:text-xs">
+          {oneManDisabledReason} 1 Man is not available for this move — please choose 2 Men or more.
+        </p>
+      ) : null}
+
+      <p id={descriptionId} className="mt-1.5 text-[11px] leading-snug text-slate-600 md:mt-2 md:text-xs">
+        Crew size affects loading time and your quote. 1 Man applies a labour discount where allowed;
+        2 Men is the standard price. You can change crew here anytime on this step.
       </p>
     </div>
   )

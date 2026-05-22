@@ -3,7 +3,7 @@ import InlineInventoryQtyControl from './InlineInventoryQtyControl'
 import { applyInventoryLineQuantityDelta } from '../../lib/inventoryLineQuantity'
 import {
   formatMoveSummaryArrival,
-  formatMoveSummaryCrewSize,
+  formatMoveSummaryCrewForPricing,
   formatMoveSummaryFloorLabel,
   formatMoveSummaryLiftLabel,
 } from '../../lib/moveSummaryDisplay'
@@ -148,7 +148,11 @@ export default function MoveSummaryBody({
             <div>
               <dt className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Crew size</dt>
               <dd className="mt-0.5 text-slate-800">
-                {formatMoveSummaryCrewSize(wizard.crewSize, crewSettings)}
+                {formatMoveSummaryCrewForPricing(
+                  wizard.crewSize,
+                  breakdown?.crewSizeUsedInPricing,
+                  crewSettings,
+                )}
               </dd>
             </div>
           )}

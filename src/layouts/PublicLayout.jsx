@@ -1,3 +1,4 @@
+import { useLocation } from 'react-router-dom'
 import Navbar from '../components/Navbar'
 import Footer from '../components/Footer'
 import WhatsAppButton from '../components/WhatsAppButton'
@@ -6,7 +7,11 @@ import HomePageSeo from '../components/seo/HomePageSeo'
 import WebsiteAnnouncementBar from '../components/WebsiteAnnouncementBar'
 import { CoverageModalProvider } from '../context/CoverageModalContext'
 import { WebsiteCmsProvider } from '../context/WebsiteCmsContext'
+
 export default function PublicLayout({ children }) {
+  const { pathname } = useLocation()
+  const quoteFlow = pathname === '/quote'
+
   return (
     <CoverageModalProvider>
       <WebsiteCmsProvider>
@@ -15,9 +20,15 @@ export default function PublicLayout({ children }) {
           <HomePageSeo />
           <WebsiteAnnouncementBar />
           <Navbar />
-          <main className="min-w-0 flex-1 w-full max-w-full overflow-x-hidden pb-24 md:pb-0">{children}</main>
+          <main
+            className={`box-border min-w-0 flex-1 w-full max-w-full overflow-x-hidden md:pb-0 ${
+              quoteFlow ? 'pb-[4.25rem]' : 'pb-24'
+            }`}
+          >
+            {children}
+          </main>
           <Footer />
-          <WhatsAppButton />
+          <WhatsAppButton variant={quoteFlow ? 'quote-flow' : 'default'} />
         </div>
       </WebsiteCmsProvider>
     </CoverageModalProvider>
