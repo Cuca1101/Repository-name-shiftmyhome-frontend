@@ -125,6 +125,10 @@ export async function saveWebsiteSettingsSection(sectionKey, data) {
     const { error } = await supabase.from('website_settings').insert(payload)
     if (error) throw error
   }
+
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('website-cms-updated', { detail: { sectionKey } }))
+  }
 }
 
 export async function upsertWebsiteServiceCard(card) {

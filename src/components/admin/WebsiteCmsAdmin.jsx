@@ -8,7 +8,12 @@ import {
   upsertWebsiteReview,
   upsertWebsiteServiceCard,
 } from '../../lib/data/websiteCmsRepository'
-import { uploadWebsiteImage } from '../../lib/data/websiteCmsUpload'
+import { uploadWebsiteImage, uploadWebsiteVideo } from '../../lib/data/websiteCmsUpload'
+import {
+  coerceUseHeroVideo,
+  normalizeHeroVideoUrl,
+  resolveHeroVideoPlaybackUrl,
+} from '../../lib/heroCmsVideo'
 import { getDefaultServiceCards } from '../../lib/websiteCmsDefaults'
 import HomepageGalleryAdminTab from './HomepageGalleryAdminTab'
 
@@ -237,6 +242,88 @@ export default function WebsiteCmsAdmin() {
             <textarea className={inputClass} rows={2} value={homepage.heroSubtitle || ''} onChange={(e) => setHomepage({ ...homepage, heroSubtitle: e.target.value })} />
           </Field>
           <ImageUploadRow label="Hero image" folder="hero" value={homepage.heroImageUrl} onChange={(v) => setHomepage({ ...homepage, heroImageUrl: v })} uploading={uploading} setUploading={setUploading} setMessage={setMessage} />
+          <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-3">
+            <p className="text-sm font-semibold text-slate-800">Hero video (optional)</p>
+            {coerceUseHeroVideo(homepage.useHeroVideo) &&
+            !normalizeHeroVideoUrl(homepage.heroVideoUrl) ? (
+              <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+                &quot;Use hero video&quot; is enabled but no video URL is saved. Upload an MP4 or paste a link, then
+                save — otherwise the homepage keeps showing the hero image only.
+              </p>
+            ) : null}
+            <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-700">
+              <input
+                type="checkbox"
+                className="h-4 w-4 rounded border-slate-300 text-brand-600 focus:ring-brand-500"
+                checked={coerceUseHeroVideo(homepage.useHeroVideo)}
+                onChange={(e) => setHomepage({ ...homepage, useHeroVideo: e.target.checked })}
+              />
+              Use hero video
+            </label>
+            <Field
+              label="Hero video URL"
+              hint="Direct MP4/WebM link (must end in .mp4 or public Supabase Storage URL). Image stays as fallback."
+            >
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                <input
+                  className={inputClass}
+                  type="text"
+                  placeholder="https://…/hero/your-video.mp4"
+                  value={homepage.heroVideoUrl || ''}
+                  onChange={(e) => setHomepage({ ...homepage, heroVideoUrl: e.target.value })}
+                />
+                <label className="inline-flex cursor-pointer items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">
+                  {uploading ? 'Uploading…' : 'Upload video'}
+                  <input
+                    type="file"
+                    accept="video/mp4,video/webm,video/quicktime,.mp4,.webm,.mov"
+                    className="sr-only"
+                    disabled={uploading}
+                    onChange={async (e) => {
+                      const file = e.target.files?.[0]
+                      e.target.value = ''
+                      if (!file) return
+                      setUploading(true)
+                      try {
+                        const row = await uploadWebsiteVideo(file, 'hero')
+                        const payload = {
+                          ...homepage,
+                          heroVideoUrl: row.publicUrl,
+                          useHeroVideo: true,
+                        }
+                        setHomepage(payload)
+                        await saveWebsiteSettingsSection('homepage', payload)
+                        setMessage({
+                          type: 'success',
+                          text: 'Video uploaded and saved. Refresh the homepage to see it.',
+                        })
+                        await load()
+                      } catch (err) {
+                        setMessage({
+                          type: 'error',
+                          text:
+                            err?.message ||
+                            'Video upload failed. Run migration 050 on Supabase (allows MP4 in website bucket).',
+                        })
+                      } finally {
+                        setUploading(false)
+                      }
+                    }}
+                  />
+                </label>
+              </div>
+              {homepage.heroVideoUrl ? (
+                <video
+                  src={resolveHeroVideoPlaybackUrl(homepage.heroVideoUrl)}
+                  className="mt-2 max-h-32 w-full rounded-lg border bg-slate-900 object-cover"
+                  controls
+                  muted
+                  playsInline
+                  preload="metadata"
+                />
+              ) : null}
+            </Field>
+          </div>
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="Primary CTA">
               <input className={inputClass} value={homepage.ctaPrimaryText || ''} onChange={(e) => setHomepage({ ...homepage, ctaPrimaryText: e.target.value })} />
@@ -264,7 +351,27 @@ export default function WebsiteCmsAdmin() {
             </Field>
             <p className="text-xs text-slate-500">Manage photos in the Recent Moves Gallery tab.</p>
           </div>
-          <button type="button" disabled={saving} onClick={() => saveSection('homepage', homepage)} className="rounded-xl bg-brand-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-60">
+          <button
+            type="button"
+            disabled={saving}
+            onClick={() => {
+              const videoUrl = normalizeHeroVideoUrl(homepage.heroVideoUrl)
+              const useVid = coerceUseHeroVideo(homepage.useHeroVideo)
+              if (useVid && !videoUrl) {
+                setMessage({
+                  type: 'error',
+                  text: 'Add a hero video URL (or upload a video) before enabling "Use hero video".',
+                })
+                return
+              }
+              saveSection('homepage', {
+                ...homepage,
+                heroVideoUrl: videoUrl,
+                useHeroVideo: useVid && videoUrl.length > 0,
+              })
+            }}
+            className="rounded-xl bg-brand-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-60"
+          >
             {saving ? 'Saving…' : 'Save Homepage'}
           </button>
         </div>

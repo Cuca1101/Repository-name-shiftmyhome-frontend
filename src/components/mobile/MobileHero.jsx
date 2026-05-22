@@ -1,3 +1,5 @@
+import HeroBackgroundMedia from '../HeroBackgroundMedia'
+import { coerceUseHeroVideo } from '../../lib/heroCmsVideo'
 import { useWebsiteCms } from '../../context/WebsiteCmsContext'
 import { DEFAULT_HOMEPAGE } from '../../lib/websiteCmsDefaults'
 
@@ -5,6 +7,9 @@ import { DEFAULT_HOMEPAGE } from '../../lib/websiteCmsDefaults'
 export default function MobileHero() {
   const { homepage } = useWebsiteCms()
   const h = homepage ?? DEFAULT_HOMEPAGE
+  const heroImage = h.heroImageUrl || DEFAULT_HOMEPAGE.heroImageUrl
+  const useHeroVideo = coerceUseHeroVideo(h.useHeroVideo)
+  const heroVideoUrl = h.heroVideoUrl || ''
 
   return (
     <section id="home" className="scroll-mt-[60px] overflow-hidden bg-gradient-to-b from-white via-brand-50/30 to-white">
@@ -22,6 +27,14 @@ export default function MobileHero() {
           </span>
         </h1>
         <p className="mt-2 max-w-[22rem] text-[14px] leading-snug text-slate-600">{h.heroSubtitle}</p>
+
+        <div className="relative mt-4 aspect-[4/3] overflow-hidden rounded-2xl">
+          <HeroBackgroundMedia
+            imageUrl={heroImage}
+            videoUrl={heroVideoUrl}
+            useVideo={useHeroVideo}
+          />
+        </div>
 
         <ul className="mt-3 flex flex-wrap gap-x-3 gap-y-1.5 text-[11px] font-medium text-slate-600">
           <li className="inline-flex items-center gap-1">

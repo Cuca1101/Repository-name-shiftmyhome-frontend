@@ -1,6 +1,8 @@
 import HomeSectionLink from '../HomeSectionLink'
 import HomeTrustRow from '../HomeTrustRow'
+import HeroBackgroundMedia from '../HeroBackgroundMedia'
 import { useWebsiteCms } from '../../context/WebsiteCmsContext'
+import { coerceUseHeroVideo } from '../../lib/heroCmsVideo'
 import { DEFAULT_HOMEPAGE } from '../../lib/websiteCmsDefaults'
 
 /** Desktop homepage hero — unchanged premium layout (md+). */
@@ -8,6 +10,8 @@ export default function DesktopHero() {
   const { homepage } = useWebsiteCms()
   const h = homepage ?? DEFAULT_HOMEPAGE
   const heroImage = h.heroImageUrl || DEFAULT_HOMEPAGE.heroImageUrl
+  const useHeroVideo = coerceUseHeroVideo(h.useHeroVideo)
+  const heroVideoUrl = h.heroVideoUrl || ''
 
   return (
     <section id="home" className="scroll-mt-[76px] overflow-hidden bg-white">
@@ -63,16 +67,10 @@ export default function DesktopHero() {
 
           <div className="relative mx-auto w-full max-w-xl lg:max-w-none">
             <div className="relative aspect-[4/3] overflow-hidden rounded-2xl sm:aspect-[5/4] lg:aspect-auto lg:min-h-[380px] lg:rounded-none lg:rounded-l-2xl xl:min-h-[420px]">
-              <div
-                className="absolute inset-0 bg-cover bg-[center_42%] transition-transform duration-700 ease-premium lg:hover:scale-[1.02]"
-                style={{ backgroundImage: `url(${heroImage})` }}
-                role="img"
-                aria-label="Professional home removals"
-              />
-              <div className="hero-image-fade absolute inset-0 lg:hidden" aria-hidden />
-              <div
-                className="absolute inset-0 hidden bg-gradient-to-r from-white via-white/75 to-transparent lg:block"
-                aria-hidden
+              <HeroBackgroundMedia
+                imageUrl={heroImage}
+                videoUrl={heroVideoUrl}
+                useVideo={useHeroVideo}
               />
             </div>
           </div>

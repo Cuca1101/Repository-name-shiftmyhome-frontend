@@ -180,10 +180,20 @@
   .hero-image-fade {
     background: linear-gradient(
       90deg,
-      rgb(255 255 255) 0%,
-      rgb(255 255 255 / 0.88) 22%,
-      rgb(255 255 255 / 0.35) 48%,
-      transparent 72%
+      rgb(239 246 255 / 0.94) 0%,
+      rgb(219 234 254 / 0.72) 24%,
+      rgb(191 219 254 / 0.28) 50%,
+      transparent 74%
+    );
+  }
+
+  .hero-media-overlay-desktop {
+    background: linear-gradient(
+      90deg,
+      rgb(239 246 255 / 0.9) 0%,
+      rgb(219 234 254 / 0.52) 30%,
+      rgb(191 219 254 / 0.14) 55%,
+      transparent 78%
     );
   }
 

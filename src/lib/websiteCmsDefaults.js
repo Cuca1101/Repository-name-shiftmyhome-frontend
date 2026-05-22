@@ -15,6 +15,8 @@ export const DEFAULT_HOMEPAGE = {
   heroSubtitle: 'Professional movers. Reliable service. Get your instant quote in minutes.',
   heroImageUrl:
     'https://images.unsplash.com/photo-1600585152915-d208bec867a1?auto=format&fit=crop&w=1800&h=1200&q=85',
+  heroVideoUrl: '',
+  useHeroVideo: false,
   ctaPrimaryText: 'Get an Instant Quote',
   ctaSecondaryText: 'How it works',
   trustpilotText: 'Excellent 4.8 out of 5 Trustpilot',

@@ -32,7 +32,7 @@ export function WebsiteCmsProvider({ children }) {
 
   useEffect(() => {
     let cancelled = false
-    ;(async () => {
+    const load = async () => {
       try {
         const data = await fetchWebsiteCmsPublic()
         if (!cancelled) setCms(data)
@@ -41,9 +41,15 @@ export function WebsiteCmsProvider({ children }) {
       } finally {
         if (!cancelled) setLoading(false)
       }
-    })()
+    }
+    load()
+    const onUpdated = () => {
+      load()
+    }
+    window.addEventListener('website-cms-updated', onUpdated)
     return () => {
       cancelled = true
+      window.removeEventListener('website-cms-updated', onUpdated)
     }
   }, [])
 
