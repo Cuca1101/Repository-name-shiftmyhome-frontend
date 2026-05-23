@@ -5,7 +5,7 @@ import { HOME_SERVICE_CARD_IMAGES } from '../constants/homeServiceCardImages'
 /** @typedef {'christmas'|'blue'|'green'|'warning'} AnnouncementStyle */
 
 export const DEFAULT_HOMEPAGE = {
-  homepageSeoTitle: 'ShiftMyHome | House Removals, Man With Van & Moving Services Scotland',
+  homepageSeoTitle: 'House Removals Scotland | ShiftMyHome',
   homepageSeoDescription:
     'ShiftMyHome — Professional removals, house moves, office relocations, and man with van across the UK.',
   heroTitlePart1: 'Moving made',

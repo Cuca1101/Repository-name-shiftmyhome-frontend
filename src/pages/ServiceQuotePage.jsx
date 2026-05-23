@@ -3,6 +3,7 @@ import { getServicePageByPath } from '../constants/servicePages'
 import { useSeoSettings } from '../context/SeoSettingsContext'
 import { mergeServicePageConfig } from '../lib/seoSettingsMerge'
 import SeoHead from '../components/seo/SeoHead'
+import SeoServiceJsonLd from '../components/seo/SeoServiceJsonLd'
 import QuoteWizard from '../components/quote-wizard/QuoteWizard'
 
 export default function ServiceQuotePage() {
@@ -20,6 +21,17 @@ export default function ServiceQuotePage() {
         title={page.seoTitle || page.title}
         description={page.metaDescription || page.shortDescription}
         path={pathname}
+        ogTitle={page.ogTitle || page.seoTitle || page.title}
+        ogDescription={page.ogDescription || page.metaDescription || page.shortDescription}
+        ogImage={page.heroImage}
+        ogType="website"
+        includeSocial
+      />
+      <SeoServiceJsonLd
+        name={page.title}
+        description={page.shortDescription}
+        path={pathname}
+        serviceType={page.serviceType}
       />
       <section
         className="relative isolate max-md:max-h-[6.5rem] overflow-hidden border-b border-slate-200/80 bg-brand-950 md:max-h-none"

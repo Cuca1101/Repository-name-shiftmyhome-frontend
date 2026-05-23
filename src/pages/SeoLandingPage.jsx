@@ -3,6 +3,7 @@ import QuoteWizard from '../components/quote-wizard/QuoteWizard'
 import SeoHead from '../components/seo/SeoHead'
 import SeoFaqJsonLd from '../components/seo/SeoFaqJsonLd'
 import SeoBusinessJsonLd from '../components/seo/SeoBusinessJsonLd'
+import SeoBreadcrumbJsonLd from '../components/seo/SeoBreadcrumbJsonLd'
 import SeoFaqAccordion from '../components/seo/SeoFaqAccordion'
 import { getSeoPageByPath } from '../data/seoPages'
 import { useSeoSettings } from '../context/SeoSettingsContext'
@@ -115,6 +116,12 @@ export default function SeoLandingPage() {
   return (
     <article className="seo-landing">
       <SeoHead title={page.title} description={page.metaDescription} path={page.path} />
+      <SeoBreadcrumbJsonLd
+        items={[
+          { name: 'Home', path: '/' },
+          { name: page.cityName, path: page.path },
+        ]}
+      />
       <SeoBusinessJsonLd
         path={page.path}
         pageTitle={page.h1}

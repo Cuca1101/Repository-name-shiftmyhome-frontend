@@ -1,5 +1,7 @@
 import { Link } from 'react-router-dom'
 import HomeSectionLink from '../components/HomeSectionLink'
+import SeoHead from '../components/seo/SeoHead'
+import SeoBreadcrumbJsonLd from '../components/seo/SeoBreadcrumbJsonLd'
 import { SERVICE_PAGES } from '../constants/servicePages'
 import NetworkCoverageMap from '../components/coverage/NetworkCoverageMap'
 import { COVERAGE_AREAS } from '../lib/coverageAreas'
@@ -15,10 +17,17 @@ const MAIN_LINKS = [
 export default function CoveragePage() {
   return (
     <div className="min-w-0 bg-slate-50 pb-16 pt-8 sm:pb-20 sm:pt-10">
+      <SeoHead
+        title="Removals Coverage Across Scotland | ShiftMyHome"
+        description="ShiftMyHome covers removals, man with van, furniture delivery and moving services across Glasgow, Edinburgh, Aberdeen, Dundee, Inverness, Stirling, Perth and wider Scotland."
+        path="/coverage"
+        includeSocial
+      />
+      <SeoBreadcrumbJsonLd items={[{ name: 'Home', path: '/' }, { name: 'Coverage', path: '/coverage' }]} />
       <div className="mx-auto min-w-0 max-w-6xl px-4 sm:px-6 lg:px-8">
         <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
           <div>
-            <nav className="text-sm text-slate-500">
+            <nav className="text-sm text-slate-500" aria-label="Breadcrumb">
               <Link to="/" className="font-medium text-brand-700 hover:text-brand-800">
                 Home
               </Link>

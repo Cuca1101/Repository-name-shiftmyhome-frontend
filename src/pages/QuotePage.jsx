@@ -1,10 +1,17 @@
 import { Link } from 'react-router-dom'
 import PublicLayout from '../layouts/PublicLayout'
+import SeoHead from '../components/seo/SeoHead'
 import CustomerQuoteCalculator from '../components/CustomerQuoteCalculator'
 
 export default function QuotePage() {
   return (
     <PublicLayout>
+      <SeoHead
+        title="Instant Removal Quote | ShiftMyHome"
+        description="Get an instant removals quote with ShiftMyHome for house removals, furniture delivery, man with van and moving services across Scotland."
+        path="/quote"
+        includeSocial
+      />
       <div className="quote-flow-layout min-w-0 bg-slate-50" data-quote-flow>
         <div className="home-container border-b border-slate-200/80 bg-white px-3 py-3 sm:px-6 sm:py-6">
           <Link

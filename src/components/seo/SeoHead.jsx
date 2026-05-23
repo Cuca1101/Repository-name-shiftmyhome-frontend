@@ -1,44 +1,46 @@
 import { useEffect } from 'react'
-import { SEO_SITE_ORIGIN } from '../../data/seoPages'
+import { applySeoHeadTags, restoreSeoHeadTags } from '../../lib/seoHeadTags'
 
 /**
- * Sets document title, meta description, and canonical link for SEO landing pages.
- * @param {{ title: string, description: string, path: string }} props
+ * Sets document title, meta description, canonical, and optional OG/Twitter tags.
+ * @param {{
+ *   title: string,
+ *   description: string,
+ *   path: string,
+ *   ogTitle?: string,
+ *   ogDescription?: string,
+ *   ogImage?: string,
+ *   ogType?: string,
+ *   includeSocial?: boolean,
+ * }} props
  */
-export default function SeoHead({ title, description, path }) {
+export default function SeoHead({
+  title,
+  description,
+  path,
+  ogTitle,
+  ogDescription,
+  ogImage,
+  ogType = 'website',
+  includeSocial = false,
+}) {
   useEffect(() => {
     const prevTitle = document.title
-    document.title = title
-
-    let meta = document.querySelector('meta[name="description"]')
-    const hadMeta = Boolean(meta)
-    if (!meta) {
-      meta = document.createElement('meta')
-      meta.setAttribute('name', 'description')
-      document.head.appendChild(meta)
-    }
-    const prevDescription = meta.getAttribute('content')
-    meta.setAttribute('content', description)
-
-    const canonicalHref = `${SEO_SITE_ORIGIN}${path}`
-    let link = document.querySelector('link[rel="canonical"]')
-    const hadCanonical = Boolean(link)
-    if (!link) {
-      link = document.createElement('link')
-      link.setAttribute('rel', 'canonical')
-      document.head.appendChild(link)
-    }
-    const prevCanonical = link.getAttribute('href')
-    link.setAttribute('href', canonicalHref)
+    const { metas, links } = applySeoHeadTags({
+      title,
+      description,
+      path,
+      ogTitle,
+      ogDescription,
+      ogImage,
+      ogType,
+      includeSocial,
+    })
 
     return () => {
-      document.title = prevTitle
-      if (hadMeta && prevDescription != null) meta.setAttribute('content', prevDescription)
-      else if (meta?.parentNode) meta.parentNode.removeChild(meta)
-      if (hadCanonical && prevCanonical != null) link.setAttribute('href', prevCanonical)
-      else if (link?.parentNode) link.parentNode.removeChild(link)
+      restoreSeoHeadTags(prevTitle, [...metas, ...links])
     }
-  }, [title, description, path])
+  }, [title, description, path, ogTitle, ogDescription, ogImage, ogType, includeSocial])
 
   return null
 }
