@@ -28,6 +28,7 @@ export function getQuoteCrewRestrictions({ serviceType, heavyItemCount = 0 } = {
   if (heavy > 0) {
     reasons.push('Heavy items require at least 2 crew members.')
   }
+  /** Student moves allow 1 man only when inventory has no heavy items (see heavy count above). */
   const minimumCrew = getMinimumCrewForQuote(serviceType, heavy)
   return {
     oneManAllowed: reasons.length === 0,
@@ -93,4 +94,223 @@ export function formatCrewSizeLabel(crewSize, crewSettings) {
   ].filter((o) => o.enabled)
   const match = options.find((o) => o.value === n)
   return match?.label ?? `${n} ${n === 1 ? 'Man' : 'Men'}`
+}
+
+/**
+ * Distance/time-based crew labour (AnyVan-style): travel hours × hourly + base.
+ * @param {import('./pricingCalculator.js').PricingSettings} settings
+ */
+export function usesDistanceBasedCrewLabour(settings) {
+  return (
+    Number(settings.secondManHourlyRate) > 0 ||
+    Number(settings.thirdManHourlyRate) > 0 ||
+    Number(settings.secondManBaseFee) > 0 ||
+    Number(settings.thirdManBaseFee) > 0
+  )
+}
+
+/**
+ * @param {import('./pricingCalculator.js').PricingSettings} settings
+ */
+export function getFallbackSpeedMph(settings) {
+  const v = Number(settings?.fallbackSpeedMph ?? settings?.averageSpeedMph)
+  return Number.isFinite(v) && v > 0 ? v : 35
+}
+
+/**
+ * Fallback only — miles ÷ speed when live Mapbox duration is missing.
+ * @param {number} distanceMiles
+ * @param {import('./pricingCalculator.js').PricingSettings} settings
+ */
+export function estimateTravelHoursFromDistance(distanceMiles, settings) {
+  const miles = Math.max(0, Number(distanceMiles) || 0)
+  const speed = getFallbackSpeedMph(settings)
+  return miles / speed
+}
+
+/**
+ * PRIMARY: live Mapbox Directions `routes[0].duration` (seconds) → travel hours.
+ * FALLBACK: miles ÷ fallbackSpeedMph only when duration is missing or route failed.
+ * @param {import('./pricingCalculator.js').PricingSettings} settings
+ * @param {number} distanceMiles
+ * @param {number | null | undefined} mapboxRouteDurationSeconds
+ * @returns {{ travelHours: number, usedMapboxDuration: boolean, source: 'mapbox' | 'fallback_distance' }}
+ */
+export function resolveTravelHoursForCrewLabour(settings, distanceMiles, mapboxRouteDurationSeconds) {
+  const sec = Number(mapboxRouteDurationSeconds)
+  if (Number.isFinite(sec) && sec > 0) {
+    return { travelHours: sec / 3600, usedMapboxDuration: true, source: 'mapbox' }
+  }
+  return {
+    travelHours: estimateTravelHoursFromDistance(distanceMiles, settings),
+    usedMapboxDuration: false,
+    source: 'fallback_distance',
+  }
+}
+
+/**
+ * @param {import('./pricingCalculator.js').PricingSettings} settings
+ * @param {number} distanceMiles
+ * @param {number | null | undefined} mapboxRouteDurationSeconds
+ * @param {'second'|'third'|'fourth'} role
+ */
+export function calculateDistanceBasedCrewLabourFee(
+  settings,
+  distanceMiles,
+  mapboxRouteDurationSeconds,
+  role,
+) {
+  const { travelHours: hours } = resolveTravelHoursForCrewLabour(
+    settings,
+    distanceMiles,
+    mapboxRouteDurationSeconds,
+  )
+  if (role === 'second') {
+    const base = Number(settings.secondManBaseFee)
+    const rate = Number(settings.secondManHourlyRate)
+    const baseFee = Number.isFinite(base) && base >= 0 ? base : 15
+    const hourly = Number.isFinite(rate) && rate > 0 ? rate : 18
+    return baseFee + hours * hourly
+  }
+  const base = Number(settings.thirdManBaseFee)
+  const rate = Number(settings.thirdManHourlyRate)
+  const baseFee = Number.isFinite(base) && base >= 0 ? base : 25
+  const hourly = Number.isFinite(rate) && rate > 0 ? rate : 16
+  return baseFee + hours * hourly
+}
+
+/**
+ * Flat labour fees for 2nd/3rd/4th crew when distance-based settings are off.
+ * @param {import('./pricingCalculator.js').PricingSettings} settings
+ */
+export function resolveCrewLabourFees(settings) {
+  const legacy = Number(settings.crewSurchargePerExtraMember ?? settings.extraHelperPrice) || 0
+  const secondRaw = Number(settings.secondManLabourFee)
+  const thirdRaw = Number(settings.thirdManLabourFee)
+  const fourthRaw = Number(settings.fourthManLabourFee)
+  const second = secondRaw > 0 ? secondRaw : legacy
+  const third = thirdRaw > 0 ? thirdRaw : legacy
+  const fourth = fourthRaw > 0 ? fourthRaw : third
+  return { second, third, fourth }
+}
+
+/**
+ * @param {number} distanceMiles
+ * @param {number} hours
+ * @param {boolean} [usedMapboxDuration]
+ */
+/**
+ * @param {number} hours
+ * @param {number} [durationSeconds]
+ */
+export function formatLiveRouteDurationLabel(hours, durationSeconds) {
+  const h = Math.max(0, Number(hours) || 0)
+  const sec = Number(durationSeconds)
+  if (Number.isFinite(sec) && sec > 0) {
+    const mins = Math.round(sec / 60)
+    if (mins < 60) return `${mins} min live route`
+    return `~${h.toFixed(1)} hr live route (${mins} min)`
+  }
+  if (h < 1) return `${Math.round(h * 60)} min`
+  return `~${h.toFixed(1)} hr`
+}
+
+export function formatCrewLabourTravelHint(distanceMiles, hours, usedMapboxDuration = false) {
+  const mi = Math.max(0, Number(distanceMiles) || 0)
+  const h = Math.max(0, Number(hours) || 0)
+  if (mi <= 0 && h <= 0) return ''
+  const hrLabel = h < 1 ? `${Math.round(h * 60)} min` : `${h.toFixed(1)} hr`
+  const miPart = mi > 0 ? `${mi.toFixed(1)} mi, ` : ''
+  const source = usedMapboxDuration ? 'live Mapbox travel time' : 'fallback miles ÷ speed'
+  return ` — ${miPart}${hrLabel} (${source})`
+}
+
+/**
+ * @param {string} label
+ */
+export function isCrewLabourExtraLine(label) {
+  return String(label || '').includes('crew member (labour)')
+}
+
+/**
+ * Minimum job price for the crew size used in pricing (falls back to `minimumJobPrice`).
+ * @param {import('./pricingCalculator.js').PricingSettings} settings
+ * @param {number} crewSize
+ */
+export function resolveMinimumJobPriceForCrew(settings, crewSize) {
+  const fallback = Number(settings.minimumJobPrice) || 0
+  const n = Math.max(1, Math.min(4, Math.round(Number(crewSize) || 1)))
+  if (n === 1) {
+    const v = Number(settings.minimumJobPriceOneMan)
+    return v > 0 ? v : fallback
+  }
+  if (n === 2) {
+    const v = Number(settings.minimumJobPriceTwoMen)
+    return v > 0 ? v : fallback
+  }
+  const v = Number(settings.minimumJobPriceThreeMen)
+  return v > 0 ? v : fallback
+}
+
+/**
+ * @param {import('./pricingCalculator.js').BreakdownLine[]} extrasLines
+ * @param {import('./pricingCalculator.js').PricingSettings} settings
+ * @param {number} effectiveCrewSize
+ * @param {number} distanceMiles
+ * @param {number | null | undefined} mapboxRouteDurationSeconds
+ * @param {(n: number) => number} roundMoney
+ */
+export function appendCrewLabourFeeLines(
+  extrasLines,
+  settings,
+  effectiveCrewSize,
+  distanceMiles,
+  mapboxRouteDurationSeconds,
+  roundMoney,
+) {
+  const distanceBased = usesDistanceBasedCrewLabour(settings)
+  const travelResolve = distanceBased
+    ? resolveTravelHoursForCrewLabour(settings, distanceMiles, mapboxRouteDurationSeconds)
+    : null
+  const travelHint = travelResolve
+    ? formatCrewLabourTravelHint(
+        distanceMiles,
+        travelResolve.travelHours,
+        travelResolve.usedMapboxDuration,
+      )
+    : ''
+
+  if (effectiveCrewSize >= 2) {
+    const secondAmt = distanceBased
+      ? calculateDistanceBasedCrewLabourFee(settings, distanceMiles, mapboxRouteDurationSeconds, 'second')
+      : resolveCrewLabourFees(settings).second
+    if (secondAmt > 0) {
+      extrasLines.push({
+        label: `Second crew member (labour)${travelHint}`,
+        amount: roundMoney(secondAmt),
+      })
+    }
+  }
+  if (effectiveCrewSize >= 3) {
+    const thirdAmt = distanceBased
+      ? calculateDistanceBasedCrewLabourFee(settings, distanceMiles, mapboxRouteDurationSeconds, 'third')
+      : resolveCrewLabourFees(settings).third
+    if (thirdAmt > 0) {
+      extrasLines.push({
+        label: `Third crew member (labour)${travelHint}`,
+        amount: roundMoney(thirdAmt),
+      })
+    }
+  }
+  if (effectiveCrewSize >= 4) {
+    const fourthAmt = distanceBased
+      ? calculateDistanceBasedCrewLabourFee(settings, distanceMiles, mapboxRouteDurationSeconds, 'fourth')
+      : resolveCrewLabourFees(settings).fourth
+    if (fourthAmt > 0) {
+      extrasLines.push({
+        label: `Fourth crew member (labour)${travelHint}`,
+        amount: roundMoney(fourthAmt),
+      })
+    }
+  }
 }

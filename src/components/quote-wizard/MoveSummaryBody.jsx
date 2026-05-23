@@ -1,6 +1,7 @@
 import QuoteRouteMap from './QuoteRouteMap'
 import InlineInventoryQtyControl from './InlineInventoryQtyControl'
 import { applyInventoryLineQuantityDelta } from '../../lib/inventoryLineQuantity'
+import { formatLiveRouteDurationLabel } from '../../lib/crewPricingRules'
 import {
   formatMoveSummaryArrival,
   formatMoveSummaryCrewForPricing,
@@ -17,6 +18,10 @@ function truncate(s, max = 42) {
   if (!s) return '—'
   const t = s.trim()
   return t.length <= max ? t : `${t.slice(0, max)}…`
+}
+
+function formatMapboxTravelSummary(hours, durationSeconds) {
+  return formatLiveRouteDurationLabel(hours, durationSeconds)
 }
 
 function formatInventorySummaryLine(line) {
@@ -154,6 +159,18 @@ export default function MoveSummaryBody({
                   crewSettings,
                 )}
               </dd>
+              {breakdown?.usesDistanceBasedCrewLabour &&
+              breakdown.estimatedTravelHours != null &&
+              Number(breakdown.estimatedTravelHours) > 0 ? (
+                <dd className="mt-0.5 text-[11px] text-slate-600">
+                  {breakdown.crewTravelHoursFromMapbox
+                    ? `Live route duration from Mapbox: ${formatMapboxTravelSummary(
+                        breakdown.estimatedTravelHours,
+                        breakdown.mapboxRouteDurationSeconds,
+                      )}. Helper labour uses this real travel time.`
+                    : `Crew travel time (fallback — enter both addresses for live Mapbox): ~${Number(breakdown.estimatedTravelHours).toFixed(1)} hr (miles ÷ fallback speed)`}
+                </dd>
+              ) : null}
             </div>
           )}
           {step >= 1 && (

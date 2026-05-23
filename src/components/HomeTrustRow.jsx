@@ -13,7 +13,7 @@ function Stars() {
 /**
  * @param {{ embedded?: boolean }} props — embedded: compact row inside hero (no section chrome)
  */
-export default function HomeTrustRow({ embedded = false, trustpilotText }) {
+export default function HomeTrustRow({ embedded = false, trustpilotText, badgeListClassName = '' }) {
   const content = (
     <div
       className={
@@ -31,7 +31,9 @@ export default function HomeTrustRow({ embedded = false, trustpilotText }) {
           ) : null}
         </div>
       </div>
-      <ul className="flex flex-wrap gap-x-3 gap-y-1 text-xs font-medium text-slate-600 sm:text-[13px]">
+      <ul
+        className={`flex flex-wrap gap-x-3 gap-y-1 text-xs font-medium text-slate-600 sm:text-[13px] ${badgeListClassName}`.trim()}
+      >
         <li className="inline-flex items-center gap-1.5">
           <span className="h-1.5 w-1.5 rounded-full bg-brand-500" aria-hidden />
           Fully insured moves

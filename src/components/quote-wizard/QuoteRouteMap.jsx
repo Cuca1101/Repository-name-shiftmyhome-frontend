@@ -111,7 +111,7 @@ function fetchDrivingRouteTimed(a, b, token, ms = ROUTE_FETCH_TIMEOUT_MS) {
  *   deliveryLat: number | null,
  *   distanceMiles?: number,
  *   compact?: boolean,
- *   onDistanceFromRoute?: (payload: { type: 'ok', miles: number } | { type: 'failed' } | { type: 'incomplete' }) => void,
+ *   onDistanceFromRoute?: (payload: { type: 'ok', miles: number, durationSeconds: number | null } | { type: 'failed' } | { type: 'incomplete' }) => void,
  * }} props
  */
 function QuoteRouteMapInner({
@@ -320,7 +320,15 @@ function QuoteRouteMapInner({
         }
 
         if (typeof miles === 'number') {
-          onDistanceRef.current?.({ type: 'ok', miles })
+          const durationSeconds =
+            typeof route.durationSeconds === 'number' && Number.isFinite(route.durationSeconds)
+              ? route.durationSeconds
+              : null
+          onDistanceRef.current?.({
+            type: 'ok',
+            miles,
+            durationSeconds: durationSeconds != null && durationSeconds > 0 ? durationSeconds : null,
+          })
         }
 
         map.addSource('route', {

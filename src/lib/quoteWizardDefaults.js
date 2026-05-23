@@ -21,6 +21,8 @@ export function initialWizardState() {
     pickupLift: null,
     deliveryLift: null,
     distanceMiles: 0,
+    /** Mapbox Directions API `route.duration` (seconds) for crew labour pricing. */
+    mapboxRouteDurationSeconds: null,
     moveDate: '',
     arrivalWindow: '',
     exactArrivalTime: '',

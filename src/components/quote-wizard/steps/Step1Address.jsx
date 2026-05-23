@@ -385,7 +385,11 @@ export default function Step1Address({
             value={data.distanceMiles === 0 ? '' : data.distanceMiles}
             onChange={(e) => {
               const v = e.target.value
-              set('distanceMiles', v === '' ? 0 : parseFloat(v) || 0)
+              onChange({
+                ...data,
+                distanceMiles: v === '' ? 0 : parseFloat(v) || 0,
+                mapboxRouteDurationSeconds: null,
+              })
             }}
             className={input}
           />

@@ -61,7 +61,11 @@ export default function DesktopHero() {
             </div>
 
             <div className="mt-5 sm:mt-6">
-              <HomeTrustRow embedded trustpilotText={h.trustpilotText} />
+              <HomeTrustRow
+                embedded
+                trustpilotText={h.trustpilotText}
+                badgeListClassName="hero-desktop-trust-badges"
+              />
             </div>
           </div>
         </div>

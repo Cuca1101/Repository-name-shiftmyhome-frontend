@@ -1,4 +1,11 @@
-import { getMinimumCrewForQuote, isLabourAccessLine } from './crewPricingRules'
+import {
+  appendCrewLabourFeeLines,
+  getMinimumCrewForQuote,
+  isLabourAccessLine,
+  resolveMinimumJobPriceForCrew,
+  resolveTravelHoursForCrewLabour,
+  usesDistanceBasedCrewLabour,
+} from './crewPricingRules'
 import { getEffectiveReassemblyItemCount } from './quoteWizardReassembly'
 import {
   PACKING_MATERIALS_CATALOG,
@@ -20,6 +27,19 @@ import {
  * @property {number} pricePerMile
  * @property {number} pricePerCubicMetre
  * @property {number} minimumJobPrice
+ * @property {number} [minimumJobPriceOneMan]
+ * @property {number} [minimumJobPriceTwoMen]
+ * @property {number} [minimumJobPriceThreeMen]
+ * @property {number} [secondManLabourFee]
+ * @property {number} [thirdManLabourFee]
+ * @property {number} [fourthManLabourFee]
+ * @property {number} [fallbackSpeedMph] — miles ÷ speed when live Mapbox duration unavailable
+ * @property {number} [averageSpeedMph] — legacy alias for fallbackSpeedMph
+ * @property {number} [secondManBaseFee]
+ * @property {number} [secondManHourlyRate]
+ * @property {number} [thirdManBaseFee]
+ * @property {number} [thirdManHourlyRate]
+ * @property {number} [crewSurchargePerExtraMember] — legacy fallback for tiered crew fees
  * @property {number} floorChargePerFloor
  * @property {number} noLiftCharge
  * @property {number} longWalkingDistanceCharge
@@ -41,7 +61,7 @@ import {
  * @property {number} exactArrivalPremiumGbp — fixed fee for exact arrival time option
  * @property {CustomSizeM3} customSizeM3
  * @property {boolean} [basePricePerMan] — when true, `basePriceByService` is **per man** and multiplied by crew size
- * @property {number} [oneManLabourDiscountPercent] — flat-base: % off labour when 1 man selected (default 15)
+ * @property {number} [oneManLabourDiscountPercent] — flat-base: % off labour when 1 man selected (default 20)
  * @property {boolean} [fuelSurchargeEnabled]
  * @property {number} [fuelSurchargePerMile]
  * @property {number} [yesLiftChargePerEnd] — per end when lift explicitly Yes and floor above ground
@@ -145,6 +165,11 @@ import {
  * @property {number} [crewSizeUsedInPricing] — effective crew (minimums + large-move rules applied)
  * @property {number} [crewSizeSelected] — crew size from the customer quote step
  * @property {number} [basePricePerManUnit] — per-man rate before multiplication (when per-man pricing)
+ * @property {number} [estimatedTravelHours] — travel hours used for crew labour pricing
+ * @property {boolean} [usesDistanceBasedCrewLabour]
+ * @property {boolean} [crewTravelHoursFromMapbox]
+ * @property {'mapbox'|'fallback_distance'} [crewTravelHoursSource]
+ * @property {number} [mapboxRouteDurationSeconds]
  */
 
 const money = (n) => Math.round(n * 100) / 100
@@ -217,12 +242,17 @@ export function sumInventoryVolume(lineItems) {
  *   extras: ExtrasInput
  *   moveDate?: string
  *   crewSize?: number
+ *   mapboxRouteDurationSeconds?: number | null
  * }} input
  * @returns {PriceBreakdown}
  */
 export function calculateQuote(settings, input) {
   const s = settings
   const distanceMiles = Math.max(0, Number(input.distanceMiles) || 0)
+  const mapboxRouteDurationSeconds =
+    input.mapboxRouteDurationSeconds != null && input.mapboxRouteDurationSeconds !== ''
+      ? Number(input.mapboxRouteDurationSeconds)
+      : undefined
   const distancePrice = money(distanceMiles * (Number(s.pricePerMile) || 0))
 
   const lineItems = input.lineItems || []
@@ -239,7 +269,6 @@ export function calculateQuote(settings, input) {
   const largeMoveThreshold = Math.max(0, Number(s.largeMoveVolumeThresholdM3) || 0)
   const minCrewForLargeMoves = Math.max(1, Math.min(4, Number(s.minimumCrewForLargeMoves) || 1))
   const minCrewForService = getMinimumCrewForQuote(input.serviceType, heavyItemCountEarly)
-  const baseCrewSize = 2
   let effectiveCrewSize = Math.max(selectedCrew, minCrewForService)
   if (largeMoveThreshold > 0 && totalCubicMetres >= largeMoveThreshold) {
     effectiveCrewSize = Math.max(effectiveCrewSize, minCrewForLargeMoves)
@@ -248,9 +277,18 @@ export function calculateQuote(settings, input) {
 
   const basePriceRaw = Number(s.basePriceByService?.[input.serviceType]) || 0
   const basePricePerMan = Boolean(s.basePricePerMan)
+  const distanceCrewLabour = usesDistanceBasedCrewLabour(s)
+  const travelResolve = distanceCrewLabour
+    ? resolveTravelHoursForCrewLabour(s, distanceMiles, mapboxRouteDurationSeconds)
+    : null
+  const estimatedTravelHoursVal = travelResolve ? money(travelResolve.travelHours) : undefined
   let basePriceUsesPerManPricing = false
   let basePrice = money(basePriceRaw)
-  if (basePricePerMan && basePriceRaw > 0) {
+  if (distanceCrewLabour && basePriceRaw > 0) {
+    /** Service base covers the first crew member; 2nd/3rd labour is distance/time-based. */
+    basePrice = money(basePriceRaw)
+    basePriceUsesPerManPricing = false
+  } else if (basePricePerMan && basePriceRaw > 0) {
     basePrice = money(basePriceRaw * effectiveCrewSize)
     basePriceUsesPerManPricing = true
   } else {
@@ -278,8 +316,11 @@ export function calculateQuote(settings, input) {
 
   const perFloorRate = Number(s.floorChargePerFloor) || 0
   const noLiftFlat = Number(s.noLiftCharge) || 0
-  /** When base price is per man, floor & no-lift access fees scale with crew size as well. */
-  const accessCrewMult = basePriceUsesPerManPricing ? effectiveCrewSize : 1
+  /** Scale floor/no-lift access with crew when multiple movers are priced. */
+  const accessCrewMult =
+    basePriceUsesPerManPricing || (distanceCrewLabour && effectiveCrewSize > 1)
+      ? effectiveCrewSize
+      : 1
 
   // Per-floor charge: applies whenever above ground, whether or not there is a lift (lift does not waive this).
   // Ground floor (0) adds £0.
@@ -497,15 +538,15 @@ export function calculateQuote(settings, input) {
     }
   }
 
-  const crewSurchargeRate = Number(s.crewSurchargePerExtraMember ?? s.extraHelperPrice) || 0
-  const extraCrewMembers = basePriceUsesPerManPricing
-    ? 0
-    : Math.max(0, effectiveCrewSize - baseCrewSize)
-  if (!basePriceUsesPerManPricing && extraCrewMembers > 0 && crewSurchargeRate > 0) {
-    extrasLines.push({
-      label: `Crew size surcharge (${effectiveCrewSize} crew; +${extraCrewMembers} extra)`,
-      amount: money(extraCrewMembers * crewSurchargeRate),
-    })
+  if (distanceCrewLabour || !basePriceUsesPerManPricing) {
+    appendCrewLabourFeeLines(
+      extrasLines,
+      s,
+      effectiveCrewSize,
+      distanceMiles,
+      mapboxRouteDurationSeconds,
+      money,
+    )
   }
 
   if (fuelSurchargeAmount > 0) {
@@ -558,7 +599,7 @@ export function calculateQuote(settings, input) {
   const discountLines = []
   let discountTotal = 0
 
-  const oneManPct = Math.min(100, Math.max(0, Number(s.oneManLabourDiscountPercent) ?? 15))
+  const oneManPct = Math.min(100, Math.max(0, Number(s.oneManLabourDiscountPercent) ?? 20))
   const applyOneManLabourDiscount =
     !basePriceUsesPerManPricing &&
     selectedCrew === 1 &&
@@ -569,11 +610,6 @@ export function calculateQuote(settings, input) {
     let labourSubtotal = money(basePrice + volumePrice)
     for (const line of accessLines) {
       if (isLabourAccessLine(line.label)) labourSubtotal = money(labourSubtotal + line.amount)
-    }
-    for (const line of extrasLines) {
-      if (String(line.label).startsWith('Crew size surcharge')) {
-        labourSubtotal = money(labourSubtotal + line.amount)
-      }
     }
     const oneManDiscountAmt = money((labourSubtotal * oneManPct) / 100)
     if (oneManDiscountAmt > 0) {
@@ -612,7 +648,7 @@ export function calculateQuote(settings, input) {
     Math.max(0, subtotalAfterSurchargesBeforeMinimum - discountTotal),
   )
 
-  const minimumJobPrice = Number(s.minimumJobPrice) || 0
+  const minimumJobPrice = resolveMinimumJobPriceForCrew(s, effectiveCrewSize)
   const estimatedTotal = money(Math.max(subtotalAfterDiscount, minimumJobPrice))
   const minimumApplied = money(estimatedTotal - subtotalAfterDiscount)
 
@@ -638,6 +674,14 @@ export function calculateQuote(settings, input) {
     crewSizeUsedInPricing: effectiveCrewSize,
     crewSizeSelected: selectedCrew,
     basePricePerManUnit: basePriceUsesPerManPricing ? money(basePriceRaw) : undefined,
+    estimatedTravelHours: estimatedTravelHoursVal,
+    usesDistanceBasedCrewLabour: distanceCrewLabour,
+    crewTravelHoursFromMapbox: travelResolve?.usedMapboxDuration ?? false,
+    crewTravelHoursSource: travelResolve?.source,
+    mapboxRouteDurationSeconds:
+      travelResolve?.usedMapboxDuration && Number.isFinite(mapboxRouteDurationSeconds)
+        ? money(mapboxRouteDurationSeconds)
+        : undefined,
   }
 }
 

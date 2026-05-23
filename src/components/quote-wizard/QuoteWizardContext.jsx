@@ -292,6 +292,10 @@ export function QuoteWizardProvider({ children, serviceType: serviceTypeProp, al
     return calculateQuote(settings, {
       serviceType,
       distanceMiles: Number(wizard.distanceMiles) || 0,
+      mapboxRouteDurationSeconds:
+        wizard.mapboxRouteDurationSeconds != null && wizard.mapboxRouteDurationSeconds !== ''
+          ? Number(wizard.mapboxRouteDurationSeconds)
+          : undefined,
       lineItems,
       access: {
         pickupFloor: wizard.pickupFloor == null ? 0 : Number(wizard.pickupFloor),
@@ -399,7 +403,19 @@ export function QuoteWizardProvider({ children, serviceType: serviceTypeProp, al
 
   const handleDistanceFromRoute = useCallback((payload) => {
     if (payload?.type === 'ok' && typeof payload.miles === 'number') {
-      setWizard((w) => ({ ...w, distanceMiles: payload.miles }))
+      const durationSeconds =
+        typeof payload.durationSeconds === 'number' && payload.durationSeconds > 0
+          ? payload.durationSeconds
+          : null
+      setWizard((w) => ({
+        ...w,
+        distanceMiles: payload.miles,
+        mapboxRouteDurationSeconds: durationSeconds,
+      }))
+      return
+    }
+    if (payload?.type === 'failed' || payload?.type === 'incomplete') {
+      setWizard((w) => ({ ...w, mapboxRouteDurationSeconds: null }))
     }
   }, [])
 

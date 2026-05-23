@@ -4,15 +4,15 @@ const labelCls =
   'mb-1 block text-xs font-medium leading-snug text-slate-700 md:mb-1.5 md:text-sm'
 
 const MOBILE_CREW_META = {
-  1: { hint: 'Lower labour cost' },
-  2: { hint: 'Standard price' },
-  3: { hint: 'Extra helper' },
+  1: { hint: 'Budget — labour discount' },
+  2: { hint: 'Recommended standard' },
+  3: { hint: 'Premium — faster service' },
 }
 
 const DESKTOP_CREW_META = {
-  1: { hint: '15% off labour (where allowed)' },
-  2: { hint: 'Standard price' },
-  3: { hint: 'Standard + extra helper' },
+  1: { hint: '20% off labour (where allowed)' },
+  2: { hint: 'Recommended — includes 2nd mover' },
+  3: { hint: 'Premium — includes 3rd mover' },
   4: { hint: 'Maximum capacity' },
 }
 
@@ -211,8 +211,9 @@ export default function CrewSizeField({
       ) : null}
 
       <p id={descriptionId} className="mt-1.5 text-[11px] leading-snug text-slate-600 md:mt-2 md:text-xs">
-        Crew size affects loading time and your quote. 1 Man applies a labour discount where allowed;
-        2 Men is the standard price. You can change crew here anytime on this step.
+        Crew size updates your quote instantly. 1 Man is the budget option where allowed. 2 Men adds second-crew
+        labour; 3 Men adds third-crew labour (based on distance and travel time). House removals and heavy items require
+        at least 2 men.
       </p>
     </div>
   )

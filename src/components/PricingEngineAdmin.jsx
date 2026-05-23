@@ -240,7 +240,7 @@ export default function PricingEngineAdmin() {
                 onChange={(e) => setNum('pricePerCubicMetre', e.target.value)}
               />
             </Field>
-            <Field label="Minimum job price (£)">
+            <Field label="Minimum job price — fallback (£)">
               <input
                 type="number"
                 step="0.01"
@@ -250,7 +250,41 @@ export default function PricingEngineAdmin() {
                 onChange={(e) => setNum('minimumJobPrice', e.target.value)}
               />
             </Field>
+            <Field label="Minimum — 1 Man (£)">
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                className={inputClass}
+                value={settings.minimumJobPriceOneMan ?? settings.minimumJobPrice ?? 0}
+                onChange={(e) => setNum('minimumJobPriceOneMan', e.target.value)}
+              />
+            </Field>
+            <Field label="Minimum — 2 Men (£)">
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                className={inputClass}
+                value={settings.minimumJobPriceTwoMen ?? settings.minimumJobPrice ?? 0}
+                onChange={(e) => setNum('minimumJobPriceTwoMen', e.target.value)}
+              />
+            </Field>
+            <Field label="Minimum — 3+ Men (£)">
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                className={inputClass}
+                value={settings.minimumJobPriceThreeMen ?? settings.minimumJobPrice ?? 0}
+                onChange={(e) => setNum('minimumJobPriceThreeMen', e.target.value)}
+              />
+            </Field>
           </div>
+          <p className="mt-2 text-xs text-slate-600">
+            Per-crew minimums prevent 1 Man and 2 Men collapsing to the same price on short jobs. Mileage and fuel are
+            never multiplied by crew size.
+          </p>
           <div className="mt-6 border-t border-slate-100 pt-6">
             <h4 className="text-sm font-semibold text-slate-900">Fuel surcharge</h4>
             <p className="mt-1 text-xs text-slate-600">
@@ -631,17 +665,98 @@ export default function PricingEngineAdmin() {
         <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-card">
           <h3 className="text-lg font-semibold text-slate-900">Crew pricing & availability</h3>
           <p className="mt-1 text-sm text-slate-600">
-            Configure which crew sizes customers can select and how additional crew impacts pricing.
+            1 Man uses the service base only. 2 Men and 3 Men add helper labour from live Mapbox route duration (base +
+            hours × rate). Miles ÷ fallback speed is used only when Mapbox duration is unavailable. Mileage, fuel,
+            parking, waiting, packing, and heavy handling are never multiplied by crew size. House removals and heavy
+            inventory require at least 2 men.
           </p>
           <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            <Field label="Surcharge per extra crew member (£)">
+            <Field label="Fallback speed if Mapbox duration unavailable (mph)">
+              <input
+                type="number"
+                step="1"
+                min="1"
+                className={inputClass}
+                value={settings.fallbackSpeedMph ?? settings.averageSpeedMph ?? 35}
+                onChange={(e) => {
+                  const n = parseFloat(e.target.value)
+                  const v = Number.isFinite(n) && n > 0 ? n : 35
+                  setSettings((s) => ({ ...s, fallbackSpeedMph: v, averageSpeedMph: v }))
+                }}
+              />
+              <p className="mt-1.5 text-xs leading-relaxed text-slate-500">
+                Helper labour always uses live Mapbox route duration from the quote map. This speed is only for manual
+                distance or when routing fails.
+              </p>
+            </Field>
+            <Field label="Second man — base fee (£)">
               <input
                 type="number"
                 step="0.01"
                 min="0"
                 className={inputClass}
-                value={settings.crewSurchargePerExtraMember ?? settings.extraHelperPrice ?? 0}
-                onChange={(e) => setNum('crewSurchargePerExtraMember', e.target.value)}
+                value={settings.secondManBaseFee ?? 15}
+                onChange={(e) => setNum('secondManBaseFee', e.target.value)}
+              />
+            </Field>
+            <Field label="Second man — hourly rate (£/hr)">
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                className={inputClass}
+                value={settings.secondManHourlyRate ?? 18}
+                onChange={(e) => setNum('secondManHourlyRate', e.target.value)}
+              />
+            </Field>
+            <Field label="Third man — base fee (£)">
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                className={inputClass}
+                value={settings.thirdManBaseFee ?? 25}
+                onChange={(e) => setNum('thirdManBaseFee', e.target.value)}
+              />
+            </Field>
+            <Field label="Third man — hourly rate (£/hr)">
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                className={inputClass}
+                value={settings.thirdManHourlyRate ?? 16}
+                onChange={(e) => setNum('thirdManHourlyRate', e.target.value)}
+              />
+            </Field>
+            <Field label="Legacy flat 2nd man fee (£) — if hourly rates are 0">
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                className={inputClass}
+                value={settings.secondManLabourFee ?? settings.crewSurchargePerExtraMember ?? settings.extraHelperPrice ?? 0}
+                onChange={(e) => setNum('secondManLabourFee', e.target.value)}
+              />
+            </Field>
+            <Field label="Legacy flat 3rd man fee (£)">
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                className={inputClass}
+                value={settings.thirdManLabourFee ?? settings.crewSurchargePerExtraMember ?? settings.extraHelperPrice ?? 0}
+                onChange={(e) => setNum('thirdManLabourFee', e.target.value)}
+              />
+            </Field>
+            <Field label="Legacy flat 4th man fee (£)">
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                className={inputClass}
+                value={settings.fourthManLabourFee ?? settings.thirdManLabourFee ?? settings.crewSurchargePerExtraMember ?? 0}
+                onChange={(e) => setNum('fourthManLabourFee', e.target.value)}
               />
             </Field>
             <Field label="One-man labour discount (%) — flat base mode">
@@ -651,7 +766,7 @@ export default function PricingEngineAdmin() {
                 min="0"
                 max="100"
                 className={inputClass}
-                value={settings.oneManLabourDiscountPercent ?? 15}
+                value={settings.oneManLabourDiscountPercent ?? 20}
                 onChange={(e) => setNum('oneManLabourDiscountPercent', e.target.value)}
               />
             </Field>

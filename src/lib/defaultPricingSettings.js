@@ -1,18 +1,22 @@
 import { SERVICE_TYPES } from '../constants/serviceTypes'
 
 /**
+ * Offline / fallback pricing when Supabase `pricing_settings` is unavailable.
+ * Balanced UK market defaults: flat service base + distance/time crew labour
+ * (basePricePerMan OFF). Per-crew minimums apply when not in saved settings.
+ *
  * @returns {import('./pricingCalculator.js').PricingSettings}
  */
 export function getDefaultPricingSettings() {
   const basePriceByService = Object.fromEntries(
     SERVICE_TYPES.map((s) => {
-      if (s === 'Man with Van') return [s, 75]
-      if (s === 'Furniture Delivery') return [s, 60]
-      if (s === 'Office Moves') return [s, 150]
-      if (s === 'Clearance') return [s, 90]
+      if (s === 'Man with Van') return [s, 72]
+      if (s === 'Furniture Delivery') return [s, 58]
+      if (s === 'Office Moves') return [s, 145]
+      if (s === 'Clearance') return [s, 88]
       if (s === 'Storage Move') return [s, 85]
-      if (s === 'Student Moves') return [s, 70]
-      if (s === 'House Removals') return [s, 120]
+      if (s === 'Student Moves') return [s, 62]
+      if (s === 'House Removals') return [s, 118]
       return [s, 100]
     }),
   )
@@ -21,45 +25,50 @@ export function getDefaultPricingSettings() {
     basePriceByService,
     /** Homepage card prices only; empty = use {@link getDefaultServiceCardDisplayPrices} at display time. */
     displayPriceByService: {},
-    pricePerMile: 1.6,
-    pricePerCubicMetre: 48,
+    pricePerMile: 1.3,
+    pricePerCubicMetre: 14,
     minimumJobPrice: 85,
-    floorChargePerFloor: 12,
+    minimumJobPriceOneMan: 85,
+    minimumJobPriceTwoMen: 105,
+    minimumJobPriceThreeMen: 130,
+    floorChargePerFloor: 13,
     noLiftCharge: 30,
-    longWalkingDistanceCharge: 25,
+    longWalkingDistanceCharge: 28,
     parkingCharge: 15,
     waitingTimePricePerHour: 40,
     sameDaySurchargePercent: 12,
     weekendSurchargePercent: 15,
-    extraHelperPrice: 45,
-    crewSurchargePerExtraMember: 45,
-    /** Flat-base mode: % off labour (base + volume + labour access) when customer selects 1 man. */
-    oneManLabourDiscountPercent: 15,
-    /** When true, each service base price is per crew member — total base = rate × crew size from the quote (no separate extra-crew surcharge). */
+    extraHelperPrice: 40,
+    crewSurchargePerExtraMember: 40,
+    /** Used only when live Mapbox route duration is unavailable (legacy key: averageSpeedMph). */
+    fallbackSpeedMph: 35,
+    averageSpeedMph: 35,
+    secondManBaseFee: 15,
+    secondManHourlyRate: 18,
+    thirdManBaseFee: 25,
+    thirdManHourlyRate: 16,
+    /** Legacy flat fees only if distance crew hourly rates are all zero */
+    secondManLabourFee: 30,
+    thirdManLabourFee: 38,
+    fourthManLabourFee: 38,
+    oneManLabourDiscountPercent: 18,
     basePricePerMan: false,
     crewSizeOneEnabled: true,
     crewSizeTwoEnabled: true,
     crewSizeThreeEnabled: true,
-    crewSizeFourEnabled: true,
-    largeMoveVolumeThresholdM3: 35,
+    crewSizeFourEnabled: false,
+    largeMoveVolumeThresholdM3: 28,
     minimumCrewForLargeMoves: 3,
-    /** @deprecated use packingPricePerBoxOrItem — kept for older saved JSON */
     packingServicePrice: 55,
-    /** £ per box/item when customer requests packing */
     packingPricePerBoxOrItem: 5,
-    /** @deprecated use dismantlingPricePerItem */
     dismantlingPrice: 45,
-    dismantlingPricePerItem: 45,
-    /** @deprecated use reassemblyPricePerItem */
+    dismantlingPricePerItem: 42,
     reassemblyPrice: 45,
-    reassemblyPricePerItem: 45,
-    /** One-off when fragile items selected */
+    reassemblyPricePerItem: 42,
     fragilePackingSurcharge: 25,
-    /** One-off when packing materials required */
     packingMaterialsFee: 35,
-    stairsChargePerFlight: 15,
-    heavyItemHandlingCharge: 25,
-    /** Premium when customer chooses exact arrival hour (Step 1 wizard) */
+    stairsChargePerFlight: 14,
+    heavyItemHandlingCharge: 32,
     exactArrivalPremiumGbp: 20,
     customSizeM3: {
       small: 0.1,
@@ -67,11 +76,10 @@ export function getDefaultPricingSettings() {
       large: 0.8,
       heavy: 1.2,
     },
-    fuelSurchargeEnabled: false,
-    fuelSurchargePerMile: 0,
+    fuelSurchargeEnabled: true,
+    fuelSurchargePerMile: 0.12,
     yesLiftChargePerEnd: 0,
     packingMaterialPerItemEnabled: false,
-    /** Legacy single box price — maps to medium when per-size prices are unset */
     packingMaterialPriceBoxes: 0,
     packingMaterialPriceSmallBoxes: 0,
     packingMaterialPriceMediumBoxes: 0,
