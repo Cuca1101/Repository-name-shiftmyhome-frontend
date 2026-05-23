@@ -1,3 +1,4 @@
+/** Do not calculate pricing in UI components. Use shared pricing engine only. */
 import QuoteRouteMap from './QuoteRouteMap'
 import InlineInventoryQtyControl from './InlineInventoryQtyControl'
 import { applyInventoryLineQuantityDelta } from '../../lib/inventoryLineQuantity'

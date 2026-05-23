@@ -1,3 +1,4 @@
+/** Do not calculate pricing in UI components. Use shared pricing engine only. */
 import { useState } from 'react'
 import {
   Calendar,

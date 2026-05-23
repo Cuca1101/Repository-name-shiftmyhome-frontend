@@ -4,6 +4,8 @@ import { SERVICE_TYPES } from '../constants/serviceTypes'
 import { fetchPricingSettings, savePricingSettings } from '../lib/data/pricingSettingsRepository'
 import { getDefaultPricingSettings } from '../lib/defaultPricingSettings'
 
+/** Do not calculate pricing in UI components. Use shared pricing engine only. */
+
 function Field({ label, children, helper }) {
   return (
     <label className="block">
@@ -16,6 +18,7 @@ function Field({ label, children, helper }) {
 
 export default function PricingEngineAdmin() {
   const [settings, setSettings] = useState(() => getDefaultPricingSettings())
+  const fallbackDefaults = getDefaultPricingSettings()
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState({ type: '', text: '' })
@@ -111,10 +114,14 @@ export default function PricingEngineAdmin() {
         promoCodes: (settings.promoCodes || []).filter((r) => String(r.code || '').trim().length > 0),
       }
       await savePricingSettings(toSave)
-      setSettings(toSave)
-      setMessage({ type: 'success', text: 'Pricing settings saved.' })
+      const reloaded = await fetchPricingSettings()
+      setSettings(reloaded)
+      setMessage({ type: 'success', text: 'Your pricing engine was saved successfully.' })
     } catch (err) {
-      setMessage({ type: 'error', text: err?.message || 'Save failed.' })
+      setMessage({
+        type: 'error',
+        text: 'Pricing engine could not be saved. Please try again.',
+      })
     } finally {
       setSaving(false)
     }
@@ -503,7 +510,7 @@ export default function PricingEngineAdmin() {
                 step="0.01"
                 min="0"
                 className={inputClass}
-                value={settings.exactArrivalPremiumGbp ?? 20}
+                value={settings.exactArrivalPremiumGbp}
                 onChange={(e) => setNum('exactArrivalPremiumGbp', e.target.value)}
               />
             </Field>
@@ -575,7 +582,7 @@ export default function PricingEngineAdmin() {
                 step="0.01"
                 min="0"
                 className={inputClass}
-                value={settings.depositAmount ?? 50}
+                value={settings.depositAmount}
                 onChange={(e) => setNum('depositAmount', e.target.value)}
               />
             </Field>
@@ -665,10 +672,10 @@ export default function PricingEngineAdmin() {
         <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-card">
           <h3 className="text-lg font-semibold text-slate-900">Crew pricing & availability</h3>
           <p className="mt-1 text-sm text-slate-600">
-            1 Man uses the service base only. 2 Men and 3 Men add helper labour from live Mapbox route duration (base +
-            hours × rate). Miles ÷ fallback speed is used only when Mapbox duration is unavailable. Mileage, fuel,
-            parking, waiting, packing, and heavy handling are never multiplied by crew size. House removals and heavy
-            inventory require at least 2 men.
+            Every crew size includes travel labour (Mapbox route duration when available; miles ÷ fallback speed
+            otherwise). Service base is separate from crew labour. Mileage and fuel are per-mile charges in addition to
+            labour. Parking, waiting, packing, and heavy handling are never multiplied by crew size. House removals and
+            heavy inventory require at least 2 men.
           </p>
           <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             <Field label="Fallback speed if Mapbox duration unavailable (mph)">
@@ -677,10 +684,10 @@ export default function PricingEngineAdmin() {
                 step="1"
                 min="1"
                 className={inputClass}
-                value={settings.fallbackSpeedMph ?? settings.averageSpeedMph ?? 35}
+                value={settings.fallbackSpeedMph ?? settings.averageSpeedMph}
                 onChange={(e) => {
                   const n = parseFloat(e.target.value)
-                  const v = Number.isFinite(n) && n > 0 ? n : 35
+                  const v = Number.isFinite(n) && n > 0 ? n : fallbackDefaults.fallbackSpeedMph
                   setSettings((s) => ({ ...s, fallbackSpeedMph: v, averageSpeedMph: v }))
                 }}
               />
@@ -689,13 +696,43 @@ export default function PricingEngineAdmin() {
                 distance or when routing fails.
               </p>
             </Field>
+            <Field label="First man — base fee (£)">
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                className={inputClass}
+                value={settings.firstManBaseFee}
+                onChange={(e) => setNum('firstManBaseFee', e.target.value)}
+              />
+            </Field>
+            <Field label="First man — hourly rate (£/hr)">
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                className={inputClass}
+                value={settings.firstManHourlyRate}
+                onChange={(e) => setNum('firstManHourlyRate', e.target.value)}
+              />
+            </Field>
+            <Field label="Legacy flat 1st man fee (£) — if hourly rates are 0">
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                className={inputClass}
+                value={settings.firstManLabourFee}
+                onChange={(e) => setNum('firstManLabourFee', e.target.value)}
+              />
+            </Field>
             <Field label="Second man — base fee (£)">
               <input
                 type="number"
                 step="0.01"
                 min="0"
                 className={inputClass}
-                value={settings.secondManBaseFee ?? 15}
+                value={settings.secondManBaseFee}
                 onChange={(e) => setNum('secondManBaseFee', e.target.value)}
               />
             </Field>
@@ -705,7 +742,7 @@ export default function PricingEngineAdmin() {
                 step="0.01"
                 min="0"
                 className={inputClass}
-                value={settings.secondManHourlyRate ?? 18}
+                value={settings.secondManHourlyRate}
                 onChange={(e) => setNum('secondManHourlyRate', e.target.value)}
               />
             </Field>
@@ -715,7 +752,7 @@ export default function PricingEngineAdmin() {
                 step="0.01"
                 min="0"
                 className={inputClass}
-                value={settings.thirdManBaseFee ?? 25}
+                value={settings.thirdManBaseFee}
                 onChange={(e) => setNum('thirdManBaseFee', e.target.value)}
               />
             </Field>
@@ -725,7 +762,7 @@ export default function PricingEngineAdmin() {
                 step="0.01"
                 min="0"
                 className={inputClass}
-                value={settings.thirdManHourlyRate ?? 16}
+                value={settings.thirdManHourlyRate}
                 onChange={(e) => setNum('thirdManHourlyRate', e.target.value)}
               />
             </Field>
@@ -735,7 +772,7 @@ export default function PricingEngineAdmin() {
                 step="0.01"
                 min="0"
                 className={inputClass}
-                value={settings.secondManLabourFee ?? settings.crewSurchargePerExtraMember ?? settings.extraHelperPrice ?? 0}
+                value={settings.secondManLabourFee}
                 onChange={(e) => setNum('secondManLabourFee', e.target.value)}
               />
             </Field>
@@ -745,7 +782,7 @@ export default function PricingEngineAdmin() {
                 step="0.01"
                 min="0"
                 className={inputClass}
-                value={settings.thirdManLabourFee ?? settings.crewSurchargePerExtraMember ?? settings.extraHelperPrice ?? 0}
+                value={settings.thirdManLabourFee}
                 onChange={(e) => setNum('thirdManLabourFee', e.target.value)}
               />
             </Field>
@@ -755,7 +792,7 @@ export default function PricingEngineAdmin() {
                 step="0.01"
                 min="0"
                 className={inputClass}
-                value={settings.fourthManLabourFee ?? settings.thirdManLabourFee ?? settings.crewSurchargePerExtraMember ?? 0}
+                value={settings.fourthManLabourFee}
                 onChange={(e) => setNum('fourthManLabourFee', e.target.value)}
               />
             </Field>
@@ -766,7 +803,7 @@ export default function PricingEngineAdmin() {
                 min="0"
                 max="100"
                 className={inputClass}
-                value={settings.oneManLabourDiscountPercent ?? 20}
+                value={settings.oneManLabourDiscountPercent}
                 onChange={(e) => setNum('oneManLabourDiscountPercent', e.target.value)}
               />
             </Field>
@@ -776,14 +813,14 @@ export default function PricingEngineAdmin() {
                 step="0.01"
                 min="0"
                 className={inputClass}
-                value={settings.largeMoveVolumeThresholdM3 ?? 35}
+                value={settings.largeMoveVolumeThresholdM3}
                 onChange={(e) => setNum('largeMoveVolumeThresholdM3', e.target.value)}
               />
             </Field>
             <Field label="Minimum crew for large moves">
               <select
                 className={inputClass}
-                value={settings.minimumCrewForLargeMoves ?? 3}
+                value={settings.minimumCrewForLargeMoves}
                 onChange={(e) => setNum('minimumCrewForLargeMoves', e.target.value)}
               >
                 <option value={1}>1 Man</option>

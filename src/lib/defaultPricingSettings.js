@@ -2,10 +2,8 @@ import { SERVICE_TYPES } from '../constants/serviceTypes'
 
 /**
  * Offline / fallback pricing when Supabase `pricing_settings` is unavailable.
- * Balanced UK market defaults: flat service base + distance/time crew labour
- * (basePricePerMan OFF). Per-crew minimums apply when not in saved settings.
- *
- * @returns {import('./pricingCalculator.js').PricingSettings}
+ * All numeric defaults live here only — the pricing engine must not hardcode prices.
+ * Admin Pricing Settings always override these values when present.
  */
 export function getDefaultPricingSettings() {
   const basePriceByService = Object.fromEntries(
@@ -45,8 +43,13 @@ export function getDefaultPricingSettings() {
     averageSpeedMph: 35,
     secondManBaseFee: 15,
     secondManHourlyRate: 18,
+    firstManBaseFee: 15,
+    firstManHourlyRate: 18,
+    firstManLabourFee: 30,
     thirdManBaseFee: 25,
     thirdManHourlyRate: 16,
+    fourthManBaseFee: 25,
+    fourthManHourlyRate: 16,
     /** Legacy flat fees only if distance crew hourly rates are all zero */
     secondManLabourFee: 30,
     thirdManLabourFee: 38,

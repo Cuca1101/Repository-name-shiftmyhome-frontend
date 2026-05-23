@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "node scripts/generate-sitemap.mjs && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test:pricing": "node scripts/run-pricing-tests.mjs"
   },
   "dependencies": {
     "@emailjs/browser": "^4.4.1",

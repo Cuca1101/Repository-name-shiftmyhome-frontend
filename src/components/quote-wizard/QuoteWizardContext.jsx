@@ -9,6 +9,9 @@ import {
 } from 'react'
 import { EMAILJS_TEMPLATE_ID_GUIDE, isEmailJsReady } from '../../emailjs.config'
 import { fetchPricingSettings } from '../../lib/data/pricingSettingsRepository'
+import { onPricingSettingsUpdated } from '../../lib/pricingSettingsEvents'
+
+/** Do not calculate pricing in UI components. Use shared pricing engine only. */
 import { createJobRequest } from '../../lib/data/jobsRepository'
 import {
   buildQuoteRowFromTemplateParams,
@@ -221,22 +224,30 @@ export function QuoteWizardProvider({ children, serviceType: serviceTypeProp, al
   }, [step])
 
   useEffect(() => {
-    let c = false
-    ;(async () => {
+    let cancelled = false
+
+    async function loadSettings() {
       try {
         const s = await fetchPricingSettings()
-        if (!c) setSettings(s)
+        if (!cancelled) setSettings(s)
       } catch {
-        if (!c) {
+        if (!cancelled) {
           setFeedback({ type: 'error', text: 'Could not load pricing. Refresh and try again.' })
           scheduleQuoteValidationScroll({ hint: QUOTE_ERROR_SCROLL_HINTS.feedback })
         }
       } finally {
-        if (!c) setLoadingSettings(false)
+        if (!cancelled) setLoadingSettings(false)
       }
-    })()
+    }
+
+    void loadSettings()
+    const unsubscribe = onPricingSettingsUpdated(() => {
+      setLoadingSettings(true)
+      void loadSettings()
+    })
     return () => {
-      c = true
+      cancelled = true
+      unsubscribe()
     }
   }, [])
 

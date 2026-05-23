@@ -1,4 +1,6 @@
 export const LS_PRICING = 'smh_pricing_settings_v1'
+/** ISO timestamp of last Supabase pricing_settings sync (prevents stale localStorage override). */
+export const LS_PRICING_SYNC = 'smh_pricing_settings_sync_v1'
 export const LS_ITEMS = 'smh_items_library_v1'
 export const LS_JOBS = 'smh_jobs_v1'
 export const LS_JOB_ITEMS = 'smh_job_items_v1'

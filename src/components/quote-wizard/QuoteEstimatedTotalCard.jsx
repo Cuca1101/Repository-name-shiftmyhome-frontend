@@ -1,5 +1,6 @@
 /**
  * Step 4 estimated total reassurance card (shared mobile + desktop).
+ * Do not calculate pricing in UI components. Use shared pricing engine only.
  * @param {{ breakdown: { estimatedTotal?: number } | null, className?: string }} props
  */
 export default function QuoteEstimatedTotalCard({ breakdown, className = '' }) {

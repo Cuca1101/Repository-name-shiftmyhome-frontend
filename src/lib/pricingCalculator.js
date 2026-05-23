@@ -1,11 +1,18 @@
+/**
+ * Shared pricing engine — single source of truth for all quote totals.
+ * Do not calculate pricing in UI components. Use shared pricing engine only.
+ */
 import {
   appendCrewLabourFeeLines,
   getMinimumCrewForQuote,
+  isCrewLabourExtraLine,
   isLabourAccessLine,
   resolveMinimumJobPriceForCrew,
   resolveTravelHoursForCrewLabour,
   usesDistanceBasedCrewLabour,
 } from './crewPricingRules'
+import { buildStandardPricingDisplayRows } from './pricingBreakdownDisplay'
+import { resolveDepositAmountGbp as resolveDepositFromSettings } from './pricingSettingValue'
 import { getEffectiveReassemblyItemCount } from './quoteWizardReassembly'
 import {
   PACKING_MATERIALS_CATALOG,
@@ -37,6 +44,11 @@ import {
  * @property {number} [averageSpeedMph] — legacy alias for fallbackSpeedMph
  * @property {number} [secondManBaseFee]
  * @property {number} [secondManHourlyRate]
+ * @property {number} [firstManBaseFee]
+ * @property {number} [firstManHourlyRate]
+ * @property {number} [firstManLabourFee]
+ * @property {number} [fourthManBaseFee]
+ * @property {number} [fourthManHourlyRate]
  * @property {number} [thirdManBaseFee]
  * @property {number} [thirdManHourlyRate]
  * @property {number} [crewSurchargePerExtraMember] — legacy fallback for tiered crew fees
@@ -170,18 +182,31 @@ import {
  * @property {boolean} [crewTravelHoursFromMapbox]
  * @property {'mapbox'|'fallback_distance'} [crewTravelHoursSource]
  * @property {number} [mapboxRouteDurationSeconds]
+ * @property {number} [crewLabourTotal]
+ * @property {number} [fuelSurchargeAmount]
+ * @property {{ label: string, amount: number, isDiscount?: boolean, isTotal?: boolean }[]} [standardDisplayRows]
  */
+
+/** Set true temporarily to log pricing diagnostics in the browser console. */
+export const PRICING_DEBUG = import.meta.env?.DEV === true
 
 const money = (n) => Math.round(n * 100) / 100
 
 /**
- * Deposit taken at payment (admin); falls back to £50 when unset.
+ * @param {string} label
+ * @param {unknown} value
+ */
+function logPricingDebug(label, value) {
+  if (!PRICING_DEBUG) return
+  console.log(label, value)
+}
+
+/**
+ * Deposit taken at payment (admin). Fallback from defaultPricingSettings only.
  * @param {PricingSettings | null | undefined} settings
  */
 export function resolveDepositAmountGbp(settings) {
-  const n = Number(settings?.depositAmount)
-  if (Number.isFinite(n) && n > 0) return money(n)
-  return 50
+  return resolveDepositFromSettings(settings)
 }
 
 /**
@@ -263,7 +288,6 @@ export function calculateQuote(settings, input) {
   const selectedCrew =
     Number.isFinite(crewRaw) && crewRaw >= 1 && crewRaw <= 4 ? Math.round(crewRaw) : 2
 
-  const stairsFlightsEarly = Math.max(0, Number(input.access?.stairsFlights) || 0)
   const heavyItemCountEarly = Math.max(0, Number(input.access?.heavyItemCount) || 0)
 
   const largeMoveThreshold = Math.max(0, Number(s.largeMoveVolumeThresholdM3) || 0)
@@ -556,6 +580,10 @@ export function calculateQuote(settings, input) {
     })
   }
 
+  const crewLabourTotal = money(
+    extrasLines.reduce((sum, l) => (isCrewLabourExtraLine(l.label) ? sum + l.amount : sum), 0),
+  )
+
   const extrasTotal = money(extrasLines.reduce((sum, l) => sum + l.amount, 0))
 
   const subtotalBeforeSurcharges = money(
@@ -599,7 +627,7 @@ export function calculateQuote(settings, input) {
   const discountLines = []
   let discountTotal = 0
 
-  const oneManPct = Math.min(100, Math.max(0, Number(s.oneManLabourDiscountPercent) ?? 20))
+  const oneManPct = Math.min(100, Math.max(0, Number(s.oneManLabourDiscountPercent) || 0))
   const applyOneManLabourDiscount =
     !basePriceUsesPerManPricing &&
     selectedCrew === 1 &&
@@ -652,7 +680,23 @@ export function calculateQuote(settings, input) {
   const estimatedTotal = money(Math.max(subtotalAfterDiscount, minimumJobPrice))
   const minimumApplied = money(estimatedTotal - subtotalAfterDiscount)
 
-  return {
+  logPricingDebug('PRICING SETTINGS USED', s)
+  logPricingDebug('DISTANCE MILES', distanceMiles)
+  logPricingDebug('PRICE PER MILE', s.pricePerMile)
+  logPricingDebug('FUEL SETTING', {
+    enabled: fuelEnabled,
+    perMile: fuelPerMile,
+  })
+  logPricingDebug('MILEAGE PRICE', distancePrice)
+  logPricingDebug('FUEL SURCHARGE', fuelSurchargeAmount)
+  logPricingDebug('CREW SIZE', { selected: selectedCrew, effective: effectiveCrewSize })
+  logPricingDebug('LABOUR HOURS', estimatedTravelHoursVal)
+  logPricingDebug('CREW LABOUR', crewLabourTotal)
+  logPricingDebug('ACCESS BREAKDOWN', accessLines)
+  logPricingDebug('MINIMUM APPLIED', minimumApplied)
+
+  /** @type {PriceBreakdown} */
+  const priceResult = {
     basePrice: money(basePrice),
     distancePrice: money(distancePrice),
     volumePrice: money(volumePrice),
@@ -680,9 +724,16 @@ export function calculateQuote(settings, input) {
     crewTravelHoursSource: travelResolve?.source,
     mapboxRouteDurationSeconds:
       travelResolve?.usedMapboxDuration && Number.isFinite(mapboxRouteDurationSeconds)
-        ? money(mapboxRouteDurationSeconds)
+        ? mapboxRouteDurationSeconds
         : undefined,
+    crewLabourTotal,
+    fuelSurchargeAmount,
   }
+
+  priceResult.standardDisplayRows = buildStandardPricingDisplayRows(priceResult)
+  logPricingDebug('FINAL PRICE RESULT', priceResult)
+
+  return priceResult
 }
 
 /**

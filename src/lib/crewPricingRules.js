@@ -1,5 +1,7 @@
 /** @typedef {{ oneManAllowed: boolean, minimumCrew: number, message: string }} CrewRestrictions */
 
+import { resolveFallbackSpeedMph } from './pricingSettingValue'
+
 export const HOUSE_REMOVALS_SERVICE = 'House Removals'
 
 /**
@@ -113,8 +115,7 @@ export function usesDistanceBasedCrewLabour(settings) {
  * @param {import('./pricingCalculator.js').PricingSettings} settings
  */
 export function getFallbackSpeedMph(settings) {
-  const v = Number(settings?.fallbackSpeedMph ?? settings?.averageSpeedMph)
-  return Number.isFinite(v) && v > 0 ? v : 35
+  return resolveFallbackSpeedMph(settings)
 }
 
 /**
@@ -150,9 +151,38 @@ export function resolveTravelHoursForCrewLabour(settings, distanceMiles, mapboxR
 
 /**
  * @param {import('./pricingCalculator.js').PricingSettings} settings
+ * @param {'first'|'second'|'third'|'fourth'} role
+ */
+export function resolveCrewLabourDistanceRates(settings, role) {
+  if (role === 'first') {
+    return {
+      baseFee: Math.max(0, Number(settings.firstManBaseFee ?? settings.secondManBaseFee) || 0),
+      hourly: Math.max(0, Number(settings.firstManHourlyRate ?? settings.secondManHourlyRate) || 0),
+    }
+  }
+  if (role === 'second') {
+    return {
+      baseFee: Math.max(0, Number(settings.secondManBaseFee) || 0),
+      hourly: Math.max(0, Number(settings.secondManHourlyRate) || 0),
+    }
+  }
+  if (role === 'third') {
+    return {
+      baseFee: Math.max(0, Number(settings.thirdManBaseFee) || 0),
+      hourly: Math.max(0, Number(settings.thirdManHourlyRate) || 0),
+    }
+  }
+  return {
+    baseFee: Math.max(0, Number(settings.fourthManBaseFee ?? settings.thirdManBaseFee) || 0),
+    hourly: Math.max(0, Number(settings.fourthManHourlyRate ?? settings.thirdManHourlyRate) || 0),
+  }
+}
+
+/**
+ * @param {import('./pricingCalculator.js').PricingSettings} settings
  * @param {number} distanceMiles
  * @param {number | null | undefined} mapboxRouteDurationSeconds
- * @param {'second'|'third'|'fourth'} role
+ * @param {'first'|'second'|'third'|'fourth'} role
  */
 export function calculateDistanceBasedCrewLabourFee(
   settings,
@@ -165,17 +195,7 @@ export function calculateDistanceBasedCrewLabourFee(
     distanceMiles,
     mapboxRouteDurationSeconds,
   )
-  if (role === 'second') {
-    const base = Number(settings.secondManBaseFee)
-    const rate = Number(settings.secondManHourlyRate)
-    const baseFee = Number.isFinite(base) && base >= 0 ? base : 15
-    const hourly = Number.isFinite(rate) && rate > 0 ? rate : 18
-    return baseFee + hours * hourly
-  }
-  const base = Number(settings.thirdManBaseFee)
-  const rate = Number(settings.thirdManHourlyRate)
-  const baseFee = Number.isFinite(base) && base >= 0 ? base : 25
-  const hourly = Number.isFinite(rate) && rate > 0 ? rate : 16
+  const { baseFee, hourly } = resolveCrewLabourDistanceRates(settings, role)
   return baseFee + hours * hourly
 }
 
@@ -185,13 +205,15 @@ export function calculateDistanceBasedCrewLabourFee(
  */
 export function resolveCrewLabourFees(settings) {
   const legacy = Number(settings.crewSurchargePerExtraMember ?? settings.extraHelperPrice) || 0
+  const firstRaw = Number(settings.firstManLabourFee ?? settings.secondManLabourFee)
   const secondRaw = Number(settings.secondManLabourFee)
   const thirdRaw = Number(settings.thirdManLabourFee)
   const fourthRaw = Number(settings.fourthManLabourFee)
+  const first = firstRaw > 0 ? firstRaw : legacy
   const second = secondRaw > 0 ? secondRaw : legacy
   const third = thirdRaw > 0 ? thirdRaw : legacy
   const fourth = fourthRaw > 0 ? fourthRaw : third
-  return { second, third, fourth }
+  return { first, second, third, fourth }
 }
 
 /**
@@ -238,7 +260,7 @@ export function isCrewLabourExtraLine(label) {
  * @param {number} crewSize
  */
 export function resolveMinimumJobPriceForCrew(settings, crewSize) {
-  const fallback = Number(settings.minimumJobPrice) || 0
+  const fallback = Math.max(0, Number(settings.minimumJobPrice) || 0)
   const n = Math.max(1, Math.min(4, Math.round(Number(crewSize) || 1)))
   if (n === 1) {
     const v = Number(settings.minimumJobPriceOneMan)
@@ -280,36 +302,27 @@ export function appendCrewLabourFeeLines(
       )
     : ''
 
-  if (effectiveCrewSize >= 2) {
-    const secondAmt = distanceBased
-      ? calculateDistanceBasedCrewLabourFee(settings, distanceMiles, mapboxRouteDurationSeconds, 'second')
-      : resolveCrewLabourFees(settings).second
-    if (secondAmt > 0) {
+  const crewRoles = [
+    { minCrew: 1, role: 'first', label: 'First' },
+    { minCrew: 2, role: 'second', label: 'Second' },
+    { minCrew: 3, role: 'third', label: 'Third' },
+    { minCrew: 4, role: 'fourth', label: 'Fourth' },
+  ]
+
+  for (const { minCrew, role, label } of crewRoles) {
+    if (effectiveCrewSize < minCrew) continue
+    const amt = distanceBased
+      ? calculateDistanceBasedCrewLabourFee(
+          settings,
+          distanceMiles,
+          mapboxRouteDurationSeconds,
+          role,
+        )
+      : resolveCrewLabourFees(settings)[role]
+    if (amt > 0) {
       extrasLines.push({
-        label: `Second crew member (labour)${travelHint}`,
-        amount: roundMoney(secondAmt),
-      })
-    }
-  }
-  if (effectiveCrewSize >= 3) {
-    const thirdAmt = distanceBased
-      ? calculateDistanceBasedCrewLabourFee(settings, distanceMiles, mapboxRouteDurationSeconds, 'third')
-      : resolveCrewLabourFees(settings).third
-    if (thirdAmt > 0) {
-      extrasLines.push({
-        label: `Third crew member (labour)${travelHint}`,
-        amount: roundMoney(thirdAmt),
-      })
-    }
-  }
-  if (effectiveCrewSize >= 4) {
-    const fourthAmt = distanceBased
-      ? calculateDistanceBasedCrewLabourFee(settings, distanceMiles, mapboxRouteDurationSeconds, 'fourth')
-      : resolveCrewLabourFees(settings).fourth
-    if (fourthAmt > 0) {
-      extrasLines.push({
-        label: `Fourth crew member (labour)${travelHint}`,
-        amount: roundMoney(fourthAmt),
+        label: `${label} crew member (labour)${travelHint}`,
+        amount: roundMoney(amt),
       })
     }
   }
