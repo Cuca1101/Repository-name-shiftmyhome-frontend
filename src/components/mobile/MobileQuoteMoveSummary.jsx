@@ -27,6 +27,7 @@ import {
   formatMoveSummaryLiftLabel,
   hasMoveSummaryRouteData,
 } from '../../lib/moveSummaryDisplay'
+import MobileStep2PriceDebugCard from '../quote-wizard/MobileStep2PriceDebugCard'
 
 const card = 'box-border min-w-0 w-full rounded-lg border border-slate-200 bg-white shadow-sm md:rounded-xl'
 
@@ -309,6 +310,13 @@ export default function MobileQuoteMoveSummary({
           <p className="mt-0.5 text-lg font-bold text-emerald-700">£{breakdown.estimatedTotal.toFixed(2)}</p>
           <p className="mt-1.5 text-[10px] leading-snug text-slate-600">Final price confirmed by ShiftMyHome.</p>
         </div>
+      ) : null}
+
+      {step === 2 && showPricing && breakdown ? (
+        <MobileStep2PriceDebugCard
+          pricingBreakdown={breakdown}
+          estimatedTotal={breakdown.estimatedTotal}
+        />
       ) : null}
 
       <div className="h-2" aria-hidden />
