@@ -1,4 +1,8 @@
 import { getDefaultPricingSettings } from './defaultPricingSettings'
+import {
+  detectVolumeMultiplierSources,
+  VOLUME_MULTIPLIER_SETTING_KEYS,
+} from './volumePricingMultiplier'
 
 const CORE_PRICING_KEYS = [
   'pricePerMile',
@@ -17,6 +21,7 @@ const CORE_PRICING_KEYS = [
   'firstManBaseFee',
   'firstManHourlyRate',
   'basePriceByService',
+  ...VOLUME_MULTIPLIER_SETTING_KEYS,
 ]
 
 /**
@@ -68,6 +73,12 @@ export function mergePricingSettingsWithDefaults(raw, opts = {}) {
     basePriceByService: base,
     customSizeM3: custom,
     promoCodes,
+    volumeMultiplierSources: detectVolumeMultiplierSources(raw),
+  }
+
+  for (const key of VOLUME_MULTIPLIER_SETTING_KEYS) {
+    const n = Number(merged[key])
+    merged[key] = Number.isFinite(n) && n > 0 ? n : defaults[key]
   }
 
   if (opts.warnOnFallback !== false && missingBeforeMerge.length > 0) {

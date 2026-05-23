@@ -10,6 +10,7 @@ import {
   formatMoveSummaryLiftLabel,
 } from '../../lib/moveSummaryDisplay'
 import { formatDateUK } from '../../lib/formatDateDisplay'
+import QuotePricingDebugPanel from './QuotePricingDebugPanel'
 import {
   formatCompactArrivalLine,
   formatWizardServiceExtrasSummary,
@@ -276,6 +277,14 @@ export default function MoveSummaryBody({
           )}
         </dl>
       </div>
+
+      {showPricing && breakdown && (step === 2 || step === 3) ? (
+        <QuotePricingDebugPanel
+          pricingBreakdown={breakdown}
+          estimatedTotal={breakdown.estimatedTotal}
+          className="hidden rounded-xl border border-slate-200 md:block"
+        />
+      ) : null}
 
       {showPricing && breakdown && (
         <div className="min-w-0 rounded-xl border border-emerald-100 bg-gradient-to-br from-emerald-50/90 to-white p-3 ring-1 ring-emerald-100/80 sm:p-5">

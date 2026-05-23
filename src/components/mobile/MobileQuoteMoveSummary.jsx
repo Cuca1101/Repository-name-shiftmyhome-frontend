@@ -28,7 +28,7 @@ import {
   formatMoveSummaryLiftLabel,
   hasMoveSummaryRouteData,
 } from '../../lib/moveSummaryDisplay'
-import MobileStep2PriceDebugCard from '../quote-wizard/MobileStep2PriceDebugCard'
+import QuotePricingDebugPanel from '../quote-wizard/QuotePricingDebugPanel'
 
 const card = 'box-border min-w-0 w-full rounded-lg border border-slate-200 bg-white shadow-sm md:rounded-xl'
 
@@ -313,10 +313,11 @@ export default function MobileQuoteMoveSummary({
         </div>
       ) : null}
 
-      {step === 2 && showPricing && breakdown ? (
-        <MobileStep2PriceDebugCard
+      {(step === 2 || step === 3) && showPricing && breakdown ? (
+        <QuotePricingDebugPanel
           pricingBreakdown={breakdown}
           estimatedTotal={breakdown.estimatedTotal}
+          className="md:hidden"
         />
       ) : null}
 

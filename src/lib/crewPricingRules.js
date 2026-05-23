@@ -107,8 +107,63 @@ export function usesDistanceBasedCrewLabour(settings) {
     Number(settings.secondManHourlyRate) > 0 ||
     Number(settings.thirdManHourlyRate) > 0 ||
     Number(settings.secondManBaseFee) > 0 ||
-    Number(settings.thirdManBaseFee) > 0
+    Number(settings.thirdManBaseFee) > 0 ||
+    Number(settings.firstManHourlyRate) > 0 ||
+    Number(settings.firstManBaseFee) > 0
   )
+}
+
+/** @typedef {'first'|'second'|'third'|'fourth'} CrewRole */
+
+const CREW_ROLES = /** @type {const} */ (['first', 'second', 'third', 'fourth'])
+const CREW_BASE_LABELS = {
+  first: 'First man',
+  second: 'Second man',
+  third: 'Third man',
+  fourth: 'Fourth man',
+}
+
+/**
+ * Per-job crew: firstManBase + secondManBase + … (once per job, not × hours/mileage/access).
+ * @param {import('./pricingCalculator.js').PricingSettings} settings
+ * @param {number} crewSize
+ */
+export function computeCrewBaseFees(settings, crewSize) {
+  const n = Math.max(1, Math.min(4, Math.round(Number(crewSize) || 1)))
+  /** @type {{ role: CrewRole, label: string, amount: number }[]} */
+  const lines = []
+  let total = 0
+  for (let i = 0; i < n; i++) {
+    const role = CREW_ROLES[i]
+    const { baseFee } = resolveCrewLabourDistanceRates(settings, role)
+    const amount = Math.round(baseFee * 100) / 100
+    if (amount > 0) {
+      lines.push({ role, label: `${CREW_BASE_LABELS[role]} base`, amount })
+      total += amount
+    }
+  }
+  return {
+    lines,
+    total: Math.round(total * 100) / 100,
+    firstManBase: lines.find((l) => l.role === 'first')?.amount ?? 0,
+    secondManBase: lines.find((l) => l.role === 'second')?.amount ?? 0,
+    thirdManBase: lines.find((l) => l.role === 'third')?.amount ?? 0,
+    fourthManBase: lines.find((l) => l.role === 'fourth')?.amount ?? 0,
+  }
+}
+
+/**
+ * Minimum operational threshold — service base + crew base fees (once per job; not added to subtotal).
+ * `basePricePerMan` is ignored here so the admin toggle cannot inflate the threshold.
+ * @param {import('./pricingCalculator.js').PricingSettings} settings
+ * @param {string} serviceType
+ * @param {number} crewSize
+ */
+export function resolveMinimumBaseThreshold(settings, serviceType, crewSize) {
+  const serviceBasePrice = Math.max(0, Number(settings.basePriceByService?.[serviceType]) || 0)
+  const crewBaseFees = computeCrewBaseFees(settings, crewSize)
+  const minimumBaseThreshold = Math.round((serviceBasePrice + crewBaseFees.total) * 100) / 100
+  return { serviceBasePrice, crewBaseFees, minimumBaseThreshold }
 }
 
 /**
@@ -184,7 +239,14 @@ export function resolveCrewLabourDistanceRates(settings, role) {
  * @param {number | null | undefined} mapboxRouteDurationSeconds
  * @param {'first'|'second'|'third'|'fourth'} role
  */
-export function calculateDistanceBasedCrewLabourFee(
+/**
+ * Hourly crew labour only — excludes per-man base fees (those belong in basePrice).
+ * @param {import('./pricingCalculator.js').PricingSettings} settings
+ * @param {number} distanceMiles
+ * @param {number | null | undefined} mapboxRouteDurationSeconds
+ * @param {CrewRole} role
+ */
+export function calculateDistanceBasedCrewHourlyLabourFee(
   settings,
   distanceMiles,
   mapboxRouteDurationSeconds,
@@ -195,8 +257,26 @@ export function calculateDistanceBasedCrewLabourFee(
     distanceMiles,
     mapboxRouteDurationSeconds,
   )
-  const { baseFee, hourly } = resolveCrewLabourDistanceRates(settings, role)
-  return baseFee + hours * hourly
+  const { hourly } = resolveCrewLabourDistanceRates(settings, role)
+  return hours * hourly
+}
+
+export function calculateDistanceBasedCrewLabourFee(
+  settings,
+  distanceMiles,
+  mapboxRouteDurationSeconds,
+  role,
+) {
+  const { baseFee } = resolveCrewLabourDistanceRates(settings, role)
+  return (
+    baseFee +
+    calculateDistanceBasedCrewHourlyLabourFee(
+      settings,
+      distanceMiles,
+      mapboxRouteDurationSeconds,
+      role,
+    )
+  )
 }
 
 /**
@@ -289,7 +369,9 @@ export function appendCrewLabourFeeLines(
   distanceMiles,
   mapboxRouteDurationSeconds,
   roundMoney,
+  opts = {},
 ) {
+  const { hourlyOnly = false } = opts
   const distanceBased = usesDistanceBasedCrewLabour(settings)
   const travelResolve = distanceBased
     ? resolveTravelHoursForCrewLabour(settings, distanceMiles, mapboxRouteDurationSeconds)
@@ -311,17 +393,28 @@ export function appendCrewLabourFeeLines(
 
   for (const { minCrew, role, label } of crewRoles) {
     if (effectiveCrewSize < minCrew) continue
-    const amt = distanceBased
-      ? calculateDistanceBasedCrewLabourFee(
-          settings,
-          distanceMiles,
-          mapboxRouteDurationSeconds,
-          role,
-        )
-      : resolveCrewLabourFees(settings)[role]
+    let amt = 0
+    if (distanceBased) {
+      amt = hourlyOnly
+        ? calculateDistanceBasedCrewHourlyLabourFee(
+            settings,
+            distanceMiles,
+            mapboxRouteDurationSeconds,
+            role,
+          )
+        : calculateDistanceBasedCrewLabourFee(
+            settings,
+            distanceMiles,
+            mapboxRouteDurationSeconds,
+            role,
+          )
+    } else {
+      amt = resolveCrewLabourFees(settings)[role]
+    }
     if (amt > 0) {
+      const suffix = hourlyOnly ? ' (hourly)' : ''
       extrasLines.push({
-        label: `${label} crew member (labour)${travelHint}`,
+        label: `${label} crew member (labour)${suffix}${travelHint}`,
         amount: roundMoney(amt),
       })
     }

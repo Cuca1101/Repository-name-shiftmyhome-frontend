@@ -95,5 +95,11 @@ export function getDefaultPricingSettings() {
     depositAmount: 50,
     promoCodesEnabled: false,
     promoCodes: [],
+    /** Volume scaling — applied to calculated quote subtotal only (not display prices or minimum thresholds). */
+    volumeMultiplier0To3M3: 1,
+    volumeMultiplier3To8M3: 1.1,
+    volumeMultiplier8To15M3: 1.2,
+    volumeMultiplier15To25M3: 1.35,
+    volumeMultiplier25PlusM3: 1.5,
   }
 }

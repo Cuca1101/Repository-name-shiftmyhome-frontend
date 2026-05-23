@@ -7,11 +7,14 @@ import {
   getMinimumCrewForQuote,
   isCrewLabourExtraLine,
   isLabourAccessLine,
+  resolveMinimumBaseThreshold,
   resolveMinimumJobPriceForCrew,
   resolveTravelHoursForCrewLabour,
   usesDistanceBasedCrewLabour,
 } from './crewPricingRules'
 import { buildStandardPricingDisplayRows } from './pricingBreakdownDisplay'
+import { buildPricingDebugDetail } from './pricingDebugDetail'
+import { resolveVolumePricingMultiplier } from './volumePricingMultiplier'
 import { resolveDepositAmountGbp as resolveDepositFromSettings } from './pricingSettingValue'
 import { getEffectiveReassemblyItemCount } from './quoteWizardReassembly'
 import {
@@ -90,6 +93,12 @@ import {
  * @property {number} [depositAmount]
  * @property {boolean} [promoCodesEnabled]
  * @property {{ code: string, discountType: 'percentage'|'fixed', discountValue: number }[]} [promoCodes]
+ * @property {number} [volumeMultiplier0To3M3]
+ * @property {number} [volumeMultiplier3To8M3]
+ * @property {number} [volumeMultiplier8To15M3]
+ * @property {number} [volumeMultiplier15To25M3]
+ * @property {number} [volumeMultiplier25PlusM3]
+ * @property {Record<string, 'admin'|'defaults'>} [volumeMultiplierSources]
  */
 
 /**
@@ -156,7 +165,23 @@ import {
 
 /**
  * @typedef {Object} PriceBreakdown
- * @property {number} basePrice
+ * @property {number} basePrice — minimum base threshold (service + crew bases); not hard-added to subtotal
+ * @property {number} [minimumBaseThreshold]
+ * @property {number} [minimumBaseAdjustment]
+ * @property {number} [minimumJobAdjustment]
+ * @property {boolean} [baseThresholdApplied]
+ * @property {number} [volumeMultiplier]
+ * @property {string} [volumeMultiplierBand]
+ * @property {'admin'|'defaults'} [volumeMultiplierSource]
+ * @property {number} [volumeMultiplier0To3M3]
+ * @property {number} [volumeMultiplier3To8M3]
+ * @property {number} [volumeMultiplier8To15M3]
+ * @property {number} [volumeMultiplier15To25M3]
+ * @property {number} [volumeMultiplier25PlusM3]
+ * @property {Record<string, 'admin'|'defaults'>} [volumeMultiplierSources]
+ * @property {number} [calculatedSubtotalBeforeMultiplier]
+ * @property {number} [scaledSubtotal]
+ * @property {number} [volumeScalingAmount]
  * @property {number} distancePrice
  * @property {number} volumePrice
  * @property {number} totalCubicMetres
@@ -184,6 +209,9 @@ import {
  * @property {number} [mapboxRouteDurationSeconds]
  * @property {number} [crewLabourTotal]
  * @property {number} [fuelSurchargeAmount]
+ * @property {number} [serviceBasePrice] — service-type base (once per job)
+ * @property {{ firstManBase: number, secondManBase: number, thirdManBase: number, fourthManBase: number, total: number, lines: { role: string, label: string, amount: number }[] }} [crewBaseFees]
+ * @property {ReturnType<typeof buildPricingDebugDetail>} [pricingDebugDetail]
  * @property {{ label: string, amount: number, isDiscount?: boolean, isTotal?: boolean }[]} [standardDisplayRows]
  */
 
@@ -294,30 +322,24 @@ export function calculateQuote(settings, input) {
   const minCrewForLargeMoves = Math.max(1, Math.min(4, Number(s.minimumCrewForLargeMoves) || 1))
   const minCrewForService = getMinimumCrewForQuote(input.serviceType, heavyItemCountEarly)
   let effectiveCrewSize = Math.max(selectedCrew, minCrewForService)
-  if (largeMoveThreshold > 0 && totalCubicMetres >= largeMoveThreshold) {
+  const largeMoveTriggered =
+    largeMoveThreshold > 0 && totalCubicMetres >= largeMoveThreshold
+  if (largeMoveTriggered) {
     effectiveCrewSize = Math.max(effectiveCrewSize, minCrewForLargeMoves)
   }
   effectiveCrewSize = Math.max(1, Math.min(4, effectiveCrewSize))
 
-  const basePriceRaw = Number(s.basePriceByService?.[input.serviceType]) || 0
   const basePricePerMan = Boolean(s.basePricePerMan)
   const distanceCrewLabour = usesDistanceBasedCrewLabour(s)
+  const { serviceBasePrice, crewBaseFees, minimumBaseThreshold } = resolveMinimumBaseThreshold(
+    s,
+    input.serviceType,
+    effectiveCrewSize,
+  )
   const travelResolve = distanceCrewLabour
     ? resolveTravelHoursForCrewLabour(s, distanceMiles, mapboxRouteDurationSeconds)
     : null
   const estimatedTravelHoursVal = travelResolve ? money(travelResolve.travelHours) : undefined
-  let basePriceUsesPerManPricing = false
-  let basePrice = money(basePriceRaw)
-  if (distanceCrewLabour && basePriceRaw > 0) {
-    /** Service base covers the first crew member; 2nd/3rd labour is distance/time-based. */
-    basePrice = money(basePriceRaw)
-    basePriceUsesPerManPricing = false
-  } else if (basePricePerMan && basePriceRaw > 0) {
-    basePrice = money(basePriceRaw * effectiveCrewSize)
-    basePriceUsesPerManPricing = true
-  } else {
-    basePrice = money(basePriceRaw)
-  }
 
   const access = input.access || {}
   const pickupFloor = Math.max(0, Number(access.pickupFloor) || 0)
@@ -340,52 +362,42 @@ export function calculateQuote(settings, input) {
 
   const perFloorRate = Number(s.floorChargePerFloor) || 0
   const noLiftFlat = Number(s.noLiftCharge) || 0
-  /** Scale floor/no-lift access with crew when multiple movers are priced. */
-  const accessCrewMult =
-    basePriceUsesPerManPricing || (distanceCrewLabour && effectiveCrewSize > 1)
-      ? effectiveCrewSize
-      : 1
 
-  // Per-floor charge: applies whenever above ground, whether or not there is a lift (lift does not waive this).
-  // Ground floor (0) adds £0.
+  // Per-floor charge: applies whenever above ground (per job — not multiplied by crew size).
   if (pickupFloor > 0 && perFloorRate > 0) {
-    const amt = money(pickupFloor * perFloorRate * accessCrewMult)
+    const amt = money(pickupFloor * perFloorRate)
     if (amt > 0) {
-      const crewHint = accessCrewMult > 1 ? ` × ${accessCrewMult} crew` : ''
       accessLines.push({
-        label: `Floor/access (collection): ${pickupFloor} floor level(s)${crewHint}`,
+        label: `Floor/access (collection): ${pickupFloor} floor level(s)`,
         amount: amt,
       })
     }
   }
   if (deliveryFloor > 0 && perFloorRate > 0) {
-    const amt = money(deliveryFloor * perFloorRate * accessCrewMult)
+    const amt = money(deliveryFloor * perFloorRate)
     if (amt > 0) {
-      const crewHint = accessCrewMult > 1 ? ` × ${accessCrewMult} crew` : ''
       accessLines.push({
-        label: `Floor/access (delivery): ${deliveryFloor} floor level(s)${crewHint}`,
+        label: `Floor/access (delivery): ${deliveryFloor} floor level(s)`,
         amount: amt,
       })
     }
   }
 
-  // No-lift supplement: above ground + customer chose lift No (not ground floor; not when lift Yes).
+  // No-lift supplement: above ground + customer chose lift No (per job — not × crew).
   if (pickupFloor > 0 && pickupLiftExplicit && !pickupLift && noLiftFlat > 0) {
-    const amt = money(noLiftFlat * accessCrewMult)
+    const amt = money(noLiftFlat)
     if (amt > 0) {
-      const crewHint = accessCrewMult > 1 ? ` × ${accessCrewMult} crew` : ''
       accessLines.push({
-        label: `No lift supplement (collection)${crewHint}`,
+        label: 'No lift supplement (collection)',
         amount: amt,
       })
     }
   }
   if (deliveryFloor > 0 && deliveryLiftExplicit && !deliveryLift && noLiftFlat > 0) {
-    const amt = money(noLiftFlat * accessCrewMult)
+    const amt = money(noLiftFlat)
     if (amt > 0) {
-      const crewHint = accessCrewMult > 1 ? ` × ${accessCrewMult} crew` : ''
       accessLines.push({
-        label: `No lift supplement (delivery)${crewHint}`,
+        label: 'No lift supplement (delivery)',
         amount: amt,
       })
     }
@@ -394,21 +406,19 @@ export function calculateQuote(settings, input) {
   const yesLiftPerEnd = Number(s.yesLiftChargePerEnd) || 0
   if (yesLiftPerEnd > 0) {
     if (pickupFloor > 0 && pickupLiftExplicit && pickupLift) {
-      const amt = money(yesLiftPerEnd * accessCrewMult)
+      const amt = money(yesLiftPerEnd)
       if (amt > 0) {
-        const crewHint = accessCrewMult > 1 ? ` × ${accessCrewMult} crew` : ''
         accessLines.push({
-          label: `Lift access charge (collection)${crewHint}`,
+          label: 'Lift access charge (collection)',
           amount: amt,
         })
       }
     }
     if (deliveryFloor > 0 && deliveryLiftExplicit && deliveryLift) {
-      const amt = money(yesLiftPerEnd * accessCrewMult)
+      const amt = money(yesLiftPerEnd)
       if (amt > 0) {
-        const crewHint = accessCrewMult > 1 ? ` × ${accessCrewMult} crew` : ''
         accessLines.push({
-          label: `Lift access charge (delivery)${crewHint}`,
+          label: 'Lift access charge (delivery)',
           amount: amt,
         })
       }
@@ -562,7 +572,7 @@ export function calculateQuote(settings, input) {
     }
   }
 
-  if (distanceCrewLabour || !basePriceUsesPerManPricing) {
+  if (distanceCrewLabour || !basePricePerMan) {
     appendCrewLabourFeeLines(
       extrasLines,
       s,
@@ -570,6 +580,7 @@ export function calculateQuote(settings, input) {
       distanceMiles,
       mapboxRouteDurationSeconds,
       money,
+      { hourlyOnly: distanceCrewLabour },
     )
   }
 
@@ -586,8 +597,8 @@ export function calculateQuote(settings, input) {
 
   const extrasTotal = money(extrasLines.reduce((sum, l) => sum + l.amount, 0))
 
-  const subtotalBeforeSurcharges = money(
-    basePrice + distancePrice + volumePrice + accessTotal + extrasTotal,
+  const calculatedSubtotalBeforeSurcharges = money(
+    distancePrice + volumePrice + accessTotal + extrasTotal,
   )
 
   /** @type {BreakdownLine[]} */
@@ -596,7 +607,7 @@ export function calculateQuote(settings, input) {
   const weekendPct = Number(s.weekendSurchargePercent) || 0
 
   if (extras.sameDay && sameDayPct > 0) {
-    const amt = money((subtotalBeforeSurcharges * sameDayPct) / 100)
+    const amt = money((calculatedSubtotalBeforeSurcharges * sameDayPct) / 100)
     if (amt > 0) {
       surchargeLines.push({
         label: `Same-day booking (${sameDayPct}%)`,
@@ -611,7 +622,7 @@ export function calculateQuote(settings, input) {
       : isWeekendDate(input.moveDate)
 
   if (applyWeekend && weekendPct > 0) {
-    const amt = money((subtotalBeforeSurcharges * weekendPct) / 100)
+    const amt = money((calculatedSubtotalBeforeSurcharges * weekendPct) / 100)
     if (amt > 0) {
       surchargeLines.push({
         label: `Weekend (${weekendPct}%)`,
@@ -621,7 +632,14 @@ export function calculateQuote(settings, input) {
   }
 
   const surchargesTotal = money(surchargeLines.reduce((sum, l) => sum + l.amount, 0))
-  const subtotalAfterSurchargesBeforeMinimum = money(subtotalBeforeSurcharges + surchargesTotal)
+  const calculatedSubtotalBeforeMultiplier = money(
+    calculatedSubtotalBeforeSurcharges + surchargesTotal,
+  )
+
+  const { multiplier: volumeMultiplier, bandLabel: volumeMultiplierBand, multiplierSource: volumeMultiplierSource } =
+    resolveVolumePricingMultiplier(s, totalCubicMetres)
+  const scaledSubtotal = money(calculatedSubtotalBeforeMultiplier * volumeMultiplier)
+  const volumeScalingAmount = money(scaledSubtotal - calculatedSubtotalBeforeMultiplier)
 
   /** @type {BreakdownLine[]} */
   const discountLines = []
@@ -629,13 +647,10 @@ export function calculateQuote(settings, input) {
 
   const oneManPct = Math.min(100, Math.max(0, Number(s.oneManLabourDiscountPercent) || 0))
   const applyOneManLabourDiscount =
-    !basePriceUsesPerManPricing &&
-    selectedCrew === 1 &&
-    effectiveCrewSize === 1 &&
-    oneManPct > 0
+    selectedCrew === 1 && effectiveCrewSize === 1 && oneManPct > 0
 
   if (applyOneManLabourDiscount) {
-    let labourSubtotal = money(basePrice + volumePrice)
+    let labourSubtotal = money(volumePrice)
     for (const line of accessLines) {
       if (isLabourAccessLine(line.label)) labourSubtotal = money(labourSubtotal + line.amount)
     }
@@ -656,10 +671,10 @@ export function calculateQuote(settings, input) {
       if (val > 0) {
         let discountAmt = 0
         if (match.discountType === 'fixed') {
-          discountAmt = money(Math.min(subtotalAfterSurchargesBeforeMinimum, val))
+          discountAmt = money(Math.min(scaledSubtotal, val))
         } else {
           const pct = Math.min(100, Math.max(0, val))
-          discountAmt = money((subtotalAfterSurchargesBeforeMinimum * pct) / 100)
+          discountAmt = money((scaledSubtotal * pct) / 100)
         }
         if (discountAmt > 0) {
           discountTotal = money(discountTotal + discountAmt)
@@ -672,13 +687,21 @@ export function calculateQuote(settings, input) {
     }
   }
 
-  const subtotalAfterDiscount = money(
-    Math.max(0, subtotalAfterSurchargesBeforeMinimum - discountTotal),
-  )
+  const subtotalAfterDiscount = money(Math.max(0, scaledSubtotal - discountTotal))
+
+  const baseThresholdApplied = subtotalAfterDiscount < minimumBaseThreshold
+  const minimumBaseAdjustment = baseThresholdApplied
+    ? money(minimumBaseThreshold - subtotalAfterDiscount)
+    : 0
+  const afterBaseThreshold = money(Math.max(subtotalAfterDiscount, minimumBaseThreshold))
 
   const minimumJobPrice = resolveMinimumJobPriceForCrew(s, effectiveCrewSize)
-  const estimatedTotal = money(Math.max(subtotalAfterDiscount, minimumJobPrice))
+  const estimatedTotal = money(Math.max(afterBaseThreshold, minimumJobPrice))
+  const minimumJobAdjustment = money(estimatedTotal - afterBaseThreshold)
   const minimumApplied = money(estimatedTotal - subtotalAfterDiscount)
+
+  const subtotalBeforeSurcharges = calculatedSubtotalBeforeSurcharges
+  const subtotalAfterSurchargesBeforeMinimum = calculatedSubtotalBeforeMultiplier
 
   logPricingDebug('PRICING SETTINGS USED', s)
   logPricingDebug('DISTANCE MILES', distanceMiles)
@@ -693,11 +716,23 @@ export function calculateQuote(settings, input) {
   logPricingDebug('LABOUR HOURS', estimatedTravelHoursVal)
   logPricingDebug('CREW LABOUR', crewLabourTotal)
   logPricingDebug('ACCESS BREAKDOWN', accessLines)
+  logPricingDebug('MINIMUM BASE THRESHOLD', minimumBaseThreshold)
+  logPricingDebug('VOLUME MULTIPLIER', volumeMultiplier)
   logPricingDebug('MINIMUM APPLIED', minimumApplied)
 
   /** @type {PriceBreakdown} */
   const priceResult = {
-    basePrice: money(basePrice),
+    basePrice: money(minimumBaseThreshold),
+    minimumBaseThreshold: money(minimumBaseThreshold),
+    minimumBaseAdjustment: minimumBaseAdjustment > 0 ? minimumBaseAdjustment : 0,
+    minimumJobAdjustment: minimumJobAdjustment > 0 ? minimumJobAdjustment : 0,
+    baseThresholdApplied,
+    volumeMultiplier,
+    volumeMultiplierBand,
+    volumeMultiplierSource,
+    calculatedSubtotalBeforeMultiplier,
+    scaledSubtotal,
+    volumeScalingAmount,
     distancePrice: money(distancePrice),
     volumePrice: money(volumePrice),
     totalCubicMetres,
@@ -714,10 +749,10 @@ export function calculateQuote(settings, input) {
     minimumJobPrice: money(minimumJobPrice),
     minimumApplied: minimumApplied > 0 ? minimumApplied : 0,
     estimatedTotal,
-    basePriceUsesPerManPricing,
+    basePriceUsesPerManPricing: false,
     crewSizeUsedInPricing: effectiveCrewSize,
     crewSizeSelected: selectedCrew,
-    basePricePerManUnit: basePriceUsesPerManPricing ? money(basePriceRaw) : undefined,
+    basePricePerManUnit: undefined,
     estimatedTravelHours: estimatedTravelHoursVal,
     usesDistanceBasedCrewLabour: distanceCrewLabour,
     crewTravelHoursFromMapbox: travelResolve?.usedMapboxDuration ?? false,
@@ -728,9 +763,31 @@ export function calculateQuote(settings, input) {
         : undefined,
     crewLabourTotal,
     fuelSurchargeAmount,
+    serviceBasePrice: money(serviceBasePrice),
+    crewBaseFees,
   }
 
   priceResult.standardDisplayRows = buildStandardPricingDisplayRows(priceResult)
+  priceResult.pricingDebugDetail = buildPricingDebugDetail(priceResult, {
+    settings: s,
+    serviceType: input.serviceType,
+    distanceMiles,
+    mapboxRouteDurationSeconds,
+    selectedCrew,
+    effectiveCrewSize,
+    largeMoveThreshold,
+    largeMoveTriggered,
+    minCrewForService,
+    minCrewForLargeMoves,
+    distanceCrewLabour,
+    basePricePerMan,
+    serviceBasePrice: money(serviceBasePrice),
+    minimumBaseThreshold: money(minimumBaseThreshold),
+    pricePerMile: Number(s.pricePerMile) || 0,
+    pricePerCubicMetre: Number(s.pricePerCubicMetre) || 0,
+    accessInput: input.access || {},
+    extrasInput: input.extras || {},
+  })
   logPricingDebug('FINAL PRICE RESULT', priceResult)
 
   return priceResult
@@ -740,14 +797,7 @@ export function calculateQuote(settings, input) {
  * @param {PriceBreakdown} b
  */
 export function breakdownToFlatRows(b) {
-  const baseLabel =
-    b.basePriceUsesPerManPricing &&
-    b.crewSizeUsedInPricing != null &&
-    b.basePricePerManUnit != null
-      ? `Base price (${b.crewSizeUsedInPricing} × £${b.basePricePerManUnit.toFixed(2)} per man)`
-      : 'Base price'
   const rows = [
-    { label: baseLabel, amount: b.basePrice },
     { label: 'Distance', amount: b.distancePrice },
     { label: 'Inventory (volume)', amount: b.volumePrice },
   ]
@@ -757,8 +807,11 @@ export function breakdownToFlatRows(b) {
   for (const l of b.discountLines || []) {
     rows.push({ label: l.label, amount: -Math.abs(l.amount) })
   }
+  if (b.volumeScalingAmount != null && b.volumeScalingAmount !== 0) {
+    rows.push({ label: `Volume scaling (×${b.volumeMultiplier ?? 1})`, amount: b.volumeScalingAmount })
+  }
   if (b.minimumApplied > 0) {
-    rows.push({ label: 'Minimum job price adjustment', amount: b.minimumApplied })
+    rows.push({ label: 'Minimum price adjustment', amount: b.minimumApplied })
   }
   return rows
 }

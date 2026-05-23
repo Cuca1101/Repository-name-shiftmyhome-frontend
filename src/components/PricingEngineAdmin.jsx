@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { PACKING_MATERIALS_CATALOG } from '../lib/packingMaterialsCatalog'
 import { SERVICE_TYPES } from '../constants/serviceTypes'
+import { VOLUME_MULTIPLIER_BANDS } from '../lib/volumePricingMultiplier'
 import { fetchPricingSettings, savePricingSettings } from '../lib/data/pricingSettingsRepository'
 import { getDefaultPricingSettings } from '../lib/defaultPricingSettings'
 
@@ -160,7 +161,7 @@ export default function PricingEngineAdmin() {
 
       <form onSubmit={handleSave} className="space-y-8">
         <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-card">
-          <h3 className="text-lg font-semibold text-slate-900">Base price per service type</h3>
+          <h3 className="text-lg font-semibold text-slate-900">Minimum service threshold per service type</h3>
           <label className="mt-4 flex cursor-pointer items-start gap-3 rounded-xl border border-slate-100 bg-slate-50/80 p-4">
             <input
               type="checkbox"
@@ -171,15 +172,15 @@ export default function PricingEngineAdmin() {
             <span>
               <span className="block text-sm font-semibold text-slate-900">Base price is per crew member</span>
               <span className="mt-1 block text-xs leading-relaxed text-slate-600">
-                When enabled, each service base price above is multiplied by the crew size from the customer quote
-                (quote wizard Step 2). The separate “extra crew member” surcharge is not applied — crew is included in
-                the base total.
+                Legacy admin option — kept for compatibility. Quote calculations use a flat service minimum threshold
+                plus per-crew base thresholds; this toggle no longer multiplies the service threshold by crew size.
               </span>
             </span>
           </label>
           <p className="mt-3 text-xs leading-relaxed text-slate-500">
-            Display prices only change the homepage/service card &ldquo;From £&hellip;&rdquo; text. They do not affect
-            quote calculations.
+            Homepage display prices only change the service card &ldquo;From £&hellip;&rdquo; text. They do not affect
+            quote calculations. Minimum service thresholds below are floors applied only when the calculated quote
+            subtotal (after volume scaling) is lower.
           </p>
           <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {SERVICE_TYPES.map((s) => (
@@ -189,8 +190,10 @@ export default function PricingEngineAdmin() {
               >
                 <p className="text-sm font-semibold text-slate-900">{s}</p>
                 <label className="mt-3 block">
-                  <span className="text-xs font-medium text-slate-700">Base price</span>
-                  <span className="mt-0.5 block text-[11px] text-slate-500">Used for quote calculation</span>
+                  <span className="text-xs font-medium text-slate-700">Minimum service threshold</span>
+                  <span className="mt-0.5 block text-[11px] text-slate-500">
+                    Floor for small jobs (with crew base thresholds) — not hard-added when quote is higher
+                  </span>
                   <div className="mt-1.5 flex items-center gap-2">
                     <span className="text-slate-500">£</span>
                     <input
@@ -204,8 +207,8 @@ export default function PricingEngineAdmin() {
                   </div>
                 </label>
                 <label className="mt-3 block">
-                  <span className="text-xs font-medium text-slate-600">Display price</span>
-                  <span className="mt-0.5 block text-[11px] text-slate-500">Card display price (homepage only)</span>
+                  <span className="text-xs font-medium text-slate-600">Homepage display price</span>
+                  <span className="mt-0.5 block text-[11px] text-slate-500">Card &ldquo;From £&hellip;&rdquo; only — never used in quotes</span>
                   <div className="mt-1.5 flex items-center gap-2">
                     <span className="text-sm text-slate-400">£</span>
                     <input
@@ -318,6 +321,32 @@ export default function PricingEngineAdmin() {
                 />
               </Field>
             </div>
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-card">
+          <h3 className="text-lg font-semibold text-slate-900">Volume scaling multipliers</h3>
+          <p className="mt-1 text-sm leading-relaxed text-slate-600">
+            Applied to the calculated quote subtotal (after surcharges, before discounts). Band boundaries are fixed;
+            only the multiplier values are editable here. Does not affect homepage display prices or minimum thresholds.
+          </p>
+          <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {[...VOLUME_MULTIPLIER_BANDS].reverse().map((band) => (
+              <Field
+                key={band.key}
+                label={`${band.bandLabel} multiplier`}
+                helper={`Default fallback: ×${fallbackDefaults[band.key] ?? 1}`}
+              >
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0.01"
+                  className={inputClass}
+                  value={settings[band.key] ?? fallbackDefaults[band.key] ?? 1}
+                  onChange={(e) => setNum(band.key, e.target.value)}
+                />
+              </Field>
+            ))}
           </div>
         </div>
 

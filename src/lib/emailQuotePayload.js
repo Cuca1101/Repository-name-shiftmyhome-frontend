@@ -39,14 +39,7 @@ export function makeQuoteRef() {
 
 export function formatQuoteBreakdownLines(b) {
   if (!b) return ''
-  const baseLead =
-    b.basePriceUsesPerManPricing &&
-    b.crewSizeUsedInPricing != null &&
-    b.basePricePerManUnit != null
-      ? `Base (${b.crewSizeUsedInPricing} × £${b.basePricePerManUnit.toFixed(2)} per man)`
-      : 'Base'
   const lines = [
-    `${baseLead}: £${b.basePrice.toFixed(2)}`,
     `Distance: £${b.distancePrice.toFixed(2)}`,
     `Volume: £${b.volumePrice.toFixed(2)} (total ${b.totalCubicMetres.toFixed(2)} m³)`,
   ]
@@ -56,7 +49,10 @@ export function formatQuoteBreakdownLines(b) {
   for (const l of b.discountLines || []) {
     lines.push(`${l.label}: −£${l.amount.toFixed(2)}`)
   }
-  if (b.minimumApplied > 0) lines.push(`Minimum job adjustment: £${b.minimumApplied.toFixed(2)}`)
+  if (b.volumeScalingAmount != null && b.volumeScalingAmount !== 0) {
+    lines.push(`Volume scaling (×${b.volumeMultiplier ?? 1}): £${b.volumeScalingAmount.toFixed(2)}`)
+  }
+  if (b.minimumApplied > 0) lines.push(`Minimum price adjustment: £${b.minimumApplied.toFixed(2)}`)
   lines.push(`Estimated total: £${b.estimatedTotal.toFixed(2)}`)
   return lines.join('\n')
 }
