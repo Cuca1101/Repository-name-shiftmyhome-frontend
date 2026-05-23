@@ -5,6 +5,8 @@ import SeoFaqJsonLd from '../components/seo/SeoFaqJsonLd'
 import SeoBusinessJsonLd from '../components/seo/SeoBusinessJsonLd'
 import SeoFaqAccordion from '../components/seo/SeoFaqAccordion'
 import { getSeoPageByPath } from '../data/seoPages'
+import { useSeoSettings } from '../context/SeoSettingsContext'
+import { mergeSeoLandingPageConfig } from '../lib/seoSettingsMerge'
 import { CONTACT, WHATSAPP_URL } from '../config'
 
 const SERVICE_HERO_IMAGE = {
@@ -97,7 +99,9 @@ function TrustIcon({ name, className = 'h-3 w-3' }) {
 
 export default function SeoLandingPage() {
   const { pathname } = useLocation()
-  const page = getSeoPageByPath(pathname)
+  const { getForPath } = useSeoSettings()
+  const basePage = getSeoPageByPath(pathname)
+  const page = mergeSeoLandingPageConfig(basePage, getForPath(pathname))
 
   if (!page) {
     return <Navigate to="/" replace />

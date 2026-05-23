@@ -2,13 +2,16 @@ import HomeSectionLink from '../HomeSectionLink'
 import HomeTrustRow from '../HomeTrustRow'
 import HeroBackgroundMedia from '../HeroBackgroundMedia'
 import { useWebsiteCms } from '../../context/WebsiteCmsContext'
+import { useSeoSettings } from '../../context/SeoSettingsContext'
+import { mergeHomepageCmsWithSeo } from '../../lib/seoSettingsMerge'
 import { coerceUseHeroVideo } from '../../lib/heroCmsVideo'
 import { DEFAULT_HOMEPAGE } from '../../lib/websiteCmsDefaults'
 
 /** Desktop homepage hero — text left on light blue, video right (md+). */
 export default function DesktopHero() {
   const { homepage } = useWebsiteCms()
-  const h = homepage ?? DEFAULT_HOMEPAGE
+  const { getForSlug } = useSeoSettings()
+  const h = mergeHomepageCmsWithSeo(homepage ?? DEFAULT_HOMEPAGE, getForSlug('home'))
   const heroImage = h.heroImageUrl || DEFAULT_HOMEPAGE.heroImageUrl
   const useHeroVideo = coerceUseHeroVideo(h.useHeroVideo)
   const heroVideoUrl = h.heroVideoUrl || ''
@@ -19,15 +22,21 @@ export default function DesktopHero() {
         <div className="hero-text-panel flex min-w-0 flex-col justify-center">
           <div className="home-container py-8 sm:py-10 lg:max-w-none lg:py-12 lg:pl-8 lg:pr-6 xl:pl-10 xl:pr-8">
             <h1 className="text-balance text-[1.75rem] font-extrabold leading-[1.12] tracking-tight text-navy sm:text-4xl lg:text-[2.65rem] lg:leading-[1.08]">
-              {h.heroTitlePart1}{' '}
-              <span className="bg-gradient-to-r from-brand-600 via-brand-500 to-cyan-500 bg-clip-text text-transparent">
-                {h.heroTitleHighlight1}
-              </span>
-              <br />
-              <span className="text-slate-900">{h.heroTitlePart2} </span>
-              <span className="bg-gradient-to-r from-brand-600 via-brand-500 to-cyan-500 bg-clip-text text-transparent">
-                {h.heroTitleHighlight2}
-              </span>
+              {h.seoHeroHeadline ? (
+                h.seoHeroHeadline
+              ) : (
+                <>
+                  {h.heroTitlePart1}{' '}
+                  <span className="bg-gradient-to-r from-brand-600 via-brand-500 to-cyan-500 bg-clip-text text-transparent">
+                    {h.heroTitleHighlight1}
+                  </span>
+                  <br />
+                  <span className="text-slate-900">{h.heroTitlePart2} </span>
+                  <span className="bg-gradient-to-r from-brand-600 via-brand-500 to-cyan-500 bg-clip-text text-transparent">
+                    {h.heroTitleHighlight2}
+                  </span>
+                </>
+              )}
             </h1>
             <p className="mt-3 max-w-lg text-[15px] leading-relaxed text-slate-600 sm:mt-4 sm:text-base lg:text-[17px]">
               {h.heroSubtitle}

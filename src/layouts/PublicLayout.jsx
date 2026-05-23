@@ -7,6 +7,7 @@ import HomePageSeo from '../components/seo/HomePageSeo'
 import WebsiteAnnouncementBar from '../components/WebsiteAnnouncementBar'
 import { CoverageModalProvider } from '../context/CoverageModalContext'
 import { WebsiteCmsProvider } from '../context/WebsiteCmsContext'
+import { SeoSettingsProvider } from '../context/SeoSettingsContext'
 
 export default function PublicLayout({ children }) {
   const { pathname } = useLocation()
@@ -15,6 +16,7 @@ export default function PublicLayout({ children }) {
   return (
     <CoverageModalProvider>
       <WebsiteCmsProvider>
+        <SeoSettingsProvider>
         <div className="flex min-h-screen min-w-0 w-full max-w-full flex-col clip-x">
           <HomeHashScroll />
           <HomePageSeo />
@@ -30,6 +32,7 @@ export default function PublicLayout({ children }) {
           <Footer />
           <WhatsAppButton variant={quoteFlow ? 'quote-flow' : 'default'} />
         </div>
+        </SeoSettingsProvider>
       </WebsiteCmsProvider>
     </CoverageModalProvider>
   )

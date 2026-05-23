@@ -2,6 +2,8 @@ import { useEffect } from 'react'
 import { useLocation } from 'react-router-dom'
 import { SEO_SITE_ORIGIN } from '../../data/seoPages'
 import { useWebsiteCms } from '../../context/WebsiteCmsContext'
+import { useSeoSettings } from '../../context/SeoSettingsContext'
+import { mergeHomepageCmsWithSeo } from '../../lib/seoSettingsMerge'
 import { DEFAULT_HOMEPAGE } from '../../lib/websiteCmsDefaults'
 import { buildMovingCompanyJsonLd, buildWebSiteJsonLd } from '../../lib/schemaOrgBusiness'
 
@@ -43,12 +45,17 @@ function setLink(rel, href) {
 export default function HomePageSeo() {
   const { pathname } = useLocation()
   const { homepage } = useWebsiteCms()
+  const { getForSlug } = useSeoSettings()
   const isHome = pathname === '/'
 
+  const mergedHome = mergeHomepageCmsWithSeo(homepage, getForSlug('home'))
   const pageTitle =
-    String(homepage?.homepageSeoTitle || '').trim() || HOME_PAGE_TITLE
+    String(mergedHome.homepageSeoTitle || '').trim() || HOME_PAGE_TITLE
   const pageDescription =
-    String(homepage?.homepageSeoDescription || '').trim() || HOME_PAGE_DESCRIPTION
+    String(mergedHome.homepageSeoDescription || '').trim() || HOME_PAGE_DESCRIPTION
+  const ogTitle = String(mergedHome.seoOgTitle || pageTitle).trim()
+  const ogDescription = String(mergedHome.seoOgDescription || pageDescription).trim()
+  const canonical = String(mergedHome.seoCanonicalUrl || `${SITE_ORIGIN}/`).trim()
 
   useEffect(() => {
     if (!isHome) return undefined
@@ -58,17 +65,17 @@ export default function HomePageSeo() {
 
     const metas = [
       setMeta('name', 'description', pageDescription),
-      setMeta('property', 'og:title', pageTitle),
-      setMeta('property', 'og:description', pageDescription),
-      setMeta('property', 'og:url', SITE_ORIGIN),
+      setMeta('property', 'og:title', ogTitle),
+      setMeta('property', 'og:description', ogDescription),
+      setMeta('property', 'og:url', canonical),
       setMeta('property', 'og:type', 'website'),
       setMeta('property', 'og:site_name', 'ShiftMyHome'),
       setMeta('name', 'twitter:card', 'summary_large_image'),
-      setMeta('name', 'twitter:title', pageTitle),
-      setMeta('name', 'twitter:description', pageDescription),
+      setMeta('name', 'twitter:title', ogTitle),
+      setMeta('name', 'twitter:description', ogDescription),
     ]
 
-    const canonical = setLink('canonical', `${SITE_ORIGIN}/`)
+    const canonicalLink = setLink('canonical', canonical)
 
     const scriptId = 'shiftmyhome-home-jsonld'
     let script = document.getElementById(scriptId)
@@ -90,12 +97,12 @@ export default function HomePageSeo() {
         if (created && el.parentNode) el.parentNode.removeChild(el)
         else if (prev != null) el.setAttribute('content', prev)
       })
-      if (canonical.created && canonical.el.parentNode) canonical.el.parentNode.removeChild(canonical.el)
-      else if (canonical.prev != null) canonical.el.setAttribute('href', canonical.prev)
+      if (canonicalLink.created && canonicalLink.el.parentNode) canonicalLink.el.parentNode.removeChild(canonicalLink.el)
+      else if (canonicalLink.prev != null) canonicalLink.el.setAttribute('href', canonicalLink.prev)
       if (!hadScript && script?.parentNode) script.parentNode.removeChild(script)
       else if (hadScript) script.textContent = prevJson
     }
-  }, [isHome, pageTitle, pageDescription])
+  }, [isHome, pageTitle, pageDescription, ogTitle, ogDescription, canonical])
 
   return null
 }

@@ -21,6 +21,7 @@ import PricingEngineAdmin from './components/PricingEngineAdmin'
 import ItemsLibraryAdmin from './components/ItemsLibraryAdmin'
 import ReviewsAdmin from './components/ReviewsAdmin'
 import WebsiteCmsAdmin from './components/admin/WebsiteCmsAdmin'
+import SeoDashboardAdmin from './components/admin/SeoDashboardAdmin'
 import AvailableJobsAdmin from './components/AvailableJobsAdmin'
 import MarketplaceJobsAdmin from './components/MarketplaceJobsAdmin'
 import ActiveJobsAdmin from './components/ActiveJobsAdmin'
@@ -169,6 +170,7 @@ export default function App() {
         <Route path="items" element={<ItemsLibraryAdmin />} />
         <Route path="reviews" element={<ReviewsAdmin />} />
         <Route path="website-cms" element={<WebsiteCmsAdmin />} />
+        <Route path="seo" element={<SeoDashboardAdmin />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

@@ -1,16 +1,26 @@
 import { Link, Navigate, useLocation } from 'react-router-dom'
 import { getServicePageByPath } from '../constants/servicePages'
+import { useSeoSettings } from '../context/SeoSettingsContext'
+import { mergeServicePageConfig } from '../lib/seoSettingsMerge'
+import SeoHead from '../components/seo/SeoHead'
 import QuoteWizard from '../components/quote-wizard/QuoteWizard'
 
 export default function ServiceQuotePage() {
   const { pathname } = useLocation()
-  const page = getServicePageByPath(pathname)
+  const { getForPath } = useSeoSettings()
+  const basePage = getServicePageByPath(pathname)
+  const page = mergeServicePageConfig(basePage, getForPath(pathname))
   if (!page) {
     return <Navigate to="/" replace />
   }
 
   return (
     <div className="min-w-0">
+      <SeoHead
+        title={page.seoTitle || page.title}
+        description={page.metaDescription || page.shortDescription}
+        path={pathname}
+      />
       <section
         className="relative isolate max-md:max-h-[6.5rem] overflow-hidden border-b border-slate-200/80 bg-brand-950 md:max-h-none"
         aria-label="Service hero"
