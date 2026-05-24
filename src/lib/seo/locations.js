@@ -261,11 +261,35 @@ export const MAN_WITH_VAN_SEO_CITIES = [
   'Livingston',
 ]
 
-/** Footer + hub internal links for major locations. */
-export const FOOTER_SEO_LOCATION_LINKS = PRIORITY_SEO_CITIES.slice(0, 12).map((name) => ({
-  to: `/${cityToSlug(name)}-removals`,
-  label: `${name} removals`,
-}))
+/** Primary footer cities — keep the footer concise; full list lives on /coverage. */
+export const FOOTER_PRIMARY_CITIES = [
+  'Glasgow',
+  'Edinburgh',
+  'Aberdeen',
+  'Dundee',
+  'Inverness',
+  'Paisley',
+]
+
+/** Display order for coverage page region groups. */
+export const REGION_DISPLAY_ORDER = [
+  'greater-glasgow',
+  'edinburgh-lothians',
+  'lanarkshire',
+  'lothians',
+  'fife',
+  'tayside',
+  'north-east',
+  'highlands',
+  'ayrshire',
+  'central',
+  'inverclyde',
+  'south',
+  'borders',
+  'argyll',
+  'islands',
+  'scotland',
+]
 
 /** @param {string} cityName */
 export function getLocationRegion(cityName) {
@@ -291,6 +315,44 @@ export function getLocationBySlug(slug) {
 /** @param {string} cityName */
 export function getRemovalsPathForCity(cityName) {
   return `/${cityToSlug(cityName)}-removals`
+}
+
+/** Footer internal links — high-priority cities only (display name without "removals" suffix). */
+export const FOOTER_SEO_LOCATION_LINKS = FOOTER_PRIMARY_CITIES.map((name) => ({
+  to: `/${cityToSlug(name)}-removals`,
+  label: name,
+}))
+
+/**
+ * All Scotland SEO locations grouped by region for the coverage page.
+ * @returns {{ regionKey: string, label: string, locations: { name: string, slug: string, href: string }[] }[]}
+ */
+export function getScotlandLocationsGroupedByRegion() {
+  /** @type {Map<string, { regionKey: string, label: string, locations: { name: string, slug: string, href: string }[] }>} */
+  const groups = new Map()
+
+  for (const name of SCOTLAND_LOCATION_NAMES) {
+    const region = getLocationRegion(name)
+    if (!groups.has(region.key)) {
+      groups.set(region.key, { regionKey: region.key, label: region.label, locations: [] })
+    }
+    const slug = cityToSlug(name)
+    groups.get(region.key).locations.push({
+      name,
+      slug,
+      href: `/${slug}-removals`,
+    })
+  }
+
+  for (const group of groups.values()) {
+    group.locations.sort((a, b) => a.name.localeCompare(b.name, 'en-GB'))
+  }
+
+  const ordered = REGION_DISPLAY_ORDER.filter((key) => groups.has(key)).map((key) => groups.get(key))
+  for (const [key, group] of groups) {
+    if (!REGION_DISPLAY_ORDER.includes(key)) ordered.push(group)
+  }
+  return ordered
 }
 
 /** @param {string} cityName @param {string} [excludeCity] @param {number} [limit] */

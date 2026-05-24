@@ -2,14 +2,15 @@ import { useLayoutEffect } from 'react'
 import { useLocation } from 'react-router-dom'
 
 /**
- * When the URL is `/` with a hash (e.g. after client navigation from another route),
+ * When the URL includes a hash on supported routes (e.g. `/#services` or `/coverage#scotland-coverage`),
  * scroll the matching element into view after the main content mounts.
  */
 export default function HomeHashScroll() {
   const location = useLocation()
 
   useLayoutEffect(() => {
-    if (location.pathname !== '/') return undefined
+    const supportsHashScroll = location.pathname === '/' || location.pathname === '/coverage'
+    if (!supportsHashScroll) return undefined
     const id = location.hash?.replace(/^#/, '').trim()
     if (!id) return undefined
 

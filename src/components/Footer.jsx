@@ -2,10 +2,11 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import Logo from './Logo'
 import HomeSectionLink from './HomeSectionLink'
-import CoverageLink from './CoverageLink'
+import CoverageLink, { COVERAGE_DIRECTORY_PATH } from './CoverageLink'
 import { CONTACT, WHATSAPP_URL } from '../config'
 import { supabase } from '../lib/supabase'
 import { useWebsiteCms } from '../context/WebsiteCmsContext'
+import { FOOTER_SEO_LOCATION_LINKS } from '../lib/seo/locations.js'
 
 const quickLinks = [
   { sectionId: 'home', label: 'Home' },
@@ -18,7 +19,7 @@ const quickLinks = [
   { sectionId: 'services', label: 'Get Free Quote' },
 ]
 
-const linkClass = 'text-slate-400 transition hover:text-brand-300'
+const linkClass = 'footer-nav-link'
 
 const serviceLinks = [
   { to: '/house-removals', label: 'House Removals' },
@@ -29,17 +30,29 @@ const serviceLinks = [
   { to: '/student-moves', label: 'Student Moves' },
 ]
 
-import { FOOTER_SEO_LOCATION_LINKS } from '../lib/seo/locations.js'
-import { SCOTLAND_HUB_LINKS } from '../lib/seoNearbyAreas.js'
-
 const areaSeoLinks = FOOTER_SEO_LOCATION_LINKS
-const hubSeoLinks = SCOTLAND_HUB_LINKS.slice(0, 4)
+
+const guideLinks = [
+  { to: '/removals-scotland', label: 'Removals Scotland' },
+  { to: '/movers-near-me', label: 'Movers Near Me' },
+  { to: '/ikea-furniture-delivery', label: 'IKEA Delivery' },
+  { to: '/furniture-delivery-scotland', label: 'Furniture Delivery' },
+]
 
 const legalLinks = [
   { to: '/terms', label: 'Terms & Conditions' },
   { to: '/privacy', label: 'Privacy Policy' },
   { to: '/cookies', label: 'Cookie Preferences' },
 ]
+
+function FooterNavColumn({ title, children, className = '' }) {
+  return (
+    <div className={`min-w-0 ${className}`}>
+      <p className="footer-nav-heading">{title}</p>
+      {children}
+    </div>
+  )
+}
 
 function SocialIcon({ href, label, children }) {
   return (
@@ -93,9 +106,9 @@ export default function Footer() {
   return (
     <footer className="site-footer-premium text-slate-300">
       <div className="mx-auto min-w-0 max-w-6xl px-4 py-8 sm:px-6 sm:py-14 lg:px-8">
-        <div className="grid min-w-0 gap-6 sm:grid-cols-2 sm:gap-10 lg:grid-cols-4 lg:gap-12">
-          <div className="sm:col-span-2 lg:col-span-1">
-            <p className="text-sm font-semibold uppercase tracking-wide text-white">About ShiftMyHome</p>
+        <div className="grid min-w-0 gap-8 sm:grid-cols-2 lg:grid-cols-12 lg:gap-x-8 lg:gap-y-10">
+          <div className="min-w-0 sm:col-span-2 lg:col-span-3">
+            <p className="footer-nav-heading">About ShiftMyHome</p>
             <Link
               to="/"
               className="footer-logo-wrap mt-3 inline-block bg-transparent outline-none ring-offset-slate-900 focus-visible:ring-2 focus-visible:ring-brand-500"
@@ -125,12 +138,10 @@ export default function Footer() {
             </div>
           </div>
 
-          <div className="col-span-2 grid grid-cols-2 gap-x-4 gap-y-0 sm:contents">
-            <div className="min-w-0">
-              <p className="text-sm font-semibold uppercase tracking-wide text-white">Quick Links</p>
-              <ul className="mt-3 space-y-2 text-sm sm:mt-4 sm:space-y-2.5">
-                {quickLinks.map((item) => (
-                <li key={item.to ?? item.sectionId}>
+          <FooterNavColumn title="Quick Links" className="lg:col-span-2">
+            <ul className="footer-nav-list">
+              {quickLinks.map((item) => (
+                <li key={item.to ?? item.sectionId + item.label}>
                   {item.to ? (
                     <Link to={item.to} className={linkClass}>
                       {item.label}
@@ -145,48 +156,55 @@ export default function Footer() {
                 </li>
               ))}
             </ul>
-            </div>
+          </FooterNavColumn>
 
-            <div className="min-w-0">
-              <p className="text-sm font-semibold uppercase tracking-wide text-white">Services</p>
-              <ul className="mt-3 space-y-2 text-sm sm:mt-4 sm:space-y-2.5">
-                {serviceLinks.map(({ to, label }) => (
-                  <li key={to}>
-                    <Link to={to} className="text-slate-400 transition hover:text-brand-300">
-                      {label}
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-              <p className="mt-6 text-sm font-semibold uppercase tracking-wide text-white">Areas we serve</p>
-              <ul className="mt-3 space-y-2 text-sm sm:mt-4 sm:space-y-2.5">
+          <FooterNavColumn title="Services" className="lg:col-span-2">
+            <ul className="footer-nav-list">
+              {serviceLinks.map(({ to, label }) => (
+                <li key={to}>
+                  <Link to={to} className={linkClass}>
+                    {label}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </FooterNavColumn>
+
+          <div className="grid min-w-0 grid-cols-2 gap-x-6 gap-y-8 sm:col-span-2 lg:col-span-3">
+            <FooterNavColumn title="Areas We Serve">
+              <ul className="footer-nav-list">
                 {areaSeoLinks.map(({ to, label }) => (
                   <li key={to}>
-                    <Link to={to} className="text-slate-400 transition hover:text-brand-300">
+                    <Link to={to} className={linkClass}>
                       {label}
                     </Link>
                   </li>
                 ))}
               </ul>
-              <p className="mt-6 text-sm font-semibold uppercase tracking-wide text-white">Guides &amp; delivery</p>
-              <ul className="mt-3 space-y-2 text-sm sm:mt-4 sm:space-y-2.5">
-                {hubSeoLinks.map(({ href, label }) => (
-                  <li key={href}>
-                    <Link to={href} className="text-slate-400 transition hover:text-brand-300">
+              <Link to={COVERAGE_DIRECTORY_PATH} className="footer-cta-link">
+                View all coverage areas
+              </Link>
+            </FooterNavColumn>
+
+            <FooterNavColumn title="Guides & Delivery">
+              <ul className="footer-nav-list">
+                {guideLinks.map(({ to, label }) => (
+                  <li key={to}>
+                    <Link to={to} className={linkClass}>
                       {label}
                     </Link>
                   </li>
                 ))}
               </ul>
-            </div>
+            </FooterNavColumn>
           </div>
 
-          <div className="col-span-2 min-w-0 sm:col-span-1">
-            <p className="text-sm font-semibold uppercase tracking-wide text-white">Contact</p>
-            <ul className="mt-3 space-y-2.5 text-sm sm:mt-4 sm:space-y-3">
+          <div className="min-w-0 sm:col-span-2 lg:col-span-2">
+            <p className="footer-nav-heading">Contact</p>
+            <ul className="footer-nav-list mt-3 space-y-2.5 sm:space-y-3">
               <li>
-                <a href={`tel:${phoneTel}`} className="inline-flex items-center gap-2 text-slate-300 hover:text-white">
-                  <span className="text-brand-400" aria-hidden>
+                <a href={`tel:${phoneTel}`} className="inline-flex items-center gap-2 text-sm text-slate-300 hover:text-white">
+                  <span className="text-slate-400" aria-hidden>
                     <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                       <path
                         strokeLinecap="round"
@@ -214,9 +232,9 @@ export default function Footer() {
               <li>
                 <a
                   href={`mailto:${email}`}
-                  className="inline-flex items-start gap-2 break-all text-slate-300 hover:text-white"
+                  className="inline-flex items-start gap-2 break-all text-sm text-slate-300 hover:text-white"
                 >
-                  <span className="mt-0.5 shrink-0 text-brand-400" aria-hidden>
+                  <span className="mt-0.5 shrink-0 text-slate-400" aria-hidden>
                     <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                       <path
                         strokeLinecap="round"
@@ -228,8 +246,8 @@ export default function Footer() {
                   {email}
                 </a>
               </li>
-              <li className="flex gap-2 pt-1 text-slate-400">
-                <span className="mt-0.5 shrink-0 text-brand-400" aria-hidden>
+              <li className="flex gap-2 pt-1 text-xs leading-relaxed text-slate-400">
+                <span className="mt-0.5 shrink-0 text-slate-400" aria-hidden>
                   <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
                     <path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
@@ -237,9 +255,7 @@ export default function Footer() {
                 </span>
                 <span>
                   Glasgow, Scotland
-                  <span className="mt-2 block text-xs leading-relaxed text-slate-500">
-                    Covering Glasgow, Scotland and UK-wide moves.
-                  </span>
+                  <span className="mt-1 block text-slate-500">Covering Glasgow, Scotland and UK-wide moves.</span>
                 </span>
               </li>
             </ul>
@@ -251,16 +267,13 @@ export default function Footer() {
             <ul className="flex flex-wrap gap-x-6 gap-y-2 text-xs text-slate-500">
               {legalLinks.map(({ to, label }) => (
                 <li key={to}>
-                  <Link to={to} className="hover:text-brand-300">
+                  <Link to={to} className="transition hover:text-slate-300">
                     {label}
                   </Link>
                 </li>
               ))}
               <li>
-                <Link
-                  to={adminHref}
-                  className="text-slate-600 transition hover:text-slate-400"
-                >
+                <Link to={adminHref} className="text-slate-600 transition hover:text-slate-400">
                   {adminLabel}
                 </Link>
               </li>

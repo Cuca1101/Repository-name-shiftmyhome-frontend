@@ -539,6 +539,22 @@
   .site-footer-premium .footer-social-link {
     @apply flex h-10 w-10 items-center justify-center rounded-full border border-slate-600 bg-slate-800/90 text-slate-300 transition-all duration-300 ease-premium hover:-translate-y-0.5 hover:border-brand-400/60 hover:bg-brand-600/20 hover:text-white hover:shadow-lg hover:shadow-brand-500/20;
   }
+
+  .site-footer-premium .footer-nav-heading {
+    @apply text-xs font-semibold uppercase tracking-wider text-white;
+  }
+
+  .site-footer-premium .footer-nav-link {
+    @apply inline-block text-xs leading-relaxed text-slate-400 transition-colors hover:text-slate-200;
+  }
+
+  .site-footer-premium .footer-nav-list {
+    @apply mt-3 space-y-1.5;
+  }
+
+  .site-footer-premium .footer-cta-link {
+    @apply mt-2 inline-flex min-h-[32px] items-center rounded-md border border-slate-600/70 bg-slate-800/60 px-2.5 py-1.5 text-xs font-medium text-slate-200 transition hover:border-slate-500 hover:bg-slate-800 hover:text-white;
+  }
 }
 
 @media (max-width: 430px) {

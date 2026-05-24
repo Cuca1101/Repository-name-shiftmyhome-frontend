@@ -4,7 +4,8 @@ import SeoHead from '../components/seo/SeoHead'
 import SeoBreadcrumbJsonLd from '../components/seo/SeoBreadcrumbJsonLd'
 import { SERVICE_PAGES } from '../constants/servicePages'
 import NetworkCoverageMap from '../components/coverage/NetworkCoverageMap'
-import { COVERAGE_AREAS } from '../lib/coverageAreas'
+import ScotlandCoverageLocationIndex from '../components/coverage/ScotlandCoverageLocationIndex'
+import { SCOTLAND_LOCATION_NAMES, FOOTER_PRIMARY_CITIES, getRemovalsPathForCity } from '../lib/seo/locations.js'
 
 const MAIN_LINKS = [
   { sectionId: 'home', label: 'Home' },
@@ -15,11 +16,13 @@ const MAIN_LINKS = [
 ]
 
 export default function CoveragePage() {
+  const locationCount = SCOTLAND_LOCATION_NAMES.length
+
   return (
     <div className="min-w-0 bg-slate-50 pb-16 pt-8 sm:pb-20 sm:pt-10">
       <SeoHead
-        title="Removals Coverage Across Scotland | ShiftMyHome"
-        description="ShiftMyHome covers removals, man with van, furniture delivery and moving services across Glasgow, Edinburgh, Aberdeen, Dundee, Inverness, Stirling, Perth and wider Scotland."
+        title="Scotland Removals Coverage Areas | ShiftMyHome"
+        description={`House removals, man with van and furniture delivery across ${locationCount} Scottish towns and cities — Glasgow, Edinburgh, Aberdeen, Dundee, Inverness, Paisley and nationwide routes.`}
         path="/coverage"
         includeSocial
       />
@@ -34,9 +37,12 @@ export default function CoveragePage() {
               <span className="mx-2 text-slate-300">/</span>
               <span className="text-slate-700">Coverage</span>
             </nav>
-            <h1 className="mt-3 text-2xl font-bold tracking-tight text-slate-900 sm:text-4xl">UK coverage map</h1>
+            <h1 className="mt-3 text-2xl font-bold tracking-tight text-slate-900 sm:text-4xl">
+              Scotland removals coverage
+            </h1>
             <p className="mt-2 max-w-2xl text-sm text-slate-600 sm:text-base">
-              Interactive network view — pins show regular service hubs. We also quote UK-wide moves beyond these markers.
+              Interactive map of our regular service hubs, plus a full directory of {locationCount} Scottish locations
+              with dedicated removals pages and instant online quotes.
             </p>
           </div>
           <Link
@@ -61,7 +67,7 @@ export default function CoveragePage() {
                   </svg>
                 </span>
                 <div>
-                  <p className="text-sm font-bold text-slate-900">Sitemap</p>
+                  <p className="text-sm font-bold text-slate-900">Quick links</p>
                   <p className="text-xs text-slate-500">Navigate the site</p>
                 </div>
               </div>
@@ -99,10 +105,14 @@ export default function CoveragePage() {
                 </div>
 
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Coverage areas</p>
-                  <ul className="mt-2 max-h-48 space-y-1 overflow-y-auto text-sm text-slate-600">
-                    {COVERAGE_AREAS.map((a) => (
-                      <li key={a.id}>{a.name}</li>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Popular areas</p>
+                  <ul className="mt-2 space-y-1.5 text-sm">
+                    {FOOTER_PRIMARY_CITIES.map((city) => (
+                      <li key={city}>
+                        <Link to={getRemovalsPathForCity(city)} className="text-slate-700 hover:text-brand-700">
+                          {city} removals
+                        </Link>
+                      </li>
                     ))}
                   </ul>
                 </div>
@@ -120,6 +130,8 @@ export default function CoveragePage() {
             </div>
           </div>
         </div>
+
+        <ScotlandCoverageLocationIndex />
       </div>
     </div>
   )

@@ -1,3 +1,4 @@
+import { COVERAGE_DIRECTORY_PATH } from './CoverageLink'
 import { Link } from 'react-router-dom'
 import { useWebsiteCms } from '../context/WebsiteCmsContext'
 import { DEFAULT_COVERAGE } from '../lib/websiteCmsDefaults'
@@ -23,7 +24,7 @@ export default function CoverageHomeSection() {
             <img src={c.imageUrl} alt="" className="mx-auto mt-6 max-h-48 rounded-xl object-cover shadow-md" />
           ) : null}
           <Link
-            to="/coverage"
+            to={COVERAGE_DIRECTORY_PATH}
             className="mt-8 inline-flex min-h-[48px] items-center justify-center rounded-full bg-brand-600 px-8 py-3 text-sm font-semibold text-white shadow-md transition hover:bg-brand-700"
           >
             View coverage map
