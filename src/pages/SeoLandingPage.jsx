@@ -5,6 +5,7 @@ import SeoFaqJsonLd from '../components/seo/SeoFaqJsonLd'
 import SeoBusinessJsonLd from '../components/seo/SeoBusinessJsonLd'
 import SeoBreadcrumbJsonLd from '../components/seo/SeoBreadcrumbJsonLd'
 import SeoFaqAccordion from '../components/seo/SeoFaqAccordion'
+import SeoInternalLinks from '../components/seo/SeoInternalLinks'
 import { getSeoPageByPath } from '../data/seoPages'
 import { useSeoSettings } from '../context/SeoSettingsContext'
 import { mergeSeoLandingPageConfig } from '../lib/seoSettingsMerge'
@@ -352,30 +353,11 @@ export default function SeoLandingPage() {
         </div>
       </section>
 
-      {page.relatedLinks.length > 0 ? (
-        <section
-          className="seo-section seo-section--tint"
-          aria-labelledby="seo-related-heading"
-        >
-          <div className="seo-section-inner">
-            <h2 id="seo-related-heading" className="text-lg font-bold text-slate-900 sm:text-xl">
-              Related guides &amp; services
-            </h2>
-            <p className="mt-2 text-sm leading-relaxed text-slate-600">
-              Explore nearby services, city pages, and Scotland-wide removal guides.
-            </p>
-            <ul className="seo-chip-list mt-4 flex flex-wrap gap-2">
-              {page.relatedLinks.map(({ href, label }) => (
-                <li key={href} className="min-w-0 max-w-full">
-                  <Link to={href} className="seo-chip seo-chip--compact">
-                    {label}
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </div>
-        </section>
-      ) : null}
+      <SeoInternalLinks
+        currentPath={pathname}
+        cityName={page.cityName}
+        regionKey={page.regionKey}
+      />
 
       <section id="seo-quote" className="seo-quote-wrap" aria-label="Instant quote">
         <h2 className="sr-only">Get your instant quote</h2>

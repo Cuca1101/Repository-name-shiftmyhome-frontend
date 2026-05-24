@@ -467,6 +467,46 @@
     @apply mt-2 text-sm leading-relaxed text-slate-600;
   }
 
+  .seo-internal-links {
+    @apply border-b border-slate-200/80 bg-slate-50 py-10 sm:py-12;
+  }
+
+  .seo-internal-links__inner {
+    @apply mx-auto max-w-6xl px-4 sm:px-6 lg:px-8;
+  }
+
+  .seo-internal-links__header {
+    @apply max-w-2xl;
+  }
+
+  .seo-internal-links__title {
+    @apply text-xl font-bold tracking-tight text-slate-900 sm:text-2xl;
+  }
+
+  .seo-internal-links__intro {
+    @apply mt-2 text-sm leading-relaxed text-slate-600 sm:text-base;
+  }
+
+  .seo-internal-links__grid {
+    @apply mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 lg:gap-5;
+  }
+
+  .seo-internal-links__column {
+    @apply rounded-2xl border border-slate-200/90 bg-white p-5 shadow-sm transition-shadow duration-300 ease-premium hover:shadow-md sm:p-6;
+  }
+
+  .seo-internal-links__column-title {
+    @apply text-sm font-semibold uppercase tracking-wide text-brand-700;
+  }
+
+  .seo-internal-links__list {
+    @apply mt-4 space-y-2.5;
+  }
+
+  .seo-internal-links__link {
+    @apply inline-flex min-h-[40px] w-full items-center rounded-xl border border-slate-100 bg-slate-50/80 px-3 py-2 text-sm font-medium leading-snug text-slate-700 transition-all duration-300 ease-premium hover:-translate-y-0.5 hover:border-brand-200 hover:bg-brand-50 hover:text-brand-800;
+  }
+
   .seo-cta-band {
     @apply relative overflow-hidden border-b border-slate-200/80 py-10 text-white sm:py-14;
     background: linear-gradient(145deg, rgb(15 23 42) 0%, rgb(30 58 138) 48%, rgb(6 78 59) 100%);

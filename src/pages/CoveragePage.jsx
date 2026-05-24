@@ -5,6 +5,7 @@ import SeoBreadcrumbJsonLd from '../components/seo/SeoBreadcrumbJsonLd'
 import { SERVICE_PAGES } from '../constants/servicePages'
 import NetworkCoverageMap from '../components/coverage/NetworkCoverageMap'
 import ScotlandCoverageLocationIndex from '../components/coverage/ScotlandCoverageLocationIndex'
+import SeoInternalLinks from '../components/seo/SeoInternalLinks'
 import { SCOTLAND_LOCATION_NAMES, FOOTER_PRIMARY_CITIES, getRemovalsPathForCity } from '../lib/seo/locations.js'
 
 const MAIN_LINKS = [
@@ -132,6 +133,8 @@ export default function CoveragePage() {
         </div>
 
         <ScotlandCoverageLocationIndex />
+
+        <SeoInternalLinks currentPath="/coverage" />
       </div>
     </div>
   )
