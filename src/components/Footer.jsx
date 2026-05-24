@@ -2,11 +2,10 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import Logo from './Logo'
 import HomeSectionLink from './HomeSectionLink'
-import CoverageLink, { COVERAGE_DIRECTORY_PATH } from './CoverageLink'
+import CoverageLink from './CoverageLink'
 import { CONTACT, WHATSAPP_URL } from '../config'
 import { supabase } from '../lib/supabase'
 import { useWebsiteCms } from '../context/WebsiteCmsContext'
-import { FOOTER_SEO_LOCATION_LINKS } from '../lib/seo/locations.js'
 
 const quickLinks = [
   { sectionId: 'home', label: 'Home' },
@@ -28,15 +27,6 @@ const serviceLinks = [
   { to: '/clearance', label: 'Clearance & Removal' },
   { to: '/office-moves', label: 'Office Moves' },
   { to: '/student-moves', label: 'Student Moves' },
-]
-
-const areaSeoLinks = FOOTER_SEO_LOCATION_LINKS
-
-const guideLinks = [
-  { to: '/removals-scotland', label: 'Removals Scotland' },
-  { to: '/movers-near-me', label: 'Movers Near Me' },
-  { to: '/ikea-furniture-delivery', label: 'IKEA Delivery' },
-  { to: '/furniture-delivery-scotland', label: 'Furniture Delivery' },
 ]
 
 const legalLinks = [
@@ -106,8 +96,8 @@ export default function Footer() {
   return (
     <footer className="site-footer-premium text-slate-300">
       <div className="mx-auto min-w-0 max-w-6xl px-4 py-8 sm:px-6 sm:py-14 lg:px-8">
-        <div className="grid min-w-0 gap-8 sm:grid-cols-2 lg:grid-cols-12 lg:gap-x-8 lg:gap-y-10">
-          <div className="min-w-0 sm:col-span-2 lg:col-span-3">
+        <div className="grid min-w-0 gap-8 sm:grid-cols-2 lg:grid-cols-4 lg:gap-12">
+          <div className="min-w-0 sm:col-span-2 lg:col-span-1">
             <p className="footer-nav-heading">About ShiftMyHome</p>
             <Link
               to="/"
@@ -138,7 +128,7 @@ export default function Footer() {
             </div>
           </div>
 
-          <FooterNavColumn title="Quick Links" className="lg:col-span-2">
+          <FooterNavColumn title="Quick Links">
             <ul className="footer-nav-list">
               {quickLinks.map((item) => (
                 <li key={item.to ?? item.sectionId + item.label}>
@@ -158,7 +148,7 @@ export default function Footer() {
             </ul>
           </FooterNavColumn>
 
-          <FooterNavColumn title="Services" className="lg:col-span-2">
+          <FooterNavColumn title="Services">
             <ul className="footer-nav-list">
               {serviceLinks.map(({ to, label }) => (
                 <li key={to}>
@@ -170,38 +160,8 @@ export default function Footer() {
             </ul>
           </FooterNavColumn>
 
-          <div className="grid min-w-0 grid-cols-2 gap-x-6 gap-y-8 sm:col-span-2 lg:col-span-3">
-            <FooterNavColumn title="Areas We Serve">
-              <ul className="footer-nav-list">
-                {areaSeoLinks.map(({ to, label }) => (
-                  <li key={to}>
-                    <Link to={to} className={linkClass}>
-                      {label}
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-              <Link to={COVERAGE_DIRECTORY_PATH} className="footer-cta-link">
-                View all coverage areas
-              </Link>
-            </FooterNavColumn>
-
-            <FooterNavColumn title="Guides & Delivery">
-              <ul className="footer-nav-list">
-                {guideLinks.map(({ to, label }) => (
-                  <li key={to}>
-                    <Link to={to} className={linkClass}>
-                      {label}
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            </FooterNavColumn>
-          </div>
-
-          <div className="min-w-0 sm:col-span-2 lg:col-span-2">
-            <p className="footer-nav-heading">Contact</p>
-            <ul className="footer-nav-list mt-3 space-y-2.5 sm:space-y-3">
+          <FooterNavColumn title="Contact" className="sm:col-span-2 lg:col-span-1">
+            <ul className="footer-nav-list space-y-2.5 sm:space-y-3">
               <li>
                 <a href={`tel:${phoneTel}`} className="inline-flex items-center gap-2 text-sm text-slate-300 hover:text-white">
                   <span className="text-slate-400" aria-hidden>
@@ -259,7 +219,7 @@ export default function Footer() {
                 </span>
               </li>
             </ul>
-          </div>
+          </FooterNavColumn>
         </div>
 
         <div className="mt-8 border-t border-slate-800 pt-6 sm:mt-12 sm:pt-8">
