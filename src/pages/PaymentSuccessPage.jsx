@@ -5,6 +5,7 @@ import { verifyPaymentIntent, scheduleAdminAvailableJobNotification } from '../l
 import { clearQuoteDraft } from '../lib/quoteDraftStorage'
 import { consumePhotoUploadNotice } from '../lib/quotePhotoUpload'
 import { trackWebsiteLeadEvent } from '../lib/websiteLeadTracker'
+import { trackMarketingPurchase } from '../lib/marketingPixels'
 
 function scrollToEl(el, block = 'center') {
   if (!el || typeof el.scrollIntoView !== 'function') return
@@ -39,6 +40,7 @@ export default function PaymentSuccessPage() {
             quoteRef: ref,
             recoveredBooking: true,
           })
+          trackMarketingPurchase({ transactionId: paymentIntentId, quoteRef: ref })
         }
       } catch {
         /* Keep friendly UI; reference may still arrive by email */

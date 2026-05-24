@@ -67,6 +67,7 @@ import { resolveWizardBootstrap } from '../../lib/quoteWizardBootstrap'
 import { initialWizardState, makeQuoteRef } from '../../lib/quoteWizardDefaults'
 import { clearResumeSavedQuote } from '../../lib/quoteSessionMode'
 import { trackQuoteWizardSnapshot, trackWebsiteLeadEvent } from '../../lib/websiteLeadTracker'
+import { trackMarketingQuoteSubmit } from '../../lib/marketingPixels'
 import { useLocation } from 'react-router-dom'
 
 const QuoteWizardContext = createContext(null)
@@ -860,6 +861,11 @@ export function QuoteWizardProvider({ children, serviceType: serviceTypeProp, al
         customerPhone: wizard.phone,
         pickupAddress: wizard.pickupAddress,
         deliveryAddress: wizard.deliveryAddress,
+      })
+      trackMarketingQuoteSubmit({
+        quoteRef,
+        value: breakdown.estimatedTotal,
+        currency: 'GBP',
       })
       skipAutosaveRef.current = true
       clearQuoteDraft()
