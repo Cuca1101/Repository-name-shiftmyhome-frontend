@@ -1,4 +1,3 @@
-import scotlandCities from './scotlandCities.json' with { type: 'json' }
 import { cityToSlug } from '../lib/citySlug.js'
 import { buildNearbyLocationLinks, SCOTLAND_HUB_LINKS } from '../lib/seoNearbyAreas.js'
 import { INTENT_PAGE_DEFINITIONS } from './seoIntentPages.js'
@@ -8,6 +7,27 @@ import {
   buildKeywordSentence,
   SEO_KEYWORD_PHRASES,
 } from '../lib/seoPageBodyContent.js'
+import {
+  SCOTLAND_LOCATION_NAMES,
+  getLocationRegion,
+  MAN_WITH_VAN_SEO_CITIES,
+  REGION_DEFINITIONS,
+} from '../lib/seo/locations.js'
+import {
+  buildLocationH1,
+  buildLocationSeoTitle,
+  buildLocationMetaDescription,
+  buildOpenGraphMeta,
+  buildLocationKeywordPhrases,
+  buildLocationKeywordSentence,
+  pickSeoContentVariant,
+} from '../lib/seo/seoKeywordHelpers.js'
+import {
+  buildLocationIntro,
+  buildLocationIntroSecondary,
+  buildLocationRemovalsBodySections,
+  buildLocationFaqs,
+} from '../lib/seo/locationSeoContent.js'
 
 export const SEO_SITE_ORIGIN = 'https://www.shiftmyhome.co.uk'
 
@@ -48,6 +68,8 @@ export const SEO_SITE_ORIGIN = 'https://www.shiftmyhome.co.uk'
  * @property {{ heading: string, paragraphs: string[] }[]} [bodySections]
  * @property {string[]} [keywordPhrases]
  * @property {string} [keywordSentence]
+ * @property {string} [ogTitle]
+ * @property {string} [ogDescription]
  */
 
 /** @type {Record<string, SeoRelatedLink[]>} */
@@ -57,27 +79,20 @@ const CITY_INTENT_LINKS = {
     { href: '/same-day-removals-glasgow', label: 'Same-day removals' },
     { href: '/flat-removals-glasgow', label: 'Flat removals' },
     { href: '/cheap-man-with-van-glasgow', label: 'Man with van' },
+    { href: '/ikea-delivery-glasgow', label: 'IKEA delivery' },
+    { href: '/sofa-movers-glasgow', label: 'Sofa movers' },
   ],
   Edinburgh: [
     { href: '/affordable-removals-edinburgh', label: 'Affordable removals' },
     { href: '/apartment-moves-edinburgh', label: 'Apartment moves' },
     { href: '/moving-company-edinburgh', label: 'Moving company' },
     { href: '/same-day-man-with-van-edinburgh', label: 'Same-day van' },
+    { href: '/ikea-sofa-delivery-edinburgh', label: 'IKEA sofa delivery' },
+    { href: '/furniture-delivery-edinburgh', label: 'Furniture delivery' },
   ],
 }
 
-const MAN_WITH_VAN_CITIES = [
-  'Glasgow',
-  'Edinburgh',
-  'Aberdeen',
-  'Dundee',
-  'Inverness',
-  'Stirling',
-  'Perth',
-  'Paisley',
-  'Falkirk',
-  'Livingston',
-]
+const MAN_WITH_VAN_CITIES = MAN_WITH_VAN_SEO_CITIES
 
 const SERVICE_CITY_ROUTES = [
   { kind: 'office-removals', cities: ['Glasgow', 'Edinburgh'], serviceType: 'Office Moves', label: 'Office removals' },
@@ -85,57 +100,16 @@ const SERVICE_CITY_ROUTES = [
   { kind: 'furniture-delivery', cities: ['Glasgow', 'Edinburgh'], serviceType: 'Furniture Delivery', label: 'Furniture delivery' },
 ]
 
-/** @type {Record<string, { key: string, label: string, areaPhrase: string, moveContext: string }>} */
-const REGION_BY_CITY = {
-  Glasgow: { key: 'greater-glasgow', label: 'Greater Glasgow', areaPhrase: 'Glasgow and the surrounding towns', moveContext: 'tenements, flats, and family homes' },
-  Edinburgh: { key: 'edinburgh-lothians', label: 'Edinburgh & the Lothians', areaPhrase: 'Edinburgh, Leith, and the Lothians', moveContext: 'city flats, New Town properties, and suburban family homes' },
-  Aberdeen: { key: 'north-east', label: 'North East Scotland', areaPhrase: 'Aberdeen and Aberdeenshire', moveContext: 'granite properties, coastal flats, and rural relocations' },
-  Dundee: { key: 'tayside', label: 'Tayside', areaPhrase: 'Dundee and the Tay cities', moveContext: 'riverside flats, student lets, and family moves' },
-  Inverness: { key: 'highlands', label: 'The Highlands', areaPhrase: 'Inverness and the wider Highlands', moveContext: 'longer access routes, rural properties, and careful scheduling' },
-  Stirling: { key: 'central', label: 'Central Scotland', areaPhrase: 'Stirling and the Forth Valley', moveContext: 'commuter moves and historic town centre properties' },
-  Perth: { key: 'central', label: 'Central Scotland', areaPhrase: 'Perth and Perthshire', moveContext: 'market town homes and rural outskirts' },
-  Paisley: { key: 'greater-glasgow', label: 'Greater Glasgow', areaPhrase: 'Paisley and Renfrewshire', moveContext: 'Renfrewshire flats and family homes' },
-  Greenock: { key: 'inverclyde', label: 'Inverclyde', areaPhrase: 'Greenock and the Clyde coast', moveContext: 'coastal flats and hillside streets' },
-  Motherwell: { key: 'lanarkshire', label: 'Lanarkshire', areaPhrase: 'Motherwell and North Lanarkshire', moveContext: 'terraced homes and new-build estates' },
-  Falkirk: { key: 'central', label: 'Central Scotland', areaPhrase: 'Falkirk and the Forth Valley', moveContext: 'commuter moves between Edinburgh and Glasgow' },
-  Ayr: { key: 'ayrshire', label: 'Ayrshire', areaPhrase: 'Ayr and the Ayrshire coast', moveContext: 'seaside properties and town centre flats' },
-  Kilmarnock: { key: 'ayrshire', label: 'Ayrshire', areaPhrase: 'Kilmarnock and East Ayrshire', moveContext: 'family homes and bungalow moves' },
-  Hamilton: { key: 'lanarkshire', label: 'Lanarkshire', areaPhrase: 'Hamilton and South Lanarkshire', moveContext: 'estate moves and local downsizing' },
-  'East Kilbride': { key: 'lanarkshire', label: 'Lanarkshire', areaPhrase: 'East Kilbride and South Lanarkshire', moveContext: 'new-build homes and multi-level properties' },
-  Cumbernauld: { key: 'lanarkshire', label: 'Lanarkshire', areaPhrase: 'Cumbernauld and North Lanarkshire', moveContext: 'planned-town flats and family housing' },
-  Livingston: { key: 'lothians', label: 'West Lothian', areaPhrase: 'Livingston and West Lothian', moveContext: 'new-town housing and business-park relocations' },
-  Dunfermline: { key: 'fife', label: 'Fife', areaPhrase: 'Dunfermline and West Fife', moveContext: 'historic town homes and modern estates' },
-  Kirkcaldy: { key: 'fife', label: 'Fife', areaPhrase: 'Kirkcaldy and the Fife coast', moveContext: 'coastal flats and family moves' },
-  Glenrothes: { key: 'fife', label: 'Fife', areaPhrase: 'Glenrothes and central Fife', moveContext: 'planned-town properties and local relocations' },
-  Dumfries: { key: 'south', label: 'South Scotland', areaPhrase: 'Dumfries and Galloway', moveContext: 'market-town homes and longer rural legs' },
-  Oban: { key: 'argyll', label: 'Argyll', areaPhrase: 'Oban and the west coast', moveContext: 'ferry-linked routes and narrow access' },
-  'Fort William': { key: 'highlands', label: 'The Highlands', areaPhrase: 'Fort William and Lochaber', moveContext: 'Highland routes and seasonal demand' },
-  Aviemore: { key: 'highlands', label: 'The Highlands', areaPhrase: 'Aviemore and the Cairngorms', moveContext: 'holiday lets and chalet-style properties' },
-  Wick: { key: 'highlands', label: 'The Highlands', areaPhrase: 'Wick and Caithness', moveContext: 'long-distance Scottish routes' },
-  Thurso: { key: 'highlands', label: 'The Highlands', areaPhrase: 'Thurso and the far north', moveContext: 'remote access and careful route planning' },
-  Kirkwall: { key: 'islands', label: 'Orkney', areaPhrase: 'Kirkwall and Orkney', moveContext: 'island logistics and advance planning' },
-  Lerwick: { key: 'islands', label: 'Shetland', areaPhrase: 'Lerwick and Shetland', moveContext: 'island moves with agreed schedules' },
-}
-
-const DEFAULT_REGION = {
-  key: 'scotland',
-  label: 'Scotland',
-  areaPhrase: 'towns and villages across Scotland',
-  moveContext: 'homes, flats, and local business moves',
-}
+const DEFAULT_REGION = REGION_DEFINITIONS.scotland
 
 /** @param {string} cityName */
 function getRegion(cityName) {
-  return REGION_BY_CITY[cityName] ?? DEFAULT_REGION
+  return getLocationRegion(cityName)
 }
 
 /** @param {string} cityName @param {number} seed */
 function pickVariant(cityName, seed) {
-  let h = seed
-  for (let i = 0; i < cityName.length; i += 1) {
-    h = (h + cityName.charCodeAt(i) * (i + 3)) % 997
-  }
-  return h
+  return pickSeoContentVariant(cityName, seed)
 }
 
 /** @param {string} cityName @param {string} kindLabel @param {number} variant */
@@ -397,6 +371,30 @@ function buildSeoPage(kind, cityName) {
   }
 
   const linkKind = kind === 'man-with-van' ? 'man-with-van' : 'removals'
+  const isRemovals = kind === 'removals'
+
+  const title = isRemovals
+    ? buildLocationSeoTitle(cityName)
+    : buildPageTitle(meta, variant)
+  const h1 = isRemovals ? buildLocationH1(cityName) : meta.h1
+  const metaDescription = isRemovals
+    ? buildLocationMetaDescription(cityName, region, variant + 2)
+    : buildMetaDescription(cityName, region, meta, variant + 2)
+  const intro = isRemovals
+    ? buildLocationIntro(cityName, region, variant)
+    : buildIntro(cityName, region, meta.label, variant)
+  const introSecondary = isRemovals
+    ? buildLocationIntroSecondary(cityName, region.label, variant + 1)
+    : buildIntroSecondary(cityName, region.label, variant + 1)
+  const faqs = isRemovals ? buildLocationFaqs(cityName, region, variant) : buildFaqs(kind, cityName, region)
+  const bodySections = isRemovals
+    ? buildLocationRemovalsBodySections(cityName, region, variant)
+    : buildBodySections(meta.label, cityName, region, variant)
+  const keywordPhrases = isRemovals ? buildLocationKeywordPhrases(cityName) : SEO_KEYWORD_PHRASES
+  const keywordSentence = isRemovals
+    ? buildLocationKeywordSentence(cityName, variant)
+    : buildKeywordSentence(cityName, meta.label)
+  const og = buildOpenGraphMeta(path, title, metaDescription)
 
   return /** @type {SeoPageConfig} */ ({
     path,
@@ -406,20 +404,22 @@ function buildSeoPage(kind, cityName) {
     citySlug,
     regionKey: region.key,
     regionLabel: region.label,
-    title: buildPageTitle(meta, variant),
-    metaDescription: buildMetaDescription(cityName, region, meta, variant + 2),
-    h1: meta.h1,
-    intro: buildIntro(cityName, region, meta.label, variant),
-    introSecondary: buildIntroSecondary(cityName, region.label, variant + 1),
+    title,
+    metaDescription,
+    h1,
+    intro,
+    introSecondary,
     serviceType: meta.serviceType,
     heroTeaser: meta.heroTeaser,
     serviceBullets: meta.bullets,
-    faqs: buildFaqs(kind, cityName, region),
+    faqs,
     relatedLinks: buildRelatedLinks(cityName, citySlug, kind, path),
     nearbyLocations: buildNearbyLocationLinks(cityName, region.key, linkKind),
-    bodySections: buildBodySections(meta.label, cityName, region, variant),
-    keywordPhrases: SEO_KEYWORD_PHRASES,
-    keywordSentence: buildKeywordSentence(cityName, meta.label),
+    bodySections,
+    keywordPhrases,
+    keywordSentence,
+    ogTitle: og.ogTitle,
+    ogDescription: og.ogDescription,
   })
 }
 
@@ -490,11 +490,13 @@ function buildIntentPage(def) {
     bodySections: buildBodySections(intentServiceLabel(def), def.cityName, region, variant),
     keywordPhrases: SEO_KEYWORD_PHRASES,
     keywordSentence: buildKeywordSentence(def.cityName, intentServiceLabel(def)),
+    ogTitle: buildOpenGraphMeta(def.path, buildPageTitle({ titleSuffix: def.h1 }, variant), def.metaDescription).ogTitle,
+    ogDescription: def.metaDescription,
   }
 }
 
 /** @type {SeoPageConfig[]} */
-const removalsPages = scotlandCities.map((city) => buildSeoPage('removals', city))
+const removalsPages = SCOTLAND_LOCATION_NAMES.map((city) => buildSeoPage('removals', city))
 
 /** @type {SeoPageConfig[]} */
 const manWithVanPages = MAN_WITH_VAN_CITIES.map((city) => buildSeoPage('man-with-van', city))

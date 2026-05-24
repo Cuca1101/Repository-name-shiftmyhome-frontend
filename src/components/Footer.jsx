@@ -29,15 +29,11 @@ const serviceLinks = [
   { to: '/student-moves', label: 'Student Moves' },
 ]
 
-const areaSeoLinks = [
-  { to: '/glasgow-removals', label: 'Glasgow removals' },
-  { to: '/edinburgh-removals', label: 'Edinburgh removals' },
-  { to: '/aberdeen-removals', label: 'Aberdeen removals' },
-  { to: '/dundee-removals', label: 'Dundee removals' },
-  { to: '/inverness-removals', label: 'Inverness removals' },
-  { to: '/stirling-removals', label: 'Stirling removals' },
-  { to: '/perth-removals', label: 'Perth removals' },
-]
+import { FOOTER_SEO_LOCATION_LINKS } from '../lib/seo/locations.js'
+import { SCOTLAND_HUB_LINKS } from '../lib/seoNearbyAreas.js'
+
+const areaSeoLinks = FOOTER_SEO_LOCATION_LINKS
+const hubSeoLinks = SCOTLAND_HUB_LINKS.slice(0, 4)
 
 const legalLinks = [
   { to: '/terms', label: 'Terms & Conditions' },
@@ -167,6 +163,16 @@ export default function Footer() {
                 {areaSeoLinks.map(({ to, label }) => (
                   <li key={to}>
                     <Link to={to} className="text-slate-400 transition hover:text-brand-300">
+                      {label}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+              <p className="mt-6 text-sm font-semibold uppercase tracking-wide text-white">Guides &amp; delivery</p>
+              <ul className="mt-3 space-y-2 text-sm sm:mt-4 sm:space-y-2.5">
+                {hubSeoLinks.map(({ href, label }) => (
+                  <li key={href}>
+                    <Link to={href} className="text-slate-400 transition hover:text-brand-300">
                       {label}
                     </Link>
                   </li>

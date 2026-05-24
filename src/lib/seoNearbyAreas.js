@@ -1,15 +1,16 @@
 import scotlandCities from '../data/scotlandCities.json' with { type: 'json' }
 import { cityToSlug } from './citySlug.js'
+import {
+  SCOTLAND_LOCATION_NAMES,
+  MAN_WITH_VAN_SEO_CITIES,
+  getNearbyLocationNames,
+} from './seo/locations.js'
 
 /** Cities with dedicated /man-with-van-{city} routes — others link to removals pages. */
-const MAN_WITH_VAN_CITY_SLUGS = new Set(
-  ['Glasgow', 'Edinburgh', 'Aberdeen', 'Dundee', 'Inverness', 'Stirling', 'Perth', 'Paisley', 'Falkirk', 'Livingston'].map(
-    cityToSlug,
-  ),
-)
+const MAN_WITH_VAN_CITY_SLUGS = new Set(MAN_WITH_VAN_SEO_CITIES.map(cityToSlug))
 
 /**
- * Geographic neighbours for stronger internal linking (not exhaustive — fallback uses region peers).
+ * Geographic neighbours for stronger internal linking (explicit overrides).
  * @type {Record<string, string[]>}
  */
 export const NEARBY_CITIES = {
@@ -32,13 +33,19 @@ export const NEARBY_CITIES = {
 const REGION_PEERS = {
   'greater-glasgow': ['Glasgow', 'Paisley', 'East Kilbride', 'Hamilton', 'Clydebank'],
   'edinburgh-lothians': ['Edinburgh', 'Musselburgh', 'Livingston', 'Dalkeith'],
-  'lanarkshire': ['Hamilton', 'Motherwell', 'East Kilbride', 'Wishaw', 'Coatbridge'],
-  'fife': ['Dunfermline', 'Kirkcaldy', 'Glenrothes', 'Edinburgh'],
-  'tayside': ['Dundee', 'Perth', 'Arbroath', 'Forfar'],
+  lanarkshire: ['Hamilton', 'Motherwell', 'East Kilbride', 'Wishaw', 'Coatbridge'],
+  fife: ['Dunfermline', 'Kirkcaldy', 'Glenrothes', 'Edinburgh'],
+  tayside: ['Dundee', 'Perth', 'Arbroath', 'Forfar'],
   'north-east': ['Aberdeen', 'Peterhead', 'Stonehaven', 'Elgin'],
   highlands: ['Inverness', 'Fort William', 'Aviemore', 'Wick'],
   ayrshire: ['Ayr', 'Kilmarnock', 'Irvine', 'Troon'],
   central: ['Stirling', 'Falkirk', 'Perth', 'Cumbernauld'],
+  inverclyde: ['Greenock', 'Gourock', 'Port Glasgow', 'Glasgow'],
+  south: ['Dumfries', 'Stranraer', 'Annan', 'Lockerbie'],
+  borders: ['Galashiels', 'Hawick', 'Kelso', 'Jedburgh'],
+  argyll: ['Oban', 'Dunoon', 'Helensburgh', 'Greenock'],
+  islands: ['Kirkwall', 'Lerwick', 'Oban'],
+  lothians: ['Livingston', 'Bathgate', 'Broxburn', 'Edinburgh'],
 }
 
 /**
@@ -62,11 +69,18 @@ export function buildNearbyLocationLinks(cityName, regionKey, linkKind = 'remova
   })
 
   if (names.size < 4) {
-    const idx = scotlandCities.indexOf(cityName)
-    if (idx >= 0) {
-      for (let offset = 1; offset <= 6 && names.size < 6; offset += 1) {
-        const next = scotlandCities[(idx + offset) % scotlandCities.length]
-        if (next !== cityName) names.add(next)
+    getNearbyLocationNames(cityName, cityName, 8).forEach((n) => names.add(n))
+  }
+
+  if (names.size < 4) {
+    const idx = SCOTLAND_LOCATION_NAMES.indexOf(cityName)
+    if (idx < 0) {
+      const legacyIdx = scotlandCities.indexOf(cityName)
+      if (legacyIdx >= 0) {
+        for (let offset = 1; offset <= 6 && names.size < 6; offset += 1) {
+          const next = scotlandCities[(legacyIdx + offset) % scotlandCities.length]
+          if (next !== cityName) names.add(next)
+        }
       }
     }
   }
@@ -86,5 +100,7 @@ export const SCOTLAND_HUB_LINKS = [
   { href: '/removals-scotland', label: 'Removals Scotland' },
   { href: '/moving-services-scotland', label: 'Moving services Scotland' },
   { href: '/movers-near-me', label: 'Movers near me' },
+  { href: '/furniture-delivery-scotland', label: 'Furniture delivery Scotland' },
+  { href: '/ikea-furniture-delivery', label: 'IKEA furniture delivery' },
   { href: '/coverage', label: 'Coverage map' },
 ]

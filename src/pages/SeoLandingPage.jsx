@@ -115,7 +115,14 @@ export default function SeoLandingPage() {
 
   return (
     <article className="seo-landing">
-      <SeoHead title={page.title} description={page.metaDescription} path={page.path} />
+      <SeoHead
+        title={page.title}
+        description={page.metaDescription}
+        path={page.path}
+        includeSocial
+        ogTitle={page.ogTitle ?? page.title}
+        ogDescription={page.ogDescription ?? page.metaDescription}
+      />
       <SeoBreadcrumbJsonLd
         items={[
           { name: 'Home', path: '/' },

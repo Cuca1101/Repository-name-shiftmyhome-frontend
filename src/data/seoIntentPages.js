@@ -3,6 +3,8 @@
  * Consumed by seoPages.js — do not register routes here.
  */
 
+import { COMMERCIAL_INTENT_PAGES } from './seoCommercialIntentPages.js'
+
 /** @typedef {import('./seoPages.js').SeoPageConfig} SeoPageConfig */
 
 /**
@@ -1296,4 +1298,5 @@ export const INTENT_PAGE_DEFINITIONS = [
       { href: '/sofa-delivery-glasgow', label: 'Sofa delivery' },
     ],
   },
+  ...COMMERCIAL_INTENT_PAGES,
 ]
