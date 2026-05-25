@@ -29,6 +29,7 @@ const mainSections = [
     items: [
       { to: '/admin/quote-requests', label: 'Quote Requests', end: false, icon: 'inbox' },
       { to: '/admin/website-leads', label: 'Website Leads / Quote Funnel', end: false, icon: 'inbox' },
+      { to: '/admin/extra-charges', label: 'Extra Charges', end: false, icon: 'wallet' },
     ],
   },
   {

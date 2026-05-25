@@ -73,37 +73,66 @@ Deno.serve(async (req) => {
 
   if (event.type === 'payment_intent.succeeded') {
     const pi = event.data.object as Stripe.PaymentIntent
-    const result = await updateQuoteFromPaymentIntent(supabase, pi, 'paid')
-    console.log('[stripe-webhook] quote update result', {
-      quote_ref: typeof pi.metadata?.quote_ref === 'string' ? pi.metadata.quote_ref : null,
-      payment_intent_id: pi.id,
-      db_update_success: result.ok,
-      rows_updated: result.ok ? 1 : 0,
-      quote_id: result.quote_id ?? null,
-    })
 
-    try {
-      await sendPaymentConfirmationWithPdfIfNeeded({
-        supabase,
-        paymentIntent: pi,
-        updateResult: result,
-        resendApiKey,
-        resendFromEmail: resendFrom,
-      })
-      console.log('[stripe-webhook] payment email processed', { payment_intent_id: pi.id, quote_id: result.quote_id ?? null })
-    } catch (e) {
-      console.error('[stripe-webhook] payment email error', {
-        message: e instanceof Error ? e.message : String(e),
-        stack: e instanceof Error ? e.stack || '' : '',
+    // Handle extra charge payments separately
+    if (pi.metadata?.payment_type === 'extra_charge' && pi.metadata?.extra_charge_request_id) {
+      const ecrId = pi.metadata.extra_charge_request_id
+      const amountPaid = Math.max(0, (typeof pi.amount_received === 'number' ? pi.amount_received : pi.amount ?? 0) / 100)
+      const { error: ecrErr } = await supabase
+        .from('extra_charge_requests')
+        .update({
+          status: 'paid',
+          paid_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', ecrId)
+      console.log('[stripe-webhook] extra charge payment succeeded', {
+        extra_charge_request_id: ecrId,
         payment_intent_id: pi.id,
+        amount_paid: amountPaid,
+        db_error: ecrErr?.message ?? null,
+      })
+    } else {
+      // Standard quote/booking payment flow
+      const result = await updateQuoteFromPaymentIntent(supabase, pi, 'paid')
+      console.log('[stripe-webhook] quote update result', {
+        quote_ref: typeof pi.metadata?.quote_ref === 'string' ? pi.metadata.quote_ref : null,
+        payment_intent_id: pi.id,
+        db_update_success: result.ok,
+        rows_updated: result.ok ? 1 : 0,
         quote_id: result.quote_id ?? null,
       })
+
+      try {
+        await sendPaymentConfirmationWithPdfIfNeeded({
+          supabase,
+          paymentIntent: pi,
+          updateResult: result,
+          resendApiKey,
+          resendFromEmail: resendFrom,
+        })
+        console.log('[stripe-webhook] payment email processed', { payment_intent_id: pi.id, quote_id: result.quote_id ?? null })
+      } catch (e) {
+        console.error('[stripe-webhook] payment email error', {
+          message: e instanceof Error ? e.message : String(e),
+          stack: e instanceof Error ? e.stack || '' : '',
+          payment_intent_id: pi.id,
+          quote_id: result.quote_id ?? null,
+        })
+      }
     }
   }
 
   if (event.type === 'payment_intent.payment_failed') {
     const pi = event.data.object as Stripe.PaymentIntent
-    await updateQuoteFromPaymentIntent(supabase, pi, 'failed')
+    if (pi.metadata?.payment_type === 'extra_charge' && pi.metadata?.extra_charge_request_id) {
+      console.log('[stripe-webhook] extra charge payment failed', {
+        extra_charge_request_id: pi.metadata.extra_charge_request_id,
+        payment_intent_id: pi.id,
+      })
+    } else {
+      await updateQuoteFromPaymentIntent(supabase, pi, 'failed')
+    }
   }
 
   return new Response(JSON.stringify({ received: true }), {

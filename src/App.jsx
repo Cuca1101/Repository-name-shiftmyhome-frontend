@@ -36,6 +36,7 @@ import HomePageQuoteRequestsAdmin from './components/HomePageQuoteRequestsAdmin'
 import QuoteRequestLeadDetails from './components/QuoteRequestLeadDetails'
 import WebsiteLeadsAdmin from './components/WebsiteLeadsAdmin'
 import AdminAnalyticsPage from './pages/AdminAnalyticsPage'
+import ExtraChargesAdmin from './components/ExtraChargesAdmin'
 import AvailableJobDetails from './components/AvailableJobDetails'
 import JourneyPlannerPage from './components/JourneyPlannerPage'
 import JourneyViewPage from './components/journey-planner/JourneyViewPage'
@@ -175,6 +176,7 @@ export default function App() {
         <Route path="reviews" element={<ReviewsAdmin />} />
         <Route path="website-cms" element={<WebsiteCmsAdmin />} />
         <Route path="seo" element={<SeoDashboardAdmin />} />
+        <Route path="extra-charges" element={<ExtraChargesAdmin />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
