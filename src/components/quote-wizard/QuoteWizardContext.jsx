@@ -336,6 +336,7 @@ export function QuoteWizardProvider({ children, serviceType: serviceTypeProp, al
         weekend,
         exactArrivalPremium: wizard.arrivalWindow === 'exact',
         promoCode: wizard.promoCode,
+        packageTier: wizard.packageTier || 'standard',
       },
       crewSize:
         wizard.crewSize != null && wizard.crewSize !== ''

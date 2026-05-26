@@ -1,5 +1,4 @@
 import QuoteNavbar from '../components/QuoteNavbar'
-import Footer from '../components/Footer'
 import WhatsAppButton from '../components/WhatsAppButton'
 import { CoverageModalProvider } from '../context/CoverageModalContext'
 import { WebsiteCmsProvider } from '../context/WebsiteCmsContext'
@@ -16,7 +15,6 @@ export default function ServiceQuoteLayout({ children }) {
           <main className="box-border min-w-0 flex-1 w-full max-w-full overflow-x-hidden pb-[4.25rem] md:pb-0">
             {children}
           </main>
-          <Footer />
           <WhatsAppButton variant="quote-flow" />
         </div>
         </SeoSettingsProvider>

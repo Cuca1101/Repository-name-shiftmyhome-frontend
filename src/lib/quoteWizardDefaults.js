@@ -61,5 +61,6 @@ export function initialWizardState() {
     deliveryContactName: '',
     deliveryContactPhone: '',
     promoCode: '',
+    packageTier: 'standard',
   }
 }

@@ -8,11 +8,11 @@ import { trackWebsiteClick, trackWebsiteLeadEvent } from '../../lib/websiteLeadT
 
 function onServiceCardClick(card) {
   const label = `Service card: ${card.title || card.serviceType || 'Quote'}`
-  markNewQuoteFromServiceCard(card.serviceType || '', card.path)
+  markNewQuoteFromServiceCard(card.serviceType || '', card.seoPath || card.path)
   void trackWebsiteClick(label, { href: card.path, section: 'services', serviceType: card.serviceType })
   trackWebsiteLeadEvent('new_quote_from_service', {
     serviceType: card.serviceType,
-    returnPath: card.path,
+    returnPath: card.seoPath || card.path,
   })
 }
 

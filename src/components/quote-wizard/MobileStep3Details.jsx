@@ -1,5 +1,6 @@
 ﻿import { Minus, Plus } from 'lucide-react'
 import MobileStepTitleWithRef from './MobileStepTitleWithRef'
+import PackageSelector from './PackageSelector'
 import { reassemblySameAsDismantlingPatch } from '../../lib/quoteWizardReassembly'
 import AddressConfirmationSection from './AddressConfirmationSection'
 import PickupDeliveryContactsSection from './PickupDeliveryContactsSection'
@@ -131,6 +132,15 @@ export default function MobileStep3Details({
           Extras, access notes, and how we reach you.
         </p>
       </div>
+
+      {/* PackageSelector temporarily hidden — re-enable when ready
+      <div className={`${card} p-2.5 md:p-3`}>
+        <PackageSelector
+          value={data.packageTier || 'standard'}
+          onChange={(tier) => set({ packageTier: tier })}
+        />
+      </div>
+      */}
 
       <div
         id="quote-wizard-contact-details-mobile"

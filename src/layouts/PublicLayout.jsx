@@ -11,7 +11,10 @@ import { SeoSettingsProvider } from '../context/SeoSettingsContext'
 
 export default function PublicLayout({ children }) {
   const { pathname } = useLocation()
-  const quoteFlow = pathname === '/quote'
+  const quoteFlow = pathname === '/quote' || pathname.startsWith('/quote/')
+  const paymentFlow = pathname.startsWith('/payment')
+
+  const hideFooter = quoteFlow || paymentFlow
 
   return (
     <CoverageModalProvider>
@@ -29,7 +32,7 @@ export default function PublicLayout({ children }) {
           >
             {children}
           </main>
-          <Footer />
+          {!hideFooter && <Footer />}
           <WhatsAppButton variant={quoteFlow ? 'quote-flow' : 'default'} />
         </div>
         </SeoSettingsProvider>

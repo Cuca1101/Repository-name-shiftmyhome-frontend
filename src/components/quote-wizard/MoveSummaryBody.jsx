@@ -267,11 +267,27 @@ export default function MoveSummaryBody({
               ) : null}
             </div>
           )}
+          {step >= 3 && wizard?.packageTier && (
+            <div>
+              <dt className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Package</dt>
+              <dd className="mt-0.5 text-[11px] font-semibold leading-relaxed text-slate-700">
+                {wizard.packageTier === 'premium' ? 'Premium' : 'Standard'}
+              </dd>
+            </div>
+          )}
           {step >= 3 && wizard && formatWizardServiceExtrasSummary(wizard) && (
             <div>
               <dt className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Extras</dt>
               <dd className="mt-0.5 whitespace-pre-wrap text-[11px] leading-relaxed text-slate-700">
                 {formatWizardServiceExtrasSummary(wizard)}
+              </dd>
+            </div>
+          )}
+          {step >= 3 && wizard?.packingMaterials && (
+            <div>
+              <dt className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Packing</dt>
+              <dd className="mt-0.5 text-[11px] leading-relaxed text-slate-700">
+                Packing materials selected
               </dd>
             </div>
           )}

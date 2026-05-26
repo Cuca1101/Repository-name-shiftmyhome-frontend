@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import MapboxAddressField from '../MapboxAddressField'
 import FloorSelect, { floorNeedsLiftQuestion } from '../FloorSelect'
 import { getLocalDateYYYYMMDD } from '../../../lib/moveDateLocal'
@@ -61,6 +61,7 @@ export default function Step1Address({
   serviceType,
   serviceTypeOptions,
   onServiceTypeChange,
+  servicePreSelected = false,
   arrivalError = '',
 }) {
   function set(k, v) {
@@ -73,10 +74,14 @@ export default function Step1Address({
     }
   }, [data.arrivalWindow])
 
-  const showServicePicker =
+  const [serviceExpanded, setServiceExpanded] = useState(false)
+
+  const hasServicePicker =
     typeof onServiceTypeChange === 'function' &&
     Array.isArray(serviceTypeOptions) &&
     serviceTypeOptions.length > 0
+
+  const showFullServicePicker = hasServicePicker && (!servicePreSelected || serviceExpanded)
 
   const showPickupLift = floorNeedsLiftQuestion(data.pickupFloor)
   const showDeliveryLift = floorNeedsLiftQuestion(data.deliveryFloor)
@@ -107,7 +112,21 @@ export default function Step1Address({
         )}
       </div>
 
-      {showServicePicker && (
+      {hasServicePicker && servicePreSelected && !serviceExpanded && (
+        <div className="flex items-center gap-2 text-sm">
+          <span className="font-medium text-slate-600">Service:</span>
+          <span className="font-semibold text-slate-900">{serviceType}</span>
+          <button
+            type="button"
+            onClick={() => setServiceExpanded(true)}
+            className="text-xs font-semibold text-brand-600 hover:text-brand-800"
+          >
+            Change
+          </button>
+        </div>
+      )}
+
+      {showFullServicePicker && (
         <div className="rounded-xl border border-brand-100 bg-brand-50/60 p-3 sm:rounded-2xl sm:p-5">
           <label className={label} htmlFor="quote-service-type">
             Service type

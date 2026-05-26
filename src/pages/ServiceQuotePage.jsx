@@ -4,7 +4,6 @@ import { useSeoSettings } from '../context/SeoSettingsContext'
 import { mergeServicePageConfig } from '../lib/seoSettingsMerge'
 import SeoHead from '../components/seo/SeoHead'
 import SeoServiceJsonLd from '../components/seo/SeoServiceJsonLd'
-import SeoInternalLinks from '../components/seo/SeoInternalLinks'
 import QuoteWizard from '../components/quote-wizard/QuoteWizard'
 
 export default function ServiceQuotePage() {
@@ -59,8 +58,6 @@ export default function ServiceQuotePage() {
           </p>
         </div>
       </section>
-
-      <SeoInternalLinks currentPath={pathname} />
 
       <QuoteWizard serviceType={page.serviceType} compact />
     </div>

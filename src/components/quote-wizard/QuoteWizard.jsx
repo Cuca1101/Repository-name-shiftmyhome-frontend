@@ -16,7 +16,7 @@ function step1ArrivalErrorMessage(feedback) {
     : ''
 }
 
-function QuoteWizardInner({ compact = false }) {
+function QuoteWizardInner({ compact = false, servicePreSelected = false }) {
   const {
     step,
     quoteRef,
@@ -129,6 +129,7 @@ function QuoteWizardInner({ compact = false }) {
           serviceType={serviceType}
           serviceTypeOptions={serviceTypeOptions}
           onServiceTypeChange={allowServiceChange ? setServiceType : undefined}
+          servicePreSelected={servicePreSelected}
           arrivalError={step1ArrivalErrorMessage(feedback)}
         />
       )}
@@ -278,12 +279,12 @@ function QuoteWizardInner({ compact = false }) {
 }
 
 /**
- * @param {{ serviceType: string, allowServiceChange?: boolean, compact?: boolean }} props
+ * @param {{ serviceType: string, allowServiceChange?: boolean, servicePreSelected?: boolean, compact?: boolean }} props
  */
-export default function QuoteWizard({ serviceType, allowServiceChange = false, compact = false }) {
+export default function QuoteWizard({ serviceType, allowServiceChange = false, servicePreSelected = false, compact = false }) {
   return (
     <QuoteWizardProvider serviceType={serviceType} allowServiceChange={allowServiceChange}>
-      <QuoteWizardInner compact={compact} />
+      <QuoteWizardInner compact={compact} servicePreSelected={servicePreSelected} />
     </QuoteWizardProvider>
   )
 }

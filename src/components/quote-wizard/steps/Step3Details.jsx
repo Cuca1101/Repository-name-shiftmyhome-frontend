@@ -1,4 +1,5 @@
 ﻿import MobileStep3Details from '../MobileStep3Details'
+import PackageSelector from '../PackageSelector'
 import AddressConfirmationSection from '../AddressConfirmationSection'
 import PickupDeliveryContactsSection from '../PickupDeliveryContactsSection'
 import PackingMaterialsSection from '../PackingMaterialsSection'
@@ -42,10 +43,17 @@ export default function Step3Details({
       />
 
       <div className="hidden space-y-10 md:block">
+      {/* PackageSelector temporarily hidden — re-enable when ready
+      <PackageSelector
+        value={data.packageTier || 'standard'}
+        onChange={(tier) => onChange({ ...data, packageTier: tier })}
+      />
+      */}
+
       <div>
         <h2 className="text-lg font-bold text-slate-900 sm:text-2xl">Job details & contact</h2>
         <p className="mt-1 text-sm text-slate-600">
-          Extras, access notes, and how we reach you â€” weâ€™ll only use your details for this quote.
+          Extras, access notes, and how we reach you — we'll only use your details for this quote.
         </p>
       </div>
 
@@ -113,7 +121,6 @@ export default function Step3Details({
         variant="desktop"
       />
 
-
       <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
         <h3 className="text-sm font-bold text-slate-900">Special instructions</h3>
         <label className="mt-3 block">
@@ -123,7 +130,7 @@ export default function Step3Details({
             value={data.specialInstructions}
             onChange={(e) => set('specialInstructions', e.target.value)}
             className={input}
-            placeholder="e.g. fragile items, narrow access, parking restrictions…"
+            placeholder="e.g. fragile items, narrow access, parking restrictions..."
           />
         </label>
       </div>
@@ -164,7 +171,7 @@ export default function Step3Details({
             value={data.heavyNotes}
             onChange={(e) => set('heavyNotes', e.target.value)}
             className={input}
-            placeholder="e.g. valuable items, appliance disconnection, specific time notes…"
+            placeholder="e.g. valuable items, appliance disconnection, specific time notes..."
           />
         </label>
       </div>
