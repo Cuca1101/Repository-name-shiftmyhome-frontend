@@ -84,9 +84,9 @@ export default function QuotePaymentSection({
   onPay,
   onPaymentSucceeded,
 }) {
-  const [paymentChoice, setPaymentChoice] = useState(null)
-  const [confirmed, setConfirmed] = useState(false)
-  const [agreedToTerms, setAgreedToTerms] = useState(false)
+  const [paymentChoice, setPaymentChoice] = useState('full')
+  const [confirmed, setConfirmed] = useState(true)
+  const [agreedToTerms, setAgreedToTerms] = useState(true)
   const rootRef = useRef(null)
   const stripeSectionRef = useRef(null)
   const panelVisible = usePanelVisible(rootRef)
@@ -142,6 +142,18 @@ export default function QuotePaymentSection({
     if (type === 'deposit' && !depositAllowed) return
     setPaymentChoice(type)
   }, [cardPayment?.paymentType, depositAllowed])
+
+  // Auto-trigger payment intent creation when panel becomes visible with a choice pre-selected
+  const autoTriggeredRef = useRef(false)
+  useEffect(() => {
+    if (autoTriggeredRef.current) return
+    if (!panelVisible || !paymentChoice) return
+    if (cardFormOpen) return
+    autoTriggeredRef.current = true
+    if (typeof onPay === 'function') {
+      onPay(paymentChoice)
+    }
+  }, [panelVisible, paymentChoice, cardFormOpen, onPay])
 
   function selectChoice(kind) {
     setPaymentChoice(kind)
