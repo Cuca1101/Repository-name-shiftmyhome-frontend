@@ -328,10 +328,15 @@ export function buildActivityFeed(quotes) {
         quoteId: id,
       })
     }
-    if (q.marketplace_visibility === 'visible_in_marketplace' && q.updated_at) {
+    const marketplaceAt =
+      (q.payout_updated_at && String(q.payout_updated_at)) ||
+      (q.paid_at && String(q.paid_at)) ||
+      (q.created_at && String(q.created_at)) ||
+      ''
+    if (q.marketplace_visibility === 'visible_in_marketplace' && marketplaceAt) {
       items.push({
-        at: String(q.updated_at),
-        ms: new Date(String(q.updated_at)).getTime(),
+        at: marketplaceAt,
+        ms: new Date(marketplaceAt).getTime(),
         type: 'marketplace',
         title: 'Sent to marketplace',
         detail: ref,
