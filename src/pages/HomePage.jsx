@@ -12,6 +12,7 @@ import PricingPreview from '../components/PricingPreview'
 import CoverageHomeSection from '../components/CoverageHomeSection'
 import ContactSection from '../components/ContactSection'
 import ContinueQuoteBanner from '../components/ContinueQuoteBanner'
+import HomeLocalSeoLinks from '../components/HomeLocalSeoLinks'
 
 const mobileSecondarySections = (
   <>
@@ -30,6 +31,7 @@ export default function HomePage() {
         {/* Mobile: hero → services → how it works → prices → quote request → reviews → rest */}
         <div className="block md:hidden">
           <Hero />
+          <HomeLocalSeoLinks />
           <HeroServiceGrid />
           <HowItWorksSection compact />
           <PricingPreview />
@@ -43,6 +45,7 @@ export default function HomePage() {
         {/* Desktop: original section order unchanged */}
         <div className="hidden md:block">
           <Hero />
+          <HomeLocalSeoLinks />
           <HeroServiceGrid />
           <HowItWorksSection />
           <AboutSection />

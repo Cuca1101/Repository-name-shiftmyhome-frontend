@@ -205,7 +205,7 @@ function kindMeta(kind, cityName) {
       }
     case 'furniture-delivery':
       return {
-        label: 'furniture delivery',
+        label: 'Furniture delivery',
         titleSuffix: `Furniture Delivery ${cityName}`,
         h1: `Furniture Delivery in ${cityName}`,
         serviceType: 'Furniture Delivery',

@@ -5,10 +5,11 @@
 import { getSeoPageByPath } from '../data/seoPages.js'
 import { getServicePageByPath } from '../constants/servicePages.js'
 import { buildCanonicalUrl, buildOpenGraphMeta } from './seo/seoKeywordHelpers.js'
+import { SEO_SITE_ORIGIN } from '../data/seoPages.js'
 
 const HOMEPAGE_SEO_TITLE = 'House Removals Scotland | ShiftMyHome'
 const HOMEPAGE_SEO_DESCRIPTION =
-  'ShiftMyHome — Professional removals, house moves, office relocations, and man with van across the UK.'
+  'ShiftMyHome — Glasgow removals, Edinburgh removals, and Scotland-wide house moves, man with van, and furniture delivery. Instant online quotes.'
 import { buildSeoMetadataFromSlug } from './seoSlugMetadata.js'
 
 /** @typedef {import('../data/seoPages.js').SeoPageConfig} SeoPageConfig */
@@ -22,8 +23,24 @@ import { buildSeoMetadataFromSlug } from './seoSlugMetadata.js'
  *   ogTitle: string,
  *   ogDescription: string,
  *   canonicalUrl: string,
+ *   breadcrumbJsonLd?: object,
  * }} RouteSeoMetadata
  */
+
+/** @param {{ name: string, path: string }[]} items */
+export function buildBreadcrumbJsonLd(items) {
+  if (!Array.isArray(items) || items.length < 2) return null
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'BreadcrumbList',
+    itemListElement: items.map((item, index) => ({
+      '@type': 'ListItem',
+      position: index + 1,
+      name: item.name,
+      item: `${SEO_SITE_ORIGIN}${item.path}`,
+    })),
+  }
+}
 
 /** @type {Record<string, Omit<RouteSeoMetadata, 'path' | 'canonicalUrl'>>} */
 const STATIC_ROUTE_META = {
@@ -129,6 +146,10 @@ function normalizePath(pathname) {
 /** @param {SeoPageConfig} page */
 function fromSeoPage(page) {
   const og = buildOpenGraphMeta(page.path, page.title, page.metaDescription)
+  const breadcrumbJsonLd = buildBreadcrumbJsonLd([
+    { name: 'Home', path: '/' },
+    { name: page.h1, path: page.path },
+  ])
   return {
     path: page.path,
     title: page.title,
@@ -137,6 +158,7 @@ function fromSeoPage(page) {
     ogTitle: page.ogTitle ?? og.ogTitle,
     ogDescription: page.ogDescription ?? og.ogDescription,
     canonicalUrl: buildCanonicalUrl(page.path),
+    breadcrumbJsonLd: breadcrumbJsonLd ?? undefined,
   }
 }
 
@@ -145,6 +167,10 @@ function fromServicePage(path, page) {
   const title = page.seoTitle || `${page.title} | ShiftMyHome`
   const description = page.metaDescription || page.shortDescription
   const og = buildOpenGraphMeta(path, title, description)
+  const breadcrumbJsonLd = buildBreadcrumbJsonLd([
+    { name: 'Home', path: '/' },
+    { name: page.title, path },
+  ])
   return {
     path,
     title,
@@ -153,6 +179,7 @@ function fromServicePage(path, page) {
     ogTitle: page.ogTitle || og.ogTitle,
     ogDescription: page.ogDescription || description,
     canonicalUrl: buildCanonicalUrl(path),
+    breadcrumbJsonLd: breadcrumbJsonLd ?? undefined,
   }
 }
 

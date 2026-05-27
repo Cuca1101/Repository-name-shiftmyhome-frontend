@@ -7,12 +7,13 @@ import { HOME_SERVICE_CARD_IMAGES } from '../constants/homeServiceCardImages'
 export const DEFAULT_HOMEPAGE = {
   homepageSeoTitle: 'House Removals Scotland | ShiftMyHome',
   homepageSeoDescription:
-    'ShiftMyHome — Professional removals, house moves, office relocations, and man with van across the UK.',
+    'ShiftMyHome — Glasgow removals, Edinburgh removals, and Scotland-wide house moves, man with van, and furniture delivery. Instant online quotes.',
   heroTitlePart1: 'Moving made',
   heroTitleHighlight1: 'simple.',
   heroTitlePart2: 'Stress-free',
   heroTitleHighlight2: 'from start to finish.',
-  heroSubtitle: 'Professional movers. Reliable service. Get your instant quote in minutes.',
+  heroSubtitle:
+    'Glasgow removals, Edinburgh removals, and Scotland-wide house moves — professional crews and instant online quotes.',
   heroImageUrl:
     'https://images.unsplash.com/photo-1600585152915-d208bec867a1?auto=format&fit=crop&w=1800&h=1200&q=85',
   heroVideoUrl: '',
@@ -32,7 +33,7 @@ export const DEFAULT_ABOUT = {
   paragraph1:
     'ShiftMyHome is a UK removals and transport platform helping customers book reliable moves with professional drivers, transparent pricing, and simple online quotes.',
   paragraph2:
-    'From house removals and man with van jobs to office relocations and clearances, Shift My Home connects you with experienced movers across Scotland — a trusted removals platform that keeps you informed from quote to completion.',
+    'From Glasgow removals and Edinburgh removals to office relocations and clearances, ShiftMyHome connects you with experienced movers across Scotland — a trusted removals platform that keeps you informed from quote to completion.',
   imageUrl: '/assets/about/about.png',
   trustCards: [
     {
@@ -52,9 +53,11 @@ export const DEFAULT_ABOUT = {
 
 export const DEFAULT_COVERAGE = {
   heading: 'Coverage across Scotland & the UK',
-  subheading: 'Regular routes from Glasgow — get a quote for your postcode.',
+  subheading:
+    'Glasgow removals, Edinburgh removals, and Scotland-wide routes — get a quote for your postcode.',
   bodyText: '',
-  seoText: '',
+  seoText:
+    'We cover major Scottish cities and UK-wide moves. Book Glasgow removals, Edinburgh removals, or Scotland removals online.',
   imageUrl: '',
   cities: ['Glasgow', 'Edinburgh', 'Stirling', 'Aberdeen', 'Manchester', 'London'],
 }

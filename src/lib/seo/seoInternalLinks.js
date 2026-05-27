@@ -33,7 +33,7 @@ function limitLinks(links, limit = 6) {
 /** @type {Record<string, SeoInternalLink[]>} */
 const CITY_SERVICE_LINKS = {
   Glasgow: [
-    { href: '/glasgow-removals', label: 'Removals in Glasgow' },
+    { href: '/glasgow-removals', label: 'Glasgow House Removals' },
     { href: '/man-with-van-glasgow', label: 'Man with Van Glasgow' },
     { href: '/same-day-removals-glasgow', label: 'Same Day Removals Glasgow' },
     { href: '/student-removals-glasgow', label: 'Student Moves in Glasgow' },
@@ -41,7 +41,7 @@ const CITY_SERVICE_LINKS = {
     { href: '/furniture-delivery-glasgow', label: 'Furniture Delivery Glasgow' },
   ],
   Edinburgh: [
-    { href: '/edinburgh-removals', label: 'Removals in Edinburgh' },
+    { href: '/edinburgh-removals', label: 'Edinburgh Removals' },
     { href: '/man-with-van-edinburgh', label: 'Man with Van Edinburgh' },
     { href: '/same-day-man-with-van-edinburgh', label: 'Same Day Van Edinburgh' },
     { href: '/cheap-student-moves-edinburgh', label: 'Student Moves in Edinburgh' },
@@ -68,8 +68,8 @@ const CITY_SERVICE_LINKS = {
 
 /** @type {SeoInternalLink[]} */
 const SCOTLAND_SERVICE_LINKS = [
-  { href: '/glasgow-removals', label: 'Removals in Glasgow' },
-  { href: '/edinburgh-removals', label: 'Removals in Edinburgh' },
+  { href: '/glasgow-removals', label: 'Glasgow House Removals' },
+  { href: '/edinburgh-removals', label: 'Edinburgh Removals' },
   { href: '/man-with-van-glasgow', label: 'Man with Van Glasgow' },
   { href: '/same-day-removals-glasgow', label: 'Same Day Removals Glasgow' },
   { href: '/office-removals-glasgow', label: 'Office Removals Glasgow' },

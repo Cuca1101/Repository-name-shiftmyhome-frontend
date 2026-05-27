@@ -52,6 +52,14 @@ function injectSeoIntoHtml(template, meta) {
   html = upsertMeta(html, 'name', 'twitter:title', meta.ogTitle || meta.title)
   html = upsertMeta(html, 'name', 'twitter:description', meta.ogDescription || meta.description)
 
+  if (meta.breadcrumbJsonLd) {
+    const json = JSON.stringify(meta.breadcrumbJsonLd).replace(/</g, '\\u003c')
+    const breadcrumbScript = `<script type="application/ld+json">${json}</script>`
+    if (!html.includes('"@type":"BreadcrumbList"')) {
+      html = html.replace(/<\/head>/i, `  ${breadcrumbScript}\n  </head>`)
+    }
+  }
+
   const h1 = `<h1 class="sr-only">${escapeHtml(meta.h1)}</h1>`
   if (/<div id="root">\s*<\/div>/.test(html)) {
     html = html.replace(/<div id="root">\s*<\/div>/, `<div id="root">${h1}</div>`)

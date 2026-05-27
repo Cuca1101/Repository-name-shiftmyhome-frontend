@@ -35,6 +35,13 @@ const legalLinks = [
   { to: '/cookies', label: 'Cookie Preferences' },
 ]
 
+const popularLocationLinks = [
+  { to: '/glasgow-removals', label: 'Glasgow House Removals' },
+  { to: '/edinburgh-removals', label: 'Edinburgh Removals' },
+  { to: '/man-with-van-glasgow', label: 'Man with Van Glasgow' },
+  { to: '/furniture-delivery-glasgow', label: 'Furniture Delivery Glasgow' },
+]
+
 function FooterNavColumn({ title, children, className = '' }) {
   return (
     <div className={`min-w-0 ${className}`}>
@@ -65,7 +72,7 @@ export default function Footer() {
   const email = cmsFooter.email || CONTACT.email
   const tagline =
     cmsFooter.tagline ||
-    'ShiftMyHome — house removals, man with van and moving services across Scotland.'
+    'ShiftMyHome — Glasgow removals, Edinburgh removals, and Scotland-wide man with van and house moves.'
   const social = cmsFooter.socialLinks || {}
   const year = new Date().getFullYear()
   const [adminHref, setAdminHref] = useState('/admin/login')
@@ -107,7 +114,7 @@ export default function Footer() {
             </Link>
             <p className="mt-4 max-w-sm text-sm leading-relaxed text-slate-400">{tagline}</p>
             <p className="mt-2 max-w-sm text-xs leading-relaxed text-slate-500">
-              Scotland-wide removals and man with van services.
+              Professional Scotland removals from Glasgow and Edinburgh to towns across the UK.
             </p>
             <div className="mt-6 flex flex-wrap gap-2">
               <SocialIcon href={social.whatsapp || WHATSAPP_URL} label="WhatsApp">
@@ -151,6 +158,16 @@ export default function Footer() {
           <FooterNavColumn title="Services">
             <ul className="footer-nav-list">
               {serviceLinks.map(({ to, label }) => (
+                <li key={to}>
+                  <Link to={to} className={linkClass}>
+                    {label}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+            <p className="footer-nav-heading mt-6">Popular locations</p>
+            <ul className="footer-nav-list">
+              {popularLocationLinks.map(({ to, label }) => (
                 <li key={to}>
                   <Link to={to} className={linkClass}>
                     {label}
