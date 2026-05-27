@@ -6,6 +6,7 @@ import { useSeoSettings } from '../../context/SeoSettingsContext'
 import { mergeHomepageCmsWithSeo } from '../../lib/seoSettingsMerge'
 import { DEFAULT_HOMEPAGE } from '../../lib/websiteCmsDefaults'
 import { buildMovingCompanyJsonLd, buildWebSiteJsonLd } from '../../lib/schemaOrgBusiness'
+import { applySiteBrandHeadTags } from '../../lib/siteBrandMeta'
 
 const SITE_ORIGIN = SEO_SITE_ORIGIN
 
@@ -60,6 +61,8 @@ export default function HomePageSeo() {
   useEffect(() => {
     if (!isHome) return undefined
 
+    applySiteBrandHeadTags()
+
     const prevTitle = document.title
     document.title = pageTitle
 
@@ -69,7 +72,6 @@ export default function HomePageSeo() {
       setMeta('property', 'og:description', ogDescription),
       setMeta('property', 'og:url', canonical),
       setMeta('property', 'og:type', 'website'),
-      setMeta('property', 'og:site_name', 'ShiftMyHome'),
       setMeta('name', 'twitter:card', 'summary_large_image'),
       setMeta('name', 'twitter:title', ogTitle),
       setMeta('name', 'twitter:description', ogDescription),

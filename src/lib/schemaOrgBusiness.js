@@ -9,6 +9,11 @@ import {
 const BUSINESS_NAME = 'ShiftMyHome'
 const BUSINESS_ALTERNATE_NAMES = ['Shift My Home', 'Shift My Home Removals']
 
+/** @param {string} siteOrigin */
+function organizationLogoUrl(siteOrigin) {
+  return `${siteOrigin}/logo.png`
+}
+
 /**
  * @returns {Record<string, unknown>}
  */
@@ -43,6 +48,7 @@ export function buildMovingCompanyJsonLd(siteOrigin, options = {}) {
     name: BUSINESS_NAME,
     alternateName: BUSINESS_ALTERNATE_NAMES,
     url: siteOrigin,
+    logo: organizationLogoUrl(siteOrigin),
     description,
     telephone: COMPANY_PHONE_E164,
     email: COMPANY_EMAIL,

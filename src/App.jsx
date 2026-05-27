@@ -2,6 +2,7 @@ import { Navigate, Route, Routes, useParams } from 'react-router-dom'
 import WebsiteLeadPageTracker from './components/WebsiteLeadPageTracker'
 import PublicMarketingTracker from './components/PublicMarketingTracker'
 import CookieConsentBanner from './components/CookieConsentBanner'
+import SiteBrandMeta from './components/seo/SiteBrandMeta'
 import ProtectedRoute from './components/ProtectedRoute'
 import AdminLayout from './components/AdminLayout'
 import PublicLayout from './layouts/PublicLayout'
@@ -65,6 +66,7 @@ export default function App() {
     <>
       <WebsiteLeadPageTracker />
       <PublicMarketingTracker />
+      <SiteBrandMeta />
       <CookieConsentBanner />
       <Routes>
       <Route path="/" element={<HomePage />} />

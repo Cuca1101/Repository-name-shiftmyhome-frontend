@@ -1,4 +1,5 @@
 import { SEO_SITE_ORIGIN } from '../data/seoPages'
+import { applySiteBrandHeadTags } from './siteBrandMeta'
 
 /** @param {string} attr @param {string} key @param {string} content */
 export function setMeta(attr, key, content) {
@@ -64,6 +65,8 @@ export function applySeoHeadTags(options) {
   const canonicalHref = `${SEO_SITE_ORIGIN}${path}`
   const absoluteImage = resolveAbsoluteSeoImage(ogImage)
 
+  applySiteBrandHeadTags()
+
   document.title = title
 
   const metas = [setMeta('name', 'description', description)]
@@ -75,7 +78,6 @@ export function applySeoHeadTags(options) {
       setMeta('property', 'og:description', ogDescription),
       setMeta('property', 'og:url', canonicalHref),
       setMeta('property', 'og:type', ogType),
-      setMeta('property', 'og:site_name', 'ShiftMyHome'),
       setMeta('name', 'twitter:card', absoluteImage ? 'summary_large_image' : 'summary'),
       setMeta('name', 'twitter:title', ogTitle),
       setMeta('name', 'twitter:description', ogDescription),

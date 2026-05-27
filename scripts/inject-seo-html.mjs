@@ -6,6 +6,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { buildSitemapXml } from '../src/lib/generateSitemapXml.js'
 import { getRouteSeoMetadata } from '../src/lib/seoRouteMetadata.js'
+import { buildSiteBrandHeadHtml } from '../src/lib/siteBrandMeta.js'
 
 function escapeHtml(value) {
   return String(value || '')
@@ -28,8 +29,13 @@ function upsertMeta(html, attr, key, content) {
   return html.replace(/<\/head>/i, `  ${tag}\n  </head>`)
 }
 
+function ensureBrandHead(html) {
+  if (html.includes('data-seo-brand="1"')) return html
+  return html.replace(/<\/head>/i, `${buildSiteBrandHeadHtml()}\n  </head>`)
+}
+
 function injectSeoIntoHtml(template, meta) {
-  let html = template
+  let html = ensureBrandHead(template)
 
   html = html.replace(/<title>[\s\S]*?<\/title>/i, `<title>${escapeHtml(meta.title)}</title>`)
   html = upsertMeta(html, 'name', 'description', meta.description)
@@ -38,11 +44,13 @@ function injectSeoIntoHtml(template, meta) {
     `<link rel="canonical" href="${escapeHtml(meta.canonicalUrl)}" />`,
   )
 
-  html = upsertMeta(html, 'property', 'og:title', meta.ogTitle)
-  html = upsertMeta(html, 'property', 'og:description', meta.ogDescription)
+  html = upsertMeta(html, 'property', 'og:title', meta.ogTitle || meta.title)
+  html = upsertMeta(html, 'property', 'og:description', meta.ogDescription || meta.description)
   html = upsertMeta(html, 'property', 'og:url', meta.canonicalUrl)
-  html = upsertMeta(html, 'name', 'twitter:title', meta.ogTitle)
-  html = upsertMeta(html, 'name', 'twitter:description', meta.ogDescription)
+  html = upsertMeta(html, 'property', 'og:type', 'website')
+  html = upsertMeta(html, 'name', 'twitter:card', 'summary_large_image')
+  html = upsertMeta(html, 'name', 'twitter:title', meta.ogTitle || meta.title)
+  html = upsertMeta(html, 'name', 'twitter:description', meta.ogDescription || meta.description)
 
   const h1 = `<h1 class="sr-only">${escapeHtml(meta.h1)}</h1>`
   if (/<div id="root">\s*<\/div>/.test(html)) {
