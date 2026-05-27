@@ -1,16 +1,6 @@
 import { quotePatchForAdminDriverAssign } from '../driverOperationalStatus'
-import { isSupabaseConfigured, supabase } from '../supabase'
-
-const ASSIGNMENTS_TABLE = 'job_assignments'
-
-/**
- * @param {Record<string, unknown>} quote
- * @returns {string}
- */
-function quoteRef(quote) {
-  const r = quote?.quote_ref != null ? String(quote.quote_ref).trim() : ''
-  return r || String(quote?.id || '').slice(0, 8)
-}
+import { isSupabaseConfigured } from '../supabase'
+import { cancelJobAssignmentForQuote, upsertJobAssignment } from './jobAssignmentsRepository'
 
 /**
  * @param {Record<string, unknown>} quote
@@ -21,7 +11,8 @@ function scheduledDateFromQuote(quote) {
   const arrival = quote?.arrival_time != null ? String(quote.arrival_time).trim() : '09:00'
   if (move) {
     const d = new Date(`${move}T${arrival.length >= 4 ? arrival : '09:00'}:00`)
-    if (!Number.isNaN(d.getTime())) return d.toISOString()
+    if (!Number.isFinite(d.getTime())) return new Date().toISOString()
+    return d.toISOString()
   }
   if (quote?.created_at) return String(quote.created_at)
   return new Date().toISOString()
@@ -36,57 +27,48 @@ function scheduledDateFromQuote(quote) {
  * @param {{ assignmentStatus?: string }} [opts]
  */
 export async function syncJobAssignmentFromQuoteAssign(quoteId, driverId, quote, opts = {}) {
-  if (!isSupabaseConfigured || !supabase) return { synced: false }
+  if (!isSupabaseConfigured) return { synced: false }
+
   const qid = String(quoteId || '').trim()
   const did = String(driverId || '').trim()
   if (!qid || !did) return { synced: false }
 
-  const status = opts.assignmentStatus ?? 'Assigned'
-  const scheduled = quote ? scheduledDateFromQuote(quote) : new Date().toISOString()
-  const now = new Date().toISOString()
+  const rawStatus = opts.assignmentStatus ?? 'active'
+  const status =
+    rawStatus === 'Completed' || rawStatus === 'Cancelled'
+      ? rawStatus
+      : rawStatus === 'Assigned' || rawStatus === 'Accepted'
+        ? 'active'
+        : rawStatus
 
-  const row = {
-    quote_id: qid,
-    driver_id: did,
-    status,
-    scheduled_date: scheduled,
-    updated_at: now,
-  }
-
-  const { error } = await supabase.from(ASSIGNMENTS_TABLE).upsert(row, { onConflict: 'quote_id' })
-  if (error) {
+  try {
+    await upsertJobAssignment({
+      quoteId: qid,
+      driverId: did,
+      status,
+      scheduledDate: quote ? scheduledDateFromQuote(quote) : undefined,
+    })
+    return { synced: true }
+  } catch (e) {
     if (import.meta.env.DEV) {
       // eslint-disable-next-line no-console
-      console.warn('[driverAssignmentSync] upsert failed', error.message, {
-        quoteRef: quote ? quoteRef(quote) : qid,
-      })
+      console.warn('[driverAssignmentSync] upsert failed', e?.message || e)
     }
-    return { synced: false, error }
+    return { synced: false, error: e }
   }
-  return { synced: true }
 }
 
 /**
- * Remove driver assignment row when admin clears driver from quote.
+ * Unassign driver: mark assignment inactive/cancelled (row kept for audit + realtime).
  * @param {string} quoteId
+ * @param {'inactive' | 'cancelled'} [status]
  */
-export async function removeJobAssignmentForQuote(quoteId) {
-  if (!isSupabaseConfigured || !supabase) return { removed: false }
-  const qid = String(quoteId || '').trim()
-  if (!qid) return { removed: false }
-  const { error } = await supabase.from(ASSIGNMENTS_TABLE).delete().eq('quote_id', qid)
-  if (error) {
-    if (import.meta.env.DEV) {
-      // eslint-disable-next-line no-console
-      console.warn('[driverAssignmentSync] delete failed', error.message)
-    }
-    return { removed: false, error }
-  }
-  return { removed: true }
+export async function removeJobAssignmentForQuote(quoteId, status = 'cancelled') {
+  return cancelJobAssignmentForQuote(quoteId, status)
 }
 
 /**
- * Admin assign driver: update quotes + sync assignment.
+ * Admin assign driver: update quotes + sync job_assignments.
  *
  * @param {string} quoteId
  * @param {string} driverId
@@ -102,10 +84,11 @@ export async function assignDriverToQuote(quoteId, driverId, driverName, quote, 
     assigned_driver_name: driverName,
     assigned_partner_id: null,
     assigned_partner_company: null,
+    status: 'Booked',
     ...quoteWorkflowPatch,
   }
   await updateQuote(quoteId, patch)
-  await syncJobAssignmentFromQuoteAssign(quoteId, driverId, quote, { assignmentStatus: 'Assigned' })
+  await syncJobAssignmentFromQuoteAssign(quoteId, driverId, quote, { assignmentStatus: 'active' })
 }
 
 /** @param {string} quoteId @param {Record<string, unknown>} quoteWorkflowPatch @param {(id: string, patch: Record<string, unknown>) => Promise<void>} updateQuote */
@@ -116,7 +99,7 @@ export async function clearDriverFromQuote(quoteId, quoteWorkflowPatch, updateQu
     ...quoteWorkflowPatch,
   }
   await updateQuote(quoteId, patch)
-  await removeJobAssignmentForQuote(quoteId)
+  await removeJobAssignmentForQuote(quoteId, 'cancelled')
 }
 
 export { quotePatchForAdminDriverAssign }

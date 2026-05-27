@@ -11,6 +11,7 @@ import {
 import { mergedAdminWorkflowForQuote } from '../../lib/quoteAdminWorkflowMerge'
 import { getAvailableJobWarningBadges, getMarketplaceJobWarningBadges } from '../../lib/adminJobWarningBadges'
 import { getMarketplaceFinancePresentation } from '../../lib/marketplaceQuoteFinance'
+import { PAYOUT_FIXED_FROM_AVAILABLE_LABEL } from '../../lib/marketplacePayoutDisplay'
 import {
   partnerAcceptanceLabelForMarketplaceCard,
   partnerListingLabelForMarketplaceCard,
@@ -19,6 +20,8 @@ import JobStatusBadge from './JobStatusBadge'
 import { isQuoteDemoOrTest } from '../../lib/demoTestRecordDetection'
 import { showDemoAdminUi } from '../../lib/adminProductionMode'
 import { getAutoMarketplaceCardBadge } from '../../lib/autoMarketplacePublish'
+import { resolveQuoteCollectionAddress, resolveQuoteDeliveryAddress } from '../../lib/quoteAddressResolve'
+import TruncatedAddressText from './TruncatedAddressText'
 
 function money(n) {
   if (n == null || n === '') return '—'
@@ -111,6 +114,26 @@ function DeliveryHomeIcon({ className = 'h-3.5 w-3.5' }) {
 /**
  * @param {{ from: string, to: string, className?: string }} props
  */
+/**
+ * @param {{ q: Record<string, unknown>, className?: string }} props
+ */
+function JobAcceptedRouteSummary({ q, className = '' }) {
+  const collection = resolveQuoteCollectionAddress(q)
+  const delivery = resolveQuoteDeliveryAddress(q)
+  return (
+    <div className={`space-y-1.5 text-xs ${className}`.trim()}>
+      <p className="min-w-0 leading-snug">
+        <span className="font-semibold text-emerald-800">Collection: </span>
+        <TruncatedAddressText address={collection} maxLen={64} className="inline" />
+      </p>
+      <p className="min-w-0 leading-snug">
+        <span className="font-semibold text-sky-800">Delivery: </span>
+        <TruncatedAddressText address={delivery} maxLen={64} className="inline" />
+      </p>
+    </div>
+  )
+}
+
 function RouteLine({ from, to, className = '' }) {
   return (
     <p
@@ -231,9 +254,10 @@ const viewDetailsClass =
  *   quoteId: string,
  *   q: Record<string, unknown>,
  *   className?: string,
+ *   linkLabel?: string,
  * }} props
  */
-function ViewDetailsWithBooked({ quoteId, q, className = '' }) {
+function ViewDetailsWithBooked({ quoteId, q, className = '', linkLabel = 'View Details' }) {
   const bookedLine = formatAdminJobBookedLine(q)
   return (
     <div className={`flex min-w-0 flex-col items-stretch gap-1 sm:items-end ${className}`.trim()}>
@@ -241,7 +265,7 @@ function ViewDetailsWithBooked({ quoteId, q, className = '' }) {
         to={`/admin/available-jobs/${quoteId}`}
         className={`${viewDetailsClass} w-full sm:w-auto sm:min-w-[7.5rem]`}
       >
-        View Details
+        {linkLabel}
       </Link>
       {bookedLine ? (
         <p className="text-center text-[10px] font-medium text-slate-500 sm:text-right">{bookedLine}</p>
@@ -342,6 +366,7 @@ function WorkflowHint({ rows }) {
  *   selectionCheckbox?: unknown,
  *   secondarySlot?: unknown,
  *   highlight?: boolean,
+ *   viewJobLabel?: string,
  * }} props
  */
 export default function AdminJobOperationsCard({
@@ -353,6 +378,7 @@ export default function AdminJobOperationsCard({
   selectionCheckbox = null,
   secondarySlot = null,
   highlight = false,
+  viewJobLabel,
 }) {
   const id = String(q.id)
   const ref = q.quote_ref ? String(q.quote_ref) : id.slice(0, 8)
@@ -429,13 +455,41 @@ export default function AdminJobOperationsCard({
       </p>
     ) : null
 
+  const marketplacePayoutMeta =
+    cardVariant === 'marketplace' && mpFin ? (
+      <div className="flex flex-wrap gap-1">
+        {mpFin.payoutFixedFromAvailableJobs ? (
+          <span className="inline-flex rounded-full bg-emerald-100 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-emerald-900 ring-1 ring-emerald-200/90">
+            {PAYOUT_FIXED_FROM_AVAILABLE_LABEL}
+          </span>
+        ) : null}
+        {mpFin.payoutIsEstimated && mpFin.payoutWarning ? (
+          <span className="inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-[9px] font-semibold text-amber-950 ring-1 ring-amber-200/90">
+            {mpFin.payoutWarning}
+          </span>
+        ) : null}
+      </div>
+    ) : null
+
   const isActiveWithActions = cardVariant === 'active' && Boolean(secondarySlot)
+  const useFullRoute =
+    !isActiveWithActions &&
+    (cardVariant === 'active' ||
+      cardVariant === 'available' ||
+      cardVariant === 'marketplace' ||
+      layoutMode === 'list')
+
   const routeColumn = (
     <div className="min-w-0 flex-[1.4] space-y-1.5">
-      <RouteLine from={pickupLabel} to={deliveryLabel} />
+      {isActiveWithActions ? null : useFullRoute ? (
+        <JobAcceptedRouteSummary q={q} />
+      ) : (
+        <RouteLine from={pickupLabel} to={deliveryLabel} />
+      )}
       {metaChips}
       {workflowRows.length > 0 ? <WorkflowHint rows={workflowRows} /> : null}
       {marketplaceHints}
+      {marketplacePayoutMeta}
       <div className="hidden lg:block">{keyBadges}</div>
     </div>
   )
@@ -460,7 +514,7 @@ export default function AdminJobOperationsCard({
           </div>
           <div className="mt-3 flex flex-col gap-3 border-t border-slate-100 pt-3 sm:flex-row sm:items-end sm:justify-between sm:gap-4">
             <div className="min-w-0 flex-1">{secondarySlot}</div>
-            <ViewDetailsWithBooked quoteId={id} q={q} className="w-full shrink-0 sm:w-auto" />
+            <ViewDetailsWithBooked quoteId={id} q={q} className="w-full shrink-0 sm:w-auto" linkLabel={viewJobLabel} />
           </div>
         </div>
       </li>
@@ -479,7 +533,7 @@ export default function AdminJobOperationsCard({
           <MoveSchedule moveWhen={moveWhen} arrival={arrival} emphasis />
           <div className="mt-2">{keyBadges}</div>
           <div className="mt-2.5 space-y-1.5">
-            <RouteLine from={pickupLabel} to={deliveryLabel} />
+            {isActiveWithActions ? null : <JobAcceptedRouteSummary q={q} />}
             {metaChips}
             {workflowRows.length > 0 ? <WorkflowHint rows={workflowRows} /> : null}
           </div>
@@ -487,7 +541,7 @@ export default function AdminJobOperationsCard({
         <PaymentStrip fin={fin} />
         <div className="space-y-3 border-t border-slate-100 px-3.5 py-3">
           <div className="min-w-0">{secondarySlot}</div>
-          <ViewDetailsWithBooked quoteId={id} q={q} className="w-full" />
+          <ViewDetailsWithBooked quoteId={id} q={q} className="w-full" linkLabel={viewJobLabel} />
         </div>
       </li>
     )
@@ -512,7 +566,7 @@ export default function AdminJobOperationsCard({
           <div className="flex min-w-0 flex-col gap-2 lg:shrink-0 lg:gap-3">
             {financeBlock}
             {secondarySlot ? <div className="min-w-0">{secondarySlot}</div> : null}
-            <ViewDetailsWithBooked quoteId={id} q={q} className="w-full" />
+            <ViewDetailsWithBooked quoteId={id} q={q} className="w-full" linkLabel={viewJobLabel} />
           </div>
         </div>
       </li>
@@ -548,7 +602,7 @@ export default function AdminJobOperationsCard({
       )}
       {secondarySlot ? <div className="border-t border-slate-100 px-3 pb-2 pt-2">{secondarySlot}</div> : null}
       <div className="border-t border-slate-100 p-3 pt-2">
-        <ViewDetailsWithBooked quoteId={id} q={q} className="w-full" />
+        <ViewDetailsWithBooked quoteId={id} q={q} className="w-full" linkLabel={viewJobLabel} />
       </div>
     </li>
   )

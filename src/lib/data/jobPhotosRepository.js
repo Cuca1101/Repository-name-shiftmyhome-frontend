@@ -9,51 +9,396 @@ import {
 const TABLE = 'job_photos'
 const SIGNED_URL_TTL_SEC = 3600
 
-/**
- * @param {string} quoteRef
- * @param {string|null|undefined} jobId
- * @returns {Promise<Record<string, unknown>[]>}
- */
-export async function fetchJobPhotosForAdmin(quoteRef, jobId) {
-  if (!isSupabaseConfigured || !supabase) return []
-  const ref = String(quoteRef || '').trim()
-  const jid = jobId != null ? String(jobId).trim() : ''
-  if (!ref && !jid) return []
+/** @param {unknown} path */
+function normalizeStoragePath(path) {
+  return String(path ?? '')
+    .trim()
+    .replace(/^\/+/, '')
+}
 
+/** Admin storage list: SMH-2026-123456 or SMH-2026-0001 job references */
+function isAdminStorageFolderRef(ref) {
+  return /^SMH-\d{4}-\d{4,6}$/i.test(String(ref || '').trim())
+}
+
+/** @param {unknown} text */
+function extractSmhRefsFromText(text) {
+  const matches = String(text ?? '').match(/SMH-\d{4}-\d{4,6}/gi) ?? []
+  return [...new Set(matches.map((m) => m.trim().toUpperCase()))]
+}
+
+/** @param {Record<string, unknown>|null|undefined} quoteRow */
+export function extractSmhRefsFromQuoteRow(quoteRow) {
+  if (!quoteRow || typeof quoteRow !== 'object') return []
+  const refs = new Set()
+  extractSmhRefsFromText(quoteRow.details).forEach((r) => refs.add(r))
+  extractSmhRefsFromText(quoteRow.pricing).forEach((r) => refs.add(r))
+  extractSmhRefsFromText(quoteRow.inventory_text).forEach((r) => refs.add(r))
+  extractSmhRefsFromText(quoteRow.quote_ref).forEach((r) => refs.add(r))
+  return [...refs]
+}
+
+/**
+ * Collect every quote ref / job id that may identify photos for an admin job view.
+ * @param {{
+ *   quoteRef?: string|null,
+ *   jobId?: string|null,
+ *   quoteRow?: Record<string, unknown>|null,
+ *   linkedJob?: Record<string, unknown>|null,
+ * }} input
+ */
+export function resolveJobPhotoLookupKeys({ quoteRef, jobId, quoteRow, linkedJob }) {
+  /** @type {Set<string>} */
+  const quoteRefs = new Set()
+  /** @type {Set<string>} */
+  const jobIds = new Set()
+
+  const addRef = (value) => {
+    const t = String(value ?? '').trim()
+    if (t) quoteRefs.add(t)
+  }
+  const addJobId = (value) => {
+    const t = String(value ?? '').trim()
+    if (t) jobIds.add(t)
+  }
+
+  addRef(quoteRef)
+  if (quoteRow) {
+    addRef(quoteRow.quote_ref)
+    addJobId(quoteRow.id)
+    extractSmhRefsFromQuoteRow(quoteRow).forEach((r) => addRef(r))
+  }
+  if (linkedJob) {
+    addJobId(linkedJob.id)
+    const pi = linkedJob.price_inputs
+    if (pi && typeof pi === 'object') {
+      addRef(pi.quoteRef)
+      extractSmhRefsFromText(pi.quoteRef).forEach((r) => addRef(r))
+    }
+  }
+  addJobId(jobId)
+
+  return {
+    quoteRefs: [...quoteRefs],
+    jobIds: [...jobIds],
+    quoteId: quoteRow?.id != null ? String(quoteRow.id) : null,
+  }
+}
+
+/**
+ * @param {ReturnType<typeof resolveJobPhotoLookupKeys>} keys
+ * @param {Record<string, unknown>} extra
+ */
+function buildPhotoFetchDebug(keys, extra = {}) {
+  return {
+    quote_id: keys.quoteId ?? null,
+    booking_id: null,
+    job_id: keys.jobIds[0] ?? null,
+    quote_ref: keys.quoteRefs[0] ?? null,
+    quote_refs: keys.quoteRefs,
+    job_ids: keys.jobIds,
+    tables_queried: [],
+    row_count: 0,
+    storage_bucket: JOB_PHOTO_BUCKET,
+    signed_url_ok: 0,
+    signed_url_failed: 0,
+    signed_url_errors: [],
+    query_errors: [],
+    authenticated: false,
+    via: 'client',
+    empty_reason: null,
+    ...extra,
+  }
+}
+
+function logPhotoFetchDebug(debug) {
+  if (!import.meta.env.DEV) return
+  // eslint-disable-next-line no-console
+  console.debug('[job_photos] admin fetch', debug)
+}
+
+/**
+ * @param {Record<string, unknown>[]} rows
+ * @param {string[]} quoteRefs
+ * @param {Set<string>} seenPaths
+ */
+async function appendStorageOnlyPhotoRows(rows, quoteRefs, seenPaths) {
+  if (!isSupabaseConfigured || !supabase) return
+
+  for (const ref of quoteRefs) {
+    if (!isAdminStorageFolderRef(ref)) continue
+    const { data: files, error } = await supabase.storage.from(JOB_PHOTO_BUCKET).list(ref, {
+      limit: 100,
+      sortBy: { column: 'created_at', order: 'asc' },
+    })
+    if (error) {
+      if (import.meta.env.DEV) {
+        console.warn('[job_photos] storage list failed', { quoteRef: ref, error })
+      }
+      continue
+    }
+    for (const file of files ?? []) {
+      const name = file?.name != null ? String(file.name) : ''
+      if (!name || name === '.emptyFolderPlaceholder') continue
+      const path = normalizeStoragePath(`${ref}/${name}`)
+      if (!path || seenPaths.has(path)) continue
+      seenPaths.add(path)
+      rows.push({
+        id: `storage:${path}`,
+        quote_ref: ref,
+        job_id: null,
+        storage_path: path,
+        file_name: name,
+        mime_type: file.metadata?.mimetype ?? file.metadata?.contentType ?? null,
+        size_bytes: file.metadata?.size ?? null,
+        uploaded_by: JOB_PHOTO_UPLOADED_BY.CUSTOMER,
+        source_label: JOB_PHOTO_SOURCE_LABEL.CUSTOMER,
+        photo_type: 'general',
+        created_at: file.created_at ?? file.updated_at ?? new Date().toISOString(),
+        fromStorageOnly: true,
+      })
+    }
+  }
+}
+
+/**
+ * @param {ReturnType<typeof resolveJobPhotoLookupKeys>} keys
+ * @param {{ tablesQueried: string[], queryErrors: { query: string, message: string }[] }} trace
+ */
+async function fetchJobPhotosClient(keys, trace) {
   /** @type {Record<string, unknown>[]} */
   const rows = []
-  const seen = new Set()
+  const seenPaths = new Set()
+  const seenIds = new Set()
 
   const merge = (list) => {
     for (const row of list ?? []) {
+      const path = normalizeStoragePath(row?.storage_path)
       const id = row?.id != null ? String(row.id) : ''
-      if (!id || seen.has(id)) continue
-      seen.add(id)
-      rows.push(row)
+      const dedupeKey = path || id
+      if (!dedupeKey) continue
+      if (path && seenPaths.has(path)) continue
+      if (id && seenIds.has(id)) continue
+      if (path) seenPaths.add(path)
+      if (id) seenIds.add(id)
+      rows.push(path ? { ...row, storage_path: path } : row)
     }
   }
 
-  if (ref) {
+  if (keys.quoteRefs.length) {
+    trace.tablesQueried.push(`job_photos.quote_ref IN (${keys.quoteRefs.length})`)
+    const { data, error } = await supabase.from(TABLE).select('*').in('quote_ref', keys.quoteRefs)
+    if (error) trace.queryErrors.push({ query: 'quote_ref.in', message: error.message })
+    else merge(data)
+  }
+
+  if (keys.jobIds.length) {
+    trace.tablesQueried.push(`job_photos.job_id IN (${keys.jobIds.length})`)
+    const { data, error } = await supabase.from(TABLE).select('*').in('job_id', keys.jobIds)
+    if (error) trace.queryErrors.push({ query: 'job_id.in', message: error.message })
+    else merge(data)
+  }
+
+  for (const ref of keys.quoteRefs) {
+    trace.tablesQueried.push(`job_photos.storage_path ILIKE ${ref}/%`)
+    const { data, error } = await supabase.from(TABLE).select('*').ilike('storage_path', `${ref}/%`)
+    if (error) trace.queryErrors.push({ query: `storage_path ilike ${ref}`, message: error.message })
+    else merge(data)
+  }
+
+  if (keys.quoteId) {
+    trace.tablesQueried.push('job_photos.storage_path ILIKE quote_id/%')
     const { data, error } = await supabase
       .from(TABLE)
       .select('*')
-      .eq('quote_ref', ref)
-      .order('created_at', { ascending: true })
-    if (error) throw error
-    merge(data)
+      .ilike('storage_path', `${keys.quoteId}/%`)
+    if (error) trace.queryErrors.push({ query: 'storage_path ilike quote_id', message: error.message })
+    else merge(data)
   }
 
-  if (jid) {
-    const { data: byJob, error: jobErr } = await supabase
-      .from(TABLE)
-      .select('*')
-      .eq('job_id', jid)
-      .order('created_at', { ascending: true })
-    if (jobErr) throw jobErr
-    merge(byJob)
+  await appendStorageOnlyPhotoRows(rows, keys.quoteRefs, seenPaths)
+
+  if (keys.quoteId) {
+    trace.tablesQueried.push(`storage.list(${keys.quoteId})`)
+    const { data: files, error } = await supabase.storage.from(JOB_PHOTO_BUCKET).list(keys.quoteId, { limit: 100 })
+    if (error) {
+      trace.queryErrors.push({ query: `storage.list quote_id`, message: error.message })
+    } else {
+      for (const file of files ?? []) {
+        const name = file?.name != null ? String(file.name) : ''
+        if (!name || name === '.emptyFolderPlaceholder') continue
+        const path = normalizeStoragePath(`${keys.quoteId}/${name}`)
+        if (!path || seenPaths.has(path)) continue
+        seenPaths.add(path)
+        rows.push({
+          id: `storage:${path}`,
+          quote_ref: keys.quoteRefs[0] ?? null,
+          storage_path: path,
+          file_name: name,
+          uploaded_by: JOB_PHOTO_UPLOADED_BY.CUSTOMER,
+          source_label: JOB_PHOTO_SOURCE_LABEL.CUSTOMER,
+          photo_type: 'general',
+          fromStorageOnly: true,
+        })
+      }
+    }
   }
 
   rows.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+  return rows
+}
+
+/**
+ * @param {ReturnType<typeof resolveJobPhotoLookupKeys>} keys
+ * @param {Record<string, unknown>|null|undefined} quoteRow
+ */
+async function fetchJobPhotosViaEdge(keys, quoteRow) {
+  const { data, error } = await supabase.functions.invoke('admin-job-photos', {
+    body: {
+      quote_id: keys.quoteId,
+      quote_ref: keys.quoteRefs[0] ?? null,
+      quote_refs: keys.quoteRefs,
+      job_id: keys.jobIds[0] ?? null,
+      job_ids: keys.jobIds,
+      details: quoteRow?.details ?? null,
+      pricing: quoteRow?.pricing ?? null,
+      inventory_text: quoteRow?.inventory_text ?? null,
+    },
+  })
+
+  if (error) {
+    return {
+      rows: [],
+      debug: buildPhotoFetchDebug(keys, {
+        via: 'edge_invoke_failed',
+        empty_reason: error.message || 'Edge function invoke failed',
+        query_errors: [{ query: 'admin-job-photos', message: error.message || 'invoke failed' }],
+      }),
+    }
+  }
+
+  const payload = data && typeof data === 'object' ? data : {}
+  if (!payload.ok) {
+    return {
+      rows: [],
+      debug: buildPhotoFetchDebug(keys, {
+        via: 'edge_error',
+        empty_reason: String(payload.error || 'admin-job-photos returned error'),
+        query_errors: [{ query: 'admin-job-photos', message: String(payload.error || 'error') }],
+      }),
+    }
+  }
+
+  const edgeRows = Array.isArray(payload.rows) ? payload.rows : []
+  const edgeDebug = payload.debug && typeof payload.debug === 'object' ? payload.debug : {}
+  return {
+    rows: edgeRows,
+    debug: buildPhotoFetchDebug(keys, { ...edgeDebug, via: edgeDebug.via || 'edge_service_role' }),
+  }
+}
+
+/**
+ * @param {{
+ *   quoteRef?: string|null,
+ *   jobId?: string|null,
+ *   quoteRow?: Record<string, unknown>|null,
+ *   linkedJob?: Record<string, unknown>|null,
+ * }} lookup
+ * @returns {Promise<{ rows: Record<string, unknown>[], debug: Record<string, unknown> }>}
+ */
+export async function fetchJobPhotosForAdminLookup(lookup) {
+  if (!isSupabaseConfigured || !supabase) {
+    const keys = resolveJobPhotoLookupKeys(lookup)
+    return {
+      rows: [],
+      debug: buildPhotoFetchDebug(keys, {
+        empty_reason: 'Supabase not configured',
+        authenticated: false,
+      }),
+    }
+  }
+
+  const keys = resolveJobPhotoLookupKeys(lookup)
+  const trace = { tablesQueried: [], queryErrors: [] }
+
+  if (!keys.quoteRefs.length && !keys.jobIds.length && !keys.quoteId) {
+    const debug = buildPhotoFetchDebug(keys, {
+      empty_reason: 'No quote_ref, quote_id, or job_id available for photo lookup',
+      authenticated: false,
+    })
+    logPhotoFetchDebug(debug)
+    return { rows: [], debug }
+  }
+
+  const { data: sessionData } = await supabase.auth.getSession()
+  const authenticated = Boolean(sessionData?.session)
+
+  let rows = []
+  let debug = buildPhotoFetchDebug(keys, { authenticated })
+
+  try {
+    rows = await fetchJobPhotosClient(keys, trace)
+    debug = buildPhotoFetchDebug(keys, {
+      authenticated,
+      tables_queried: trace.tablesQueried,
+      query_errors: trace.queryErrors,
+      row_count: rows.length,
+      via: 'client',
+    })
+
+    const shouldTryEdge =
+      rows.length === 0 ||
+      trace.queryErrors.some((e) => /permission|policy|jwt|unauthorized|403/i.test(e.message))
+
+    if (shouldTryEdge && authenticated) {
+      const edge = await fetchJobPhotosViaEdge(keys, lookup.quoteRow)
+      if (edge.rows.length > 0 || rows.length === 0) {
+        rows = edge.rows
+        debug = {
+          ...edge.debug,
+          client_row_count: debug.row_count,
+          client_query_errors: debug.query_errors,
+        }
+      } else if (rows.length === 0) {
+        debug = {
+          ...debug,
+          ...edge.debug,
+          empty_reason:
+            edge.debug.empty_reason ||
+            'No rows in job_photos or quote-photos storage for resolved keys (client + edge)',
+        }
+      }
+    } else if (rows.length === 0) {
+      debug.empty_reason = authenticated
+        ? 'No rows in job_photos or quote-photos storage for resolved keys'
+        : 'Admin not signed in — photo metadata requires an authenticated Supabase session'
+    }
+  } catch (err) {
+    debug.query_errors.push({ query: 'client_fetch', message: err?.message || String(err) })
+    if (authenticated) {
+      const edge = await fetchJobPhotosViaEdge(keys, lookup.quoteRow)
+      rows = edge.rows
+      debug = { ...edge.debug, client_error: err?.message || String(err) }
+    } else {
+      debug.empty_reason = err?.message || 'Client fetch failed'
+      throw err
+    }
+  }
+
+  debug.row_count = rows.length
+  logPhotoFetchDebug(debug)
+  return { rows, debug }
+}
+
+/**
+ * @param {string} quoteRef
+ * @param {string|null|undefined} jobId
+ * @param {Record<string, unknown>|null} [quoteRow]
+ * @param {Record<string, unknown>|null} [linkedJob]
+ * @returns {Promise<Record<string, unknown>[]>}
+ */
+export async function fetchJobPhotosForAdmin(quoteRef, jobId, quoteRow = null, linkedJob = null) {
+  const { rows } = await fetchJobPhotosForAdminLookup({ quoteRef, jobId, quoteRow, linkedJob })
   return rows
 }
 
@@ -64,20 +409,30 @@ export async function fetchJobPhotosForAdmin(quoteRef, jobId) {
 export async function attachSignedUrlsToJobPhotos(rows) {
   if (!isSupabaseConfigured || !supabase || !rows.length) return []
 
+  const needsSigning = rows.some((row) => !row.signedUrl && row.storage_path)
+  if (!needsSigning) return rows
+
   const out = await Promise.all(
     rows.map(async (row) => {
-      const path = row.storage_path != null ? String(row.storage_path) : ''
+      const path = normalizeStoragePath(row.storage_path)
       if (!path) return { ...row, signedUrl: null }
       const { data, error } = await supabase.storage.from(JOB_PHOTO_BUCKET).createSignedUrl(path, SIGNED_URL_TTL_SEC)
       if (error) {
-        console.warn('[job_photos] signed URL failed', path, error)
+        if (import.meta.env.DEV) {
+          console.warn('[job_photos] signed URL failed', path, error)
+        }
         return {
           ...row,
           signedUrl: null,
           signedUrlError: error.message || 'Could not create signed URL',
         }
       }
-      return { ...row, signedUrl: data?.signedUrl ?? null, signedUrlError: null }
+      const signedUrl = data?.signedUrl ?? null
+      if (import.meta.env.DEV && signedUrl) {
+        // eslint-disable-next-line no-console
+        console.debug('[job_photos] signed URL ok', { path, signedUrl: signedUrl.slice(0, 80) + '…' })
+      }
+      return { ...row, signedUrl, signedUrlError: null }
     }),
   )
   return out

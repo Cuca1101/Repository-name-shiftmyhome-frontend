@@ -1,4 +1,5 @@
 import { loadAvailableJobAdminOverrides } from './availableJobLocalStore'
+import { numOrNull } from './jobPayoutAccounting'
 
 /**
  * Merge persisted quote workflow columns (Supabase) with sessionStorage overrides.
@@ -22,14 +23,18 @@ export function mergedAdminWorkflowForQuote(q) {
   if (payoutRaw != null && payoutRaw !== '') {
     const n = Number(payoutRaw)
     if (Number.isFinite(n)) marketplacePayoutGbp = n
-  } else if (payoutRaw === null) {
-    marketplacePayoutGbp = null
+  } else if (numOrNull(q.driver_payout_amount) != null) {
+    marketplacePayoutGbp = Number(q.driver_payout_amount)
   }
+
+  const marketplacePayoutManualOverride =
+    Boolean(q.driver_payout_manual_override) || Boolean(s.marketplacePayoutManualOverride)
 
   return {
     ...s,
     marketplaceVisibility: q.marketplace_visibility,
     marketplacePayoutGbp,
+    marketplacePayoutManualOverride,
     assignedDriver: q.assigned_driver_name != null ? String(q.assigned_driver_name) : '',
     assignedPartnerCompany: q.assigned_partner_company != null ? String(q.assigned_partner_company) : '',
     operationalStatus: q.operational_status != null ? String(q.operational_status) : '',

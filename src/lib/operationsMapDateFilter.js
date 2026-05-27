@@ -93,6 +93,21 @@ export function ymdMatchesDatePreset(entityYmd, preset, customYmd, anchorYmd) {
  * @param {OperationsMapDatePreset} preset
  * @param {string} customYmd
  */
+/**
+ * Operations map date filter. Available/waiting jobs match the Available Jobs inbox (no move-date filter).
+ * @param {Record<string, unknown>[]} quotes
+ * @param {string} mapMode
+ * @param {OperationsMapDatePreset} preset
+ * @param {string} customYmd
+ * @param {string} anchorYmd
+ */
+export function filterQuotesForOperationsMapDate(quotes, mapMode, preset, customYmd, anchorYmd) {
+  const list = Array.isArray(quotes) ? quotes : []
+  if (mapMode === 'available') return list
+  if (preset === 'all') return list
+  return list.filter((q) => ymdMatchesDatePreset(quoteMoveYmd(q), preset, customYmd, anchorYmd))
+}
+
 export function formatDatePresetLabel(preset, customYmd) {
   if (preset === 'all') return 'All dates'
   if (preset === 'today') return 'Today'

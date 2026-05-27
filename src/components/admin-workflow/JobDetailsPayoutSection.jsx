@@ -447,17 +447,10 @@ export default function JobDetailsPayoutSection({ q, onSaved }) {
           <DriverChargesList
             charges={jobCharges}
             compact
-            onNotesSaved={loadCharges}
-            onWaive={(c) => void updateDriverCharge(String(c.id), { status: 'waived' }).then(loadCharges)}
-            onDispute={(c) =>
-              void updateDriverCharge(String(c.id), { status: 'disputed' }).then(loadCharges)
-            }
-            onCancel={(c) =>
-              void updateDriverCharge(String(c.id), { status: 'cancelled' }).then(loadCharges)
-            }
-            onApply={(c) =>
-              void updateDriverCharge(String(c.id), { status: 'applied' }).then(loadCharges)
-            }
+            onUpdated={async () => {
+              await loadCharges()
+              await onSaved?.()
+            }}
           />
         </div>
       </div>

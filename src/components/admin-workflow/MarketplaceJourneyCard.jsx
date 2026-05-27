@@ -1,6 +1,13 @@
+import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { fetchQuotesByBundledJourneyId } from '../../lib/data/quotesAdminRepository'
 import { formatDateUK } from '../../lib/formatDateDisplay'
 import { formatJourneyDurationHhMm } from '../../lib/journeyPlannerModel'
+import {
+  readManualOverridesFromQuotes,
+  readPerJobPayoutsFromQuotes,
+  splitJourneyDriverPayout,
+} from '../../lib/journeyPayoutSplit'
 import MarketplaceJourneyCardActions from './MarketplaceJourneyCardActions'
 import MarketplaceJourneyRemoveButtons from './MarketplaceJourneyRemoveButtons'
 
@@ -43,9 +50,45 @@ export default function MarketplaceJourneyCard({ journey, onApplied }) {
     j.total_volume_m3 != null && Number.isFinite(Number(j.total_volume_m3))
       ? `${Number(j.total_volume_m3).toFixed(2)} m³`
       : '—'
-  const payout = money(j.marketplace_payout_price)
+  const journeyPayoutRaw = j.marketplace_payout_price
+  const journeyPayoutNum =
+    journeyPayoutRaw != null && Number.isFinite(Number(journeyPayoutRaw)) ? Number(journeyPayoutRaw) : null
+  const payout = money(journeyPayoutNum)
   const tags = Array.isArray(j.requirements_tags) ? j.requirements_tags.map(String) : []
   const hidden = Boolean(j.partner_dashboard_hidden)
+
+  const [bundledQuotes, setBundledQuotes] = useState(/** @type {Record<string, unknown>[]} */ ([]))
+
+  useEffect(() => {
+    if (!id) {
+      setBundledQuotes([])
+      return
+    }
+    let cancelled = false
+    void (async () => {
+      try {
+        const rows = await fetchQuotesByBundledJourneyId(id)
+        if (!cancelled) setBundledQuotes(rows)
+      } catch {
+        if (!cancelled) setBundledQuotes([])
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [id, j.updated_at])
+
+  const perJobPayouts = useMemo(() => readPerJobPayoutsFromQuotes(bundledQuotes), [bundledQuotes])
+
+  const perJobAuto = useMemo(() => {
+    if (journeyPayoutNum == null || bundledQuotes.length === 0) return null
+    const ids = bundledQuotes.map((q) => String(q.id || '').trim()).filter(Boolean)
+    const manual = readManualOverridesFromQuotes(bundledQuotes)
+    const split = splitJourneyDriverPayout(journeyPayoutNum, ids, manual)
+    return split.perJobAuto
+  }, [journeyPayoutNum, bundledQuotes])
+
+  const jobCountDisplay = bundledQuotes.length > 0 ? bundledQuotes.length : jobs
 
   return (
     <li className="flex flex-col overflow-hidden rounded-2xl border border-violet-200/80 bg-gradient-to-br from-white via-violet-50/30 to-white shadow-md ring-1 ring-slate-900/[0.04]">
@@ -69,6 +112,23 @@ export default function MarketplaceJourneyCard({ journey, onApplied }) {
       </div>
 
       <div className="flex flex-1 flex-col gap-3 p-4 sm:p-5">
+        <div className="rounded-xl border-2 border-emerald-300 bg-emerald-50 px-4 py-3">
+          <p className="text-[10px] font-bold uppercase tracking-wide text-emerald-800">Driver journey offer</p>
+          <p className="mt-1 text-2xl font-bold tabular-nums text-emerald-950">{payout}</p>
+          <p className="mt-1 text-sm font-semibold text-emerald-900">
+            {jobCountDisplay} job{jobCountDisplay === 1 ? '' : 's'}
+            {perJobAuto != null ? (
+              <>
+                {' · '}
+                <span className="text-violet-900">£{perJobAuto.toFixed(2)} per job</span>
+              </>
+            ) : null}
+          </p>
+          <p className="mt-1 text-[11px] text-emerald-800/90">
+            Total driver payout for the bundle — not reduced again from customer price.
+          </p>
+        </div>
+
         <dl className="grid gap-2 text-xs sm:grid-cols-2">
           <div className="rounded-xl bg-slate-50 px-3 py-2">
             <dt className="font-semibold uppercase tracking-wide text-slate-500">Date</dt>
@@ -89,17 +149,32 @@ export default function MarketplaceJourneyCard({ journey, onApplied }) {
           </div>
           <div className="rounded-xl bg-slate-50 px-3 py-2">
             <dt className="font-semibold uppercase tracking-wide text-slate-500">Jobs in bundle</dt>
-            <dd className="mt-0.5 font-semibold text-slate-900">{jobs}</dd>
+            <dd className="mt-0.5 font-semibold text-slate-900">{jobCountDisplay}</dd>
           </div>
           <div className="rounded-xl bg-slate-50 px-3 py-2">
             <dt className="font-semibold uppercase tracking-wide text-slate-500">Total volume (combined)</dt>
             <dd className="mt-0.5 font-semibold text-slate-900">{totalVol}</dd>
           </div>
-          <div className="rounded-xl border border-emerald-200 bg-emerald-50/80 px-3 py-2">
-            <dt className="font-semibold uppercase tracking-wide text-emerald-800">Journey payout</dt>
-            <dd className="mt-0.5 text-lg font-bold text-emerald-950">{payout}</dd>
-          </div>
         </dl>
+
+        {bundledQuotes.length > 0 ? (
+          <div className="rounded-xl border border-violet-100 bg-violet-50/50 px-3 py-2">
+            <p className="text-[10px] font-bold uppercase tracking-wide text-violet-800">Per-job payout</p>
+            <ul className="mt-1.5 space-y-1 text-xs text-slate-800">
+              {bundledQuotes.map((q) => {
+                const qid = String(q.id || '')
+                const qref = String(q.quote_ref || qid.slice(0, 8))
+                const amt = perJobPayouts[qid]
+                return (
+                  <li key={qid} className="flex justify-between gap-2 font-mono">
+                    <span className="font-semibold">{qref}</span>
+                    <span className="tabular-nums font-bold text-violet-900">{money(amt)}</span>
+                  </li>
+                )
+              })}
+            </ul>
+          </div>
+        ) : null}
 
         {tags.length > 0 ? (
           <div className="flex flex-wrap gap-1.5">

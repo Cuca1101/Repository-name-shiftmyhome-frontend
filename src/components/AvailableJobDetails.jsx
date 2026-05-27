@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Link, useParams, useSearchParams } from 'react-router-dom'
+import { Link, useLocation, useParams, useSearchParams } from 'react-router-dom'
 import {
   fetchQuoteByIdForAdmin,
   updateQuoteWorkflowAssignment,
@@ -7,7 +7,7 @@ import {
   updateQuoteWorkflowStatus,
 } from '../lib/data/quotesAdminRepository'
 import { HOME_PAGE_QUOTE_SOURCE } from '../lib/data/quotesRepository'
-import { fetchAllJobs } from '../lib/data/jobsRepository'
+import { fetchAllJobs, fetchJobIdsForQuoteRefs } from '../lib/data/jobsRepository'
 import { formatDateTimeUK } from '../lib/formatDateDisplay'
 import { stripeDashboardSearchUrl } from '../lib/stripeDashboardUrl'
 import {
@@ -18,13 +18,13 @@ import { mergedAdminWorkflowForQuote } from '../lib/quoteAdminWorkflowMerge'
 import { isSupabaseConfigured } from '../lib/supabase'
 import {
   buildPricingBreakdownSections,
-  deriveCardStatusBadge,
   parsePricingText,
   resolveFinancials,
 } from '../lib/quoteJobAdminModel'
 import GenerateJobSheetButton from './admin-workflow/GenerateJobSheetButton'
 import { findLinkedJobForQuote, quoteIsCancelled, quoteIsCompleted } from '../lib/adminWorkflowFilters'
-import { quotePassesAvailableJobsStrict } from '../lib/adminJobListRules'
+import { quotePassesActiveStrict, quotePassesAvailableJobsStrict } from '../lib/adminJobListRules'
+import JobDriverAssignmentPanel from './admin-workflow/JobDriverAssignmentPanel'
 import CancelBookingAction from './admin-workflow/CancelBookingAction'
 import { publishQuoteToMarketplace } from '../lib/marketplacePublishQuote'
 import AutoMarketplaceHoldToggle from './admin-workflow/AutoMarketplaceHoldToggle'
@@ -33,14 +33,17 @@ import AdminJobOverrideActions from './admin-workflow/AdminJobOverrideActions'
 import AdminJobQuoteDetailsPanel from './admin-workflow/AdminJobQuoteDetailsPanel'
 import { buildAdminJobQuoteDetailsViewModel } from '../lib/adminJobQuoteDetailsViewModel'
 import AdminJobDetailsSidebar from './admin-workflow/AdminJobDetailsSidebar'
-import JobDetailsOpsHeader from './admin-workflow/JobDetailsOpsHeader'
-import JobDetailsOverviewOps from './admin-workflow/JobDetailsOverviewOps'
+import JobDispatchControlPanel from './admin-workflow/JobDispatchControlPanel'
+import JobDispatchDetailExtras from './admin-workflow/JobDispatchDetailExtras'
+import JobAcceptedPayoutEditor from './admin-workflow/JobAcceptedPayoutEditor'
+import { fetchJobAssignmentsByQuoteIds } from '../lib/data/jobAssignmentsRepository'
+import { normalizeJobAdjustments, sumJobAdjustmentsGbp } from '../lib/jobAdjustments'
 
 const WORKFLOW_STATUSES = ['New', 'Contacted', 'Quoted', 'Booked', 'Completed', 'Cancelled']
 
 const TABS = [
-  { id: 'overview', label: 'Overview' },
-  { id: 'assignment', label: 'Assignment & marketplace' },
+  { id: 'overview', label: 'Dispatch' },
+  { id: 'assignment', label: 'Marketplace' },
   { id: 'details', label: 'Job details' },
   { id: 'pricing', label: 'Pricing & payments' },
   { id: 'notes', label: 'Notes & history' },
@@ -98,7 +101,9 @@ function DlItem({ label, value }) {
 
 export default function AvailableJobDetails() {
   const { id } = useParams()
+  const location = useLocation()
   const [searchParams] = useSearchParams()
+  const isActiveJobDetailRoute = /\/admin\/active-jobs\//.test(location.pathname)
   const [q, setQ] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -109,11 +114,10 @@ export default function AvailableJobDetails() {
   const [overrides, setOverrides] = useState(() => loadAvailableJobAdminOverrides(''))
   const [toast, setToast] = useState('')
   const [notesDraft, setNotesDraft] = useState('')
-  const [adjustOpen, setAdjustOpen] = useState(false)
-  const [adjustDesc, setAdjustDesc] = useState('')
-  const [adjustAmount, setAdjustAmount] = useState('')
   const [assignmentSaving, setAssignmentSaving] = useState(false)
   const [jobsList, setJobsList] = useState([])
+  const [resolvedJobId, setResolvedJobId] = useState(null)
+  const [jobAssignment, setJobAssignment] = useState(/** @type {{ status: string, updated_at: string } | null} */ (null))
 
   const moreDetailsRef = useRef(null)
   const debugDetailsRef = useRef(null)
@@ -191,12 +195,50 @@ export default function AvailableJobDetails() {
     return pi.photoFileNames.map((n) => String(n).trim()).filter(Boolean)
   }, [linkedJob])
 
+  const photoJobId = linkedJob?.id != null ? String(linkedJob.id) : resolvedJobId
+
+  useEffect(() => {
+    if (linkedJob?.id) {
+      setResolvedJobId(String(linkedJob.id))
+      return
+    }
+    const ref = photoQuoteRef
+    if (!ref || !isSupabaseConfigured) {
+      setResolvedJobId(null)
+      return
+    }
+    let cancelled = false
+    void fetchJobIdsForQuoteRefs([ref])
+      .then((map) => {
+        if (!cancelled) setResolvedJobId(map[ref] ? String(map[ref]) : null)
+      })
+      .catch(() => {
+        if (!cancelled) setResolvedJobId(null)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [linkedJob?.id, photoQuoteRef])
+
+  useEffect(() => {
+    if (!id) return
+    let cancelled = false
+    void fetchJobAssignmentsByQuoteIds([String(id)]).then((map) => {
+      if (!cancelled) setJobAssignment(map[String(id)] || null)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [id, q?.assigned_driver_id, q?.operational_status, q?.updated_at])
+
   const terminal = Boolean(q && (quoteIsCompleted(q, linkedJob) || quoteIsCancelled(q, linkedJob)))
 
-  const adjSum = useMemo(
-    () => (overrides.adjustments || []).reduce((s, a) => s + (Number(a.amountGbp) || 0), 0),
+  const adjustments = useMemo(
+    () => normalizeJobAdjustments(overrides.adjustments),
     [overrides.adjustments],
   )
+
+  const adjSum = useMemo(() => sumJobAdjustmentsGbp(adjustments), [adjustments])
 
   const fin = useMemo(() => (q ? resolveFinancials(q, adjSum) : null), [q, adjSum])
 
@@ -263,25 +305,12 @@ export default function AvailableJobDetails() {
     window.setTimeout(() => setToast(''), 3000)
   }
 
-  function addAdjustment() {
-    const amt = parseFloat(String(adjustAmount).replace(/,/g, ''))
-    if (!adjustDesc.trim() || !Number.isFinite(amt) || amt === 0) {
-      setToast('Enter a description and non-zero amount.')
-      window.setTimeout(() => setToast(''), 4000)
-      return
-    }
-    const row = {
-      id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : String(Date.now()),
-      description: adjustDesc.trim(),
-      amountGbp: amt,
-      createdAt: new Date().toISOString(),
-      status: 'pending',
-    }
-    persistOverrides({ ...overrides, adjustments: [...(overrides.adjustments || []), row] })
-    setAdjustOpen(false)
-    setAdjustDesc('')
-    setAdjustAmount('')
-    setToast(`Adjustment ${money(amt)} recorded.`)
+  function handleAdjustmentsChange(next) {
+    persistOverrides({ ...overrides, adjustments: next })
+  }
+
+  function showToast(msg) {
+    setToast(msg)
     window.setTimeout(() => setToast(''), 4000)
   }
 
@@ -330,22 +359,34 @@ export default function AvailableJobDetails() {
     return (
       <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm">
         <p className="text-slate-600">{error || 'Job not found.'}</p>
-        <Link to="/admin/available-jobs" className="mt-4 inline-block font-semibold text-brand-700 hover:underline">
-          Back to Available Jobs
+        <Link
+          to={isActiveJobDetailRoute ? '/admin/active-jobs' : '/admin/available-jobs'}
+          className="mt-4 inline-block font-semibold text-brand-700 hover:underline"
+        >
+          {isActiveJobDetailRoute ? 'Back to Job Accepted' : 'Back to Available Jobs'}
         </Link>
       </div>
     )
   }
 
-  const backHref = q.source === HOME_PAGE_QUOTE_SOURCE ? '/admin/quote-requests' : '/admin/available-jobs'
-  const backLabel = q.source === HOME_PAGE_QUOTE_SOURCE ? 'Quote requests' : 'Available Jobs'
+  const inJobAccepted = isActiveJobDetailRoute || quotePassesActiveStrict(q)
+  const backHref = q.source === HOME_PAGE_QUOTE_SOURCE
+    ? '/admin/quote-requests'
+    : inJobAccepted
+      ? '/admin/active-jobs'
+      : '/admin/available-jobs'
+  const backLabel = q.source === HOME_PAGE_QUOTE_SOURCE
+    ? 'Quote requests'
+    : inJobAccepted
+      ? 'Job Accepted'
+      : 'Available Jobs'
+  const fullPageDispatch = isActiveJobDetailRoute
 
-  const workflowBadge = deriveCardStatusBadge(q)
   const mv = overrides.marketplaceVisibility
   const listedOnMarketplace = mv === 'visible_in_marketplace'
 
   return (
-    <div className="mx-auto max-w-7xl space-y-5 px-2 pb-20 sm:px-4 lg:px-6">
+    <div className="mx-auto max-w-[90rem] space-y-3 px-2 pb-16 sm:px-4 lg:px-5">
       {toast ? (
         <p className="rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-900">{toast}</p>
       ) : null}
@@ -354,173 +395,21 @@ export default function AvailableJobDetails() {
         <p className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{error}</p>
       ) : null}
 
-      <JobDetailsOpsHeader
-        q={q}
-        vm={detailsVm}
-        fin={fin}
-        workflowBadge={workflowBadge}
-        overrides={overrides}
-        backHref={backHref}
-        backLabel={backLabel}
-      >
-        <div className="flex w-full flex-col gap-2 sm:flex-row sm:flex-wrap sm:justify-end">
-          <GenerateJobSheetButton
-            quote={q}
-            internalNotes={notesDraft}
-            variant="secondary"
-            className="w-full sm:w-auto"
-            onSuccess={(msg) => {
-              setToast(msg)
-              window.setTimeout(() => setToast(''), 3000)
-            }}
-            onError={(msg) => {
-              setToast(msg)
-              window.setTimeout(() => setToast(''), 5000)
-            }}
-          />
-          {quotePassesAvailableJobsStrict(q) && !terminal ? (
-            <CancelBookingAction
-              quote={q}
-              className="w-full sm:w-auto"
-              onApplied={async () => {
-                await load()
-              }}
-            />
-          ) : null}
-          <details ref={moreDetailsRef} className="group relative w-full sm:w-auto">
-            <summary className="flex min-h-[44px] cursor-pointer list-none items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-900 shadow-sm hover:bg-slate-50 [&::-webkit-details-marker]:hidden">
-              More actions
-              <span className="ml-1 text-slate-400" aria-hidden>
-                ▾
-              </span>
-            </summary>
-            <div className="absolute right-0 top-full z-30 mt-1 min-w-[14rem] rounded-xl border border-slate-200 bg-white py-1 shadow-lg">
-              <button
-                type="button"
-                className="block w-full px-4 py-2.5 text-left text-sm text-slate-800 hover:bg-slate-50"
-                onClick={() => {
-                  closeMoreMenu()
-                  setAdjustOpen(true)
-                }}
-              >
-                Add adjustment
-              </button>
-              <button
-                type="button"
-                disabled
-                title="Additional inventory editing is not available yet. Use job notes or pricing adjustments."
-                className="block w-full cursor-not-allowed px-4 py-2.5 text-left text-sm text-slate-500 opacity-65"
-              >
-                Add more items
-              </button>
-              <button
-                type="button"
-                disabled
-                title="Access-based repricing from this menu is not available yet."
-                className="block w-full cursor-not-allowed px-4 py-2.5 text-left text-sm text-slate-500 opacity-65"
-              >
-                Add stairs / access charge
-              </button>
-              <GenerateJobSheetButton
-                quote={q}
-                internalNotes={notesDraft}
-                variant="menu"
-                onSuccess={(msg) => {
-                  closeMoreMenu()
-                  setToast(msg)
-                  window.setTimeout(() => setToast(''), 3000)
-                }}
-                onError={(msg) => {
-                  closeMoreMenu()
-                  setToast(msg)
-                  window.setTimeout(() => setToast(''), 5000)
-                }}
-              />
-              <button
-                type="button"
-                className="block w-full px-4 py-2.5 text-left text-sm text-slate-800 hover:bg-slate-50"
-                onClick={() => {
-                  closeMoreMenu()
-                  const subj = encodeURIComponent(`Job ${q.quote_ref || ''}`)
-                  const em = String(q.email || '').trim()
-                  if (!em) {
-                    setToast('No customer email on file.')
-                    window.setTimeout(() => setToast(''), 3000)
-                    return
-                  }
-                  window.location.href = `mailto:${em}?subject=${subj}`
-                }}
-              >
-                Send customer email
-              </button>
-              <button
-                type="button"
-                className="block w-full px-4 py-2.5 text-left text-sm text-red-800 hover:bg-red-50"
-                onClick={() => {
-                  closeMoreMenu()
-                  overrideActionsRef.current?.openMarkCancelled?.()
-                }}
-              >
-                Cancel job
-              </button>
-              <button
-                type="button"
-                className="block w-full px-4 py-2.5 text-left text-sm text-slate-800 hover:bg-slate-50"
-                onClick={() => {
-                  closeMoreMenu()
-                  setTab('notes')
-                  requestAnimationFrame(() => {
-                    const el = debugDetailsRef.current
-                    if (el) {
-                      el.open = true
-                      el.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
-                    }
-                  })
-                }}
-              >
-                Open raw debug data
-              </button>
-            </div>
-          </details>
-          <button
-            type="button"
-            disabled={terminal}
-            onClick={() => overrideActionsRef.current?.openMarkComplete?.()}
-            className="min-h-[44px] w-full rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40 sm:w-auto"
-          >
-            Mark completed
-          </button>
-          {listedOnMarketplace ? (
-            <button
-              type="button"
-              disabled={terminal || assignmentSaving}
-              className="min-h-[44px] w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-900 shadow-sm hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40 sm:w-auto"
-              onClick={() => {
-                overrideActionsRef.current?.openReturnToMarketplace?.()
-              }}
-            >
-              Return to marketplace…
-            </button>
-          ) : (
-            <button
-              type="button"
-              disabled={terminal || assignmentSaving}
-              onClick={() => void assignToMarketplace()}
-              className="min-h-[44px] w-full rounded-xl bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-40 sm:w-auto"
-            >
-              {assignmentSaving ? 'Saving…' : 'Send to marketplace'}
-            </button>
-          )}
-          {quotePassesAvailableJobsStrict(q) ? (
-            <AutoMarketplaceHoldToggle q={q} onUpdated={load} />
-          ) : null}
-        </div>
-      </JobDetailsOpsHeader>
+      {!fullPageDispatch && tab !== 'overview' ? (
+        <nav className="flex flex-wrap items-center gap-2 text-sm">
+          <Link to={backHref} className="font-semibold text-brand-700 hover:underline">
+            ← {backLabel}
+          </Link>
+          <span className="text-slate-300">/</span>
+          <span className="font-mono text-xs text-slate-600">{String(q.quote_ref || q.id)}</span>
+        </nav>
+      ) : null}
 
+      {!fullPageDispatch ? (
       <div
         role="tablist"
         aria-label="Job sections"
-        className="flex flex-wrap gap-1 border-b border-slate-200"
+        className="flex flex-wrap gap-0.5 border-b border-slate-200"
       >
         {TABS.map((t) => (
           <button
@@ -528,7 +417,7 @@ export default function AvailableJobDetails() {
             type="button"
             role="tab"
             aria-selected={tab === t.id}
-            className={`relative -mb-px min-h-[44px] shrink-0 border-b-2 px-4 py-3 text-sm font-semibold transition sm:px-5 ${
+            className={`relative -mb-px min-h-[40px] shrink-0 border-b-2 px-3 py-2 text-xs font-semibold transition sm:px-4 sm:text-sm ${
               tab === t.id
                 ? 'border-brand-600 text-slate-900'
                 : 'border-transparent text-slate-500 hover:border-slate-300 hover:text-slate-800'
@@ -540,34 +429,85 @@ export default function AvailableJobDetails() {
           </button>
         ))}
       </div>
-
-      <div className="mt-5 grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_17rem] xl:items-start">
-        <div className="min-w-0 space-y-6">
-      {tab === 'overview' ? (
-        <JobDetailsOverviewOps
-          q={q}
-          overrides={overrides}
-          fin={fin}
-          adjSum={adjSum}
-          vm={detailsVm}
-          statusDraft={statusDraft}
-          statusOptions={statusOptions}
-          statusSaving={statusSaving}
-          statusMessage={statusMessage}
-          onStatusDraftChange={setStatusDraft}
-          onSaveWorkflowStatus={() => void saveWorkflowStatus()}
-          notesDraft={notesDraft}
-          photoQuoteRef={photoQuoteRef}
-          jobId={linkedJob?.id != null ? String(linkedJob.id) : null}
-          legacyPhotoFileNames={legacyPhotoFileNames}
-          onOpenTab={setTab}
-          onReload={load}
-        />
       ) : null}
 
-      {tab === 'assignment' ? (
+      {tab === 'overview' && !fullPageDispatch && quotePassesAvailableJobsStrict(q) ? (
+        <div className="flex flex-wrap items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs">
+          {listedOnMarketplace ? (
+            <button
+              type="button"
+              disabled={terminal || assignmentSaving}
+              className="rounded-md border border-slate-200 px-2.5 py-1 font-semibold text-slate-800 hover:bg-slate-50 disabled:opacity-40"
+              onClick={() => overrideActionsRef.current?.openReturnToMarketplace?.()}
+            >
+              Return to marketplace
+            </button>
+          ) : (
+            <button
+              type="button"
+              disabled={terminal || assignmentSaving}
+              onClick={() => void assignToMarketplace()}
+              className="rounded-md bg-brand-600 px-2.5 py-1 font-semibold text-white hover:bg-brand-700 disabled:opacity-40"
+            >
+              {assignmentSaving ? 'Saving…' : 'Send to marketplace'}
+            </button>
+          )}
+          <CancelBookingAction quote={q} className="!min-h-0 !rounded-md !px-2.5 !py-1 !text-xs" onApplied={load} />
+          <AutoMarketplaceHoldToggle q={q} onUpdated={load} />
+        </div>
+      ) : null}
+
+      <div className={`mt-3 ${fullPageDispatch || tab === 'overview' ? '' : 'grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_14rem] xl:items-start'}`}>
+        <div className="min-w-0 space-y-4">
+      {fullPageDispatch || tab === 'overview' ? (
+        <>
+          <JobDispatchControlPanel
+            q={q}
+            vm={detailsVm}
+            fin={fin}
+            overrides={overrides}
+            linkedJob={linkedJob}
+            assignment={jobAssignment}
+            adjustments={adjustments}
+            onAdjustmentsChange={handleAdjustmentsChange}
+            adjSum={adjSum}
+            terminal={terminal}
+            backHref={backHref}
+            backLabel={backLabel}
+            notesDraft={notesDraft}
+            onMarkComplete={() => overrideActionsRef.current?.openMarkComplete?.()}
+            onMarkCompleteWithIssues={() => overrideActionsRef.current?.openMarkCompleteWithIssues?.()}
+            onCancelJob={() => overrideActionsRef.current?.openMarkCancelled?.()}
+            onReload={load}
+            onNotify={showToast}
+          />
+          {!fullPageDispatch && tab === 'overview' ? (
+            <AdminCard title="Payment & marketplace payout">
+              <JobAcceptedPayoutEditor q={q} onUpdated={load} />
+            </AdminCard>
+          ) : null}
+          {fullPageDispatch ? (
+            <JobDispatchDetailExtras
+              q={q}
+              notesDraft={notesDraft}
+              onNotesDraftChange={setNotesDraft}
+              onSaveNotes={saveNotes}
+              onAddTimelineNote={() => overrideActionsRef.current?.openAddAdminNote?.()}
+              photoQuoteRef={photoQuoteRef}
+              jobId={photoJobId}
+              linkedJob={linkedJob}
+              legacyPhotoFileNames={legacyPhotoFileNames}
+              overrides={overrides}
+              onReload={load}
+            />
+          ) : null}
+        </>
+      ) : null}
+
+      {!fullPageDispatch && tab === 'assignment' ? (
         <AdminCard title="Assignment & marketplace">
-          <dl className="grid gap-4 text-sm sm:grid-cols-2">
+          <JobDriverAssignmentPanel quote={q} linkedJob={linkedJob} onApplied={load} />
+          <dl className="mt-6 grid gap-4 border-t border-slate-100 pt-6 text-sm sm:grid-cols-2">
             <DlItem label="Marketplace status" value={formatMarketplaceStatusSummary(q)} />
             <DlItem
               label="Marketplace payout"
@@ -581,7 +521,6 @@ export default function AvailableJobDetails() {
               label="Partner acceptance"
               value={(overrides.partnerAcceptanceStatus || '').trim() || '—'}
             />
-            <DlItem label="Assigned driver" value={(overrides.assignedDriver || '').trim() || '—'} />
             <DlItem label="Assigned partner" value={(overrides.assignedPartnerCompany || '').trim() || '—'} />
           </dl>
           <p className="mt-4 text-xs text-slate-500">
@@ -589,21 +528,23 @@ export default function AvailableJobDetails() {
             <Link to="/admin/marketplace" className="font-semibold text-brand-700 hover:underline">
               Marketplace
             </Link>{' '}
-            admin page. Use the header here to assign crew or send this job to the marketplace.
+            admin page.
           </p>
         </AdminCard>
       ) : null}
 
-      {tab === 'details' ? (
+      {!fullPageDispatch && tab === 'details' ? (
         <AdminJobQuoteDetailsPanel
           quote={q}
-          jobId={linkedJob?.id != null ? String(linkedJob.id) : null}
+          jobId={photoJobId}
           photoQuoteRef={photoQuoteRef}
+          quoteRow={q}
+          linkedJob={linkedJob}
           legacyPhotoFileNames={legacyPhotoFileNames}
         />
       ) : null}
 
-      {tab === 'pricing' ? (
+      {!fullPageDispatch && tab === 'pricing' ? (
         <AdminCard title="Pricing & payments">
           {!pricingParts || pricingLines.length === 0 ? (
             <p className="text-sm text-slate-600">No saved pricing breakdown for this job.</p>
@@ -676,43 +617,16 @@ export default function AvailableJobDetails() {
             ) : null}
           </div>
 
-          {(overrides.adjustments || []).length > 0 ? (
-            <div className="mt-8 border-t border-slate-100 pt-6">
-              <h4 className="text-xs font-bold uppercase tracking-wide text-slate-500">Adjustment history</h4>
-              <ul className="mt-3 space-y-2">
-                {(overrides.adjustments || []).map((a) => (
-                  <li
-                    key={a.id}
-                    className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-100 bg-slate-50/80 px-3 py-2 text-sm"
-                  >
-                    <div className="min-w-0">
-                      <p className="font-medium text-slate-900">{a.description}</p>
-                      <p className="text-xs text-slate-500">{formatDateTimeUK(a.createdAt)}</p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="font-semibold tabular-nums text-slate-900">£{Number(a.amountGbp).toFixed(2)}</span>
-                      {a.status === 'pending' ? (
-                        <button
-                          type="button"
-                          disabled
-                          title="Automatic payment link requests will be added when invoicing is connected."
-                          className="cursor-not-allowed rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] font-semibold text-slate-500 opacity-65"
-                        >
-                          Request top-up
-                        </button>
-                      ) : (
-                        <span className="text-xs font-semibold text-emerald-700">Paid</span>
-                      )}
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            </div>
+          {adjustments.length > 0 ? (
+            <p className="mt-6 border-t border-slate-100 pt-4 text-xs text-slate-500">
+              {adjustments.length} admin adjustment{adjustments.length === 1 ? '' : 's'} ({money(adjSum)}) — manage on
+              the Overview tab.
+            </p>
           ) : null}
         </AdminCard>
       ) : null}
 
-      {tab === 'notes' ? (
+      {!fullPageDispatch && tab === 'notes' ? (
         <div className="space-y-6">
           <AdminCard title="Internal notes">
             <textarea
@@ -750,21 +664,6 @@ export default function AvailableJobDetails() {
             )}
           </AdminCard>
 
-          <AdminCard title="Adjustment history">
-            {(overrides.adjustments || []).length === 0 ? (
-              <p className="text-sm text-slate-600">No adjustments recorded.</p>
-            ) : (
-              <ul className="space-y-2 text-sm">
-                {(overrides.adjustments || []).map((a) => (
-                  <li key={a.id} className="flex justify-between gap-4 rounded-lg border border-slate-100 px-3 py-2">
-                    <span className="text-slate-800">{a.description}</span>
-                    <span className="shrink-0 font-semibold tabular-nums">{money(a.amountGbp)}</span>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </AdminCard>
-
           <AdminCard title="Customer email history">
             <p className="text-sm text-slate-600">No outbound email log is stored on this quote yet.</p>
           </AdminCard>
@@ -784,15 +683,17 @@ export default function AvailableJobDetails() {
 
         </div>
 
-        <AdminJobDetailsSidebar
-          quote={q}
-          overrides={overrides}
-          terminal={terminal}
-          onOpenReassignDriver={() => overrideActionsRef.current?.openReassignDriver?.()}
-          onOpenReassignPartner={() => overrideActionsRef.current?.openReassignPartner?.()}
-          onMarkComplete={() => overrideActionsRef.current?.openMarkComplete?.()}
-          onCancelJob={() => overrideActionsRef.current?.openMarkCancelled?.()}
-        />
+        {!fullPageDispatch && tab !== 'overview' ? (
+          <AdminJobDetailsSidebar
+            quote={q}
+            overrides={overrides}
+            terminal={terminal}
+            onOpenReassignDriver={() => overrideActionsRef.current?.openReassignDriver?.()}
+            onOpenReassignPartner={() => overrideActionsRef.current?.openReassignPartner?.()}
+            onMarkComplete={() => overrideActionsRef.current?.openMarkComplete?.()}
+            onCancelJob={() => overrideActionsRef.current?.openMarkCancelled?.()}
+          />
+        ) : null}
       </div>
 
       <AdminJobOverrideActions
@@ -803,62 +704,6 @@ export default function AvailableJobDetails() {
         showTriggerButtons={false}
       />
 
-      {adjustOpen ? (
-        <div
-          className="fixed inset-0 z-[55] flex items-end justify-center bg-slate-900/50 p-4 sm:items-center"
-          onClick={() => setAdjustOpen(false)}
-          role="presentation"
-        >
-          <div
-            className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 shadow-xl"
-            onClick={(e) => e.stopPropagation()}
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="adjust-title"
-          >
-            <h3 id="adjust-title" className="text-lg font-semibold text-slate-900">
-              Add adjustment
-            </h3>
-            <p className="mt-1 text-sm text-slate-600">Updates the customer total for this job.</p>
-            <label className="mt-4 block text-sm">
-              <span className="text-xs font-semibold uppercase text-slate-500">Description</span>
-              <input
-                value={adjustDesc}
-                onChange={(e) => setAdjustDesc(e.target.value)}
-                className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
-                placeholder="e.g. Extra flight of stairs"
-              />
-            </label>
-            <label className="mt-3 block text-sm">
-              <span className="text-xs font-semibold uppercase text-slate-500">Amount (£)</span>
-              <input
-                type="number"
-                step="0.01"
-                value={adjustAmount}
-                onChange={(e) => setAdjustAmount(e.target.value)}
-                className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
-                placeholder="25.00"
-              />
-            </label>
-            <div className="mt-6 flex justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => setAdjustOpen(false)}
-                className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-800 hover:bg-slate-50"
-              >
-                Close
-              </button>
-              <button
-                type="button"
-                onClick={addAdjustment}
-                className="rounded-xl bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700"
-              >
-                Save adjustment
-              </button>
-            </div>
-          </div>
-        </div>
-      ) : null}
     </div>
   )
 }

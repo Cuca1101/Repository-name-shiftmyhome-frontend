@@ -2,11 +2,12 @@ import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useSt
 import { loadFleetDriversForAdmin } from '../../lib/adminFleetDrivers'
 import { appendAdminNotesLog } from '../../lib/adminNotesLog'
 import { findAdminPartnerByNormalizedCompany, loadAdminPartners } from '../../lib/adminFleetLocalStore'
-import { findFleetDriverByName, getFleetDriversCached } from '../../lib/adminFleetDrivers'
 import {
+  assignDriverToQuote,
   removeJobAssignmentForQuote,
   syncJobAssignmentFromQuoteAssign,
 } from '../../lib/data/driverAssignmentSync'
+import DriverAssignPickerModal from './DriverAssignPickerModal'
 import {
   fetchAssignedByActor,
   updateQuoteWorkflowAssignment,
@@ -58,6 +59,7 @@ function btnClass(layout, tone = 'default') {
  *   openReassignDriver: () => void,
  *   openReassignPartner: () => void,
  *   openAddAdminNote: () => void,
+ *   openMarkCompleteWithIssues: () => void,
  * }} AdminJobOverrideActionsHandle
  */
 
@@ -79,7 +81,6 @@ const AdminJobOverrideActions = forwardRef(function AdminJobOverrideActions(
 
   const [modal, setModal] = useState(null)
   const [draft, setDraft] = useState('')
-  const [driverName, setDriverName] = useState('')
   const [partnerCompany, setPartnerCompany] = useState('')
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
@@ -108,8 +109,6 @@ const AdminJobOverrideActions = forwardRef(function AdminJobOverrideActions(
         setModal('return')
       },
       openReassignDriver: () => {
-        const m = mergedAdminWorkflowForQuote(quote)
-        setDriverName(String(m.assignedDriver || ''))
         setErr('')
         setModal('driver')
       },
@@ -123,6 +122,12 @@ const AdminJobOverrideActions = forwardRef(function AdminJobOverrideActions(
         setDraft('')
         setErr('')
         setModal('note')
+      },
+      openMarkCompleteWithIssues: () => {
+        const m = mergedAdminWorkflowForQuote(quote)
+        setDraft(String(m.adminCompletionNote || '').trim() ? m.adminCompletionNote : 'Completed with issues: ')
+        setErr('')
+        setModal('complete')
       },
     }),
     [quote],
@@ -283,45 +288,38 @@ const AdminJobOverrideActions = forwardRef(function AdminJobOverrideActions(
     }
   }
 
-  async function submitReassignDriver() {
+  async function submitReassignDriver(driver) {
     if (!id) return
-    const name = driverName.trim()
-    if (!name) {
-      setErr('Enter a driver name.')
+    const name = String(driver?.name || '').trim()
+    const driverId = String(driver?.id || '').trim()
+    if (!name || !driverId) {
+      setErr('Select a driver from the fleet list.')
       return
     }
     setBusy(true)
     setErr('')
     try {
       const actor = await fetchAssignedByActor()
-      const rec = findFleetDriverByName(name)
       const m = mergedAdminWorkflowForQuote(quote)
-      if (isSupabaseConfigured && !rec?.id) {
-        setErr('Driver not found in fleet registry. Add them under Drivers admin first (name must match).')
-        setBusy(false)
-        return
-      }
       const log = appendAdminNotesLog(
         m.adminNotesLog,
         actor,
-        `Reassigned driver to "${name}"${rec?.id ? ` (id ${rec.id})` : ''}`,
+        `${merged.assignedDriver?.trim() ? 'Reassigned' : 'Assigned'} driver to "${name}" (id ${driverId})`,
       )
       const ts = new Date().toISOString()
       if (isSupabaseConfigured) {
-        await updateQuoteWorkflowAssignment(id, {
-          assigned_driver_id: rec?.id ?? null,
-          assigned_driver_name: name,
-          assigned_partner_id: null,
-          assigned_partner_company: null,
-          marketplace_visibility: 'assigned',
-          operational_status: 'Assigned',
-          admin_notes_log: log,
-          assigned_at: ts,
-          assigned_by: actor,
-        })
-        if (rec?.id) {
-          await syncJobAssignmentFromQuoteAssign(id, rec.id, quote, { assignmentStatus: 'Assigned' })
-        }
+        await assignDriverToQuote(
+          id,
+          driverId,
+          name,
+          quote,
+          {
+            admin_notes_log: log,
+            assigned_at: ts,
+            assigned_by: actor,
+          },
+          (qid, patch) => updateQuoteWorkflowAssignment(qid, patch),
+        )
       } else {
         persistLocal({
           assignedDriver: name,
@@ -332,7 +330,6 @@ const AdminJobOverrideActions = forwardRef(function AdminJobOverrideActions(
         })
       }
       setModal(null)
-      setDriverName('')
       await notify()
     } catch (e) {
       setErr(e?.message || 'Save failed')
@@ -443,7 +440,6 @@ const AdminJobOverrideActions = forwardRef(function AdminJobOverrideActions(
     setModal('return')
   }
   function openDriver() {
-    setDriverName(merged.assignedDriver || '')
     setErr('')
     setModal('driver')
   }
@@ -495,7 +491,7 @@ const AdminJobOverrideActions = forwardRef(function AdminJobOverrideActions(
             ) : null}
             {!isDone && !isCancelled ? (
               <button type="button" disabled={busy} className={btnClass(layout)} onClick={openDriver}>
-                Reassign driver
+                {merged.assignedDriver?.trim() ? 'Change driver' : 'Assign driver'}
               </button>
             ) : null}
             {!isDone && !isCancelled ? (
@@ -526,7 +522,7 @@ const AdminJobOverrideActions = forwardRef(function AdminJobOverrideActions(
         </details>
       ) : null}
 
-      {modal ? (
+      {modal && modal !== 'driver' ? (
         <div
           className="fixed inset-0 z-[60] flex items-end justify-center bg-slate-900/50 p-4 sm:items-center"
           onClick={() => !busy && setModal(null)}
@@ -542,7 +538,6 @@ const AdminJobOverrideActions = forwardRef(function AdminJobOverrideActions(
               {modal === 'complete' && 'Mark as completed'}
               {modal === 'cancel' && 'Mark as cancelled'}
               {modal === 'return' && 'Return to marketplace'}
-              {modal === 'driver' && (merged.assignedDriver?.trim() ? 'Reassign driver' : 'Assign driver')}
               {modal === 'partner' && (merged.assignedPartnerCompany?.trim() ? 'Reassign partner' : 'Assign partner')}
               {modal === 'note' && 'Add admin note'}
             </h4>
@@ -581,24 +576,6 @@ const AdminJobOverrideActions = forwardRef(function AdminJobOverrideActions(
                   placeholder="e.g. Partner van broke down — relisting for another crew"
                 />
               </label>
-            ) : null}
-            {modal === 'driver' ? (
-              <>
-                <datalist id={`smh-override-driver-${safeListId}`}>
-                  {getFleetDriversCached().map((d) => (
-                    <option key={d.id} value={d.name} />
-                  ))}
-                </datalist>
-                <label className="mt-3 block text-sm">
-                  <span className="text-xs font-semibold uppercase text-slate-500">Driver name</span>
-                  <input
-                    value={driverName}
-                    onChange={(e) => setDriverName(e.target.value)}
-                    list={`smh-override-driver-${safeListId}`}
-                    className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
-                  />
-                </label>
-              </>
             ) : null}
             {modal === 'partner' ? (
               <>
@@ -647,7 +624,7 @@ const AdminJobOverrideActions = forwardRef(function AdminJobOverrideActions(
                     if (modal === 'complete') await submitMarkCompleted()
                     if (modal === 'cancel') await submitMarkCancelled()
                     if (modal === 'return') await submitReturnMarketplace()
-                    if (modal === 'driver') await submitReassignDriver()
+                    if (modal === 'driver') return
                     if (modal === 'partner') await submitReassignPartner()
                     if (modal === 'note') await submitAddNote()
                   })()
@@ -660,6 +637,14 @@ const AdminJobOverrideActions = forwardRef(function AdminJobOverrideActions(
           </div>
         </div>
       ) : null}
+
+      <DriverAssignPickerModal
+        open={modal === 'driver'}
+        title={merged.assignedDriver?.trim() ? 'Change driver' : 'Assign driver'}
+        onClose={() => !busy && setModal(null)}
+        onAssign={submitReassignDriver}
+        assigning={busy}
+      />
     </div>
   )
 })

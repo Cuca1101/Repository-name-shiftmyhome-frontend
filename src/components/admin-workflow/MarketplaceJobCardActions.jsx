@@ -1,11 +1,7 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { mergedAdminWorkflowForQuote } from '../../lib/quoteAdminWorkflowMerge'
-import {
-  applyDefaultMarketplacePayoutToQuote,
-  setManualMarketplacePayout,
-  setPartnerDashboardHiddenForQuote,
-} from '../../lib/marketplacePayoutApply'
+import { setManualMarketplacePayout, setPartnerDashboardHiddenForQuote } from '../../lib/marketplacePayoutApply'
 import { getMarketplaceFinancePresentation } from '../../lib/marketplaceQuoteFinance'
 
 const btn =
@@ -82,9 +78,6 @@ export default function MarketplaceJobCardActions({ quote, onApplied }) {
         </button>
         <button type="button" disabled={busy} onClick={() => void onEdit()} className={btn}>
           Edit payout
-        </button>
-        <button type="button" disabled={busy} onClick={() => void onRecalc()} className={btn}>
-          Recalculate payout
         </button>
         <Link
           to={`/admin/available-jobs/${id}`}

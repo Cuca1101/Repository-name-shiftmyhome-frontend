@@ -158,6 +158,7 @@ export default function App() {
         <Route path="journey-planner/view/:journeyId" element={<JourneyViewPage />} />
         <Route path="journey-planner" element={<JourneyPlannerPage />} />
         <Route path="marketplace" element={<MarketplaceJobsAdmin />} />
+        <Route path="active-jobs/:id" element={<AvailableJobDetails />} />
         <Route path="active-jobs" element={<ActiveJobsAdmin />} />
         <Route path="completed-jobs" element={<CompletedJobsAdmin />} />
         <Route path="cancelled-jobs" element={<CancelledJobsAdmin />} />

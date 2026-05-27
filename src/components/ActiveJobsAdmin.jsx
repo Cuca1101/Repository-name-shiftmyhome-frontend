@@ -4,8 +4,8 @@ export default function ActiveJobsAdmin() {
   return (
     <AdminWorkflowJobList
       workflow="active"
-      title="Active Jobs"
-      description="Jobs with a driver/assignee, operational progress, or a linked job card that is not completed or cancelled."
+      title="Job Accepted"
+      description="Compact list of accepted and in-progress jobs. Click a row or View to open the full job control screen."
     />
   )
 }

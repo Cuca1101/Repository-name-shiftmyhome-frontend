@@ -3,6 +3,7 @@ import { driverChargeStatusMeta } from '../../lib/driverChargeConstants'
 const tones = {
   amber: 'bg-amber-50 text-amber-950 ring-amber-200/90',
   rose: 'bg-rose-50 text-rose-900 ring-rose-200/90',
+  emerald: 'bg-emerald-50 text-emerald-900 ring-emerald-200/90',
   violet: 'bg-violet-50 text-violet-900 ring-violet-200/90',
   slate: 'bg-slate-100 text-slate-700 ring-slate-200/90',
 }

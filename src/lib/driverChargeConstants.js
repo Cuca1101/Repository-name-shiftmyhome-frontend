@@ -1,6 +1,8 @@
+import { normalizeDriverChargeStatus } from './driverChargeStatus'
+
 /** @typedef {'deallocation'|'cancellation'|'damage'|'no_show'|'late_arrival'|'customer_complaint'|'admin_adjustment'|'other'} DriverChargeType */
 
-/** @typedef {'pending'|'applied'|'disputed'|'waived'|'cancelled'} DriverChargeStatus */
+/** @typedef {'pending'|'paid'|'not_paid'|'removed'} DriverChargeStatus */
 
 export const DRIVER_CHARGE_TYPES = [
   { value: 'deallocation', label: 'Deallocation charge' },
@@ -15,14 +17,13 @@ export const DRIVER_CHARGE_TYPES = [
 
 export const DRIVER_CHARGE_STATUSES = [
   { value: 'pending', label: 'Pending', tone: 'amber' },
-  { value: 'applied', label: 'Applied', tone: 'rose' },
-  { value: 'disputed', label: 'Disputed', tone: 'violet' },
-  { value: 'waived', label: 'Waived', tone: 'slate' },
-  { value: 'cancelled', label: 'Cancelled', tone: 'slate' },
+  { value: 'not_paid', label: 'Not paid', tone: 'rose' },
+  { value: 'paid', label: 'Paid', tone: 'emerald' },
+  { value: 'removed', label: 'Removed', tone: 'slate' },
 ]
 
 /** Statuses that reduce net driver payout. */
-export const DRIVER_CHARGE_DEDUCTIBLE_STATUSES = new Set(['pending', 'applied', 'disputed'])
+export const DRIVER_CHARGE_DEDUCTIBLE_STATUSES = new Set(['pending', 'not_paid'])
 
 /**
  * @param {unknown} type
@@ -36,7 +37,7 @@ export function driverChargeTypeLabel(type) {
  * @param {unknown} status
  */
 export function driverChargeStatusMeta(status) {
-  const s = String(status || 'pending').toLowerCase()
+  const s = normalizeDriverChargeStatus(status)
   const hit = DRIVER_CHARGE_STATUSES.find((x) => x.value === s)
   return hit || { value: s, label: s, tone: 'slate' }
 }
@@ -45,5 +46,5 @@ export function driverChargeStatusMeta(status) {
  * @param {unknown} status
  */
 export function isDriverChargeDeductible(status) {
-  return DRIVER_CHARGE_DEDUCTIBLE_STATUSES.has(String(status || '').toLowerCase())
+  return DRIVER_CHARGE_DEDUCTIBLE_STATUSES.has(normalizeDriverChargeStatus(status))
 }

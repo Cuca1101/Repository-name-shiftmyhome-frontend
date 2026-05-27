@@ -10,7 +10,8 @@ const TABLE = 'drivers'
  *   email: string,
  *   phone: string,
  *   vehicle_type: string,
- *   fleet_status: 'Active' | 'Inactive' | 'Suspended',
+ *   vehicle_registration: string | null,
+ *   fleet_status: 'Active' | 'Inactive' | 'Suspended' | 'Archived',
  *   notes: string,
  *   rating: string,
  *   partner_id: string | null,
@@ -28,12 +29,24 @@ const TABLE = 'drivers'
  * @param {FleetDriverRow} row
  */
 export function fleetDriverToAdminRecord(row) {
+  const accountActive = row.active !== false
   return {
     id: String(row.id),
     name: String(row.full_name || '').trim(),
     email: String(row.email || '').trim(),
     phone: String(row.phone || '').trim(),
-    status: row.fleet_status === 'Suspended' ? 'Suspended' : row.fleet_status === 'Inactive' ? 'Inactive' : 'Active',
+    vehicleType: String(row.vehicle_type || '').trim(),
+    vehicleRegistration: String(row.vehicle_registration || '').trim(),
+    status:
+      row.fleet_status === 'Archived'
+        ? 'Archived'
+        : row.fleet_status === 'Suspended'
+          ? 'Suspended'
+          : row.fleet_status === 'Inactive'
+            ? 'Inactive'
+            : 'Active',
+    accountActive,
+    hasLogin: Boolean(row.user_id),
     notes: String(row.notes || '').trim(),
     rating: String(row.rating || '').trim(),
     partnerId: row.partner_id != null ? String(row.partner_id) : '',
@@ -53,19 +66,28 @@ export function fleetDriverToAdminRecord(row) {
 export function adminRecordToFleetDriverPayload(rec) {
   const status = String(rec.status || 'Active')
   let fleetStatus = 'Active'
-  if (status === 'Suspended') fleetStatus = 'Suspended'
+  if (status === 'Archived') fleetStatus = 'Archived'
+  else if (status === 'Suspended') fleetStatus = 'Suspended'
   else if (status === 'Inactive') fleetStatus = 'Inactive'
+
+  const accountActive =
+    rec.accountActive !== false &&
+    fleetStatus !== 'Suspended' &&
+    fleetStatus !== 'Inactive' &&
+    fleetStatus !== 'Archived'
 
   return {
     full_name: String(rec.name || '').trim(),
     email: String(rec.email || '').trim() || null,
     phone: String(rec.phone || '').trim() || null,
+    vehicle_type: String(rec.vehicleType || '').trim() || null,
+    vehicle_registration: String(rec.vehicleRegistration || '').trim() || null,
     fleet_status: fleetStatus,
     notes: String(rec.notes || '').trim() || null,
     rating: String(rec.rating || '').trim() || null,
     partner_id: rec.partnerId ? String(rec.partnerId) : null,
     legacy_session_id: rec.legacySessionId ? String(rec.legacySessionId) : rec.id ? String(rec.id) : null,
-    active: fleetStatus === 'Active',
+    active: accountActive,
     address: String(rec.address || '').trim() || null,
     date_of_birth: String(rec.dateOfBirth || '').trim() || null,
     emergency_contact_name: String(rec.emergencyContactName || '').trim() || null,
@@ -111,6 +133,27 @@ export async function upsertFleetDriver(rec) {
   const { data, error } = await supabase.from(TABLE).insert(payload).select('*').single()
   if (error) throw error
   return fleetDriverToAdminRecord(/** @type {FleetDriverRow} */ (data))
+}
+
+/**
+ * @param {string} driverId
+ */
+/**
+ * @param {string} userId auth.users.id
+ * @returns {Promise<FleetDriverRow | null>}
+ */
+export async function fetchFleetDriverByUserId(userId) {
+  const uid = String(userId || '').trim()
+  if (!isSupabaseConfigured || !supabase || !uid) return null
+  const { data, error } = await supabase.from(TABLE).select('*').eq('user_id', uid).maybeSingle()
+  if (error) {
+    if (import.meta.env.DEV) {
+      // eslint-disable-next-line no-console
+      console.warn('[drivers] fetch by user_id failed', error.message)
+    }
+    return null
+  }
+  return data ?? null
 }
 
 /**

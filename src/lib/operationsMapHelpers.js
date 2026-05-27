@@ -5,7 +5,9 @@ import {
   filterActiveQuotes,
   filterCancelledQuotes,
   filterCompletedQuotes,
+  findLinkedJobForQuote,
 } from './adminWorkflowFilters'
+import { quoteJobIsStarted } from './adminJobAcceptedStatus'
 import { mergedAdminWorkflowForQuote } from './quoteAdminWorkflowMerge'
 import { formatDateUK } from './formatDateDisplay'
 import { parseDetailsKeyValues, formatMoveArrivalSummary, parsePricingText, formatVolumeAndCrew } from './quoteJobAdminModel'
@@ -112,7 +114,7 @@ export function quoteServiceLabel(q) {
  * @param {OperationsMapMode | 'drivers'} mode
  * @param {RouteLegByQuoteId} [routeLegByQuoteId]
  */
-export function buildJobMapGeoJson(quotes, coordsByQuoteId, mode, routeLegByQuoteId) {
+export function buildJobMapGeoJson(quotes, coordsByQuoteId, mode, routeLegByQuoteId, jobs = []) {
   /** @type {GeoJSON.Feature<GeoJSON.LineString>[]} */
   const legs = []
   /** @type {GeoJSON.Feature<GeoJSON.Point>[]} */
@@ -120,16 +122,8 @@ export function buildJobMapGeoJson(quotes, coordsByQuoteId, mode, routeLegByQuot
   /** @type {GeoJSON.Feature<GeoJSON.Point>[]} */
   const deliveries = []
 
-  const linePalette =
-    mode === 'cancelled'
-      ? { main: '#f87171', glow: '#fecaca' }
-      : mode === 'completed'
-        ? { main: '#94a3b8', glow: '#cbd5e1' }
-        : mode === 'active'
-          ? { main: '#38bdf8', glow: '#bae6fd' }
-          : { main: '#64748b', glow: '#94a3b8' }
-
   const routes = routeLegByQuoteId && typeof routeLegByQuoteId === 'object' ? routeLegByQuoteId : {}
+  const jobRows = Array.isArray(jobs) ? jobs : []
 
   for (const q of quotes) {
     const id = String(q?.id || '')
@@ -151,6 +145,26 @@ export function buildJobMapGeoJson(quotes, coordsByQuoteId, mode, routeLegByQuot
     const dateTime = formatMoveArrivalSummary(q, kv) || move
     const vol = formatVolumeAndCrew(q)
     const service = quoteServiceLabel(q)
+
+    let dispatchTone = 'waiting'
+    let linePalette
+    if (mode === 'cancelled') {
+      dispatchTone = 'cancelled'
+      linePalette = { main: '#ef4444', glow: '#fecaca' }
+    } else if (mode === 'completed') {
+      dispatchTone = 'completed'
+      linePalette = { main: '#3b82f6', glow: '#93c5fd' }
+    } else if (mode === 'active') {
+      const job = findLinkedJobForQuote(q, jobRows)
+      const started = quoteJobIsStarted(q, job)
+      dispatchTone = started ? 'active' : 'accepted'
+      linePalette = started
+        ? { main: '#22c55e', glow: '#bbf7d0' }
+        : { main: '#f59e0b', glow: '#fde68a' }
+    } else {
+      dispatchTone = 'waiting'
+      linePalette = { main: '#64748b', glow: '#93c5fd' }
+    }
 
     /** Road route only — no straight segment between pins. */
     const leg = routes[id]
@@ -202,6 +216,7 @@ export function buildJobMapGeoJson(quotes, coordsByQuoteId, mode, routeLegByQuot
         kind: 'pickup',
         pointKind: 'pickup',
         pointNum: '1',
+        dispatchTone,
         markerCaption: `1 • ${ref}`,
         label: '1',
         customer: name,
@@ -221,6 +236,7 @@ export function buildJobMapGeoJson(quotes, coordsByQuoteId, mode, routeLegByQuot
         kind: 'delivery',
         pointKind: 'delivery',
         pointNum: '2',
+        dispatchTone,
         markerCaption: `2 • ${ref}`,
         label: '2',
         customer: name,

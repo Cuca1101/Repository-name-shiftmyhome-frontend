@@ -16,6 +16,7 @@ import AdminJobOperationsCard from './AdminJobOperationsCard'
  *   onDemoCancelled?: () => void | Promise<void>,
  *   highlight?: boolean,
  *   secondarySlot?: unknown,
+ *   viewJobLabel?: string,
  * }} props
  */
 export default function JobCard({
@@ -28,6 +29,7 @@ export default function JobCard({
   selectionCheckbox = null,
   highlight = false,
   secondarySlot = null,
+  viewJobLabel,
 }) {
   const cardVariant =
     listVariant === 'available'
@@ -52,6 +54,7 @@ export default function JobCard({
       selectionCheckbox={selectionCheckbox}
       secondarySlot={secondarySlot ?? adminSlot}
       highlight={highlight}
+      viewJobLabel={viewJobLabel}
     />
   )
 }

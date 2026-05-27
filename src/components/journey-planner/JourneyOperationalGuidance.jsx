@@ -22,7 +22,7 @@ export default function JourneyOperationalGuidance({ journey, quotes = [], liste
     notes.push('This journey is live on Marketplace — withdraw before editing payout if partners may have seen it.')
   }
   if (status.key === 'driver_assigned' || status.key === 'active') {
-    notes.push('Assigned jobs appear in Active Jobs — open Job Details to update progress.')
+    notes.push('Assigned jobs appear in Job Accepted — open Job Details to update progress.')
     notes.push('Completed jobs move to Completed Jobs automatically.')
   }
   if (status.key === 'completed') {

@@ -16,6 +16,8 @@ import {
   writeAvailableJobsSoundEnabled,
 } from '../lib/availableJobsSoundAlerts'
 import JobCard from './admin-workflow/JobCard'
+import JobQuickAssignDriver from './admin-workflow/JobQuickAssignDriver'
+import { countAcceptedJobsByDriverId } from '../lib/adminDriverJobCounts'
 import AdminJobListSections from './admin-workflow/AdminJobListSections'
 import AdminRecordsSearchRow from './admin/AdminRecordsSearchRow'
 import MarketplacePricingSettingsPanel from './admin-workflow/MarketplacePricingSettingsPanel'
@@ -24,6 +26,7 @@ import { runAutoMarketplaceTick } from '../lib/autoMarketplacePublish'
 import { loadMarketplacePricingDefaults } from '../lib/marketplacePricingDefaultsStore'
 import { subscribeAdminDataRefresh } from '../lib/adminDataRefresh'
 import { sendAdminAvailableJobTestEmail } from '../lib/adminAvailableJobTestEmail'
+import AdminSettingsAccordion from './admin/AdminSettingsAccordion'
 
 const POLL_MS = 12_000
 const AUTO_MARKETPLACE_MS = 60_000
@@ -135,6 +138,8 @@ export default function AvailableJobsAdmin() {
     const list = await fetchQuotesForAdmin(filterKey, activeSearch)
     return list.filter(quotePassesAvailableJobsStrict)
   }, [filterKey, activeSearch])
+
+  const jobCountsByDriverId = useMemo(() => countAcceptedJobsByDriverId(rows), [rows])
 
   const applySelectionFilter = useCallback((filtered) => {
     setSelectedIds((prev) => new Set([...prev].filter((id) => filtered.some((r) => String(r.id) === id))))
@@ -424,47 +429,69 @@ export default function AvailableJobsAdmin() {
         </div>
       </div>
 
-      <div className="rounded-xl border border-slate-200/90 bg-slate-50/60 px-4 py-3">
-        <p className="text-sm font-semibold text-slate-900">Admin job email notifications</p>
-        <p className="mt-1 text-xs text-slate-600">
-          Sends a sample message via Resend to verify delivery. Does not create jobs or mark bookings as notified.
-        </p>
-      </div>
-
-      {!soundUnlocked ? (
-        <div className="flex flex-col gap-3 rounded-xl border border-amber-200/90 bg-amber-50/80 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-sm text-amber-950">
-            Hear a short alert when a new paid job appears on this board. Your browser requires one click to allow
-            sound.
-          </p>
-          <button
-            type="button"
-            onClick={() => void enableSoundAlerts()}
-            className="shrink-0 rounded-lg bg-amber-900 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-amber-800"
-          >
-            Enable job sound alerts
-          </button>
-        </div>
-      ) : (
-        <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-200/90 bg-slate-50/80 px-4 py-2.5">
-          <span className="text-sm text-slate-700">Sound alerts for new jobs</span>
-          <button
-            type="button"
-            role="switch"
-            aria-checked={soundEnabled}
-            onClick={toggleSoundAlerts}
-            className={`rounded-lg px-3 py-1.5 text-sm font-semibold shadow-sm ${
-              soundEnabled
-                ? 'bg-emerald-600 text-white hover:bg-emerald-500'
-                : 'border border-slate-200 bg-white text-slate-800 hover:bg-slate-100'
-            }`}
-          >
-            Sound alerts: {soundEnabled ? 'On' : 'Off'}
-          </button>
-        </div>
-      )}
-
-      <MarketplacePricingSettingsPanel marketplaceQuotes={[]} onApplied={load} compact />
+      <AdminSettingsAccordion
+        storageKey="available-jobs"
+        items={[
+          {
+            id: 'email',
+            title: 'Email notifications',
+            content: (
+              <p className="text-xs leading-relaxed text-slate-600">
+                Sends a sample message via Resend to verify delivery (use &ldquo;Send test email&rdquo; above). Does
+                not create jobs or mark bookings as notified.
+              </p>
+            ),
+          },
+          {
+            id: 'sound',
+            title: 'Sound alerts',
+            content: !soundUnlocked ? (
+              <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between">
+                <p className="text-xs leading-relaxed text-amber-950 sm:text-sm">
+                  Hear a short alert when a new paid job appears on this board. Your browser requires one click to
+                  allow sound.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => void enableSoundAlerts()}
+                  className="shrink-0 rounded-lg bg-amber-900 px-3.5 py-2 text-sm font-semibold text-white shadow-sm hover:bg-amber-800"
+                >
+                  Enable job sound alerts
+                </button>
+              </div>
+            ) : (
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span className="text-xs text-slate-700 sm:text-sm">Play a sound when new paid jobs appear</span>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={soundEnabled}
+                  onClick={toggleSoundAlerts}
+                  className={`rounded-lg px-3 py-1.5 text-sm font-semibold shadow-sm ${
+                    soundEnabled
+                      ? 'bg-emerald-600 text-white hover:bg-emerald-500'
+                      : 'border border-slate-200 bg-white text-slate-800 hover:bg-slate-100'
+                  }`}
+                >
+                  Sound alerts: {soundEnabled ? 'On' : 'Off'}
+                </button>
+              </div>
+            ),
+          },
+          {
+            id: 'marketplace',
+            title: 'Marketplace pricing settings',
+            content: (
+              <MarketplacePricingSettingsPanel
+                marketplaceQuotes={[]}
+                onApplied={load}
+                compact
+                embedded
+              />
+            ),
+          },
+        ]}
+      />
 
       <AdminRecordsSearchRow
         searchInput={searchInput}
@@ -557,13 +584,23 @@ export default function AvailableJobsAdmin() {
               layoutMode={viewMode}
               highlight={highlightIds.has(String(q.id))}
               secondarySlot={
-                <AutoMarketplaceHoldToggle
-                  q={q}
-                  onUpdated={async () => {
-                    const filtered = await fetchFilteredRows()
-                    mergeRows(filtered, { notify: false })
-                  }}
-                />
+                <div className="flex w-full flex-col gap-2">
+                  <JobQuickAssignDriver
+                    quote={q}
+                    jobCountsByDriverId={jobCountsByDriverId}
+                    onApplied={async () => {
+                      const filtered = await fetchFilteredRows()
+                      mergeRows(filtered, { notify: false })
+                    }}
+                  />
+                  <AutoMarketplaceHoldToggle
+                    q={q}
+                    onUpdated={async () => {
+                      const filtered = await fetchFilteredRows()
+                      mergeRows(filtered, { notify: false })
+                    }}
+                  />
+                </div>
               }
               selectionCheckbox={
                 <label className="flex cursor-pointer items-center gap-1.5 text-[11px] font-medium text-slate-600">

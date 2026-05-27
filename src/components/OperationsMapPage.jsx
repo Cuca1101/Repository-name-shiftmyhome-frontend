@@ -37,11 +37,10 @@ import {
   driverDispatchPresentation,
 } from '../lib/operationsMapHelpers'
 import OperationsMapboxCanvas from './operations-map/OperationsMapboxCanvas'
-import OperationsMapJourneySuggestions from './operations-map/OperationsMapJourneySuggestions'
 import OperationsMapDriverCards from './operations-map/OperationsMapDriverCards'
 import { useAnimatedDrivers } from './operations-map/useAnimatedDrivers'
 import { buildActiveRouteProgressGeoJson } from '../lib/operationsMapRouteProgress'
-import { buildJourneyBundleSuggestions, buildHeatmapPointsFromJobs } from '../lib/operationsMapJourneySuggestions'
+import { buildHeatmapPointsFromJobs } from '../lib/operationsMapJourneySuggestions'
 import { buildExtendedDispatchWarnings } from '../lib/operationsMapDispatchWarnings'
 import { formatEtaBadge, etaCacheKey } from '../lib/operationsMapEta'
 import {
@@ -57,16 +56,19 @@ import {
   localTodayYmd,
   ymdMatchesDatePreset,
   formatDatePresetLabel,
+  filterQuotesForOperationsMapDate,
 } from '../lib/operationsMapDateFilter'
+import { resolveQuoteCollectionAddress, resolveQuoteDeliveryAddress } from '../lib/quoteAddressResolve'
+import { findLinkedJobForQuote } from '../lib/adminWorkflowFilters'
 
 /** Same key as JourneyPlannerPage draft persistence */
 const JOURNEY_DRAFT_SESSION_KEY = 'smh_journey_draft_quote_ids'
 
 const MODE_LABELS = {
-  available: 'Available jobs',
-  active: 'Active jobs',
-  completed: 'Completed jobs',
-  cancelled: 'Cancelled jobs',
+  available: 'Waiting / available',
+  active: 'Accepted & active',
+  completed: 'Completed',
+  cancelled: 'Cancelled',
   drivers: 'Drivers',
   journeys: 'Journeys',
 }
@@ -92,10 +94,11 @@ const emptyFc = () => ({ type: 'FeatureCollection', features: [] })
  * @param {string} token
  * @param {(partial: Record<string, { pickup: { lng: number, lat: number } | null, delivery: { lng: number, lat: number } | null }>) => void} onProgress
  */
-async function geocodeQuotesBatch(quotes, token, onProgress) {
+async function geocodeQuotesBatch(quotes, token, onProgress, jobs = []) {
   /** @type {Record<string, { pickup: { lng: number, lat: number } | null, delivery: { lng: number, lat: number } | null }>} */
   const acc = {}
   const list = (quotes || []).slice(0, 120)
+  const jobRows = Array.isArray(jobs) ? jobs : []
   const CHUNK = 5
   for (let i = 0; i < list.length; i += CHUNK) {
     const slice = list.slice(i, i + CHUNK)
@@ -103,8 +106,11 @@ async function geocodeQuotesBatch(quotes, token, onProgress) {
       slice.map(async (q) => {
         const id = String(q?.id || '')
         if (!id) return
-        const puAddr = String(q?.pickup_address || '').trim()
-        const dlAddr = String(q?.delivery_address || '').trim()
+        const job = findLinkedJobForQuote(q, jobRows)
+        let puAddr = resolveQuoteCollectionAddress(q, job)
+        let dlAddr = resolveQuoteDeliveryAddress(q, job)
+        if (puAddr === '—') puAddr = ''
+        if (dlAddr === '—') dlAddr = ''
         const pickup = puAddr ? await geocodeAddressCached(puAddr, token) : null
         const delivery = dlAddr ? await geocodeAddressCached(dlAddr, token) : null
         acc[id] = { pickup, delivery }
@@ -154,7 +160,7 @@ export default function OperationsMapPage() {
   const [drawerDriverId, setDrawerDriverId] = useState('')
   const [panelOpen, setPanelOpen] = useState(true)
   const [hideCompletedTint, setHideCompletedTint] = useState(false)
-  const [datePreset, setDatePreset] = useState('today')
+  const [datePreset, setDatePreset] = useState('this_week')
   const [customMoveYmd, setCustomMoveYmd] = useState(() => localTodayYmd())
   const [showHeatmap, setShowHeatmap] = useState(false)
   const [etaByDriverId, setEtaByDriverId] = useState(/** @type {Record<string, { label: string, pickup?: { label: string, delayed?: boolean }, delivery?: { label: string, delayed?: boolean } }>} */ ({}))
@@ -239,12 +245,10 @@ export default function OperationsMapPage() {
     return list
   }, [mode, quotes, jobs, hideCompletedTint])
 
-  const filteredJobQuotes = useMemo(() => {
-    if (datePreset === 'all') return modeFilteredQuotes
-    return modeFilteredQuotes.filter((q) =>
-      ymdMatchesDatePreset(quoteMoveYmd(q), datePreset, customMoveYmd, anchorYmd),
-    )
-  }, [modeFilteredQuotes, datePreset, customMoveYmd, anchorYmd])
+  const filteredJobQuotes = useMemo(
+    () => filterQuotesForOperationsMapDate(modeFilteredQuotes, mode, datePreset, customMoveYmd, anchorYmd),
+    [modeFilteredQuotes, mode, datePreset, customMoveYmd, anchorYmd],
+  )
 
   const filteredJourneys = useMemo(() => {
     if (datePreset === 'all') return journeys
@@ -264,9 +268,12 @@ export default function OperationsMapPage() {
 
   const showingSummary = useMemo(() => {
     const modeTitle = titleCaseModeLabel(mode)
+    if (mode === 'available') {
+      return `Showing: ${modeTitle} — all move dates (${filteredJobQuotes.length} job${filteredJobQuotes.length === 1 ? '' : 's'}, same as Available Jobs)`
+    }
     const datePart = formatDatePresetLabel(datePreset, customMoveYmd)
     return `Showing: ${modeTitle} — ${datePart}`
-  }, [mode, datePreset, customMoveYmd])
+  }, [mode, datePreset, customMoveYmd, filteredJobQuotes.length])
 
   useEffect(() => {
     const visibleIds = new Set(filteredJobQuotes.map((q) => String(q?.id || '')))
@@ -304,14 +311,14 @@ export default function OperationsMapPage() {
     void (async () => {
       const merged = await geocodeQuotesBatch(quotesToGeocode, token, (partial) => {
         if (!cancelled) setCoordsByQuoteId(partial)
-      })
+      }, jobs)
       if (!cancelled) setCoordsByQuoteId(merged)
       if (!cancelled) setGeoBusy(false)
     })()
     return () => {
       cancelled = true
     }
-  }, [token, quotesToGeocode])
+  }, [token, quotesToGeocode, jobs])
 
   /** Mapbox Directions: road geometry + duration only — no straight-line fallback */
   useEffect(() => {
@@ -402,8 +409,8 @@ export default function OperationsMapPage() {
         jobPoints: emptyFc(),
       }
     }
-    return buildJobMapGeoJson(filteredJobQuotes, coordsByQuoteId, mode, routeLegByQuoteId)
-  }, [mode, filteredJobQuotes, coordsByQuoteId, routeLegByQuoteId])
+    return buildJobMapGeoJson(filteredJobQuotes, coordsByQuoteId, mode, routeLegByQuoteId, jobs)
+  }, [mode, filteredJobQuotes, coordsByQuoteId, routeLegByQuoteId, jobs])
 
   const journeyGeo = useMemo(
     () => buildJourneyMapGeoJson(filteredJourneys, journeyStops),
@@ -449,11 +456,6 @@ export default function OperationsMapPage() {
 
   const heatmapGeo = useMemo(
     () => buildHeatmapPointsFromJobs(filteredJobQuotes, coordsByQuoteId),
-    [filteredJobQuotes, coordsByQuoteId],
-  )
-
-  const journeySuggestions = useMemo(
-    () => buildJourneyBundleSuggestions(filteredJobQuotes, coordsByQuoteId),
     [filteredJobQuotes, coordsByQuoteId],
   )
 
@@ -756,20 +758,26 @@ export default function OperationsMapPage() {
           aria-label="Move date filter"
         >
           <span className="px-1 text-[10px] font-bold uppercase tracking-wide text-slate-500">Move date</span>
-          {DATE_PRESET_BUTTONS.map((b) => (
-            <button
-              key={b.id}
-              type="button"
-              onClick={() => setDatePreset(b.id)}
-              className={`rounded-full px-3 py-1.5 text-xs font-bold uppercase tracking-wide transition ${
-                datePreset === b.id
-                  ? 'bg-emerald-700 text-white shadow-sm'
-                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-              }`}
-            >
-              {b.label}
-            </button>
-          ))}
+          {mode === 'available' ? (
+            <span className="rounded-full bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-900">
+              All dates (matches Available Jobs)
+            </span>
+          ) : (
+            DATE_PRESET_BUTTONS.map((b) => (
+              <button
+                key={b.id}
+                type="button"
+                onClick={() => setDatePreset(b.id)}
+                className={`rounded-full px-3 py-1.5 text-xs font-bold uppercase tracking-wide transition ${
+                  datePreset === b.id
+                    ? 'bg-emerald-700 text-white shadow-sm'
+                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                }`}
+              >
+                {b.label}
+              </button>
+            ))
+          )}
           {datePreset === 'custom' ? (
             <label className="ml-1 flex min-h-[44px] items-center gap-2 text-xs font-semibold text-slate-600 sm:min-h-0">
               <span className="sr-only">Custom move date</span>
@@ -796,7 +804,7 @@ export default function OperationsMapPage() {
       </div>
 
       <div className="relative flex min-h-[560px] flex-1 flex-col gap-3 lg:flex-row">
-        <div className="relative flex min-h-[560px] flex-1 flex-col">
+        <div className="relative flex min-h-[560px] min-w-0 flex-1 flex-col">
           {loading ? (
             <div className="absolute inset-0 z-10 flex items-center justify-center rounded-2xl bg-slate-900/40 backdrop-blur-sm">
               <p className="rounded-full bg-white/95 px-5 py-2 text-sm font-semibold text-slate-800 shadow-lg">
@@ -829,7 +837,9 @@ export default function OperationsMapPage() {
           (mode === 'available' || mode === 'active' || mode === 'completed' || mode === 'cancelled') &&
           filteredJobQuotes.length === 0 ? (
             <div className="absolute inset-x-4 top-14 z-10 rounded-xl border border-slate-600 bg-slate-900/90 px-4 py-3 text-sm text-slate-200 shadow-lg">
-              No jobs found for this date/filter.
+              {mode === 'available'
+                ? 'No waiting jobs on the map. Check Available Jobs — if listed there, refresh data or confirm pickup/delivery addresses can be geocoded.'
+                : 'No jobs found for this date/filter. Try All dates or This week.'}
             </div>
           ) : null}
           {!isSupabaseConfigured ? (
@@ -861,28 +871,15 @@ export default function OperationsMapPage() {
           />
         </div>
 
-        <div className="flex w-full shrink-0 flex-col gap-3 lg:w-[min(100%,320px)]">
-          {mode === 'drivers' ? (
+        {mode === 'drivers' ? (
+          <div className="flex w-full shrink-0 flex-col gap-3 lg:w-[min(100%,300px)]">
             <OperationsMapDriverCards
               drivers={driverCardsData}
               focusedDriverId={drawerDriverId}
               onPickDriver={onPickDriver}
             />
-          ) : null}
-          {mode === 'available' || mode === 'active' || mode === 'completed' || mode === 'cancelled' ? (
-            <OperationsMapJourneySuggestions
-              suggestions={journeySuggestions}
-              onCreateJourney={(ids) => {
-                setSelectedQuoteIds(new Set(ids))
-                addSelectionToPlannerFromIds(ids)
-              }}
-              onAddToPlanner={(ids) => {
-                setSelectedQuoteIds(new Set(ids))
-                addSelectionToPlannerFromIds(ids)
-              }}
-            />
-          ) : null}
-        </div>
+          </div>
+        ) : null}
 
         {(drawerQuote || drawerJourney || drawerDriver) && (
           <aside className="w-full shrink-0 rounded-2xl border border-slate-200 bg-white p-4 shadow-xl ring-1 ring-slate-900/[0.05] lg:w-[340px]">

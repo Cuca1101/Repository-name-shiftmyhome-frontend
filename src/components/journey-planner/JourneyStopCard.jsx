@@ -3,8 +3,13 @@ import { Link } from 'react-router-dom'
 import {
   locationChipFromAddress,
   quoteAccessSummary,
+  quoteIsJobCancelled,
   quoteIsJobCompleted,
 } from '../../lib/journeyPlannerDisplay'
+import { jobAcceptedStatusBadge } from '../../lib/adminJobAcceptedStatus'
+import { resolveJobAcceptedPaymentBreakdown } from '../../lib/jobAcceptedPaymentDisplay'
+import { quotePassesActiveStrict } from '../../lib/adminJobListRules'
+import JobStatusBadge from '../admin-workflow/JobStatusBadge'
 import {
   buildJourneyStopExpandedDetails,
   buildJourneyStopInventoryView,
@@ -63,8 +68,11 @@ export default function JourneyStopCard({
     [quote, stop.kind],
   )
 
+  const acceptedOrActive = quote ? quotePassesActiveStrict(quote) : false
   const jobHref = stop.quoteId
-    ? `/admin/available-jobs/${encodeURIComponent(stop.quoteId)}`
+    ? acceptedOrActive
+      ? `/admin/active-jobs/${encodeURIComponent(stop.quoteId)}`
+      : `/admin/available-jobs/${encodeURIComponent(stop.quoteId)}`
     : null
   const canRemoveJob = isPickup && stop.quoteId && typeof onRemoveJob === 'function'
   const serviceMin =
@@ -72,8 +80,16 @@ export default function JourneyStopCard({
       ? `${stop.serviceMinutes} min`
       : null
   const driverName = quote ? String(quote.assigned_driver_name || '').trim() : ''
+  const vehicle = quote ? String(quote.assigned_vehicle_registration || quote.vehicle_registration || '').trim() : ''
   const access = quoteAccessSummary(quote)
+  const cancelled = quoteIsJobCancelled(quote)
   const done = completed ?? quoteIsJobCompleted(quote)
+  const dispatchBadge = quote && !done && !cancelled ? jobAcceptedStatusBadge(quote) : null
+  const payoutBreakdown = quote && acceptedOrActive ? resolveJobAcceptedPaymentBreakdown(quote) : null
+  const driverPayoutLabel =
+    payoutBreakdown?.driverPayout != null && Number.isFinite(Number(payoutBreakdown.driverPayout))
+      ? `£${Number(payoutBreakdown.driverPayout).toFixed(2)}`
+      : null
 
   let accent = isPickup
     ? 'border-emerald-200/90 bg-emerald-50/40'
@@ -86,11 +102,13 @@ export default function JourneyStopCard({
       : 'border-sky-300 bg-sky-50/60 ring-1 ring-brand-300/70'
   }
 
-  const typeBadge = done
-    ? 'bg-emerald-500/90 text-white'
-    : isPickup
-      ? 'bg-emerald-600 text-white'
-      : 'bg-sky-600 text-white'
+  const typeBadge = cancelled
+    ? 'bg-rose-600 text-white'
+    : done
+      ? 'bg-blue-600 text-white'
+      : isPickup
+        ? 'bg-emerald-600 text-white'
+        : 'bg-sky-600 text-white'
 
   const vm = expanded.vm
   const floor =
@@ -128,10 +146,16 @@ export default function JourneyStopCard({
                 Current
               </span>
             ) : null}
-            {done ? (
-              <span className="rounded bg-slate-200 px-1.5 py-px text-[9px] font-bold uppercase text-slate-700">
-                Done
+            {cancelled ? (
+              <span className="rounded bg-rose-600 px-1.5 py-px text-[9px] font-bold uppercase text-white">
+                Cancelled
               </span>
+            ) : done ? (
+              <span className="rounded bg-blue-600 px-1.5 py-px text-[9px] font-bold uppercase text-white">
+                Completed
+              </span>
+            ) : dispatchBadge ? (
+              <JobStatusBadge label={dispatchBadge.label} tone={dispatchBadge.tone} />
             ) : null}
             {stop.jobRef ? (
               <span className="font-mono text-[10px] font-semibold text-slate-600">{stop.jobRef}</span>
@@ -144,11 +168,24 @@ export default function JourneyStopCard({
           <p className="mt-0.5 truncate text-xs font-semibold text-slate-900 sm:text-[13px]">
             {stop.customerName && stop.customerName !== '—' ? stop.customerName : 'Customer'}
           </p>
-          <p className="truncate text-[11px] text-slate-600">
-            {loc.label || loc.city || loc.postcode || stop.address || '—'}
+          <p className="line-clamp-2 text-[11px] leading-snug text-slate-600" title={stop.address || ''}>
+            {stop.address || loc.label || loc.city || loc.postcode || '—'}
           </p>
 
           <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[10px] text-slate-600">
+            {driverName ? (
+              <span>
+                <span className="font-semibold text-slate-700">Driver:</span> {driverName}
+              </span>
+            ) : null}
+            {vehicle ? (
+              <span>
+                <span className="font-semibold text-slate-700">Van:</span> {vehicle}
+              </span>
+            ) : null}
+            {driverPayoutLabel ? (
+              <span className="font-semibold text-violet-900">Driver payout: {driverPayoutLabel}</span>
+            ) : null}
             {stop.volumeCrew ? (
               <span className="font-medium text-slate-700">{stop.volumeCrew}</span>
             ) : vm?.volumeLine && vm.volumeLine !== '—' ? (

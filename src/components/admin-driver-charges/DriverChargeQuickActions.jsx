@@ -2,8 +2,9 @@ import { useCallback, useEffect, useState } from 'react'
 import DriverChargeModal from './DriverChargeModal'
 import {
   fetchDriverChargesByQuoteIds,
-  updateDriverCharge,
+  removeDriverCharge,
 } from '../../lib/data/driverChargesRepository'
+import { normalizeDriverChargeStatus } from '../../lib/driverChargeStatus'
 import { driverChargeTypeLabel } from '../../lib/driverChargeConstants'
 
 const btn =
@@ -51,7 +52,9 @@ export default function DriverChargeQuickActions({
   }, [loadQuoteCharges])
 
   async function waiveCharge(charge) {
-    await updateDriverCharge(String(charge.id), { status: 'waived' })
+    const reason = window.prompt('Why are you removing this charge?', 'Waived from job assignment')
+    if (!reason?.trim()) return
+    await removeDriverCharge(charge, reason.trim())
     await loadQuoteCharges()
     await onUpdated?.()
   }
@@ -64,10 +67,7 @@ export default function DriverChargeQuickActions({
   const waiveBtn =
     'rounded border border-emerald-200/90 bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-950 hover:bg-emerald-100'
 
-  const waivable = quoteCharges.filter((c) => {
-    const st = String(c.status)
-    return st !== 'waived' && st !== 'cancelled'
-  })
+  const waivable = quoteCharges.filter((c) => normalizeDriverChargeStatus(c.status) !== 'removed')
 
   return (
     <>

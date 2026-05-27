@@ -21,15 +21,41 @@ import {
 import { isSupabaseConfigured } from '../lib/supabase'
 import JobStatusBadge from './admin-workflow/JobStatusBadge'
 import DriverDocumentUpload from './admin/DriverDocumentUpload'
+import DriverCreateAccountModal from './admin/DriverCreateAccountModal'
+import DriverDeleteConfirmModal from './admin/DriverDeleteConfirmModal'
+import {
+  archiveFleetDriver,
+  disableFleetDriver,
+  getDriverLifecyclePhase,
+  reactivateFleetDriver,
+} from '../lib/driverAdminLifecycle'
+import { deleteDriverAccountAdmin } from '../lib/deleteDriverAccountAdmin'
+import DriverLifecycleActions from './admin/DriverLifecycleActions'
 
 const fieldInput =
   'mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/25'
 const fieldLabel = 'text-xs font-semibold uppercase tracking-wide text-slate-500'
 
+const STATUS_FILTERS = [
+  { id: 'active', label: 'Active' },
+  { id: 'suspended', label: 'Suspended' },
+  { id: 'archived', label: 'Archived' },
+  { id: 'all', label: 'All' },
+]
+
 function statusTone(st) {
   if (st === 'Active') return 'emerald'
   if (st === 'Suspended') return 'rose'
+  if (st === 'Archived') return 'violet'
   return 'slate'
+}
+
+function driverMatchesStatusFilter(driver, filterId) {
+  const st = String(driver?.status || 'Active')
+  if (filterId === 'active') return st === 'Active'
+  if (filterId === 'suspended') return st === 'Suspended' || st === 'Inactive'
+  if (filterId === 'archived') return st === 'Archived'
+  return true
 }
 
 function VerificationBadge({ label, tone }) {
@@ -91,7 +117,10 @@ function emptyDriverDraft() {
     name: '',
     email: '',
     phone: '',
+    vehicleType: '',
     status: 'Active',
+    accountActive: true,
+    hasLogin: false,
     notes: '',
     rating: '',
     partnerId: '',
@@ -117,6 +146,10 @@ export default function DriversAdmin() {
   const [docTypesMap, setDocTypesMap] = useState(() => new Map())
   const [driverDocs, setDriverDocs] = useState([])
   const [pendingDocs, setPendingDocs] = useState(emptyPendingDocs)
+  const [createAccountOpen, setCreateAccountOpen] = useState(false)
+  const [createSuccessBanner, setCreateSuccessBanner] = useState('')
+  const [statusFilter, setStatusFilter] = useState('active')
+  const [deleteTarget, setDeleteTarget] = useState(/** @type {typeof drivers[0] | null} */ (null))
 
   const reloadDrivers = useCallback(async () => {
     const list = await loadFleetDriversForAdmin()
@@ -179,14 +212,15 @@ export default function DriversAdmin() {
 
   const filtered = useMemo(() => {
     const s = search.trim().toLowerCase()
-    if (!s) return drivers
     return drivers.filter((d) => {
+      if (!driverMatchesStatusFilter(d, statusFilter)) return false
+      if (!s) return true
       const blob = [d.name, d.email, d.phone, d.address]
         .map((x) => String(x || '').toLowerCase())
         .join(' ')
       return blob.includes(s)
     })
-  }, [drivers, search])
+  }, [drivers, search, statusFilter])
 
   function openCreate() {
     setDraft(emptyDriverDraft())
@@ -200,6 +234,9 @@ export default function DriversAdmin() {
     setDraft({
       ...emptyDriverDraft(),
       ...d,
+      vehicleType: d.vehicleType ?? '',
+      accountActive: d.accountActive !== false,
+      hasLogin: Boolean(d.hasLogin || d.userId),
       partnerId: d.partnerId ?? '',
       userId: d.userId ?? '',
       address: d.address ?? '',
@@ -292,15 +329,110 @@ export default function DriversAdmin() {
 
   async function disableDriver(d) {
     setSaving(true)
+    setErr('')
     try {
-      const nextRec = { ...d, status: 'Suspended' }
+      const result = await disableFleetDriver(d)
       if (isSupabaseConfigured) {
-        await upsertFleetDriver(nextRec)
         await reloadDrivers()
-      } else {
-        const next = drivers.map((x) => (x.id === d.id ? nextRec : x))
+      } else if (result.driver) {
+        const next = drivers.map((x) => (x.id === d.id ? result.driver : x))
         setFleetDriversCache(next)
         setDrivers(next)
+      }
+      setCreateSuccessBanner(result.message || 'Driver disabled')
+    } catch (e) {
+      setErr(e?.message || 'Could not disable driver.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  function requestDisableDriver(d) {
+    const ok = window.confirm(
+      `Disable ${d.name}?\n\nThey will be hidden from Assign Driver and cannot sign in on the mobile app until you enable them again.`,
+    )
+    if (ok) void disableDriver(d)
+  }
+
+  async function reactivateDriver(d) {
+    setSaving(true)
+    setErr('')
+    try {
+      const result = await reactivateFleetDriver(d)
+      if (isSupabaseConfigured) {
+        await reloadDrivers()
+      } else if (result.driver) {
+        const next = drivers.map((x) => (x.id === d.id ? result.driver : x))
+        setFleetDriversCache(next)
+        setDrivers(next)
+      }
+      setCreateSuccessBanner(result.message || 'Driver enabled')
+    } catch (e) {
+      setErr(e?.message || 'Could not reactivate driver.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  function requestReactivateDriver(d) {
+    const phase = getDriverLifecyclePhase(d)
+    const verb = phase === 'archived' ? 'Reactivate' : 'Enable'
+    const ok = window.confirm(
+      `${verb} ${d.name}?\n\nStatus returns to Active. They can sign in on the Driver app and receive new assignments.`,
+    )
+    if (ok) void reactivateDriver(d)
+  }
+
+  async function archiveDriverRecord(d) {
+    setSaving(true)
+    setErr('')
+    try {
+      const result = await archiveFleetDriver(d)
+      if (isSupabaseConfigured) {
+        await reloadDrivers()
+      } else if (result.driver) {
+        const next = drivers.map((x) => (x.id === d.id ? result.driver : x))
+        setFleetDriversCache(next)
+        setDrivers(next)
+      }
+      setDeleteTarget(null)
+      setCreateSuccessBanner(result.message || 'Driver archived')
+    } catch (e) {
+      setErr(e?.message || 'Could not archive driver.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  function requestArchiveDriver(d) {
+    const ok = window.confirm(
+      `Archive ${d.name}?\n\nThey will be hidden from active driver pickers. Job and payment history is kept.`,
+    )
+    if (ok) void archiveDriverRecord(d)
+  }
+
+  async function confirmDeleteDriver() {
+    if (!deleteTarget?.id) return
+    setSaving(true)
+    setErr('')
+    try {
+      let banner = 'Driver deleted'
+      if (isSupabaseConfigured) {
+        const del = await deleteDriverAccountAdmin({ driverId: deleteTarget.id })
+        banner = del.message || banner
+        await reloadDrivers()
+      } else {
+        const next = drivers.filter((x) => x.id !== deleteTarget.id)
+        setFleetDriversCache(next)
+        setDrivers(next)
+      }
+      setCreateSuccessBanner(banner)
+      setDeleteTarget(null)
+    } catch (e) {
+      if (e?.code === 'driver_has_history') {
+        setErr(e.message)
+      } else {
+        setErr(e?.message || 'Could not delete driver.')
       }
     } finally {
       setSaving(false)
@@ -317,41 +449,87 @@ export default function DriversAdmin() {
         <div>
           <h2 className="text-2xl font-bold text-slate-900">Drivers</h2>
           <p className="mt-1 max-w-2xl text-sm text-slate-600">
-            Fleet drivers are stored in Supabase <code className="rounded bg-slate-100 px-1">drivers</code>. Job
-            assignment uses <code className="rounded bg-slate-100 px-1">drivers.id</code> and syncs to{' '}
-            <code className="rounded bg-slate-100 px-1">job_assignments</code> for the mobile app. Personal
-            verification documents are stored privately (signed URLs, admin only).
+            Use <strong className="font-semibold text-slate-800">Add Driver</strong> to create Supabase Auth + a{' '}
+            <code className="rounded bg-slate-100 px-1">drivers</code> row linked by{' '}
+            <code className="rounded bg-slate-100 px-1">user_id</code>. Drivers sign in on the mobile app with email and
+            password. Assign jobs using <code className="rounded bg-slate-100 px-1">drivers.id</code>.
             {!isSupabaseConfigured ? ' Connect Supabase to persist fleet records.' : null}
           </p>
         </div>
-        <button
-          type="button"
-          onClick={openCreate}
-          className="min-h-[48px] rounded-xl bg-brand-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-brand-700"
-        >
-          Add driver
-        </button>
+        <div className="flex flex-wrap gap-2">
+          {isSupabaseConfigured ? (
+            <button
+              type="button"
+              onClick={() => setCreateAccountOpen(true)}
+              className="min-h-[48px] rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700"
+            >
+              Add Driver
+            </button>
+          ) : null}
+          <button
+            type="button"
+            onClick={openCreate}
+            className="min-h-[48px] rounded-xl border border-slate-200 bg-white px-5 py-2.5 text-sm font-semibold text-slate-800 shadow-sm hover:bg-slate-50"
+          >
+            Profile only (no login)
+          </button>
+        </div>
       </div>
 
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
-        <label className="min-w-0 flex-1 sm:max-w-md">
-          <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">Search</span>
-          <input
-            type="search"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Name, email, phone, or address"
-            className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/25"
-          />
-        </label>
-        <button
-          type="button"
-          onClick={() => void loadQuotesJobs()}
-          className="min-h-[48px] rounded-xl border border-slate-200 bg-white px-5 py-2.5 text-sm font-semibold text-slate-800 shadow-sm hover:bg-slate-50"
+      {createSuccessBanner ? (
+        <p
+          className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-900"
+          role="status"
         >
-          Refresh job stats
-        </button>
+          {createSuccessBanner}
+        </p>
+      ) : null}
+
+      <div className="flex flex-col gap-3">
+        <div className="flex flex-wrap gap-2" role="tablist" aria-label="Driver status filter">
+          {STATUS_FILTERS.map((f) => (
+            <button
+              key={f.id}
+              type="button"
+              role="tab"
+              aria-selected={statusFilter === f.id}
+              onClick={() => setStatusFilter(f.id)}
+              className={`min-h-[40px] rounded-xl px-4 py-2 text-sm font-semibold shadow-sm ring-1 transition ${
+                statusFilter === f.id
+                  ? 'bg-slate-900 text-white ring-slate-900'
+                  : 'bg-white text-slate-800 ring-slate-200 hover:bg-slate-50'
+              }`}
+            >
+              {f.label}
+            </button>
+          ))}
+        </div>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+          <label className="min-w-0 flex-1 sm:max-w-md">
+            <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">Search</span>
+            <input
+              type="search"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Name, email, phone, or address"
+              className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/25"
+            />
+          </label>
+          <button
+            type="button"
+            onClick={() => void loadQuotesJobs()}
+            className="min-h-[48px] rounded-xl border border-slate-200 bg-white px-5 py-2.5 text-sm font-semibold text-slate-800 shadow-sm hover:bg-slate-50"
+          >
+            Refresh job stats
+          </button>
+        </div>
       </div>
+
+      {err ? (
+        <p className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900" role="alert">
+          {err}
+        </p>
+      ) : null}
 
       {loading ? (
         <p className="rounded-2xl border border-slate-200 bg-white p-8 text-center text-slate-500 shadow-sm">
@@ -361,10 +539,18 @@ export default function DriversAdmin() {
 
       {filtered.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50/80 p-8 text-center text-sm text-slate-600">
-          <p className="font-medium text-slate-800">No drivers in the fleet registry yet.</p>
+          <p className="font-medium text-slate-800">
+            {drivers.length === 0 ? 'No drivers in the fleet registry yet.' : 'No drivers match this filter.'}
+          </p>
           <p className="mt-2">
-            Add a driver, link their Supabase Auth user id when the mobile account exists, then assign jobs using the
-            same name.
+            {drivers.length === 0 ? (
+              <>
+                Use <strong className="font-semibold">Add Driver</strong> to create login + fleet record, or profile-only
+                for dispatch without mobile access.
+              </>
+            ) : (
+              <>Try another status filter or clear the search.</>
+            )}
           </p>
         </div>
       ) : (
@@ -377,6 +563,7 @@ export default function DriversAdmin() {
             const addrShort = shortenAddress(d.address)
             const dob = formatDriverDateOfBirth(d.dateOfBirth)
             const badges = driverVerificationBadges(docTypesMap.get(d.id))
+            const lifecyclePhase = getDriverLifecyclePhase(d)
             return (
               <li
                 key={d.id}
@@ -387,16 +574,31 @@ export default function DriversAdmin() {
                     <p className="truncate text-lg font-bold text-slate-900">{d.name}</p>
                     <p className="truncate text-sm text-slate-600">{d.email || '—'}</p>
                     <p className="truncate text-sm text-slate-600">{d.phone || '—'}</p>
+                    {d.vehicleRegistration ? (
+                      <p className="truncate text-xs text-slate-500">Reg: {d.vehicleRegistration}</p>
+                    ) : d.vehicleType ? (
+                      <p className="truncate text-xs text-slate-500">{d.vehicleType}</p>
+                    ) : null}
                     {addrShort ? (
                       <p className="mt-1 truncate text-xs text-slate-500" title={d.address}>
                         {addrShort}
                       </p>
                     ) : null}
                     {dob ? <p className="mt-0.5 text-xs text-slate-500">DOB: {dob}</p> : null}
-                    {d.userId ? (
-                      <p className="mt-1 text-[10px] text-emerald-700">Mobile login linked</p>
+                    {d.hasLogin || d.userId ? (
+                      <p
+                        className={`mt-1 text-[10px] font-semibold uppercase tracking-wide ${
+                          lifecyclePhase === 'active' ? 'text-emerald-700' : 'text-slate-600'
+                        }`}
+                      >
+                        Mobile login linked
+                        {lifecyclePhase === 'suspended' ? ' · disabled' : ''}
+                        {lifecyclePhase === 'archived' ? ' · archived' : ''}
+                      </p>
                     ) : (
-                      <p className="mt-1 text-[10px] text-amber-700">No mobile login linked</p>
+                      <p className="mt-1 text-[10px] font-semibold uppercase tracking-wide text-amber-700">
+                        No mobile login
+                      </p>
                     )}
                   </div>
                   <JobStatusBadge label={d.status} tone={statusTone(d.status)} />
@@ -450,15 +652,20 @@ export default function DriversAdmin() {
                   >
                     Edit Driver
                   </button>
-                  <button
-                    type="button"
-                    disabled={d.status === 'Suspended' || saving}
-                    onClick={() => void disableDriver(d)}
-                    className="inline-flex min-h-[40px] flex-1 items-center justify-center rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-900 hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-40"
-                  >
-                    Disable Driver
-                  </button>
                 </div>
+                <DriverLifecycleActions
+                  driver={d}
+                  saving={saving}
+                  onDisable={() => requestDisableDriver(d)}
+                  onArchive={() => requestArchiveDriver(d)}
+                  onReactivate={() => requestReactivateDriver(d)}
+                  onDelete={() => setDeleteTarget(d)}
+                  showDelete={
+                    lifecyclePhase === 'active' &&
+                    countAssignedJobsForDriver(d, quotes, jobs) === 0 &&
+                    countCompletedJobsForDriver(d, quotes, jobs) === 0
+                  }
+                />
               </li>
             )
           })}
@@ -500,6 +707,22 @@ export default function DriversAdmin() {
             <div>
               <dt className={fieldLabel}>Phone</dt>
               <dd>{draft.phone || '—'}</dd>
+            </div>
+            <div>
+              <dt className={fieldLabel}>Vehicle type</dt>
+              <dd>{draft.vehicleType || '—'}</dd>
+            </div>
+            <div>
+              <dt className={fieldLabel}>Mobile app access</dt>
+              <dd>
+                {!draft.hasLogin && !draft.userId
+                  ? 'No login account'
+                  : getDriverLifecyclePhase(draft) === 'active'
+                    ? 'Active — can sign in on Driver app'
+                    : getDriverLifecyclePhase(draft) === 'archived'
+                      ? 'Archived — login blocked'
+                      : 'Disabled — login blocked until re-enabled'}
+              </dd>
             </div>
             <div>
               <dt className={fieldLabel}>Address</dt>
@@ -547,6 +770,21 @@ export default function DriversAdmin() {
               <dt className={fieldLabel}>Internal notes</dt>
               <dd className="whitespace-pre-wrap text-slate-800">{draft.notes || '—'}</dd>
             </div>
+          </dl>
+          <DriverLifecycleActions
+            driver={draft}
+            saving={saving}
+            onDisable={() => requestDisableDriver(draft)}
+            onArchive={() => requestArchiveDriver(draft)}
+            onReactivate={() => requestReactivateDriver(draft)}
+            onDelete={() => setDeleteTarget(draft)}
+            showDelete={
+              getDriverLifecyclePhase(draft) === 'active' &&
+              countAssignedJobsForDriver(draft, quotes, jobs) === 0 &&
+              countCompletedJobsForDriver(draft, quotes, jobs) === 0
+            }
+          />
+          <dl className="mt-4 space-y-3 text-sm">
             {isSupabaseConfigured && driverDocs.length > 0 ? (
               <div>
                 <dt className={fieldLabel}>Verification documents</dt>
@@ -627,17 +865,42 @@ export default function DriversAdmin() {
                   className={fieldInput}
                 />
               </label>
-              {isSupabaseConfigured ? (
-                <label className="block">
-                  <span className={fieldLabel}>Supabase Auth user id</span>
-                  <input
-                    value={draft.userId || ''}
-                    onChange={(e) => setDraft({ ...draft, userId: e.target.value })}
-                    className={`${fieldInput} font-mono text-xs`}
-                    placeholder="auth.users UUID — links mobile login"
-                  />
-                </label>
+              <label className="block">
+                <span className={fieldLabel}>Vehicle type</span>
+                <input
+                  value={draft.vehicleType || ''}
+                  onChange={(e) => setDraft({ ...draft, vehicleType: e.target.value })}
+                  className={fieldInput}
+                  placeholder="e.g. LWB van"
+                />
+              </label>
+              {draft.hasLogin && draft.userId ? (
+                <p className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-900">
+                  Mobile login linked (Auth user{' '}
+                  <span className="font-mono">{String(draft.userId).slice(0, 8)}…</span>). Use{' '}
+                  <strong>Create driver account</strong> for new logins — do not share passwords in notes.
+                </p>
+              ) : isSupabaseConfigured && !draft.id ? (
+                <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+                  This form saves a fleet profile only. For mobile app login, close and use{' '}
+                  <strong>Create driver account</strong> instead.
+                </p>
               ) : null}
+              <label className="flex cursor-pointer items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2.5">
+                <input
+                  type="checkbox"
+                  checked={draft.accountActive !== false}
+                  onChange={(e) =>
+                    setDraft({
+                      ...draft,
+                      accountActive: e.target.checked,
+                      status: e.target.checked ? draft.status : 'Inactive',
+                    })
+                  }
+                  className="h-4 w-4 rounded border-slate-300 text-brand-600"
+                />
+                <span className="text-sm font-medium text-slate-800">Active — allow mobile app access</span>
+              </label>
               <label className="block">
                 <span className={fieldLabel}>Transport partner (optional)</span>
                 <select
@@ -663,6 +926,7 @@ export default function DriversAdmin() {
                   <option value="Active">Active</option>
                   <option value="Inactive">Inactive</option>
                   <option value="Suspended">Suspended</option>
+                  <option value="Archived">Archived</option>
                 </select>
               </label>
               <label className="block">
@@ -748,7 +1012,7 @@ export default function DriversAdmin() {
 
             <FormSection title="Internal notes">
               <label className="block">
-                <span className={fieldLabel}>Internal notes</span>
+                <span className={fieldLabel}>Notes</span>
                 <textarea
                   value={draft.notes}
                   onChange={(e) => setDraft({ ...draft, notes: e.target.value })}
@@ -760,6 +1024,30 @@ export default function DriversAdmin() {
           </div>
         </ModalShell>
       ) : null}
+
+      <DriverCreateAccountModal
+        open={createAccountOpen}
+        onClose={() => setCreateAccountOpen(false)}
+        onCreated={async (result) => {
+          await reloadDrivers()
+          setCreateSuccessBanner(
+            `${result.successMessage}. ${result.driver.name} — driver id ${result.driverId}. You can assign jobs now.`,
+          )
+        }}
+      />
+
+      <DriverDeleteConfirmModal
+        open={Boolean(deleteTarget)}
+        driver={deleteTarget}
+        quotes={quotes}
+        jobs={jobs}
+        busy={saving}
+        onClose={() => {
+          if (!saving) setDeleteTarget(null)
+        }}
+        onConfirmDelete={() => confirmDeleteDriver()}
+        onArchive={() => (deleteTarget ? archiveDriverRecord(deleteTarget) : undefined)}
+      />
     </div>
   )
 }

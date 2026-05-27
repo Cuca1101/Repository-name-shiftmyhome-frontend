@@ -77,6 +77,7 @@ function ChecklistRow({ ok, label, detail }) {
  *   notesDraft: string,
  *   photoQuoteRef: string,
  *   jobId: string | null,
+ *   linkedJob?: Record<string, unknown> | null,
  *   legacyPhotoFileNames: string[],
  *   onOpenTab?: (tabId: string) => void,
  *   onReload?: () => void | Promise<void>,
@@ -97,6 +98,7 @@ export default function JobDetailsOverviewOps({
   notesDraft,
   photoQuoteRef,
   jobId,
+  linkedJob = null,
   legacyPhotoFileNames,
   onOpenTab,
   onReload,
@@ -341,6 +343,8 @@ export default function JobDetailsOverviewOps({
       <QuotePhotosAdminSection
         quoteRef={photoQuoteRef}
         jobId={jobId}
+        quoteRow={q}
+        linkedJob={linkedJob}
         legacyPhotoFileNames={legacyPhotoFileNames}
       />
     </div>

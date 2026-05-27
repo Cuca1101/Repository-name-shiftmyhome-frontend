@@ -1,7 +1,6 @@
 import { appendAdminNotesLog } from './adminNotesLog'
 import { loadAvailableJobAdminOverrides, saveAvailableJobAdminOverrides } from './availableJobLocalStore'
 import { applyDefaultMarketplacePayoutToQuote } from './marketplacePayoutApply'
-import { applyDefaultPlatformMarginPayoutEstimate } from './platformPayoutDefaults'
 import { mergedAdminWorkflowForQuote } from './quoteAdminWorkflowMerge'
 import {
   fetchAssignedByActor,
@@ -52,8 +51,7 @@ export async function publishQuoteToMarketplace(quoteId, quote, opts = {}) {
         logMessage,
       ),
     })
-    await applyDefaultPlatformMarginPayoutEstimate(id, mergedQuote)
-    await applyDefaultMarketplacePayoutToQuote(mergedQuote)
+    await applyDefaultMarketplacePayoutToQuote(mergedQuote, { source: 'available_jobs' })
     return { ok: true, localOnly: true }
   }
 
@@ -82,8 +80,7 @@ export async function publishQuoteToMarketplace(quoteId, quote, opts = {}) {
 
   await updateQuoteWorkflowAssignmentSilent(id, silentPatch)
   await removeJobAssignmentForQuote(id)
-  await applyDefaultPlatformMarginPayoutEstimate(id, mergedQuote)
-  await applyDefaultMarketplacePayoutToQuote(mergedQuote)
+  await applyDefaultMarketplacePayoutToQuote(mergedQuote, { source: 'available_jobs' })
 
   return { ok: true }
 }

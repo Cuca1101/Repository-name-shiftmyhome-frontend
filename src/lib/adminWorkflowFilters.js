@@ -3,6 +3,7 @@ import {
   journeyPassesMarketplaceStrict,
   quoteOperationalStatusLower,
   quotePassesActiveStrict,
+  quotePassesAvailableJobsStrict,
   quotePassesMarketplaceStrict,
 } from './adminJobListRules'
 import {
@@ -166,9 +167,13 @@ export function filterActiveQuotes(quotes, jobs) {
  * @param {Record<string, unknown>[]} jobs
  */
 export function filterCompletedQuotes(quotes, jobs) {
+  const jobRows = Array.isArray(jobs) ? jobs : []
   return quotes.filter((q) => {
     if (!quoteVisibleInProductionAdmin(q)) return false
-    return quoteIsInCompletedJobsInbox(q, findLinkedJobForQuote(q, jobs))
+    const j = findLinkedJobForQuote(q, jobRows)
+    if (quoteIsCancelled(q, j)) return false
+    if (quotePassesActiveStrict(q) && !quoteIsCompleted(q, j)) return false
+    return quoteIsInCompletedJobsInbox(q, j)
   })
 }
 
@@ -177,9 +182,14 @@ export function filterCompletedQuotes(quotes, jobs) {
  * @param {Record<string, unknown>[]} jobs
  */
 export function filterCancelledQuotes(quotes, jobs) {
+  const jobRows = Array.isArray(jobs) ? jobs : []
   return quotes.filter((q) => {
     if (!quoteVisibleInProductionAdmin(q)) return false
-    return quoteIsInCancelledJobsInbox(q, findLinkedJobForQuote(q, jobs))
+    const j = findLinkedJobForQuote(q, jobRows)
+    if (quotePassesActiveStrict(q)) return false
+    if (quotePassesAvailableJobsStrict(q)) return false
+    if (quoteIsCompleted(q, j) && !quoteIsCancelled(q, j)) return false
+    return quoteIsInCancelledJobsInbox(q, j)
   })
 }
 

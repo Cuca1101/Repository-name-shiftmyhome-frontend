@@ -5,7 +5,7 @@ export default function CompletedJobsAdmin() {
     <AdminWorkflowJobList
       workflow="completed"
       title="Completed Jobs"
-      description="Quote workflow or linked job card marked completed. POD and signature fields are local admin flags until stored in the database."
+      description="Completed jobs only — ref, driver, customer total, driver payout, platform profit, completion date, and payment status. Open View for full job history."
     />
   )
 }

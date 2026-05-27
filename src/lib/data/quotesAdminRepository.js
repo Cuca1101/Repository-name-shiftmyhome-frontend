@@ -9,6 +9,7 @@ const QUOTE_ASSIGNMENT_SAFE_KEYS = new Set([
   'bundled_journey_id',
   'marketplace_visibility',
   'marketplace_payout_price',
+  'payout_updated_at',
   'partner_dashboard_hidden',
   'assigned_driver_id',
   'assigned_driver_name',
@@ -102,6 +103,18 @@ export async function fetchQuoteByIdForAdmin(id) {
  * @param {string[]} ids quote UUIDs in desired order
  * @returns {Promise<Record<string, unknown>[]>} rows in the same order as `ids` (missing ids skipped)
  */
+/**
+ * @param {string} journeyId
+ * @returns {Promise<Record<string, unknown>[]>}
+ */
+export async function fetchQuotesByBundledJourneyId(journeyId) {
+  const jid = String(journeyId || '').trim()
+  if (!isSupabaseConfigured || !supabase || !jid) return []
+  const { data, error } = await supabase.from(QUOTES_TABLE).select('*').eq('bundled_journey_id', jid)
+  if (error) throw error
+  return Array.isArray(data) ? data : []
+}
+
 export async function fetchQuotesByIds(ids) {
   const uniq = [...new Set((ids || []).map((x) => String(x || '').trim()).filter(Boolean))]
   if (!isSupabaseConfigured || !supabase || uniq.length === 0) {

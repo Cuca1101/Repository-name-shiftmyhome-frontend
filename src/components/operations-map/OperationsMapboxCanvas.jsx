@@ -40,9 +40,9 @@ const LEG_LAYOUT = { 'line-cap': 'round', 'line-join': 'round' }
 
 /** Pickup → delivery gradient per operations mode */
 const ROUTE_GRADIENT_BY_MODE = {
-  available: ['interpolate', ['linear'], ['line-progress'], 0, '#ea580c', 0.5, '#0284c7', 1, '#15803d'],
-  active: ['interpolate', ['linear'], ['line-progress'], 0, '#f97316', 0.45, '#0ea5e9', 1, '#22c55e'],
-  completed: ['interpolate', ['linear'], ['line-progress'], 0, '#94a3b8', 1, '#64748b'],
+  available: ['interpolate', ['linear'], ['line-progress'], 0, '#64748b', 0.5, '#3b82f6', 1, '#2563eb'],
+  active: ['interpolate', ['linear'], ['line-progress'], 0, '#f59e0b', 0.45, '#fbbf24', 1, '#22c55e'],
+  completed: ['interpolate', ['linear'], ['line-progress'], 0, '#60a5fa', 1, '#2563eb'],
   cancelled: ['interpolate', ['linear'], ['line-progress'], 0, '#f87171', 1, '#b91c1c'],
 }
 
@@ -68,7 +68,15 @@ const emptyFc = () => ({ type: 'FeatureCollection', features: [] })
  * DOM marker wrapper: orange pickup (1) · green delivery (2) · job_ref label.
  * Anchored at geographic point; always above WebGL terrain.
  */
-function buildJobMarkerElement(quoteId, kind, jobRef, pointNum, isHighlighted) {
+const MARKER_PIN_BG = {
+  waiting: { pickup: '#64748b', delivery: '#3b82f6' },
+  accepted: { pickup: '#f59e0b', delivery: '#d97706' },
+  active: { pickup: '#22c55e', delivery: '#16a34a' },
+  completed: { pickup: '#3b82f6', delivery: '#2563eb' },
+  cancelled: { pickup: '#ef4444', delivery: '#b91c1c' },
+}
+
+function buildJobMarkerElement(quoteId, kind, jobRef, pointNum, isHighlighted, dispatchTone = 'waiting') {
   const wrap = document.createElement('button')
   wrap.type = 'button'
   wrap.dataset.quoteId = quoteId
@@ -94,7 +102,8 @@ function buildJobMarkerElement(quoteId, kind, jobRef, pointNum, isHighlighted) {
   pin.style.border = `3px solid ${isHighlighted ? '#fbbf24' : '#ffffff'}`
   pin.style.boxShadow = '0 2px 8px rgba(0,0,0,0.35)'
   pin.style.boxSizing = 'border-box'
-  pin.style.background = isPickup ? '#f97316' : '#22c55e'
+  const palette = MARKER_PIN_BG[dispatchTone] || MARKER_PIN_BG.waiting
+  pin.style.background = isPickup ? palette.pickup : palette.delivery
   pin.style.color = '#ffffff'
   pin.style.font = 'bold 13px system-ui,sans-serif'
   pin.style.display = 'flex'
@@ -546,7 +555,8 @@ export default function OperationsMapboxCanvas({
       const num = String(f.properties?.pointNum ?? (kind === 'pickup' ? '1' : '2'))
       const hi = highlightSet.has(pid)
 
-      const el = buildJobMarkerElement(pid, kind, ref, num, hi)
+      const tone = String(f.properties?.dispatchTone ?? 'waiting')
+      const el = buildJobMarkerElement(pid, kind, ref, num, hi, tone)
       const pick = () => {
         try {
           onPickQuote(pid)

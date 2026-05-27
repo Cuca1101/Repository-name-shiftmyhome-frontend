@@ -11,14 +11,26 @@ import {
   computeJourneyTotals,
   validatePickupBeforeDeliveryForStops,
 } from './journeyPlannerModel'
-import { suggestJourneyMarketplacePayoutFromQuotes, sumQuoteCustomerTotalsGbp } from './journeyFinance'
+import { sumQuoteCustomerTotalsGbp } from './journeyFinance'
 import { recalculateJourneyRouteMetrics } from './journeyRouteRecalculate'
 import {
   saveJourney,
   withdrawJourneyFromMarketplace,
 } from './data/journeysRepository'
-import { updateQuoteWorkflowAssignmentSilent } from './data/quotesAdminRepository'
+import { updateQuoteWorkflowAssignmentSilent, updateQuoteWorkflowStatus } from './data/quotesAdminRepository'
+import { applyJourneyPayoutToQuotes } from './applyJourneyPayoutToQuotes'
+import {
+  allJobsAsManualOverrides,
+  readPerJobPayoutsFromQuotes,
+  removeJobWithChargePayout,
+  removeJobWithoutChargePayout,
+  round2,
+} from './journeyPayoutSplit'
 import { isSupabaseConfigured } from './supabase'
+
+/**
+ * @typedef {'remove_with_charge' | 'remove_without_charge' | 'cancel_job' | 'keep_in_journey'} JourneyRemoveMode
+ */
 
 /**
  * @param {import('./journeyPlannerModel.js').JourneyStop[]} stops
@@ -40,18 +52,11 @@ export function quotesWithoutQuote(quotes, quoteId) {
 
 /**
  * @param {Record<string, unknown>} journey
- * @param {Record<string, unknown>[]} quotes
- * @param {boolean} payoutManuallySet
- * @param {number | null} existingPayout
  */
-function resolvePayoutForQuotes(journey, quotes, payoutManuallySet, existingPayout) {
-  if (payoutManuallySet) {
-    const raw = journey?.marketplace_payout_price ?? existingPayout
-    if (raw != null && Number.isFinite(Number(raw))) return Number(raw)
-    return existingPayout != null && Number.isFinite(existingPayout) ? existingPayout : null
-  }
-  const suggested = suggestJourneyMarketplacePayoutFromQuotes(quotes)
-  return suggested?.payout ?? null
+function journeyTotalPayout(journey) {
+  const raw = journey?.marketplace_payout_price
+  if (raw != null && Number.isFinite(Number(raw))) return round2(raw)
+  return null
 }
 
 /**
@@ -63,11 +68,18 @@ function resolvePayoutForQuotes(journey, quotes, payoutManuallySet, existingPayo
  *   quotes: Record<string, unknown>[],
  *   mapboxToken?: string,
  *   withdrawFromMarketplaceIfListed?: boolean,
+ *   mode?: JourneyRemoveMode,
+ *   removalReason?: string,
  * }} opts
  */
 export async function executeRemoveJobFromJourney(opts) {
   if (!isSupabaseConfigured) {
     throw new Error('Supabase is not configured.')
+  }
+
+  const mode = opts.mode || 'remove_without_charge'
+  if (mode === 'keep_in_journey') {
+    return { kept: true, empty: false, routingErr: '', marketplaceWithdrawn: false }
   }
 
   const journeyId = String(opts.journeyId || '').trim()
@@ -82,12 +94,26 @@ export async function executeRemoveJobFromJourney(opts) {
     await withdrawJourneyFromMarketplace(journeyId)
   }
 
-  await updateQuoteWorkflowAssignmentSilent(quoteId, { bundled_journey_id: null })
+  const currentByQuoteId = readPerJobPayoutsFromQuotes(opts.quotes)
+  const removedPayout = currentByQuoteId[quoteId] ?? 0
+  const journeyTotal = journeyTotalPayout(journey)
+  const previousTotal = journeyTotal
+
+  if (mode === 'cancel_job') {
+    await updateQuoteWorkflowStatus(quoteId, 'Cancelled')
+    await updateQuoteWorkflowAssignmentSilent(quoteId, {
+      bundled_journey_id: null,
+      admin_cancellation_reason:
+        (opts.removalReason && String(opts.removalReason).trim()) ||
+        'Removed from journey — customer cancelled / not home / access issue',
+    })
+  } else {
+    await updateQuoteWorkflowAssignmentSilent(quoteId, { bundled_journey_id: null })
+  }
 
   const newStops = stopsWithoutQuote(opts.stops, quoteId)
   const newQuotes = quotesWithoutQuote(opts.quotes, quoteId)
 
-  const payoutManuallySet = Boolean(journey?.journey_payout_manually_set)
   const summaryTitle =
     (journey?.summary_title != null && String(journey.summary_title).trim()) ||
     (journey?.title != null && String(journey.title).trim()) ||
@@ -112,7 +138,7 @@ export async function executeRemoveJobFromJourney(opts) {
       maxVolumeM3: null,
       estimatedWeightKg: null,
       journeyPayoutPrice: null,
-      journeyPayoutManuallySet: payoutManuallySet,
+      journeyPayoutManuallySet: Boolean(journey?.journey_payout_manually_set),
       adminCustomerTotalGbp: null,
       requirementsTags: null,
       totalVolumeM3: 0,
@@ -132,7 +158,52 @@ export async function executeRemoveJobFromJourney(opts) {
   const sumVolM3 = sumVolumeM3FromQuotes(newQuotes)
   const estWeightKg = estimatedWeightKgFromQuotes(newQuotes)
   const requirementBadges = buildJourneyRequirementsBadges({ quotes: newQuotes, jobsCount: route.jobsCount })
-  const payout = resolvePayoutForQuotes(journey, newQuotes, payoutManuallySet, null)
+
+  const remainingIds = [...new Set(newQuotes.map((q) => String(q.id || '').trim()).filter(Boolean))]
+
+  let payoutResult = {
+    newTotal: journeyTotal,
+    byQuoteId: currentByQuoteId,
+    manualOverrides: allJobsAsManualOverrides(currentByQuoteId),
+  }
+
+  if (journeyTotal != null && journeyTotal > 0) {
+    if (mode === 'remove_with_charge') {
+      payoutResult = removeJobWithChargePayout(
+        journeyTotal,
+        removedPayout,
+        currentByQuoteId,
+        quoteId,
+        remainingIds,
+      )
+    } else {
+      const manualFromQuotes = {}
+      for (const q of newQuotes) {
+        const id = String(q.id || '').trim()
+        if (id && q.driver_payout_manual_override && currentByQuoteId[id] != null) {
+          manualFromQuotes[id] = currentByQuoteId[id]
+        }
+      }
+      payoutResult = removeJobWithoutChargePayout(journeyTotal, remainingIds, manualFromQuotes)
+    }
+
+    await applyJourneyPayoutToQuotes({
+      journeyId,
+      totalPayout: payoutResult.newTotal ?? journeyTotal,
+      byQuoteId: payoutResult.byQuoteId,
+      manualQuoteIds: new Set(Object.keys(payoutResult.manualOverrides || {})),
+      reason: opts.removalReason || `Job removed (${mode})`,
+      auditAction: mode,
+      previousTotal,
+      previousByQuoteId: currentByQuoteId,
+      jobAddedOrRemoved: `removed:${quoteId}`,
+    })
+  }
+
+  const payout =
+    payoutResult.newTotal != null && Number.isFinite(payoutResult.newTotal)
+      ? payoutResult.newTotal
+      : journeyTotal
 
   await saveJourney({
     journeyId,
@@ -152,7 +223,7 @@ export async function executeRemoveJobFromJourney(opts) {
     maxVolumeM3: maxVolM3 > 0 ? maxVolM3 : null,
     estimatedWeightKg: estWeightKg,
     journeyPayoutPrice: payout,
-    journeyPayoutManuallySet: payoutManuallySet,
+    journeyPayoutManuallySet: Boolean(journey?.journey_payout_manually_set) || payout != null,
     adminCustomerTotalGbp: sumQuoteCustomerTotalsGbp(newQuotes),
     requirementsTags: requirementBadges,
     totalVolumeM3: sumVolM3,
@@ -163,5 +234,9 @@ export async function executeRemoveJobFromJourney(opts) {
     routingErr: route.routingErr,
     marketplaceWithdrawn: listed && opts.withdrawFromMarketplaceIfListed,
     totals: computeJourneyTotals(route.stops, route.totalDriveSeconds),
+    payoutByQuoteId: payoutResult.byQuoteId,
+    journeyPayoutTotal: payout,
+    removedWithCharge: mode === 'remove_with_charge',
+    removedPayout,
   }
 }

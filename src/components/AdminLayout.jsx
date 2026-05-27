@@ -17,7 +17,7 @@ const mainSections = [
     items: [
       { to: '/admin/available-jobs', label: 'Available Jobs', end: false, icon: 'document' },
       { to: '/admin/marketplace', label: 'Marketplace', end: false, icon: 'package' },
-      { to: '/admin/active-jobs', label: 'Active Jobs', end: false, icon: 'truck' },
+      { to: '/admin/active-jobs', label: 'Job Accepted', end: false, icon: 'truck' },
       { to: '/admin/completed-jobs', label: 'Completed Jobs', end: false, icon: 'star' },
       { to: '/admin/cancelled-jobs', label: 'Cancelled Jobs', end: false, icon: 'ban' },
       { to: '/admin/operations-map', label: 'Operations Map', end: false, icon: 'crosshair' },

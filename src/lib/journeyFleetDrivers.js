@@ -17,7 +17,12 @@ import { isSupabaseConfigured, supabase } from './supabase'
  */
 export async function fetchActiveFleetDriversForDispatch() {
   const list = await loadFleetDriversForAdmin()
-  const active = list.filter((d) => String(d.status || '') === 'Active' && String(d.id || '').trim())
+  const active = list.filter(
+    (d) =>
+      String(d.status || '') === 'Active' &&
+      d.accountActive !== false &&
+      String(d.id || '').trim(),
+  )
 
   /** @type {Record<string, { vehicle_type?: string, phone?: string }>} */
   let metaById = {}

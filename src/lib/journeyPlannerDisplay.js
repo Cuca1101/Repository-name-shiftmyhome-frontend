@@ -3,7 +3,8 @@ import {
   journeyPlatformProfitGbp,
 } from './journeyFinance'
 import { extractUkPostcode } from './journeySummary'
-import { quoteOperationalStatusLower } from './adminJobListRules'
+import { quoteOperationalStatusLower, quotePassesActiveStrict } from './adminJobListRules'
+import { jobAcceptedStatusBadge } from './adminJobAcceptedStatus'
 
 /** @typedef {'all' | 'draft' | 'marketplace' | 'active' | 'completed'} JourneyPlannerTab */
 /** @typedef {'newest' | 'created' | 'marketplace'} JourneyPlannerSort */
@@ -12,7 +13,7 @@ export const JOURNEY_PLANNER_TABS = [
   { key: 'all', label: 'All journeys' },
   { key: 'draft', label: 'Draft' },
   { key: 'marketplace', label: 'Marketplace' },
-  { key: 'active', label: 'Active' },
+  { key: 'active', label: 'Accepted & active' },
   { key: 'completed', label: 'Completed' },
 ]
 
@@ -50,6 +51,21 @@ export function quoteIsJobCompleted(q) {
   return op === 'completed'
 }
 
+/** @param {Record<string, unknown> | null | undefined} q */
+export function quoteIsJobCancelled(q) {
+  if (!q || typeof q !== 'object') return false
+  const st = String(q.status ?? '').trim()
+  if (st === 'Cancelled') return true
+  if (q.cancelled_at) return true
+  const op = quoteOperationalStatusLower(q)
+  return op === 'cancelled'
+}
+
+/** @param {Record<string, unknown> | null | undefined} q */
+export function quoteIsTerminalForJourney(q) {
+  return quoteIsJobCompleted(q) || quoteIsJobCancelled(q)
+}
+
 /**
  * Operational dispatch label for journey view and cards.
  * @param {Record<string, unknown>} j
@@ -72,19 +88,21 @@ export function journeyDispatchStatus(j, quotes = []) {
     return { label: 'Completed', tone: 'violet', key: 'completed' }
   }
 
-  if (hasDriver || vis === 'assigned') {
+  if (hasDriver || vis === 'assigned' || quoteList.some((q) => quotePassesActiveStrict(q))) {
     const driverName = journeyAssignedDriverLabel(j, quoteList)
-    if (quoteList.some((q) => !quoteIsJobCompleted(q))) {
+    const liveQuotes = quoteList.filter((q) => !quoteIsTerminalForJourney(q))
+    const anyStarted = liveQuotes.some((q) => jobAcceptedStatusBadge(q).label === 'Active')
+    if (anyStarted) {
       return {
         label: driverName ? `Active · ${driverName}` : 'Active',
-        tone: 'sky',
+        tone: 'emerald',
         key: 'active',
       }
     }
     return {
-      label: driverName ? `Driver assigned · ${driverName}` : 'Driver assigned',
-      tone: 'sky',
-      key: 'driver_assigned',
+      label: driverName ? `Accepted · ${driverName}` : 'Accepted',
+      tone: 'amber',
+      key: 'accepted',
     }
   }
 

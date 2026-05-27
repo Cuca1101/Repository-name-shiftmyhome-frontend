@@ -137,7 +137,7 @@ export default function JourneyPlannerList({ refreshKey = 0, compact = false }) 
             <p className="mt-1 max-w-2xl text-sm text-slate-600">
               {compact
                 ? 'Open a journey for the operational view, or edit stops and payout.'
-                : 'Multi-stop logistics journeys — draft, marketplace, active, and completed.'}
+                : 'Group jobs by journey, driver, and date — draft, marketplace, accepted/active, and completed.'}
             </p>
           </div>
           <button

@@ -1,7 +1,7 @@
 const STORAGE_KEY = 'smh_admin_available_job_v1'
 
 /**
- * @typedef {{ id: string, description: string, amountGbp: number, createdAt: string, status?: 'pending'|'paid' }} AvailableJobAdjustment
+ * @typedef {import('./jobAdjustments.js').JobAdjustmentRow} AvailableJobAdjustment
  */
 
 /**
@@ -25,7 +25,12 @@ const STORAGE_KEY = 'smh_admin_available_job_v1'
  *   workflowCompletedAt: string,
  *   workflowCancelledAt: string,
  *   marketplacePayoutManualOverride?: boolean,
- *   marketplaceDeductionSnapshot?: { type: 'percentage' | 'fixed', value: number } | null,
+ *   marketplaceDeductionSnapshot?: {
+ *     type: 'percentage' | 'fixed',
+ *     value: number,
+ *     source?: 'available_jobs' | 'settings' | 'settings_bulk' | 'marketplace_recalc',
+ *     appliedAt?: string,
+ *   } | null,
  *   partnerDashboardHidden?: boolean,
  *   autoMarketplaceHold?: boolean,
  * }} AvailableJobAdminOverrides

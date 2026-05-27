@@ -62,6 +62,7 @@ const cardShell = 'overflow-hidden rounded-2xl border border-slate-200/90 bg-whi
  *   quote: Record<string, unknown>,
  *   jobId?: string|null,
  *   photoQuoteRef?: string|null,
+ *   linkedJob?: Record<string, unknown> | null,
  *   legacyPhotoFileNames?: string[],
  * }} props
  */
@@ -69,6 +70,7 @@ export default function AdminJobQuoteDetailsPanel({
   quote: q,
   jobId = null,
   photoQuoteRef = null,
+  linkedJob = null,
   legacyPhotoFileNames = [],
 }) {
   const vm = useMemo(() => buildAdminJobQuoteDetailsViewModel(q), [q])
@@ -222,6 +224,8 @@ export default function AdminJobQuoteDetailsPanel({
               : ''
         }
         jobId={jobId}
+        quoteRow={q}
+        linkedJob={linkedJob}
         legacyPhotoFileNames={legacyPhotoFileNames}
       />
     </div>

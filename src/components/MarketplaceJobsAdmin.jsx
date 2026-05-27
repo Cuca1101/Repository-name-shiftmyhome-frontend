@@ -52,7 +52,7 @@ export default function MarketplaceJobsAdmin() {
       <AdminWorkflowJobList
         workflow="marketplace"
         title="Marketplace"
-        description="Jobs visible to partners. Customer totals and balances stay fixed; partner payout follows your deduction defaults (editable below)."
+        description="Jobs published to the partner marketplace awaiting acceptance. Once a partner accepts, the job moves to Job Accepted — it will not appear here."
       />
     </MarketplacePageErrorBoundary>
   )

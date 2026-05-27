@@ -13,6 +13,31 @@ const MSG_ROUTE_TIMEOUT = 'Route is taking longer than expected. Check your conn
 const DEFAULT_MAP_SHELL =
   'relative h-[100px] min-h-[100px] xxs:h-[110px] xxs:min-h-[110px] xs:h-[130px] xs:min-h-[130px] mb:h-[160px] mb:min-h-[160px] sm:h-[200px] sm:min-h-[200px] lg:h-[260px] lg:min-h-[260px] w-full min-w-0 overflow-hidden rounded-2xl'
 const COMPACT_MAP_SHELL = 'relative h-24 min-h-[6rem] w-full min-w-0 overflow-hidden rounded-lg md:rounded-2xl'
+/** Admin dispatch board — tall route visibility (Available / Job Accepted detail). */
+const DISPATCH_MAP_SHELL =
+  'relative h-[220px] min-h-[220px] sm:h-[260px] sm:min-h-[260px] md:h-[280px] md:min-h-[280px] lg:h-[300px] lg:min-h-[300px] xl:h-[320px] xl:min-h-[320px] w-full min-w-0 overflow-hidden'
+
+const OUTER_DEFAULT =
+  'quote-route-map w-full min-w-0 overflow-hidden rounded-lg border border-slate-200 bg-slate-100 shadow-card ring-1 ring-slate-100 sm:rounded-2xl'
+const OUTER_DISPATCH = 'quote-route-map quote-route-map--dispatch w-full min-w-0 overflow-hidden bg-slate-100'
+
+function resolveMapVariant({ compact, variant }) {
+  if (variant === 'dispatch') return 'dispatch'
+  if (variant === 'compact' || compact) return 'compact'
+  return 'default'
+}
+
+function mapVariantShellClass(variant) {
+  if (variant === 'dispatch') return DISPATCH_MAP_SHELL
+  if (variant === 'compact') return COMPACT_MAP_SHELL
+  return DEFAULT_MAP_SHELL
+}
+
+function mapVariantBoundsPadding(variant) {
+  if (variant === 'compact') return 28
+  if (variant === 'dispatch') return 36
+  return 48
+}
 
 class MapErrorBoundary extends Component {
   constructor(props) {
@@ -111,6 +136,7 @@ function fetchDrivingRouteTimed(a, b, token, ms = ROUTE_FETCH_TIMEOUT_MS) {
  *   deliveryLat: number | null,
  *   distanceMiles?: number,
  *   compact?: boolean,
+ *   variant?: 'default' | 'compact' | 'dispatch',
  *   onDistanceFromRoute?: (payload: { type: 'ok', miles: number, durationSeconds: number | null } | { type: 'failed' } | { type: 'incomplete' }) => void,
  * }} props
  */
@@ -120,8 +146,10 @@ function QuoteRouteMapInner({
   deliveryLng,
   deliveryLat,
   compact = false,
+  variant: variantProp,
   onDistanceFromRoute,
 }) {
+  const mapVariant = resolveMapVariant({ compact, variant: variantProp })
   const token = import.meta.env.VITE_MAPBOX_TOKEN
   const containerRef = useRef(null)
   const shellRef = useRef(null)
@@ -253,7 +281,7 @@ function QuoteRouteMapInner({
       }
       setMapReadyTick(0)
     }
-  }, [token, compact])
+  }, [token, mapVariant])
 
   useEffect(() => {
     const map = mapRef.current
@@ -364,7 +392,11 @@ function QuoteRouteMapInner({
 
         const bounds = new mapboxgl.LngLatBounds()
         route.geometry.coordinates.forEach((coord) => bounds.extend(coord))
-        map.fitBounds(bounds, { padding: compact ? 28 : 48, maxZoom: 12, duration: 0 })
+        map.fitBounds(bounds, {
+          padding: mapVariantBoundsPadding(mapVariant),
+          maxZoom: 12,
+          duration: 0,
+        })
         setOverlayIfCurrent(null)
         return
       }
@@ -413,15 +445,16 @@ function QuoteRouteMapInner({
         }
       }
     }
-  }, [debounced, token, mapReadyTick, compact])
+  }, [debounced, token, mapReadyTick, mapVariant])
 
   const showMap = Boolean(token)
-  const mapShellClass = compact ? COMPACT_MAP_SHELL : DEFAULT_MAP_SHELL
+  const mapShellClass = mapVariantShellClass(mapVariant)
+  const outerClass = mapVariant === 'dispatch' ? OUTER_DISPATCH : OUTER_DEFAULT
   const overlayMessage =
     overlay === 'route-error' ? MSG_ROUTE_FAIL : overlay === 'route-timeout' ? MSG_ROUTE_TIMEOUT : null
 
   return (
-    <div className="quote-route-map w-full min-w-0 overflow-hidden rounded-lg border border-slate-200 bg-slate-100 shadow-card ring-1 ring-slate-100 sm:rounded-2xl">
+    <div className={outerClass}>
       {!showMap ? (
         <div className={`flex ${mapShellClass} items-center justify-center bg-slate-50 px-4 text-center`}>
           <p className="text-sm leading-relaxed text-slate-700">{MSG_NO_TOKEN}</p>

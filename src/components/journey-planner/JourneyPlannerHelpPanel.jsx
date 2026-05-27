@@ -4,14 +4,14 @@ const STEPS = [
   'Review stop order and route.',
   'Adjust payout and profit if needed.',
   'Send to Marketplace or assign an internal driver.',
-  'Assigned journeys move into Active Jobs.',
-  'Complete jobs from Active Jobs or Job Details.',
+  'Assigned journeys move into Job Accepted.',
+  'Complete jobs from Job Accepted or Job Details.',
 ]
 
 const INFO_CARDS = [
   { title: 'Marketplace', body: 'One card for partners — jobs stay bundled on the journey.', tone: 'emerald' },
   { title: 'Internal fleet', body: 'Assign a driver to dispatch your own crew on every eligible job.', tone: 'sky' },
-  { title: 'Active Jobs', body: 'Driver-assigned work appears in Active Jobs for day-of operations.', tone: 'slate' },
+  { title: 'Job Accepted', body: 'Driver-assigned work appears in Job Accepted for day-of operations.', tone: 'slate' },
 ]
 
 const TONE_BORDER = {

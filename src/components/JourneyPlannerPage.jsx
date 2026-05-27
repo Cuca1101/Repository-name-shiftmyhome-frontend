@@ -45,7 +45,15 @@ import JourneyPlannerHelpPanel from './journey-planner/JourneyPlannerHelpPanel'
 import JourneyCompletionGuidance from './journey-planner/JourneyCompletionGuidance'
 import JourneyAssignDriverButton from './journey-planner/JourneyAssignDriverButton'
 import JourneyRemoveJobModal from './journey-planner/JourneyRemoveJobModal'
+import JourneyPayoutPanel from './journey-planner/JourneyPayoutPanel'
 import JourneyStopCard from './journey-planner/JourneyStopCard'
+import { applyJourneyPayoutToQuotes } from '../lib/applyJourneyPayoutToQuotes'
+import {
+  readManualOverridesFromQuotes,
+  readPerJobPayoutsFromQuotes,
+  splitJourneyDriverPayout,
+} from '../lib/journeyPayoutSplit'
+import { quoteIsTerminalForJourney } from '../lib/journeyPlannerDisplay'
 import {
   executeRemoveJobFromJourney,
   quotesWithoutQuote,
@@ -199,6 +207,9 @@ export default function JourneyPlannerPage() {
     /** @type {{ quoteId: string, jobRef: string, customerName: string } | null} */ (null),
   )
   const [payoutManuallySet, setPayoutManuallySet] = useState(false)
+  const [jobPayoutOverrides, setJobPayoutOverrides] = useState(/** @type {Record<string, number>} */ ({}))
+  const [payoutSplitBusy, setPayoutSplitBusy] = useState(false)
+  const [showTerminalJobs, setShowTerminalJobs] = useState(false)
   const [adjustPriceOpen, setAdjustPriceOpen] = useState(false)
   const [adjustDraft, setAdjustDraft] = useState('')
   const [adjustPctDraft, setAdjustPctDraft] = useState('')
@@ -440,6 +451,22 @@ export default function JourneyPlannerPage() {
     return m
   }, [quotes])
 
+  const scheduleStops = useMemo(() => {
+    if (showTerminalJobs) return stops
+    return stops.filter((s) => {
+      const q = s.quoteId ? quotesById[s.quoteId] : null
+      return !quoteIsTerminalForJourney(q)
+    })
+  }, [stops, quotesById, showTerminalJobs])
+
+  const hiddenTerminalStopCount = useMemo(() => {
+    if (showTerminalJobs) return 0
+    return stops.filter((s) => {
+      const q = s.quoteId ? quotesById[s.quoteId] : null
+      return quoteIsTerminalForJourney(q)
+    }).length
+  }, [stops, quotesById, showTerminalJobs])
+
   const totals = useMemo(
     () => computeJourneyTotals(stops, totalDriveSeconds),
     [stops, totalDriveSeconds],
@@ -467,9 +494,75 @@ export default function JourneyPlannerPage() {
 
   const suggestedJourneyPayout = useMemo(() => suggestJourneyMarketplacePayoutFromQuotes(quotes), [quotes])
 
+  const journeySplitPreview = useMemo(() => {
+    if (journeyPayoutNumeric == null || quotes.length === 0) return null
+    const ids = quotes.map((q) => String(q.id || '').trim()).filter(Boolean)
+    return splitJourneyDriverPayout(journeyPayoutNumeric, ids, jobPayoutOverrides)
+  }, [journeyPayoutNumeric, quotes, jobPayoutOverrides])
+
+  useEffect(() => {
+    setJobPayoutOverrides(readManualOverridesFromQuotes(quotes))
+  }, [quotes])
+
   const platformReductionPct = useMemo(
     () => effectivePlatformReductionPctOfCustomer(customerTotalGbp, journeyPayoutNumeric),
     [customerTotalGbp, journeyPayoutNumeric],
+  )
+
+  const applyJourneyPayoutSplit = useCallback(
+    async (reason = 'Journey driver payout split') => {
+      if (journeyPayoutNumeric == null || quotes.length === 0) {
+        setSaveMsgIsError(true)
+        setSaveMsg('Enter total journey driver payout and add jobs first.')
+        return
+      }
+      const ids = quotes.map((q) => String(q.id || '').trim()).filter(Boolean)
+      const previousTotal =
+        journeyRecord?.marketplace_payout_price != null && Number.isFinite(Number(journeyRecord.marketplace_payout_price))
+          ? Number(journeyRecord.marketplace_payout_price)
+          : null
+      const previousBy = readPerJobPayoutsFromQuotes(quotes)
+      const split = splitJourneyDriverPayout(journeyPayoutNumeric, ids, jobPayoutOverrides)
+      setPayoutSplitBusy(true)
+      setSaveMsg('')
+      setSaveMsgIsError(false)
+      try {
+        if (savedJourneyId && isSupabaseConfigured) {
+          await applyJourneyPayoutToQuotes({
+            journeyId: savedJourneyId,
+            totalPayout: split.total,
+            byQuoteId: split.byQuoteId,
+            manualQuoteIds: split.manualQuoteIds,
+            reason,
+            auditAction: 'journey_split',
+            previousTotal,
+            previousByQuoteId: previousBy,
+          })
+          const rows = await fetchQuotesByIds(ids)
+          setQuotes(rows)
+          setJobPayoutOverrides(readManualOverridesFromQuotes(rows))
+        }
+        setJourneyPayoutInput(String(split.total.toFixed(2)))
+        setPayoutManuallySet(true)
+        setJourneyRecord((prev) =>
+          prev && typeof prev === 'object'
+            ? {
+                ...prev,
+                marketplace_payout_price: split.total,
+                journey_payout_manually_set: true,
+              }
+            : prev,
+        )
+        setSaveMsg(`Payout split saved — ${ids.length} jobs · ${split.perJobAuto != null ? `£${split.perJobAuto.toFixed(2)} each (auto)` : 'mixed overrides'}.`)
+        setListRefreshKey((k) => k + 1)
+      } catch (e) {
+        setSaveMsgIsError(true)
+        setSaveMsg(e?.message || 'Could not save payout split.')
+      } finally {
+        setPayoutSplitBusy(false)
+      }
+    },
+    [journeyPayoutNumeric, quotes, jobPayoutOverrides, savedJourneyId, journeyRecord],
   )
 
   const persistPayoutAndManual = useCallback(
@@ -534,6 +627,7 @@ export default function JourneyPlannerPage() {
     setSaveMsg('')
     setSaveMsgIsError(false)
     await persistPayoutAndManual(n, true)
+    await applyJourneyPayoutSplit('Admin adjusted journey driver payout')
     setAdjustPriceOpen(false)
   }
 
@@ -635,8 +729,12 @@ export default function JourneyPlannerPage() {
     })
   }
 
-  async function confirmRemoveJobFromJourney() {
+  async function confirmRemoveJobFromJourney(mode, removalReason) {
     if (!removeTarget) return
+    if (mode === 'keep_in_journey') {
+      setRemoveTarget(null)
+      return
+    }
     const qid = removeTarget.quoteId
     setRemovingJob(true)
     setSaveMsg('')
@@ -661,6 +759,8 @@ export default function JourneyPlannerPage() {
         quotes,
         mapboxToken: token,
         withdrawFromMarketplaceIfListed: marketplaceListed,
+        mode,
+        removalReason,
       })
 
       if (result.marketplaceWithdrawn) {
@@ -693,10 +793,11 @@ export default function JourneyPlannerPage() {
       setScheduleOrderWarning('')
       await applyRouteForStops(modelStops)
 
-      if (!result.empty && !journeyRecord?.journey_payout_manually_set) {
-        const suggested = suggestJourneyMarketplacePayoutFromQuotes(rows)
-        if (suggested) setJourneyPayoutInput(String(suggested.payout.toFixed(2)))
+      if (result.journeyPayoutTotal != null) {
+        setJourneyPayoutInput(String(Number(result.journeyPayoutTotal).toFixed(2)))
+        setPayoutManuallySet(true)
       }
+      setJobPayoutOverrides(readManualOverridesFromQuotes(rows))
 
       setSaveMsg(
         result.empty
@@ -811,6 +912,21 @@ export default function JourneyPlannerPage() {
       if (res?.id) {
         setSavedJourneyId(res.id)
         if (res.journey_ref) setJourneyRefDisplay(res.journey_ref)
+        if (journeyPayoutNumeric != null && quotes.length > 0) {
+          const quoteIdList = quotes.map((q) => String(q.id || '').trim()).filter(Boolean)
+          const split = splitJourneyDriverPayout(journeyPayoutNumeric, quoteIdList, jobPayoutOverrides)
+          await applyJourneyPayoutToQuotes({
+            journeyId: res.id,
+            totalPayout: split.total,
+            byQuoteId: split.byQuoteId,
+            manualQuoteIds: split.manualQuoteIds,
+            reason: 'Journey saved with driver payout split',
+            auditAction: 'journey_save',
+          })
+          const rows = await fetchQuotesByIds(quoteIdList)
+          setQuotes(rows)
+          setJobPayoutOverrides(readManualOverridesFromQuotes(rows))
+        }
         setSaveMsg('Journey saved.')
         setScheduleOrderWarning('')
         setListRefreshKey((k) => k + 1)
@@ -876,6 +992,20 @@ export default function JourneyPlannerPage() {
     setSendingMarketplace(true)
     try {
       await saveJourney(buildSavePayload(savedJourneyId))
+      if (quotes.length > 0) {
+        const split = splitJourneyDriverPayout(payoutVal, quoteIds, jobPayoutOverrides)
+        await applyJourneyPayoutToQuotes({
+          journeyId: savedJourneyId,
+          totalPayout: split.total,
+          byQuoteId: split.byQuoteId,
+          manualQuoteIds: split.manualQuoteIds,
+          reason: 'Journey sent to marketplace with driver payout split',
+          auditAction: 'marketplace_send',
+        })
+        const rows = await fetchQuotesByIds(quoteIds)
+        setQuotes(rows)
+        setJobPayoutOverrides(readManualOverridesFromQuotes(rows))
+      }
       await sendJourneyToMarketplace(savedJourneyId, quoteIds, payoutVal)
       setMarketplaceListed(true)
       setListRefreshKey((k) => k + 1)
@@ -1087,31 +1217,29 @@ export default function JourneyPlannerPage() {
               {platformMarginGbp != null ? `£${platformMarginGbp.toFixed(2)}` : '—'}
             </p>
           </div>
-          <div className="rounded-xl border border-emerald-400/30 bg-emerald-500/10 px-3 py-2.5 lg:col-span-2">
-            <p className="text-[10px] font-semibold uppercase tracking-wide text-emerald-200">Journey payout</p>
-            {editMode ? (
-              <>
-                <input
-                  type="text"
-                  inputMode="decimal"
-                  value={journeyPayoutInput}
-                  onChange={(e) => {
-                    setJourneyPayoutInput(e.target.value)
-                    setPayoutManuallySet(true)
-                  }}
-                  className="mt-1 w-full rounded-lg border border-white/20 bg-slate-950/40 px-3 py-2 text-sm font-bold text-white"
-                  placeholder="0.00"
-                />
-                {suggestedJourneyPayout ? (
-                  <p className="mt-1 text-[10px] text-emerald-100/90">
-                    {payoutManuallySet ? 'Suggested from default rules (reference): ' : 'Suggested from default marketplace rules: '}
-                    £{suggestedJourneyPayout.payout.toFixed(2)} ({suggestedJourneyPayout.deductionLabel})
-                  </p>
-                ) : null}
-              </>
-            ) : (
-              <p className="mt-1 text-lg font-bold text-emerald-100">{payoutDisplay}</p>
-            )}
+          <div className="lg:col-span-2">
+            <JourneyPayoutPanel
+              variant="dark"
+              quotes={quotes}
+              totalPayoutInput={journeyPayoutInput}
+              onTotalPayoutInputChange={(v) => {
+                setJourneyPayoutInput(v)
+                setPayoutManuallySet(true)
+              }}
+              manualOverrides={jobPayoutOverrides}
+              onManualOverridesChange={setJobPayoutOverrides}
+              onApplySplit={() => applyJourneyPayoutSplit('Admin applied journey payout split')}
+              busy={payoutSplitBusy || saving}
+            />
+            {suggestedJourneyPayout ? (
+              <p className="mt-2 text-[10px] text-emerald-100/80">
+                Reference only (not applied automatically): £{suggestedJourneyPayout.payout.toFixed(2)} from
+                customer totals — use total journey driver payout above instead.
+              </p>
+            ) : null}
+            {!editMode && payoutDisplay ? (
+              <p className="mt-2 text-lg font-bold text-emerald-100">Saved total: {payoutDisplay}</p>
+            ) : null}
           </div>
         </div>
         {requirementBadges.length > 0 ? (
@@ -1223,15 +1351,17 @@ export default function JourneyPlannerPage() {
           Customer total (all jobs):{' '}
           <span className="text-slate-950">{customerTotalGbp != null ? `£${customerTotalGbp.toFixed(2)}` : '—'}</span>
           {' · '}
-          Platform reduction:{' '}
-          <span className="text-slate-950">
-            {platformReductionPct != null ? `${platformReductionPct.toFixed(1)}%` : '—'}
-          </span>
-          {' · '}
-          Journey payout:{' '}
+          Journey driver payout:{' '}
           <span className="text-emerald-800">{payoutNum != null ? `£${payoutNum.toFixed(2)}` : '—'}</span>
+          {journeySplitPreview?.perJobAuto != null ? (
+            <>
+              {' · '}
+              Per job (auto):{' '}
+              <span className="text-violet-800">£{journeySplitPreview.perJobAuto.toFixed(2)}</span>
+            </>
+          ) : null}
           {' · '}
-          Platform margin:{' '}
+          Platform margin (customer − driver offer):{' '}
           <span className="text-violet-800">{platformMarginGbp != null ? `£${platformMarginGbp.toFixed(2)}` : '—'}</span>
         </p>
       </div>
@@ -1351,8 +1481,25 @@ export default function JourneyPlannerPage() {
                 </button>
               </div>
             ) : null}
+            <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+              <label className="inline-flex cursor-pointer items-center gap-2 text-xs font-medium text-slate-700">
+                <input
+                  type="checkbox"
+                  checked={showTerminalJobs}
+                  onChange={(e) => setShowTerminalJobs(e.target.checked)}
+                  className="h-4 w-4 rounded border-slate-300 text-brand-600"
+                />
+                Show completed / cancelled jobs
+              </label>
+              {hiddenTerminalStopCount > 0 ? (
+                <span className="text-[11px] text-slate-500">
+                  {hiddenTerminalStopCount} stop{hiddenTerminalStopCount === 1 ? '' : 's'} hidden
+                </span>
+              ) : null}
+            </div>
             <ul className="mt-3 space-y-2">
-            {stops.map((s, i) => {
+            {scheduleStops.map((s, i) => {
+              const fullIndex = stops.findIndex((x) => x.id === s.id)
               const quote = s.quoteId ? quotesById[s.quoteId] : null
               const open = expandedStopIds.has(s.id)
               return (
@@ -1366,10 +1513,10 @@ export default function JourneyPlannerPage() {
                   e.preventDefault()
                   const from = parseInt(e.dataTransfer.getData('text/plain'), 10)
                   if (!Number.isFinite(from)) return
-                  reorderDragDrop(from, i)
+                  reorderDragDrop(from, fullIndex >= 0 ? fullIndex : i)
                   setDraggingStopIndex(null)
                 }}
-                className={draggingStopIndex === i ? 'rounded-xl ring-2 ring-brand-500' : ''}
+                className={draggingStopIndex === fullIndex ? 'rounded-xl ring-2 ring-brand-500' : ''}
               >
                 <JourneyStopCard
                   stop={s}
@@ -1387,12 +1534,12 @@ export default function JourneyPlannerPage() {
                   mode="editor"
                   onRemoveJob={requestRemoveJobFromJourney}
                   editorActions={{
-                    onMoveUp: () => moveStop(i, -1),
-                    onMoveDown: () => moveStop(i, 1),
-                    onMoveTop: () => moveStopToTop(i),
-                    onMoveBottom: () => moveStopToBottom(i),
-                    canMoveUp: i > 0,
-                    canMoveDown: i < stops.length - 1,
+                    onMoveUp: () => moveStop(fullIndex >= 0 ? fullIndex : i, -1),
+                    onMoveDown: () => moveStop(fullIndex >= 0 ? fullIndex : i, 1),
+                    onMoveTop: () => moveStopToTop(fullIndex >= 0 ? fullIndex : i),
+                    onMoveBottom: () => moveStopToBottom(fullIndex >= 0 ? fullIndex : i),
+                    canMoveUp: fullIndex > 0,
+                    canMoveDown: fullIndex >= 0 && fullIndex < stops.length - 1,
                     removingJob,
                   }}
                   dragHandle={

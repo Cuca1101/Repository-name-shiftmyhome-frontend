@@ -14,7 +14,8 @@ import {
   fetchLiveLaunchCleanupStats,
   runLiveLaunchCleanupBatch,
 } from './data/adminLiveLaunchCleanupRepository'
-import { fetchAllDriverCharges, updateDriverCharge } from './data/driverChargesRepository'
+import { fetchAllDriverCharges, removeDriverCharge } from './data/driverChargesRepository'
+import { normalizeDriverChargeStatus } from './driverChargeStatus'
 import { fetchAllJourneysForAdmin, updateJourneyRow } from './data/journeysRepository'
 import { deleteJobPhotosForQuoteRef } from './data/jobPhotosRepository'
 import { fetchAllJobs, updateJob } from './data/jobsRepository'
@@ -196,9 +197,9 @@ async function waiveChargesForQuoteIds(quoteIds) {
   const idSet = new Set(quoteIds)
   for (const c of all) {
     if (!c.quoteId || !idSet.has(c.quoteId)) continue
-    if (c.status === 'waived' || c.status === 'cancelled') continue
+    if (normalizeDriverChargeStatus(c.status) === 'removed') continue
     try {
-      await updateDriverCharge(c.id, { status: 'waived', notes: 'Waived — pre-launch test cleanup' })
+      await removeDriverCharge(c, 'Removed — pre-launch test cleanup')
       waived += 1
     } catch {
       /* skip */
