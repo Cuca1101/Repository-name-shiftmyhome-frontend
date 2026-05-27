@@ -5,9 +5,10 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "node scripts/generate-sitemap.mjs && vite build",
+    "build": "node scripts/generate-sitemap.mjs && vite build && node scripts/inject-seo-html.mjs",
     "preview": "vite preview",
-    "test:pricing": "node scripts/run-pricing-tests.mjs"
+    "test:pricing": "node scripts/run-pricing-tests.mjs",
+    "seo:audit:dist": "node scripts/seo-audit-dist.mjs"
   },
   "dependencies": {
     "@emailjs/browser": "^4.4.1",
@@ -26,6 +27,7 @@
   "devDependencies": {
     "@vitejs/plugin-react": "^4.3.4",
     "autoprefixer": "^10.4.20",
+    "playwright": "^1.60.0",
     "postcss": "^8.4.49",
     "tailwindcss": "^3.4.15",
     "vite": "^5.4.11"
