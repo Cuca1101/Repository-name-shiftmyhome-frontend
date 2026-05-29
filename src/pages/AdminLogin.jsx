@@ -1,20 +1,36 @@
 import { useEffect, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import Logo from '../components/Logo'
+import { verifyAdminWebSession } from '../lib/adminWebAuth'
 import { formatAuthError } from '../lib/authErrors'
 import { supabase } from '../lib/supabase'
 
 export default function AdminLogin() {
   const navigate = useNavigate()
+  const location = useLocation()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
+    const msg = location.state?.adminDenyMessage
+    if (typeof msg === 'string' && msg.trim()) {
+      setError(msg.trim())
+    }
+  }, [location.state])
+
+  useEffect(() => {
     if (!supabase) return
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) navigate('/admin', { replace: true })
+    void supabase.auth.getSession().then(async ({ data: { session } }) => {
+      if (!session) return
+      const result = await verifyAdminWebSession(session)
+      if (result.ok) {
+        navigate('/admin', { replace: true })
+        return
+      }
+      await supabase.auth.signOut()
+      setError(result.message)
     })
   }, [navigate])
 
@@ -48,6 +64,14 @@ export default function AdminLogin() {
         )
         return
       }
+
+      const result = await verifyAdminWebSession(data.session)
+      if (!result.ok) {
+        await supabase.auth.signOut()
+        setError(result.message)
+        return
+      }
+
       navigate('/admin', { replace: true })
     } finally {
       setLoading(false)
@@ -62,9 +86,7 @@ export default function AdminLogin() {
         </div>
         <p className="mt-3 text-center text-sm text-slate-500">Admin sign in</p>
         <p className="mt-3 rounded-lg bg-slate-50 px-3 py-2 text-center text-xs leading-relaxed text-slate-600">
-          Use an account listed in Supabase →{' '}
-          <strong className="font-semibold text-slate-800">Authentication → Users</strong>. If none exist, click{' '}
-          <strong className="font-semibold text-slate-800">Add user</strong> and set email + password.
+          Admin accounts only. Driver logins use the mobile app — they cannot access this panel.
         </p>
 
         <form onSubmit={handleSubmit} className="mt-8 space-y-4">

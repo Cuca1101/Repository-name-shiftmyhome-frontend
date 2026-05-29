@@ -6,24 +6,6 @@ const TABLE = 'driver_locations'
 /** Treat GPS as stale when older than this (ms). */
 export const DRIVER_LOCATION_STALE_MS = 3 * 60 * 1000
 
-const SELECT_WITH_JOINS = `
-  id,
-  driver_id,
-  assignment_id,
-  quote_id,
-  latitude,
-  longitude,
-  heading,
-  speed,
-  accuracy,
-  battery_level,
-  status,
-  updated_at,
-  drivers ( id, full_name, phone ),
-  job_assignments ( id, status ),
-  quotes ( id, quote_ref, reference )
-`
-
 /**
  * @param {unknown} v
  * @returns {number | null}
@@ -118,27 +100,26 @@ export function normalizeDriverLocationRow(row) {
 
 /**
  * Latest row per driver_id (most recent updated_at wins).
- * @returns {Promise<Record<string, Record<string, unknown>>>}
+ * @returns {Promise<{ map: Record<string, Record<string, unknown>>, error: string | null }>}
  */
 export async function fetchLatestDriverLivePositionsMap() {
-  if (!isSupabaseConfigured || !supabase) return {}
+  if (!isSupabaseConfigured || !supabase) return { map: {}, error: null }
   try {
-    let { data, error } = await supabase
+    // Plain select first — embed joins often fail under RLS while base rows are readable.
+    const { data, error } = await supabase
       .from(TABLE)
-      .select(SELECT_WITH_JOINS)
+      .select('*')
       .order('updated_at', { ascending: false })
       .limit(500)
 
     if (error) {
-      const fallback = await supabase
-        .from(TABLE)
-        .select('*')
-        .order('updated_at', { ascending: false })
-        .limit(500)
-      data = fallback.data
-      error = fallback.error
+      const msg = error.message || 'Could not load driver_locations'
+      if (import.meta.env.DEV) {
+        // eslint-disable-next-line no-console
+        console.warn('[driverLivePositions] fetch failed', msg)
+      }
+      return { map: {}, error: msg }
     }
-    if (error) return {}
 
     /** @type {Record<string, Record<string, unknown>>} */
     const out = {}
@@ -149,9 +130,10 @@ export async function fetchLatestDriverLivePositionsMap() {
       if (!k || out[k]) continue
       out[k] = row
     }
-    return out
-  } catch {
-    return {}
+    return { map: out, error: null }
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : 'Could not load driver GPS'
+    return { map: {}, error: msg }
   }
 }
 

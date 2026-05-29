@@ -1,23 +1,52 @@
 import { useEffect, useState } from 'react'
 import { Navigate } from 'react-router-dom'
+import { verifyAdminWebSession } from '../lib/adminWebAuth'
 import { supabase } from '../lib/supabase'
 
 export default function ProtectedRoute({ children }) {
-  const [session, setSession] = useState(undefined)
+  const [gate, setGate] = useState(/** @type {'loading' | 'ok' | 'login' | 'denied'} */ ('loading'))
+  const [denyMessage, setDenyMessage] = useState('')
 
   useEffect(() => {
     if (!supabase) {
-      setSession(null)
+      setGate('login')
       return
     }
-    supabase.auth.getSession().then(({ data: { session: s } }) => setSession(s ?? null))
+
+    let cancelled = false
+
+    async function check(session) {
+      if (!session) {
+        if (!cancelled) setGate('login')
+        return
+      }
+      const result = await verifyAdminWebSession(session)
+      if (cancelled) return
+      if (result.ok) {
+        setGate('ok')
+        setDenyMessage('')
+        return
+      }
+      await supabase.auth.signOut()
+      setDenyMessage(result.message)
+      setGate('denied')
+    }
+
+    void supabase.auth.getSession().then(({ data: { session: s } }) => check(s ?? null))
+
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, s) => setSession(s ?? null))
-    return () => subscription.unsubscribe()
+    } = supabase.auth.onAuthStateChange((_event, s) => {
+      void check(s ?? null)
+    })
+
+    return () => {
+      cancelled = true
+      subscription.unsubscribe()
+    }
   }, [])
 
-  if (session === undefined) {
+  if (gate === 'loading') {
     return (
       <div className="flex min-h-screen items-center justify-center bg-slate-50 text-slate-600">
         Loading…
@@ -39,8 +68,8 @@ export default function ProtectedRoute({ children }) {
     )
   }
 
-  if (!session) {
-    return <Navigate to="/admin/login" replace />
+  if (gate === 'login' || gate === 'denied') {
+    return <Navigate to="/admin/login" replace state={{ adminDenyMessage: denyMessage }} />
   }
 
   return children

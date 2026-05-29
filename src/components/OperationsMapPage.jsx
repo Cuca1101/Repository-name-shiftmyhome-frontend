@@ -160,6 +160,7 @@ export default function OperationsMapPage() {
   )
   const [coordsByQuoteId, setCoordsByQuoteId] = useState({})
   const [liveByDriverKey, setLiveByDriverKey] = useState({})
+  const [gpsLoadError, setGpsLoadError] = useState('')
   const [selectedQuoteIds, setSelectedQuoteIds] = useState(() => new Set())
   const [drawerQuoteId, setDrawerQuoteId] = useState('')
   const [drawerJourneyId, setDrawerJourneyId] = useState('')
@@ -223,8 +224,11 @@ export default function OperationsMapPage() {
   useEffect(() => {
     let cancelled = false
     async function loadLive() {
-      const m = await fetchLatestDriverLivePositionsMap()
-      if (!cancelled) setLiveByDriverKey(m)
+      const { map, error } = await fetchLatestDriverLivePositionsMap()
+      if (!cancelled) {
+        setLiveByDriverKey(map)
+        setGpsLoadError(error || '')
+      }
     }
     void loadLive()
     const unsub = subscribeDriverLivePositions(({ new: row }) => {
@@ -428,6 +432,26 @@ export default function OperationsMapPage() {
   const [driverGpsTrail, setDriverGpsTrail] = useState(() => ({ type: 'FeatureCollection', features: [] }))
   const [driverGpsStops, setDriverGpsStops] = useState(() => ({ type: 'FeatureCollection', features: [] }))
 
+  /** Fleet registry + any driver_ids seen in live GPS (even if missing from drivers table). */
+  const driversListForMap = useMemo(() => {
+    /** @type {Map<string, Record<string, unknown>>} */
+    const byId = new Map()
+    for (const d of driversList || []) {
+      const id = String(d?.id || '').trim()
+      if (id) byId.set(id, d)
+    }
+    for (const [driverId, live] of Object.entries(liveByDriverKey || {})) {
+      if (!driverId || byId.has(driverId)) continue
+      byId.set(driverId, {
+        id: driverId,
+        name: String(live?.driver_name || 'Driver').trim() || 'Driver',
+        status: 'Active',
+        phone: live?.driver_phone != null ? String(live.driver_phone) : '',
+      })
+    }
+    return [...byId.values()]
+  }, [driversList, liveByDriverKey])
+
   useEffect(() => {
     let cancelled = false
     void loadFleetDriversForAdmin().then((list) => {
@@ -439,10 +463,10 @@ export default function OperationsMapPage() {
   }, [])
 
   const driverGeo = useMemo(() => {
-    return buildDriverMapFeatures(driversList, activeQuotesForMap, jobs, liveByDriverKey, coordsByQuoteId)
-  }, [driversList, activeQuotesForMap, jobs, liveByDriverKey, coordsByQuoteId])
+    return buildDriverMapFeatures(driversListForMap, activeQuotesForMap, jobs, liveByDriverKey, coordsByQuoteId)
+  }, [driversListForMap, activeQuotesForMap, jobs, liveByDriverKey, coordsByQuoteId])
 
-  const animatedDriversRaw = useAnimatedDrivers(driversList, liveByDriverKey, activeQuotesForMap)
+  const animatedDriversRaw = useAnimatedDrivers(driversListForMap, liveByDriverKey, activeQuotesForMap)
 
   const driverPosByName = useMemo(() => {
     /** @type {Record<string, { lng: number, lat: number }>} */
@@ -708,6 +732,11 @@ export default function OperationsMapPage() {
             driver GPS from{' '}
             <code className="rounded bg-slate-100 px-1">driver_locations</code> (Supabase Realtime, stale after 3 min).
           </p>
+          {gpsLoadError ? (
+            <p className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-950">
+              Live GPS could not load: {gpsLoadError}. Sign out and sign in again as admin, then refresh.
+            </p>
+          ) : null}
         </div>
         <div className="flex flex-wrap gap-2">
           <button

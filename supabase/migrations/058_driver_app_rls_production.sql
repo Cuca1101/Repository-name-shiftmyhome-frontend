@@ -49,6 +49,7 @@ as $$
   select auth.uid() is not null
     and (
       coalesce(auth.jwt() -> 'app_metadata' ->> 'role', '') = 'admin'
+      or coalesce(auth.jwt() -> 'user_metadata' ->> 'role', '') = 'admin'
       or (
         public.auth_driver_id() is null
         and coalesce(auth.jwt() -> 'app_metadata' ->> 'role', '') is distinct from 'driver'

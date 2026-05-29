@@ -97,6 +97,7 @@ export async function upsertJobAssignment(input) {
 
   const now = new Date().toISOString()
   const status = normalizeJobAssignmentStatus(input.status)
+  const terminal = status === 'Completed' || status === 'Cancelled' || status === 'cancelled' || status === 'inactive'
 
   const { data: existing } = await supabase
     .from(TABLE)
@@ -110,11 +111,17 @@ export async function upsertJobAssignment(input) {
     status,
     scheduled_date: input.scheduledDate || now,
     updated_at: now,
+    completed_at: terminal ? now : null,
     ...(existing?.quote_id ? {} : { created_at: now }),
   }
 
-  const { error } = await supabase.from(TABLE).upsert(row, { onConflict: 'quote_id' })
-  if (error) throw error
+  if (existing?.quote_id) {
+    const { error } = await supabase.from(TABLE).update(row).eq('quote_id', quoteId)
+    if (error) throw error
+  } else {
+    const { error } = await supabase.from(TABLE).insert(row)
+    if (error) throw error
+  }
   return { quoteId, driverId, status }
 }
 

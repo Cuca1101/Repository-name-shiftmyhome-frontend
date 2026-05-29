@@ -4,6 +4,7 @@ import { appendAdminNotesLog } from '../../lib/adminNotesLog'
 import { findAdminPartnerByNormalizedCompany, loadAdminPartners } from '../../lib/adminFleetLocalStore'
 import {
   assignDriverToQuote,
+  clearDriverLocationAssignmentLink,
   removeJobAssignmentForQuote,
   syncJobAssignmentFromQuoteAssign,
 } from '../../lib/data/driverAssignmentSync'
@@ -251,6 +252,7 @@ const AdminJobOverrideActions = forwardRef(function AdminJobOverrideActions(
       const log = appendAdminNotesLog(m.adminNotesLog, actor, `Returned to marketplace: ${reason}`)
       const ts = new Date().toISOString()
       if (isSupabaseConfigured) {
+        const priorDriverId = quote?.assigned_driver_id != null ? String(quote.assigned_driver_id) : ''
         await updateQuoteWorkflowAssignment(id, {
           assigned_driver_id: null,
           assigned_driver_name: null,
@@ -266,6 +268,7 @@ const AdminJobOverrideActions = forwardRef(function AdminJobOverrideActions(
         })
         await updateQuoteWorkflowAssignmentSilent(id, { partner_dashboard_hidden: false })
         await removeJobAssignmentForQuote(id)
+        if (priorDriverId) await clearDriverLocationAssignmentLink(priorDriverId)
       } else {
         persistLocal({
           assignedDriver: '',
@@ -358,6 +361,7 @@ const AdminJobOverrideActions = forwardRef(function AdminJobOverrideActions(
       )
       const ts = new Date().toISOString()
       if (isSupabaseConfigured) {
+        const priorDriverId = quote?.assigned_driver_id != null ? String(quote.assigned_driver_id) : ''
         await updateQuoteWorkflowAssignment(id, {
           assigned_partner_id: rec?.id ?? null,
           assigned_partner_company: company,
@@ -370,6 +374,7 @@ const AdminJobOverrideActions = forwardRef(function AdminJobOverrideActions(
           assigned_by: actor,
         })
         await removeJobAssignmentForQuote(id)
+        if (priorDriverId) await clearDriverLocationAssignmentLink(priorDriverId)
       } else {
         persistLocal({
           assignedPartnerCompany: company,

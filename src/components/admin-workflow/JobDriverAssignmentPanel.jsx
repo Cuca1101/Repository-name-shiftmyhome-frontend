@@ -155,6 +155,7 @@ export default function JobDriverAssignmentPanel({
           assigned_by: actor,
         },
         (qid, patch) => updateQuoteWorkflowAssignment(qid, patch),
+        { priorDriverId: driverId },
       )
     } else {
       persistLocal({
