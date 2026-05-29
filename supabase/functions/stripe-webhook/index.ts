@@ -2,6 +2,7 @@ import Stripe from 'npm:stripe@14.21.0'
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import { updateQuoteFromPaymentIntent } from '../_shared/updateQuoteFromPaymentIntent.ts'
 import { sendPaymentConfirmationWithPdfIfNeeded } from '../_shared/paymentConfirmationEmail.ts'
+import { sendExtraChargePaidConfirmationEmail } from '../_shared/extraChargePaidConfirmationEmail.ts'
 import { validateStripeSecretKey } from '../_shared/stripeMode.ts'
 
 /**
@@ -92,6 +93,27 @@ Deno.serve(async (req) => {
         amount_paid: amountPaid,
         db_error: ecrErr?.message ?? null,
       })
+      if (!ecrErr) {
+        try {
+          const emailResult = await sendExtraChargePaidConfirmationEmail({
+            supabase,
+            paymentIntent: pi,
+            requestId: ecrId,
+            resendApiKey,
+            resendFrom,
+          })
+          console.log('[stripe-webhook] extra charge paid email', {
+            extra_charge_request_id: ecrId,
+            sent: emailResult.sent,
+            error: emailResult.error ?? null,
+          })
+        } catch (e) {
+          console.error('[stripe-webhook] extra charge paid email error', {
+            extra_charge_request_id: ecrId,
+            message: e instanceof Error ? e.message : String(e),
+          })
+        }
+      }
     } else {
       // Standard quote/booking payment flow
       const result = await updateQuoteFromPaymentIntent(supabase, pi, 'paid')

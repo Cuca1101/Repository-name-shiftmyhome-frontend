@@ -49,3 +49,6 @@ $$;
 
 REVOKE ALL ON FUNCTION public.verify_marketplace_settings_pin(text) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.verify_marketplace_settings_pin(text) TO authenticated;
+
+-- Data API grants: no anon; PIN verified via SECURITY DEFINER RPC only.
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.admin_config_secrets TO authenticated;

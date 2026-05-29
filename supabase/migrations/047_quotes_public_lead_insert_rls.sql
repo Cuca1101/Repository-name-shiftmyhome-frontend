@@ -45,4 +45,6 @@ CREATE POLICY "Anon insert public quote leads"
     AND bundled_journey_id IS NULL
   );
 
+-- Data API: anon may INSERT public leads only (no SELECT — PII). Admin/driver via authenticated + RLS.
 GRANT INSERT ON public.quotes TO anon;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.quotes TO authenticated;

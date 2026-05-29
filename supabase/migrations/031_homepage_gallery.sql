@@ -42,6 +42,10 @@ drop policy if exists "homepage_gallery_items_delete_authenticated" on public.ho
 create policy "homepage_gallery_items_delete_authenticated"
   on public.homepage_gallery_items for delete to authenticated using (true);
 
+-- Data API grants: public gallery read; admin CRUD via authenticated RLS.
+grant select on table public.homepage_gallery_items to anon;
+grant select, insert, update, delete on table public.homepage_gallery_items to authenticated;
+
 -- ---------------------------------------------------------------------------
 -- Storage bucket: homepage-gallery (public read for homepage images)
 -- ---------------------------------------------------------------------------

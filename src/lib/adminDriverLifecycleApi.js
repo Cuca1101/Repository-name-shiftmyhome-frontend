@@ -26,6 +26,8 @@ function mapLifecycleError(code) {
       return 'Could not update driver — try again or contact support.'
     case 'driver_delete_failed':
       return 'Could not delete driver.'
+    case 'driver_cleanup_failed':
+      return 'Could not remove driver assignments before delete.'
     default:
       return ''
   }
@@ -34,7 +36,7 @@ function mapLifecycleError(code) {
 /**
  * @param {string} driverId
  * @param {'disable' | 'enable' | 'reactivate' | 'archive' | 'delete'} action
- * @param {{ deleteAuthUser?: boolean }} [opts]
+ * @param {{ deleteAuthUser?: boolean, forceCleanup?: boolean }} [opts]
  */
 export async function invokeAdminDriverLifecycle(driverId, action, opts = {}) {
   if (!isSupabaseConfigured || !supabase) {
@@ -50,6 +52,7 @@ export async function invokeAdminDriverLifecycle(driverId, action, opts = {}) {
   }
   if (action === 'delete') {
     body.delete_auth_user = opts.deleteAuthUser !== false
+    if (opts.forceCleanup) body.force_cleanup = true
   }
 
   const invokeOpts = await buildAdminFunctionInvokeOpts(supabase, body)
@@ -73,6 +76,8 @@ export async function invokeAdminDriverLifecycle(driverId, action, opts = {}) {
     const err = new Error(msg)
     if (payload.error === 'driver_has_history') {
       err.code = 'driver_has_history'
+      err.canForceDelete = Boolean(payload.canForceDelete)
+      err.reasons = Array.isArray(payload.reasons) ? payload.reasons : []
     }
     throw err
   }

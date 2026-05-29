@@ -1,0 +1,3 @@
+-- Driver app workflow fix — open and run the FULL file:
+--   supabase/migrations/062_driver_job_workflow_sync.sql
+-- (Copy entire contents into Supabase Dashboard → SQL Editor → Run)

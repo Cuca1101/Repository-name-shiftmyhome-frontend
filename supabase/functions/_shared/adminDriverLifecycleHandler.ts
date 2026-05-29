@@ -1,6 +1,9 @@
 import { createClient, type SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2.49.1'
 import { assertAdminCaller } from './verifyAdminCaller.ts'
-import { driverHasFleetHistory } from './driverHistoryCheck.ts'
+import {
+  cleanupDriverFleetLinks,
+  driverHasFleetHistory,
+} from './driverHistoryCheck.ts'
 
 export const lifecycleCorsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -101,23 +104,56 @@ async function deleteDriverAdmin(
   admin: SupabaseClient,
   driverId: string,
   deleteAuthUser: boolean,
+  forceCleanup: boolean,
 ) {
   const driverRow = await fetchDriver(admin, driverId)
   if (!driverRow) {
     return lifecycleJson({ ok: false, error: 'driver_not_found', message: 'Driver not found.' }, 404)
   }
 
-  const history = await driverHasFleetHistory(admin, driverId)
+  let history = await driverHasFleetHistory(admin, driverId)
+  let cleanupDone = false
   if (history.hasHistory) {
-    return lifecycleJson(
-      {
-        ok: false,
-        error: 'driver_has_history',
-        message: 'Driver cannot be deleted because history exists. Archive the driver instead.',
-        reasons: history.reasons,
-      },
-      409,
-    )
+    if (forceCleanup && history.canForceDelete) {
+      const cleaned = await cleanupDriverFleetLinks(admin, driverId)
+      if (!cleaned.ok) {
+        return lifecycleJson(
+          {
+            ok: false,
+            error: 'driver_cleanup_failed',
+            message: cleaned.message,
+          },
+          400,
+        )
+      }
+      cleanupDone = true
+      history = await driverHasFleetHistory(admin, driverId)
+    }
+    if (history.hasHistory) {
+      const hardLeft = history.reasons.filter((r) =>
+        ['driver_charges', 'driver_payout_audit_log', 'completed_jobs'].includes(r),
+      )
+      if (cleanupDone && hardLeft.length === 0) {
+        console.warn(
+          '[deleteDriverAdmin] soft history after cleanup, proceeding:',
+          history.reasons.join(','),
+        )
+      } else {
+        const msg = history.canForceDelete
+          ? 'Driver has assignment history. Use “Remove assignments & delete” or Archive instead.'
+          : 'Driver cannot be deleted because payment or completed job history exists. Archive the driver instead.'
+        return lifecycleJson(
+          {
+            ok: false,
+            error: 'driver_has_history',
+            message: msg,
+            reasons: history.reasons,
+            canForceDelete: history.canForceDelete,
+          },
+          409,
+        )
+      }
+    }
   }
 
   const authUserId = driverRow.user_id != null ? String(driverRow.user_id) : ''
@@ -178,6 +214,7 @@ export async function handleAdminDriverLifecycle(req: Request): Promise<Response
     const driverId = String(body?.driver_id || body?.driverId || '').trim()
     const action = String(body?.action || '').trim().toLowerCase() as LifecycleAction
     const deleteAuthUser = body?.delete_auth_user !== false && body?.deleteAuthUser !== false
+    const forceCleanup = body?.force_cleanup === true || body?.forceCleanup === true
 
     if (!driverId) {
       return lifecycleJson({ ok: false, error: 'driver_id_required', message: 'Driver id is required.' }, 400)
@@ -197,7 +234,7 @@ export async function handleAdminDriverLifecycle(req: Request): Promise<Response
       case 'archive':
         return updateDriverLifecycle(admin, driverId, 'Archived', false, 'Driver archived')
       case 'delete':
-        return deleteDriverAdmin(admin, driverId, deleteAuthUser)
+        return deleteDriverAdmin(admin, driverId, deleteAuthUser, forceCleanup)
       default:
         return lifecycleJson(
           {

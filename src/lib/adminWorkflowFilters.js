@@ -1,6 +1,7 @@
 import { mergedAdminWorkflowForQuote } from './quoteAdminWorkflowMerge'
 import {
   journeyPassesMarketplaceStrict,
+  quoteHasInProgressWorkflowStatus,
   quoteOperationalStatusLower,
   quotePassesActiveStrict,
   quotePassesAvailableJobsStrict,
@@ -58,8 +59,8 @@ export function quoteInMarketplace(q) {
  * @param {Record<string, unknown>} q
  * @param {Record<string, unknown> | null} job
  */
-export function quoteIsActive(q, job) {
-  if (quoteIsCancelled(q, job) || quoteIsCompleted(q, job)) return false
+export function quoteIsActive(q, job, assignment) {
+  if (quoteIsCancelled(q, job) || quoteIsCompleted(q, job, assignment)) return false
   return quotePassesActiveStrict(q)
 }
 
@@ -67,9 +68,29 @@ export function quoteIsActive(q, job) {
  * @param {Record<string, unknown>} q
  * @param {Record<string, unknown> | null} job
  */
-export function quoteIsCompleted(q, job) {
+/** Driver/mobile or DB terminal completion on quotes row. */
+function quoteStatusIsCompleted(q) {
+  const st = String(q?.status ?? '')
+    .trim()
+    .toLowerCase()
+  return st === 'completed'
+}
+
+/** @param {{ status?: string, completed_at?: string | null } | null | undefined} assignment */
+function jobAssignmentSignalsCompleted(assignment) {
+  if (!assignment) return false
+  const s = String(assignment.status ?? '')
+    .trim()
+    .toLowerCase()
+  return s === 'completed'
+}
+
+export function quoteIsCompleted(q, job, assignment) {
+  if (jobAssignmentSignalsCompleted(assignment)) return true
+  if (quoteStatusIsCompleted(q)) return true
   const op = quoteOperationalStatusLower(q)
   if (op === 'completed') return true
+  if (quoteHasInProgressWorkflowStatus(q)) return false
   if (String(q.status) === 'Completed') return true
   if (job && String(job.status) === 'Completed') return true
   if (q.completed_at) return true
@@ -100,7 +121,9 @@ export function quoteIsCancelled(q, job) {
  * @param {Record<string, unknown>} q
  * @param {Record<string, unknown> | null} job
  */
-export function quoteIsInCompletedJobsInbox(q, job) {
+export function quoteIsInCompletedJobsInbox(q, job, assignment) {
+  if (jobAssignmentSignalsCompleted(assignment)) return true
+  if (quoteStatusIsCompleted(q)) return true
   const op = quoteOperationalStatusLower(q)
   if (op === 'completed') return true
   if (!op && (String(q.status) === 'Completed' || q.completed_at)) return true
@@ -126,13 +149,14 @@ export function quoteIsInCancelledJobsInbox(q, job) {
  * @param {Record<string, unknown>[]} quotes
  * @param {Record<string, unknown>[]} jobs
  */
-export function filterMarketplaceQuotes(quotes, jobs) {
+export function filterMarketplaceQuotes(quotes, jobs, assignmentsByQuoteId = {}) {
   if (!Array.isArray(quotes)) return []
   const jobRows = Array.isArray(jobs) ? jobs : []
   return quotes.filter((q) => {
     if (!quoteVisibleInProductionAdmin(q)) return false
     const j = findLinkedJobForQuote(q, jobRows)
-    if (quoteIsCancelled(q, j) || quoteIsCompleted(q, j)) return false
+    const a = assignmentsByQuoteId[String(q.id || '')]
+    if (quoteIsCancelled(q, j) || quoteIsCompleted(q, j, a)) return false
     return quotePassesMarketplaceStrict(q)
   })
 }
@@ -150,14 +174,18 @@ export function filterMarketplaceJourneys(journeys) {
 }
 
 /**
+ * Active Jobs / Job Accepted inbox — assigned, not terminal (incl. mobile assignment completed).
+ *
  * @param {Record<string, unknown>[]} quotes
  * @param {Record<string, unknown>[]} jobs
+ * @param {Record<string, { status?: string }>} [assignmentsByQuoteId]
  */
-export function filterActiveQuotes(quotes, jobs) {
+export function filterActiveQuotes(quotes, jobs, assignmentsByQuoteId = {}) {
   return quotes.filter((q) => {
     if (!quoteVisibleInProductionAdmin(q)) return false
     const j = findLinkedJobForQuote(q, jobs)
-    if (quoteIsCancelled(q, j) || quoteIsCompleted(q, j)) return false
+    const a = assignmentsByQuoteId[String(q.id || '')]
+    if (quoteIsCancelled(q, j) || quoteIsCompleted(q, j, a)) return false
     return quotePassesActiveStrict(q)
   })
 }
@@ -166,14 +194,15 @@ export function filterActiveQuotes(quotes, jobs) {
  * @param {Record<string, unknown>[]} quotes
  * @param {Record<string, unknown>[]} jobs
  */
-export function filterCompletedQuotes(quotes, jobs) {
+export function filterCompletedQuotes(quotes, jobs, assignmentsByQuoteId = {}) {
   const jobRows = Array.isArray(jobs) ? jobs : []
   return quotes.filter((q) => {
     if (!quoteVisibleInProductionAdmin(q)) return false
     const j = findLinkedJobForQuote(q, jobRows)
+    const a = assignmentsByQuoteId[String(q.id || '')]
     if (quoteIsCancelled(q, j)) return false
-    if (quotePassesActiveStrict(q) && !quoteIsCompleted(q, j)) return false
-    return quoteIsInCompletedJobsInbox(q, j)
+    if (quotePassesActiveStrict(q) && !quoteIsCompleted(q, j, a)) return false
+    return quoteIsInCompletedJobsInbox(q, j, a)
   })
 }
 
@@ -181,14 +210,15 @@ export function filterCompletedQuotes(quotes, jobs) {
  * @param {Record<string, unknown>[]} quotes
  * @param {Record<string, unknown>[]} jobs
  */
-export function filterCancelledQuotes(quotes, jobs) {
+export function filterCancelledQuotes(quotes, jobs, assignmentsByQuoteId = {}) {
   const jobRows = Array.isArray(jobs) ? jobs : []
   return quotes.filter((q) => {
     if (!quoteVisibleInProductionAdmin(q)) return false
     const j = findLinkedJobForQuote(q, jobRows)
+    const a = assignmentsByQuoteId[String(q.id || '')]
     if (quotePassesActiveStrict(q)) return false
     if (quotePassesAvailableJobsStrict(q)) return false
-    if (quoteIsCompleted(q, j) && !quoteIsCancelled(q, j)) return false
+    if (quoteIsCompleted(q, j, a) && !quoteIsCancelled(q, j)) return false
     return quoteIsInCancelledJobsInbox(q, j)
   })
 }

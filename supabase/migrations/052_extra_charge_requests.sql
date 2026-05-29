@@ -96,3 +96,6 @@ CREATE POLICY "Anon insert extra charge requests"
 DROP POLICY IF EXISTS "Anon read extra charge requests" ON public.extra_charge_requests;
 CREATE POLICY "Anon read extra charge requests"
   ON public.extra_charge_requests FOR SELECT TO anon USING (true);
+
+-- Data API grants: operational payment requests — authenticated only (061 revokes legacy anon table grants).
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.extra_charge_requests TO authenticated;

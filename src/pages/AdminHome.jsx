@@ -133,8 +133,16 @@ export default function AdminHome() {
             <ul className="mt-5 flex flex-wrap gap-3">
               <li>
                 <Link
-                  to="/admin/available-jobs"
+                  to="/admin/new-phone-booking"
                   className="inline-flex min-h-[44px] items-center rounded-xl bg-brand-600 px-5 py-2.5 text-sm font-semibold text-white shadow-md shadow-brand-600/25 transition hover:bg-brand-700"
+                >
+                  New phone booking
+                </Link>
+              </li>
+              <li>
+                <Link
+                  to="/admin/available-jobs"
+                  className="inline-flex min-h-[44px] items-center rounded-xl border border-brand-200 bg-brand-50 px-5 py-2.5 text-sm font-semibold text-brand-900 shadow-sm transition hover:bg-brand-100"
                 >
                   Available Jobs
                 </Link>

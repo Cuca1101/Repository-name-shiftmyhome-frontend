@@ -24,6 +24,7 @@ import PricingEngineAdmin from './components/PricingEngineAdmin'
 import ItemsLibraryAdmin from './components/ItemsLibraryAdmin'
 import ReviewsAdmin from './components/ReviewsAdmin'
 import WebsiteCmsAdmin from './components/admin/WebsiteCmsAdmin'
+import PhoneBookingAdmin from './components/PhoneBookingAdmin'
 import SeoDashboardAdmin from './components/admin/SeoDashboardAdmin'
 import AvailableJobsAdmin from './components/AvailableJobsAdmin'
 import MarketplaceJobsAdmin from './components/MarketplaceJobsAdmin'
@@ -165,6 +166,7 @@ export default function App() {
         <Route path="drivers" element={<DriversAdmin />} />
         <Route path="driver-payments" element={<DriverPaymentsAdmin />} />
         <Route path="partners" element={<PartnersAdmin />} />
+        <Route path="new-phone-booking" element={<PhoneBookingAdmin />} />
         <Route path="quote-requests" element={<HomePageQuoteRequestsAdmin />} />
         <Route path="quote-requests/:id" element={<QuoteRequestLeadDetails />} />
         <Route path="website-leads" element={<WebsiteLeadsAdmin />} />

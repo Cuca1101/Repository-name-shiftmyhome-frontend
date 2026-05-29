@@ -6,9 +6,13 @@ const QUOTES_TABLE = 'quotes'
 /** Homepage contact section — matches admin filter & reporting */
 export const HOME_PAGE_QUOTE_SOURCE = 'home_page_quote_form'
 
-/** Sources shown in Admin → Quote Requests (public lead forms only). */
+/** Admin → New phone booking (staff-created while customer is on the phone). */
+export const ADMIN_PHONE_BOOKING_SOURCE = 'admin_phone_booking'
+
+/** Sources shown in Admin → Quote Requests (public + admin phone leads). */
 export const PUBLIC_QUOTE_REQUEST_SOURCES = [
   HOME_PAGE_QUOTE_SOURCE,
+  ADMIN_PHONE_BOOKING_SOURCE,
   'website',
   'public_quote_request',
   'quote_request',
@@ -185,6 +189,126 @@ export function buildQuoteRowFromTemplateParams(templateParams, extras = {}) {
  * @param {{ arrival_window?: string | null, distance_miles?: number | null }} [extras]
  * @returns {Promise<{ id: string }|null>}
  */
+/**
+ * Row for Admin → New phone booking (authenticated insert).
+ *
+ * @param {{
+ *   quote_ref?: string,
+ *   name: string,
+ *   email?: string,
+ *   phone: string,
+ *   service?: string,
+ *   pickup: string,
+ *   delivery: string,
+ *   move_date: string,
+ *   arrival_time?: string,
+ *   details?: string,
+ *   payment_mode?: 'quote_only' | 'deposit' | 'paid_full',
+ *   amount_paid?: number | null,
+ *   estimated_total?: number | null,
+ *   created_by?: string,
+ * }} form
+ */
+export function buildAdminPhoneBookingRow(form) {
+  const ref = String(form.quote_ref || '').trim() || generateQuoteRef()
+  const mode = form.payment_mode === 'deposit' || form.payment_mode === 'paid_full' ? form.payment_mode : 'quote_only'
+  const now = new Date().toISOString()
+  const amount =
+    form.amount_paid != null && !Number.isNaN(Number(form.amount_paid))
+      ? Number(form.amount_paid)
+      : form.estimated_total != null && !Number.isNaN(Number(form.estimated_total))
+        ? Number(form.estimated_total)
+        : null
+
+  let payment_status = 'unpaid'
+  let status = 'New'
+  let paid_at = null
+  let payment_type = null
+  let operational_status = null
+
+  if (mode === 'paid_full') {
+    payment_status = 'paid'
+    status = 'Booked'
+    payment_type = 'full'
+    paid_at = now
+    operational_status = 'Assigned'
+  } else if (mode === 'deposit') {
+    payment_status = 'deposit_paid'
+    status = 'deposit_paid'
+    payment_type = 'deposit'
+    paid_at = now
+    operational_status = 'Assigned'
+  }
+
+  const staffNote = form.created_by ? `Created by admin (${form.created_by})` : 'Created by admin (phone booking)'
+  const customerDetails = (form.details || '').trim()
+  const details = customerDetails ? `${staffNote}\n\n${customerDetails}` : staffNote
+
+  return {
+    quote_ref: ref,
+    full_name: (form.name || '').trim(),
+    email: (form.email || '').trim() || 'phone-booking@shiftmyhome.local',
+    phone: (form.phone || '').trim(),
+    service: (form.service || '').trim() || 'Phone booking',
+    service_type: (form.service || '').trim() || 'Phone booking',
+    pickup_address: (form.pickup || '').trim(),
+    delivery_address: (form.delivery || '').trim(),
+    move_date: normalizeMoveDate(form.move_date),
+    arrival_time:
+      form.arrival_time != null && String(form.arrival_time).trim() !== ''
+        ? String(form.arrival_time).trim()
+        : null,
+    details,
+    source: ADMIN_PHONE_BOOKING_SOURCE,
+    status,
+    payment_status,
+    payment_type,
+    amount_paid: amount,
+    paid_at,
+    operational_status,
+    inventory: [],
+    message: null,
+  }
+}
+
+/**
+ * Insert a phone booking from admin (authenticated session).
+ *
+ * @param {Parameters<typeof buildAdminPhoneBookingRow>[0]} form
+ * @returns {Promise<{ id: string, quote_ref: string }>}
+ */
+export async function insertAdminPhoneBooking(form) {
+  if (!isSupabaseConfigured || !supabase) {
+    throw new Error('Supabase is not configured.')
+  }
+
+  const requestedRef = (form.quote_ref || '').trim()
+  if (requestedRef) {
+    const row = buildAdminPhoneBookingRow({ ...form, quote_ref: requestedRef })
+    const { data, error } = await supabase.from(QUOTES_TABLE).insert(row).select('id, quote_ref').single()
+    if (error) {
+      if (error.code === '23505') {
+        throw new Error('This quote reference is already in use. Leave it blank for a new one.')
+      }
+      throw new Error(error.message || 'Could not save booking.')
+    }
+    return { id: String(data.id), quote_ref: String(data.quote_ref) }
+  }
+
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    const row = buildAdminPhoneBookingRow(form)
+    const { data, error } = await supabase.from(QUOTES_TABLE).insert(row).select('id, quote_ref').single()
+    if (!error && data?.id) {
+      return { id: String(data.id), quote_ref: String(data.quote_ref) }
+    }
+    if (error?.code === '23505') {
+      continue
+    }
+    throw new Error(error?.message || 'Could not save booking.')
+  }
+  throw new Error('Could not allocate a unique quote reference. Try again.')
+}
+
 export async function insertQuoteFromTemplateParams(templateParams, extras) {
   if (!isSupabaseConfigured || !supabase) {
     const msg = 'Supabase is not configured (set VITE_SUPABASE_URL and key in .env).'

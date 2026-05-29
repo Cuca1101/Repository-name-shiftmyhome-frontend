@@ -59,6 +59,10 @@ DROP POLICY IF EXISTS "website_events_insert_anon" ON public.website_events;
 CREATE POLICY "website_events_insert_anon"
   ON public.website_events FOR INSERT TO anon, authenticated WITH CHECK (true);
 
+-- Data API grants: anon funnel inserts only; admin reads via authenticated RLS.
+GRANT INSERT ON TABLE public.website_events TO anon;
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.website_events TO authenticated;
+
 -- ---------------------------------------------------------------------------
 -- upsert_website_lead (drop + recreate — avoids 42P13 when parameter defaults differ)
 -- ---------------------------------------------------------------------------

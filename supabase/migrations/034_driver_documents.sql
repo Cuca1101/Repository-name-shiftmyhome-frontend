@@ -166,6 +166,9 @@ create policy "Authenticated delete driver documents"
   to authenticated
   using (true);
 
+-- Data API grants: compliance docs — authenticated admin only; no anon.
+grant select, insert, update, delete on table public.driver_documents to authenticated;
+
 -- ---------------------------------------------------------------------------
 -- Storage policies: driver-documents bucket
 -- Path: {driver_uuid}/{document_type}/{filename}

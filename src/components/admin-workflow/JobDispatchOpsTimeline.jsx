@@ -6,10 +6,26 @@ import { buildDispatchTimelineState } from '../../lib/jobDispatchTimeline'
  *   overrides: Record<string, unknown>,
  *   linkedJob?: Record<string, unknown> | null,
  *   assignment?: { status?: string, updated_at?: string } | null,
+ *   workflow?: { workflow_status?: string, workflow_at?: string } | null,
+ *   statusHistory?: Array<{ status: string, created_at: string }>,
  * }} props
  */
-export default function JobDispatchOpsTimeline({ q, overrides, linkedJob = null, assignment = null }) {
-  const steps = buildDispatchTimelineState(q, overrides, linkedJob, assignment)
+export default function JobDispatchOpsTimeline({
+  q,
+  overrides,
+  linkedJob = null,
+  assignment = null,
+  workflow = null,
+  statusHistory = [],
+}) {
+  const steps = buildDispatchTimelineState(
+    q,
+    overrides,
+    linkedJob,
+    assignment,
+    workflow,
+    statusHistory,
+  )
 
   return (
     <div className="border-t border-slate-200 bg-slate-50/80 p-3 lg:border-t-0 lg:border-l">

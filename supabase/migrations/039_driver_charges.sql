@@ -64,3 +64,6 @@ CREATE POLICY "Authenticated insert driver charges"
 DROP POLICY IF EXISTS "Authenticated update driver charges" ON public.driver_charges;
 CREATE POLICY "Authenticated update driver charges"
   ON public.driver_charges FOR UPDATE TO authenticated USING (true) WITH CHECK (true);
+
+-- Data API grants: payment ledger — authenticated only; no anon.
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.driver_charges TO authenticated;

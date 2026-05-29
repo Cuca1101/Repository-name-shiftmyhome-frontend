@@ -31,3 +31,6 @@ CREATE POLICY "Authenticated read journey payout audit"
 DROP POLICY IF EXISTS "Authenticated insert journey payout audit" ON public.journey_payout_audit_log;
 CREATE POLICY "Authenticated insert journey payout audit"
   ON public.journey_payout_audit_log FOR INSERT TO authenticated WITH CHECK (true);
+
+-- Data API grants: admin audit — authenticated only; no anon.
+GRANT SELECT, INSERT ON TABLE public.journey_payout_audit_log TO authenticated;

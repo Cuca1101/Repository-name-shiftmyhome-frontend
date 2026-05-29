@@ -19,11 +19,16 @@ const STATUS_COLORS = {
  *     name: string,
  *     status: string,
  *     dispatchStatus?: string,
+ *     trackingStatus?: string,
  *     activeJobRef?: string,
+ *     assignmentRef?: string,
+ *     driverPhone?: string,
  *     etaLabel?: string,
  *     online?: boolean,
  *     speedMph?: number,
  *     lastGpsAt?: string | null,
+ *     stale?: boolean,
+ *     staleLabel?: string | null,
  *   }[],
  *   focusedDriverId: string,
  *   onPickDriver: (id: string) => void,
@@ -33,8 +38,8 @@ export default function OperationsMapDriverCards({ drivers, focusedDriverId, onP
   if (!drivers.length) {
     return (
       <p className="rounded-xl border border-slate-200 bg-white p-4 text-sm text-slate-600 shadow-sm">
-        No drivers with map positions. Register drivers and connect live GPS (
-        <code className="text-xs">driver_live_positions</code>).
+        No drivers with live GPS on the map. Drivers appear when the mobile app upserts{' '}
+        <code className="text-xs">driver_locations</code> (on duty or active job).
       </p>
     )
   }
@@ -45,6 +50,7 @@ export default function OperationsMapDriverCards({ drivers, focusedDriverId, onP
         const st = d.dispatchStatus || 'idle'
         const shell = STATUS_COLORS[st] || STATUS_COLORS.idle
         const focused = String(focusedDriverId) === String(d.driverId)
+        const stale = Boolean(d.stale)
         return (
           <button
             key={d.driverId}
@@ -52,13 +58,31 @@ export default function OperationsMapDriverCards({ drivers, focusedDriverId, onP
             onClick={() => onPickDriver(d.driverId)}
             className={`w-full rounded-xl border p-3 text-left shadow-sm transition hover:shadow-md ${shell} ${
               focused ? 'ring-2 ring-brand-500 ring-offset-1' : ''
-            }`}
+            } ${stale ? 'opacity-80' : ''}`}
           >
-            <CardHeader name={d.name} online={d.online} statusLabel={dispatchStatusLabel(st)} />
+            <CardHeader
+              name={d.name}
+              online={d.online}
+              statusLabel={dispatchStatusLabel(st)}
+              stale={stale}
+              staleLabel={d.staleLabel}
+            />
             <dl className="mt-2 grid grid-cols-2 gap-x-2 gap-y-1 text-[10px]">
               <div>
-                <dt className="text-slate-500">Active job</dt>
+                <dt className="text-slate-500">Tracking</dt>
+                <dd className="font-medium text-slate-800">{d.trackingStatus || '—'}</dd>
+              </div>
+              <div>
+                <dt className="text-slate-500">Quote ref</dt>
                 <dd className="font-mono font-bold text-slate-900">{d.activeJobRef || '—'}</dd>
+              </div>
+              <div>
+                <dt className="text-slate-500">Assignment</dt>
+                <dd className="font-mono font-medium text-slate-800">{d.assignmentRef || '—'}</dd>
+              </div>
+              <div>
+                <dt className="text-slate-500">Phone</dt>
+                <dd className="font-medium text-slate-800">{d.driverPhone || '—'}</dd>
               </div>
               <div>
                 <dt className="text-slate-500">ETA</dt>
@@ -70,9 +94,17 @@ export default function OperationsMapDriverCards({ drivers, focusedDriverId, onP
                   {d.speedMph != null && d.speedMph > 1 ? `${Math.round(d.speedMph)} mph` : '—'}
                 </dd>
               </div>
-              <div>
+              <div className="col-span-2">
                 <dt className="text-slate-500">Last GPS</dt>
-                <dd className="truncate font-medium text-slate-800">{d.lastGpsAt || '—'}</dd>
+                <dd
+                  className={`truncate font-medium ${stale ? 'text-amber-800' : 'text-slate-800'}`}
+                >
+                  {stale
+                    ? d.staleLabel || 'Last location unavailable'
+                    : d.lastGpsAt
+                      ? String(d.lastGpsAt).replace('T', ' ').slice(0, 16)
+                      : '—'}
+                </dd>
               </div>
             </dl>
           </button>
@@ -82,7 +114,7 @@ export default function OperationsMapDriverCards({ drivers, focusedDriverId, onP
   )
 }
 
-function CardHeader({ name, online, statusLabel }) {
+function CardHeader({ name, online, statusLabel, stale, staleLabel }) {
   return (
     <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
       <p className="text-sm font-bold text-slate-900">{name}</p>
@@ -91,9 +123,14 @@ function CardHeader({ name, online, statusLabel }) {
           online ? 'bg-emerald-600 text-white' : 'bg-slate-400 text-white'
         }`}
       >
-        {online ? 'Online' : 'Offline'}
+        {online ? 'Live' : stale ? 'Stale' : 'Offline'}
       </span>
       <span className="text-[10px] font-bold uppercase tracking-wide text-slate-600">{statusLabel}</span>
+      {stale ? (
+        <span className="text-[9px] font-semibold text-amber-800">
+          {staleLabel || 'Last location unavailable'}
+        </span>
+      ) : null}
     </div>
   )
 }

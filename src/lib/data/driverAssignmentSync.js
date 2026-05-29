@@ -88,7 +88,13 @@ export async function assignDriverToQuote(quoteId, driverId, driverName, quote, 
     ...quoteWorkflowPatch,
   }
   await updateQuote(quoteId, patch)
-  await syncJobAssignmentFromQuoteAssign(quoteId, driverId, quote, { assignmentStatus: 'active' })
+  const sync = await syncJobAssignmentFromQuoteAssign(quoteId, driverId, quote, { assignmentStatus: 'active' })
+  if (!sync.synced) {
+    const detail = sync.error?.message ? `: ${sync.error.message}` : ''
+    throw new Error(
+      `Driver saved on booking but mobile job list sync failed${detail}. Re-assign the driver or check job_assignments in Supabase.`,
+    )
+  }
 }
 
 /** @param {string} quoteId @param {Record<string, unknown>} quoteWorkflowPatch @param {(id: string, patch: Record<string, unknown>) => Promise<void>} updateQuote */

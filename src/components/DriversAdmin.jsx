@@ -26,6 +26,9 @@ import DriverDeleteConfirmModal from './admin/DriverDeleteConfirmModal'
 import {
   archiveFleetDriver,
   disableFleetDriver,
+  driverMatchesStatusFilter,
+  driverReactivateButtonLabel,
+  getDriverDisplayStatus,
   getDriverLifecyclePhase,
   reactivateFleetDriver,
 } from '../lib/driverAdminLifecycle'
@@ -48,14 +51,6 @@ function statusTone(st) {
   if (st === 'Suspended') return 'rose'
   if (st === 'Archived') return 'violet'
   return 'slate'
-}
-
-function driverMatchesStatusFilter(driver, filterId) {
-  const st = String(driver?.status || 'Active')
-  if (filterId === 'active') return st === 'Active'
-  if (filterId === 'suspended') return st === 'Suspended' || st === 'Inactive'
-  if (filterId === 'archived') return st === 'Archived'
-  return true
 }
 
 function VerificationBadge({ label, tone }) {
@@ -150,6 +145,7 @@ export default function DriversAdmin() {
   const [createSuccessBanner, setCreateSuccessBanner] = useState('')
   const [statusFilter, setStatusFilter] = useState('active')
   const [deleteTarget, setDeleteTarget] = useState(/** @type {typeof drivers[0] | null} */ (null))
+  const [deleteError, setDeleteError] = useState('')
 
   const reloadDrivers = useCallback(async () => {
     const list = await loadFleetDriversForAdmin()
@@ -221,6 +217,19 @@ export default function DriversAdmin() {
       return blob.includes(s)
     })
   }, [drivers, search, statusFilter])
+
+  const statusFilterCounts = useMemo(() => {
+    let active = 0
+    let suspended = 0
+    let archived = 0
+    for (const d of drivers) {
+      const phase = getDriverLifecyclePhase(d)
+      if (phase === 'active') active += 1
+      else if (phase === 'suspended') suspended += 1
+      else if (phase === 'archived') archived += 1
+    }
+    return { active, suspended, archived, all: drivers.length }
+  }, [drivers])
 
   function openCreate() {
     setDraft(emptyDriverDraft())
@@ -411,14 +420,18 @@ export default function DriversAdmin() {
     if (ok) void archiveDriverRecord(d)
   }
 
-  async function confirmDeleteDriver() {
+  async function confirmDeleteDriver(opts = {}) {
     if (!deleteTarget?.id) return
     setSaving(true)
     setErr('')
+    setDeleteError('')
     try {
       let banner = 'Driver deleted'
       if (isSupabaseConfigured) {
-        const del = await deleteDriverAccountAdmin({ driverId: deleteTarget.id })
+        const del = await deleteDriverAccountAdmin({
+          driverId: deleteTarget.id,
+          forceCleanup: Boolean(opts.forceCleanup),
+        })
         banner = del.message || banner
         await reloadDrivers()
       } else {
@@ -429,11 +442,9 @@ export default function DriversAdmin() {
       setCreateSuccessBanner(banner)
       setDeleteTarget(null)
     } catch (e) {
-      if (e?.code === 'driver_has_history') {
-        setErr(e.message)
-      } else {
-        setErr(e?.message || 'Could not delete driver.')
-      }
+      const msg = e?.message || 'Could not delete driver.'
+      setDeleteError(msg)
+      setErr(msg)
     } finally {
       setSaving(false)
     }
@@ -487,23 +498,47 @@ export default function DriversAdmin() {
 
       <div className="flex flex-col gap-3">
         <div className="flex flex-wrap gap-2" role="tablist" aria-label="Driver status filter">
-          {STATUS_FILTERS.map((f) => (
-            <button
-              key={f.id}
-              type="button"
-              role="tab"
-              aria-selected={statusFilter === f.id}
-              onClick={() => setStatusFilter(f.id)}
-              className={`min-h-[40px] rounded-xl px-4 py-2 text-sm font-semibold shadow-sm ring-1 transition ${
-                statusFilter === f.id
-                  ? 'bg-slate-900 text-white ring-slate-900'
-                  : 'bg-white text-slate-800 ring-slate-200 hover:bg-slate-50'
-              }`}
-            >
-              {f.label}
-            </button>
-          ))}
+          {STATUS_FILTERS.map((f) => {
+            const count =
+              f.id === 'active'
+                ? statusFilterCounts.active
+                : f.id === 'suspended'
+                  ? statusFilterCounts.suspended
+                  : f.id === 'archived'
+                    ? statusFilterCounts.archived
+                    : statusFilterCounts.all
+            return (
+              <button
+                key={f.id}
+                type="button"
+                role="tab"
+                aria-selected={statusFilter === f.id}
+                onClick={() => setStatusFilter(f.id)}
+                className={`min-h-[40px] rounded-xl px-4 py-2 text-sm font-semibold shadow-sm ring-1 transition ${
+                  statusFilter === f.id
+                    ? 'bg-slate-900 text-white ring-slate-900'
+                    : 'bg-white text-slate-800 ring-slate-200 hover:bg-slate-50'
+                }`}
+              >
+                {f.label}
+                {count > 0 ? ` (${count})` : ''}
+              </button>
+            )
+          })}
         </div>
+        {statusFilter === 'active' && statusFilterCounts.suspended > 0 ? (
+          <p className="text-sm text-amber-900">
+            {statusFilterCounts.suspended} disabled driver{statusFilterCounts.suspended === 1 ? '' : 's'} — open{' '}
+            <button
+              type="button"
+              className="font-semibold text-brand-700 underline hover:text-brand-800"
+              onClick={() => setStatusFilter('suspended')}
+            >
+              Suspended
+            </button>{' '}
+            to use <strong>Enable Driver</strong>.
+          </p>
+        ) : null}
         <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
           <label className="min-w-0 flex-1 sm:max-w-md">
             <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">Search</span>
@@ -601,7 +636,10 @@ export default function DriversAdmin() {
                       </p>
                     )}
                   </div>
-                  <JobStatusBadge label={d.status} tone={statusTone(d.status)} />
+                  <JobStatusBadge
+                    label={getDriverDisplayStatus(d)}
+                    tone={statusTone(getDriverDisplayStatus(d))}
+                  />
                 </div>
                 {badges.length > 0 ? (
                   <div className="mt-3 flex flex-wrap gap-1.5">
@@ -660,11 +698,7 @@ export default function DriversAdmin() {
                   onArchive={() => requestArchiveDriver(d)}
                   onReactivate={() => requestReactivateDriver(d)}
                   onDelete={() => setDeleteTarget(d)}
-                  showDelete={
-                    lifecyclePhase === 'active' &&
-                    countAssignedJobsForDriver(d, quotes, jobs) === 0 &&
-                    countCompletedJobsForDriver(d, quotes, jobs) === 0
-                  }
+                  showDelete={Boolean(d.id)}
                 />
               </li>
             )
@@ -685,6 +719,16 @@ export default function DriversAdmin() {
               >
                 Close
               </button>
+              {getDriverLifecyclePhase(draft) !== 'active' ? (
+                <button
+                  type="button"
+                  disabled={saving}
+                  onClick={() => void requestReactivateDriver(draft)}
+                  className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-900 hover:bg-emerald-100 disabled:opacity-50"
+                >
+                  {saving ? 'Working…' : driverReactivateButtonLabel(draft)}
+                </button>
+              ) : null}
               <button
                 type="button"
                 onClick={() => openEdit(draft)}
@@ -747,7 +791,7 @@ export default function DriversAdmin() {
             <div>
               <dt className={fieldLabel}>Status</dt>
               <dd>
-                <JobStatusBadge label={draft.status} tone={statusTone(draft.status)} />
+                <JobStatusBadge label={getDriverDisplayStatus(draft)} tone={statusTone(getDriverDisplayStatus(draft))} />
               </dd>
             </div>
             <div>
@@ -825,6 +869,16 @@ export default function DriversAdmin() {
               >
                 Cancel
               </button>
+              {getDriverLifecyclePhase(draft) !== 'active' ? (
+                <button
+                  type="button"
+                  disabled={saving}
+                  onClick={() => void requestReactivateDriver(draft)}
+                  className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-900 hover:bg-emerald-100 disabled:opacity-50"
+                >
+                  {saving ? 'Working…' : driverReactivateButtonLabel(draft)}
+                </button>
+              ) : null}
               <button
                 type="button"
                 disabled={saving}
@@ -1042,10 +1096,15 @@ export default function DriversAdmin() {
         quotes={quotes}
         jobs={jobs}
         busy={saving}
+        error={deleteError}
         onClose={() => {
-          if (!saving) setDeleteTarget(null)
+          if (!saving) {
+            setDeleteTarget(null)
+            setDeleteError('')
+          }
         }}
         onConfirmDelete={() => confirmDeleteDriver()}
+        onForceDelete={() => confirmDeleteDriver({ forceCleanup: true })}
         onArchive={() => (deleteTarget ? archiveDriverRecord(deleteTarget) : undefined)}
       />
     </div>

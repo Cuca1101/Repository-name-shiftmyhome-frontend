@@ -48,6 +48,35 @@ export function quoteOperationalStatusLower(q) {
   return (mergedAdminWorkflowForQuote(q).operationalStatus || '').trim().toLowerCase()
 }
 
+const IN_PROGRESS_WORKFLOW_STATUSES = new Set([
+  'on_way',
+  'on way',
+  'arrived',
+  'in_transit',
+  'in transit',
+  'in_progress',
+  'in progress',
+  'pickup_completed',
+  'loaded',
+  'assigned',
+  'accepted',
+  'active',
+])
+
+/**
+ * Driver/mobile workflow still running (ignore stale completed_at from an earlier mistaken complete).
+ * @param {Record<string, unknown>} q
+ */
+export function quoteHasInProgressWorkflowStatus(q) {
+  const st = String(q?.status ?? '')
+    .trim()
+    .toLowerCase()
+  if (IN_PROGRESS_WORKFLOW_STATUSES.has(st)) return true
+  const op = quoteOperationalStatusLower(q)
+  if (IN_PROGRESS_WORKFLOW_STATUSES.has(op)) return true
+  return false
+}
+
 /**
  * Available Jobs inbox: card-paid only, unassigned, not on marketplace, not terminal.
  * @param {Record<string, unknown>} q
@@ -119,9 +148,13 @@ export function quotePassesActiveStrict(q) {
   const assigned =
     quoteHasAssignedDriver(q) || quoteHasAssignedPartner(q) || quoteMarketplaceJobAccepted(q)
   if (!assigned) return false
+  const stLower = String(q.status ?? '')
+    .trim()
+    .toLowerCase()
+  if (stLower === 'completed' || stLower === 'cancelled') return false
   const st = String(q.status ?? '').trim()
   if (st === 'Completed' || st === 'Cancelled') return false
-  if (q.completed_at) return false
+  if (q.completed_at && !quoteHasInProgressWorkflowStatus(q)) return false
   if (q.cancelled_at) return false
   const op = quoteOperationalStatusLower(q)
   if (op === 'completed' || op === 'cancelled') return false

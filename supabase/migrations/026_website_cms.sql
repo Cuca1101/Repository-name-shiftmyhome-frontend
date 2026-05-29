@@ -127,3 +127,16 @@ create policy "website_media_update_authenticated"
 
 create policy "website_media_delete_authenticated"
   on public.website_media for delete to authenticated using (true);
+
+-- Data API grants (Supabase May/Oct 2026 — explicit opt-in per role)
+grant select on table public.website_settings to anon;
+grant select, insert, update, delete on table public.website_settings to authenticated;
+
+grant select on table public.website_service_cards to anon;
+grant select, insert, update, delete on table public.website_service_cards to authenticated;
+
+grant select on table public.website_reviews to anon;
+grant select, insert, update, delete on table public.website_reviews to authenticated;
+
+grant select on table public.website_media to anon;
+grant select, insert, update, delete on table public.website_media to authenticated;

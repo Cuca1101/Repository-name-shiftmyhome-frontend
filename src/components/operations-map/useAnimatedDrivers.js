@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { driverStatusFromContext } from '../../lib/operationsMapDispatchStatus'
+import { formatDriverTrackingStatus } from '../../lib/data/driverLivePositionsRepository'
 
 const LERP_MS = 2800
 const MOVING_SPEED_MPH = 3
@@ -128,20 +129,34 @@ export function useAnimatedDrivers(driversList, liveByDriverKey, activeQuotes) {
         (q) => String(q.assigned_driver_name || '').trim().toLowerCase() === nameNorm,
       )
       const live = liveByDriverKey[id]
+      const quoteRefFromLive =
+        live?.quote_ref != null && String(live.quote_ref).trim()
+          ? String(live.quote_ref).trim()
+          : ''
+      const activeJobRef =
+        quoteRefFromLive ||
+        (assigned[0] ? String(assigned[0].quote_ref || assigned[0].id).slice(0, 12) : '')
       return {
         driverId: id,
-        name: String(d.name || 'Driver'),
-        initials: String(d.name || 'DR').slice(0, 2).toUpperCase(),
+        name: String(live?.driver_name || d.name || 'Driver'),
+        initials: String(live?.driver_name || d.name || 'DR').slice(0, 2).toUpperCase(),
         lng: slot.lng,
         lat: slot.lat,
         bearing: slot.bearing,
         speedMph: slot.speedMph,
-        moving: slot.moving,
+        moving: slot.moving && !live?.stale,
         status: slot.status,
+        trackingStatus: formatDriverTrackingStatus(
+          live?.tracking_status || live?.status || '',
+        ),
         lastGpsAt: slot.lastGpsAt,
         assignedCount: assigned.length,
-        activeJobRef: assigned[0] ? String(assigned[0].quote_ref || assigned[0].id).slice(0, 12) : '',
-        online: live != null && String(d.status) !== 'Suspended',
+        activeJobRef,
+        assignmentRef: live?.assignment_ref != null ? String(live.assignment_ref) : '',
+        driverPhone: live?.driver_phone != null ? String(live.driver_phone) : String(d.phone || ''),
+        stale: Boolean(live?.stale),
+        staleLabel: live?.stale_label != null ? String(live.stale_label) : null,
+        online: live != null && !live?.stale && String(d.status) !== 'Suspended',
       }
     })
     .filter(Boolean)

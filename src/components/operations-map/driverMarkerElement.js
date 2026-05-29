@@ -10,6 +10,7 @@
  *   etaLabel?: string,
  *   online?: boolean,
  *   isFocused?: boolean,
+ *   stale?: boolean,
  * }} opts
  */
 export function buildDriverMarkerElement(opts) {
@@ -20,7 +21,8 @@ export function buildDriverMarkerElement(opts) {
   wrap.style.cssText =
     'display:flex;flex-direction:column;align-items:center;gap:3px;pointer-events:auto;cursor:pointer;margin:0;padding:0;border:none;background:transparent;'
   const idle = opts.status === 'idle' || opts.status === 'offline'
-  wrap.style.opacity = idle ? '0.55' : '1'
+  const stale = Boolean(opts.stale)
+  wrap.style.opacity = stale ? '0.5' : idle ? '0.55' : '1'
 
   const shell = document.createElement('div')
   shell.style.cssText =
@@ -39,7 +41,8 @@ export function buildDriverMarkerElement(opts) {
 
   const pin = document.createElement('div')
   pin.textContent = opts.initials || 'DR'
-  pin.style.cssText = `width:36px;height:36px;border-radius:9999px;border:3px solid ${opts.isFocused ? '#fbbf24' : '#fff'};box-shadow:0 3px 12px rgba(15,23,42,0.45);background:${opts.online === false ? '#64748b' : '#2563eb'};color:#fff;font:bold 11px system-ui,sans-serif;display:flex;align-items:center;justify-content:center;transform:rotate(${opts.bearing || 0}deg);transition:transform 0.35s ease;`
+  const pinBg = stale ? '#d97706' : opts.online === false ? '#64748b' : '#2563eb'
+  pin.style.cssText = `width:36px;height:36px;border-radius:9999px;border:3px solid ${opts.isFocused ? '#fbbf24' : stale ? '#fcd34d' : '#fff'};box-shadow:0 3px 12px rgba(15,23,42,0.45);background:${pinBg};color:#fff;font:bold 11px system-ui,sans-serif;display:flex;align-items:center;justify-content:center;transform:rotate(${opts.bearing || 0}deg);transition:transform 0.35s ease;`
   if (opts.isFocused) pin.style.outline = '3px solid rgba(251,191,36,0.5)'
   shell.appendChild(pin)
   wrap.appendChild(shell)
@@ -50,7 +53,13 @@ export function buildDriverMarkerElement(opts) {
     'max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font:bold 9px system-ui,sans-serif;padding:2px 5px;border-radius:6px;background:rgba(255,255,255,0.96);border:1px solid rgba(15,23,42,0.1);color:#0f172a;box-shadow:0 1px 4px rgba(0,0,0,0.12);'
   wrap.appendChild(lab)
 
-  if (opts.etaLabel && opts.etaLabel !== '—') {
+  if (stale) {
+    const staleLab = document.createElement('div')
+    staleLab.textContent = 'Stale GPS'
+    staleLab.style.cssText =
+      'font:bold 8px system-ui,sans-serif;padding:1px 5px;border-radius:9999px;background:#fef3c7;color:#92400e;border:1px solid #fcd34d;'
+    wrap.appendChild(staleLab)
+  } else if (opts.etaLabel && opts.etaLabel !== '—') {
     const eta = document.createElement('div')
     eta.textContent = opts.etaLabel
     eta.style.cssText =

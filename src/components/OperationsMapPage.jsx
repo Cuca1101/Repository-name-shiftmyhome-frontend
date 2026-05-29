@@ -60,6 +60,12 @@ import {
 } from '../lib/operationsMapDateFilter'
 import { resolveQuoteCollectionAddress, resolveQuoteDeliveryAddress } from '../lib/quoteAddressResolve'
 import { findLinkedJobForQuote } from '../lib/adminWorkflowFilters'
+import { fetchDriverLocationHistoryForDriver } from '../lib/data/driverLocationHistoryRepository'
+import {
+  buildGpsTrailGeoJson,
+  buildStopMarkersGeoJson,
+  detectLocationStops,
+} from '../lib/jobLocationAnalytics'
 
 /** Same key as JourneyPlannerPage draft persistence */
 const JOURNEY_DRAFT_SESSION_KEY = 'smh_journey_draft_quote_ids'
@@ -222,10 +228,11 @@ export default function OperationsMapPage() {
     }
     void loadLive()
     const unsub = subscribeDriverLivePositions(({ new: row }) => {
-      if (!row?.driver_key) return
+      const driverId = String(row?.driver_id || row?.driver_key || '').trim()
+      if (!driverId) return
       setLiveByDriverKey((prev) => ({
         ...prev,
-        [String(row.driver_key)]: row,
+        [driverId]: row,
       }))
     })
     return () => {
@@ -418,6 +425,8 @@ export default function OperationsMapPage() {
   )
 
   const [driversList, setDriversList] = useState(() => getFleetDriversCached())
+  const [driverGpsTrail, setDriverGpsTrail] = useState(() => ({ type: 'FeatureCollection', features: [] }))
+  const [driverGpsStops, setDriverGpsStops] = useState(() => ({ type: 'FeatureCollection', features: [] }))
 
   useEffect(() => {
     let cancelled = false
@@ -473,11 +482,16 @@ export default function OperationsMapPage() {
       name: d.name,
       status: d.status,
       dispatchStatus: d.status,
+      trackingStatus: d.trackingStatus,
       activeJobRef: d.activeJobRef,
+      assignmentRef: d.assignmentRef,
+      driverPhone: d.driverPhone,
       etaLabel: d.etaLabel || etaByDriverId[d.driverId]?.label || '—',
       online: d.online,
       speedMph: d.speedMph,
       lastGpsAt: d.lastGpsAt,
+      stale: d.stale,
+      staleLabel: d.staleLabel,
     }))
   }, [animatedDrivers, etaByDriverId])
 
@@ -690,9 +704,9 @@ export default function OperationsMapPage() {
         <div>
           <h2 className="text-2xl font-bold text-slate-900">Operations map</h2>
           <p className="mt-1 max-w-3xl text-sm text-slate-600">
-            Live logistics view for jobs, journeys, and drivers. Pickup → delivery corridors, journey bundles, and GPS
-            hooks for the driver app (Supabase Realtime on{' '}
-            <code className="rounded bg-slate-100 px-1">driver_live_positions</code>).
+            Live logistics view for jobs, journeys, and drivers. Pickup → delivery corridors, journey bundles, and live
+            driver GPS from{' '}
+            <code className="rounded bg-slate-100 px-1">driver_locations</code> (Supabase Realtime, stale after 3 min).
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -860,6 +874,8 @@ export default function OperationsMapPage() {
             routeTraveled={routeProgressGeo.traveled}
             routeRemaining={routeProgressGeo.remaining}
             heatmapPoints={heatmapGeo}
+            gpsTrail={driverGpsTrail}
+            gpsStops={driverGpsStops}
             showHeatmap={showHeatmap}
             useRouteProgress={useRouteProgress}
             selectedQuoteIds={[...selectedQuoteIds]}
@@ -1023,15 +1039,48 @@ export default function OperationsMapPage() {
                     etaEntry?.label || etaEntry?.pickup?.label || '—',
                   )
                   const jobRefs = assigned.map((q) => quoteJobRef(q)).slice(0, 8).join(', ') || '—'
+                  const phone =
+                    pres.driverPhone || String(drawerDriver.phone || '').trim() || '—'
+                  const quoteRef =
+                    pres.quoteRef || (assigned[0] ? quoteJobRef(assigned[0]) : '—')
+                  const assignmentRef = pres.assignmentRef || '—'
                   return (
                     <dl className="mt-2 space-y-1 rounded-lg bg-slate-50 p-3 text-xs">
                       <div className="flex justify-between gap-2">
-                        <dt className="text-slate-500">Status</dt>
+                        <dt className="text-slate-500">Dispatch</dt>
                         <dd className="font-semibold text-slate-900">{pres.status}</dd>
                       </div>
                       <div className="flex justify-between gap-2">
+                        <dt className="text-slate-500">Tracking</dt>
+                        <dd className="font-medium text-slate-800">
+                          {pres.trackingStatus || '—'}
+                        </dd>
+                      </div>
+                      <div className="flex justify-between gap-2">
+                        <dt className="text-slate-500">Phone</dt>
+                        <dd className="font-medium text-slate-800">{phone}</dd>
+                      </div>
+                      <div className="flex justify-between gap-2">
+                        <dt className="text-slate-500">Quote ref</dt>
+                        <dd className="font-mono font-medium text-slate-800">{quoteRef}</dd>
+                      </div>
+                      <div className="flex justify-between gap-2">
+                        <dt className="text-slate-500">Assignment</dt>
+                        <dd className="font-mono font-medium text-slate-800">{assignmentRef}</dd>
+                      </div>
+                      <div className="flex justify-between gap-2">
+                        <dt className="text-slate-500">GPS trail</dt>
+                        <dd className="font-medium text-violet-700">
+                          Purple line on map when job started
+                        </dd>
+                      </div>
+                      <div className="flex justify-between gap-2">
                         <dt className="text-slate-500">Last GPS</dt>
-                        <dd className="font-medium text-slate-800">{pres.updated}</dd>
+                        <dd
+                          className={`font-medium ${pres.stale ? 'text-amber-800' : 'text-slate-800'}`}
+                        >
+                          {pres.updated}
+                        </dd>
                       </div>
                       <div className="flex justify-between gap-2">
                         <dt className="text-slate-500">ETA</dt>
@@ -1043,9 +1092,10 @@ export default function OperationsMapPage() {
                     </dl>
                   )
                 })()}
-                <p className="text-xs">
-                  Live positions use driver registry <strong>id</strong> as{' '}
-                  <code className="rounded bg-slate-100 px-1">driver_key</code> in Supabase.
+                <p className="text-xs text-slate-500">
+                  Live GPS from <code className="rounded bg-slate-100 px-1">driver_locations</code>{' '}
+                  (driver registry <strong>id</strong> = <code className="rounded bg-slate-100 px-1">driver_id</code>
+                  ). Stale after 3 minutes without an update.
                 </p>
                 <Link
                   to="/admin/drivers"

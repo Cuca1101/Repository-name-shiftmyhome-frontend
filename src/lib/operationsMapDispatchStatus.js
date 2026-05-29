@@ -12,7 +12,11 @@ export function resolveDispatchDriverStatus(liveStatus, operationalStatus, assig
   const live = String(liveStatus ?? '').trim().toLowerCase()
   const op = String(operationalStatus ?? '').trim().toLowerCase()
 
-  if (/offline|away|suspended/.test(live)) return 'offline'
+  if (/offline|away|suspended|off_duty|off duty/.test(live)) return 'offline'
+  if (/^available$/.test(live)) return hasLiveGps ? 'idle' : 'offline'
+  if (/^in_progress$|active_job/.test(live)) return hasLiveGps ? 'on_route' : 'assigned'
+  if (/^arrived$/.test(live)) return 'arrived_pickup'
+  if (/cancelled|canceled/.test(live)) return 'completed'
   if (/completed|done|finished/.test(live) || op === 'completed') return 'completed'
   if (/arrived.*delivery|at delivery|delivered/.test(live) || op === 'arrived_delivery') return 'arrived_delivery'
   if (/in[\s_-]?transit|en[\s-]?route to delivery|to delivery/.test(live) || op === 'in_transit') return 'in_transit'

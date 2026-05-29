@@ -31,3 +31,6 @@ CREATE POLICY "Authenticated read driver payout audit"
 DROP POLICY IF EXISTS "Authenticated insert driver payout audit" ON public.driver_payout_audit_log;
 CREATE POLICY "Authenticated insert driver payout audit"
   ON public.driver_payout_audit_log FOR INSERT TO authenticated WITH CHECK (true);
+
+-- Data API grants: admin audit — authenticated only; no anon.
+GRANT SELECT, INSERT ON TABLE public.driver_payout_audit_log TO authenticated;

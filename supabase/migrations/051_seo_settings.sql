@@ -78,3 +78,6 @@ $$;
 
 revoke all on function public.get_public_seo_settings() from public;
 grant execute on function public.get_public_seo_settings() to anon, authenticated;
+
+-- Data API grants: no anon on table (public site uses get_public_seo_settings RPC).
+grant select, insert, update, delete on table public.seo_settings to authenticated;

@@ -1,6 +1,10 @@
 import { useCallback, useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import {
   fetchAllExtraChargeRequests,
+  fetchQuoteContextForExtraCharge,
+  fetchQuoteContextsForExtraCharges,
+  recalculateExtraChargePricing,
   updateExtraChargeRequest,
 } from '../lib/data/extraChargeRequestsRepository'
 import { isSupabaseConfigured, supabase } from '../lib/supabase'
@@ -45,7 +49,17 @@ function ItemsList({ items }) {
         <li key={i} className="text-xs text-slate-700">
           <span className="font-medium">{item.name || 'Item'}</span>
           {item.quantity > 1 ? ` ×${item.quantity}` : ''}
-          {item.volume_m3 ? ` (${item.volume_m3}m³)` : ''}
+          {item.volume_m3 != null || item.volume_per_unit_m3 != null
+            ? ` (${item.volume_m3 ?? item.volume_per_unit_m3} m³)`
+            : ''}
+          {item.line_price_label ? (
+            <span className="ml-1 font-semibold text-emerald-800">{item.line_price_label}</span>
+          ) : item.line_amount_gbp != null ? (
+            <span className="ml-1 font-semibold text-emerald-800">{money(item.line_amount_gbp)}</span>
+          ) : null}
+          {item.matched_library === false ? (
+            <span className="ml-1 text-amber-700">(not in library)</span>
+          ) : null}
           {item.notes ? <span className="ml-1 text-slate-500">— {item.notes}</span> : null}
         </li>
       ))}
@@ -53,7 +67,46 @@ function ItemsList({ items }) {
   )
 }
 
+function PricingBreakdownPanel({ breakdown }) {
+  if (!breakdown || typeof breakdown !== 'object') return null
+  const lines = Array.isArray(breakdown.breakdown_lines) ? breakdown.breakdown_lines : []
+  const itemLines = Array.isArray(breakdown.item_lines) ? breakdown.item_lines : []
+  if (!lines.length && !itemLines.length) return null
+  return (
+    <div className="rounded-lg border border-emerald-200 bg-emerald-50/60 p-2">
+      <p className="text-[10px] font-bold uppercase tracking-wide text-emerald-900">Pricing engine</p>
+      {breakdown.volume_band ? (
+        <p className="mt-0.5 text-[10px] text-emerald-800">Volume band: {breakdown.volume_band}</p>
+      ) : null}
+      {itemLines.length > 0 ? (
+        <ul className="mt-1 space-y-0.5 border-b border-emerald-200/80 pb-1">
+          {itemLines.map((line, i) => (
+            <li key={`item-${i}`} className="flex justify-between gap-2 text-xs text-emerald-950">
+              <span>{line.name || line.label || 'Item'}</span>
+              <span className="font-semibold tabular-nums">
+                {line.price_label || money(line.amount ?? line.line_amount_gbp)}
+              </span>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      {lines.length > 0 ? (
+        <ul className="mt-1 space-y-0.5">
+          {lines.map((line, i) => (
+            <li key={i} className="flex justify-between gap-2 text-xs text-emerald-950">
+              <span>{line.label}</span>
+              <span className="font-semibold tabular-nums">{money(line.amount)}</span>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+    </div>
+  )
+}
+
 function ExtraChargeDetailModal({ request, onClose, onAction }) {
+  const [liveRequest, setLiveRequest] = useState(request)
+  const [quoteRef, setQuoteRef] = useState(request.displayQuoteRef || request.bookingReference || '')
   const [approvedAmount, setApprovedAmount] = useState(
     request.approvedAmount != null ? String(request.approvedAmount) : String(request.estimatedAmount),
   )
@@ -63,6 +116,54 @@ function ExtraChargeDetailModal({ request, onClose, onAction }) {
   const [bookingRef, setBookingRef] = useState(request.bookingReference || '')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+
+  useEffect(() => {
+    setLiveRequest(request)
+    setQuoteRef(request.displayQuoteRef || request.bookingReference || '')
+    setApprovedAmount(
+      request.approvedAmount != null ? String(request.approvedAmount) : String(request.estimatedAmount),
+    )
+    setNotes(request.notes || '')
+    setCustomerEmail(request.customerEmail || '')
+    setCustomerName(request.customerName || '')
+    setBookingRef(request.bookingReference || '')
+  }, [request])
+
+  useEffect(() => {
+    const quoteId = liveRequest.quoteId
+    if (!quoteId) return
+    let cancelled = false
+    ;(async () => {
+      try {
+        const ctx = await fetchQuoteContextForExtraCharge(quoteId)
+        if (cancelled || !ctx) return
+        if (ctx.quoteRef) setQuoteRef((prev) => prev || ctx.quoteRef)
+        if (ctx.quoteRef) setBookingRef((prev) => prev || ctx.quoteRef)
+        if (ctx.customerEmail) setCustomerEmail((prev) => prev || ctx.customerEmail)
+        if (ctx.customerName) setCustomerName((prev) => prev || ctx.customerName)
+      } catch {
+        /* quote prefill optional */
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [liveRequest.quoteId])
+
+  async function handleRecalculatePricing() {
+    setBusy(true)
+    setError('')
+    try {
+      const updated = await recalculateExtraChargePricing(liveRequest.id)
+      setLiveRequest(updated)
+      setApprovedAmount(String(updated.estimatedAmount))
+      onAction()
+    } catch (e) {
+      setError(e.message || 'Pricing recalculation failed.')
+    } finally {
+      setBusy(false)
+    }
+  }
 
   async function handleApproveAndSendPayment() {
     const amt = Number(approvedAmount)
@@ -77,7 +178,7 @@ function ExtraChargeDetailModal({ request, onClose, onAction }) {
     setBusy(true)
     setError('')
     try {
-      await updateExtraChargeRequest(request.id, {
+      await updateExtraChargeRequest(liveRequest.id, {
         approvedAmount: amt,
         notes,
         customerEmail,
@@ -86,7 +187,14 @@ function ExtraChargeDetailModal({ request, onClose, onAction }) {
       })
 
       if (!isSupabaseConfigured || !supabase) throw new Error('Supabase not configured')
-      const invokeOpts = { body: { request_id: request.id, customer_email: customerEmail, customer_name: customerName, booking_reference: bookingRef } }
+      const invokeOpts = {
+        body: {
+          request_id: liveRequest.id,
+          customer_email: customerEmail,
+          customer_name: customerName,
+          booking_reference: bookingRef,
+        },
+      }
       const raw = (import.meta.env.VITE_SUPABASE_ANON_KEY || '').trim().replace(/^["']|["']$/g, '')
       if (raw.startsWith('eyJ')) invokeOpts.headers = { Authorization: `Bearer ${raw}` }
 
@@ -116,7 +224,7 @@ function ExtraChargeDetailModal({ request, onClose, onAction }) {
     setBusy(true)
     setError('')
     try {
-      await updateExtraChargeRequest(request.id, { status: 'declined', notes })
+      await updateExtraChargeRequest(liveRequest.id, { status: 'declined', notes })
       onAction()
     } catch (e) {
       setError(e.message || 'Something went wrong.')
@@ -129,7 +237,7 @@ function ExtraChargeDetailModal({ request, onClose, onAction }) {
     setBusy(true)
     setError('')
     try {
-      await updateExtraChargeRequest(request.id, { status: 'cancelled', notes })
+      await updateExtraChargeRequest(liveRequest.id, { status: 'cancelled', notes })
       onAction()
     } catch (e) {
       setError(e.message || 'Something went wrong.')
@@ -138,8 +246,8 @@ function ExtraChargeDetailModal({ request, onClose, onAction }) {
     }
   }
 
-  const isPending = request.status === 'pending_review'
-  const isAwaitingPayment = request.status === 'pending_customer_payment'
+  const isPending = liveRequest.status === 'pending_review'
+  const isAwaitingPayment = liveRequest.status === 'pending_customer_payment'
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4" onClick={onClose}>
@@ -149,35 +257,63 @@ function ExtraChargeDetailModal({ request, onClose, onAction }) {
       >
         <div className="flex items-start justify-between gap-3">
           <h2 className="text-lg font-bold text-slate-900">Extra Charge Request</h2>
-          <StatusBadge status={request.status} />
+          <StatusBadge status={liveRequest.status} />
         </div>
 
         <div className="mt-4 space-y-3 text-sm">
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <span className="text-xs font-semibold uppercase text-slate-500">Job ID</span>
-              <p className="font-mono text-xs text-slate-800">{request.jobId || '—'}</p>
+              <span className="text-xs font-semibold uppercase text-slate-500">Booking / quote</span>
+              <p className="text-sm font-semibold text-slate-900">
+                {quoteRef || bookingRef || '—'}
+              </p>
+              {liveRequest.quoteId ? (
+                <Link
+                  to={`/admin/available-jobs/${liveRequest.quoteId}`}
+                  className="text-xs font-semibold text-brand-700 hover:underline"
+                >
+                  Open available job →
+                </Link>
+              ) : null}
             </div>
             <div>
-              <span className="text-xs font-semibold uppercase text-slate-500">Driver ID</span>
-              <p className="font-mono text-xs text-slate-800">{request.driverId || '—'}</p>
+              <span className="text-xs font-semibold uppercase text-slate-500">Driver</span>
+              <p className="font-mono text-xs text-slate-800">{liveRequest.driverId?.slice(0, 8) || '—'}</p>
+              {liveRequest.jobId ? (
+                <p className="mt-0.5 font-mono text-[10px] text-slate-500">Job {liveRequest.jobId.slice(0, 8)}…</p>
+              ) : (
+                <p className="mt-0.5 text-[10px] text-slate-500">Mobile (quote only)</p>
+              )}
             </div>
             <div>
               <span className="text-xs font-semibold uppercase text-slate-500">Volume Added</span>
-              <p className="text-slate-800">{request.addedVolumeM3 ? `${request.addedVolumeM3} m³` : '—'}</p>
+              <p className="text-slate-800">{liveRequest.addedVolumeM3 ? `${liveRequest.addedVolumeM3} m³` : '—'}</p>
             </div>
             <div>
-              <span className="text-xs font-semibold uppercase text-slate-500">Driver Estimate</span>
-              <p className="font-semibold text-slate-800">{money(request.estimatedAmount)}</p>
+              <span className="text-xs font-semibold uppercase text-slate-500">Engine estimate</span>
+              <p className="font-semibold text-slate-800">{money(liveRequest.estimatedAmount)}</p>
             </div>
           </div>
+
+          <PricingBreakdownPanel breakdown={liveRequest.pricingBreakdown} />
 
           <div>
             <span className="text-xs font-semibold uppercase text-slate-500">Added Items</span>
             <div className="mt-1 rounded-lg border border-slate-100 bg-slate-50/50 p-2">
-              <ItemsList items={request.addedItems} />
+              <ItemsList items={liveRequest.addedItems} />
             </div>
           </div>
+
+          {isPending ? (
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => void handleRecalculatePricing()}
+              className="text-xs font-semibold text-brand-700 hover:underline disabled:opacity-50"
+            >
+              Recalculate from pricing engine + items library
+            </button>
+          ) : null}
 
           {(isAwaitingPayment || request.status === 'paid') && request.stripePaymentLink ? (
             <div>
@@ -287,7 +423,7 @@ function ExtraChargeDetailModal({ request, onClose, onAction }) {
 
         {isAwaitingPayment ? (
           <div className="mt-5 border-t border-slate-100 pt-4">
-            <p className="text-sm text-blue-700">Payment link sent to customer. Awaiting payment.</p>
+            <p className="text-sm text-blue-700">Payment link created — share with customer. Confirmation email after they pay.</p>
             {request.approvedAmount != null ? (
               <p className="mt-1 text-sm font-semibold text-slate-800">Approved: {money(request.approvedAmount)}</p>
             ) : null}
@@ -389,6 +525,7 @@ export default function ExtraChargesAdmin() {
               <tr>
                 <th className="px-3 py-2.5 text-xs font-bold uppercase text-slate-500">Date</th>
                 <th className="px-3 py-2.5 text-xs font-bold uppercase text-slate-500">Booking</th>
+                <th className="px-3 py-2.5 text-xs font-bold uppercase text-slate-500">Customer</th>
                 <th className="px-3 py-2.5 text-xs font-bold uppercase text-slate-500">Items</th>
                 <th className="px-3 py-2.5 text-xs font-bold uppercase text-slate-500">Vol.</th>
                 <th className="px-3 py-2.5 text-xs font-bold uppercase text-slate-500">Estimate</th>
@@ -404,7 +541,21 @@ export default function ExtraChargesAdmin() {
                     {req.createdAt ? new Date(req.createdAt).toLocaleDateString() : '—'}
                   </td>
                   <td className="px-3 py-2 text-xs font-medium text-slate-800">
-                    {req.bookingReference || req.jobId?.slice(0, 8) || '—'}
+                    {req.displayQuoteRef || req.bookingReference || '—'}
+                    {req.quoteId ? (
+                      <Link
+                        to={`/admin/available-jobs/${req.quoteId}`}
+                        className="mt-0.5 block text-[10px] font-semibold text-brand-700 hover:underline"
+                      >
+                        View job
+                      </Link>
+                    ) : null}
+                  </td>
+                  <td className="px-3 py-2 text-xs text-slate-700">
+                    <span className="font-medium text-slate-900">{req.displayCustomer || '—'}</span>
+                    {req.displayCustomerEmail ? (
+                      <span className="mt-0.5 block text-[10px] text-slate-500">{req.displayCustomerEmail}</span>
+                    ) : null}
                   </td>
                   <td className="px-3 py-2 text-xs text-slate-700">
                     {Array.isArray(req.addedItems) ? `${req.addedItems.length} item${req.addedItems.length !== 1 ? 's' : ''}` : '—'}

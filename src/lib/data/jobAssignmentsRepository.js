@@ -22,14 +22,14 @@ export function normalizeJobAssignmentStatus(raw) {
  * @returns {Promise<Record<string, { status: string, updated_at: string, driver_id?: string }>>}
  */
 export async function fetchJobAssignmentsByQuoteIds(quoteIds) {
-  /** @type {Record<string, { status: string, updated_at: string, driver_id?: string }>} */
+  /** @type {Record<string, { status: string, updated_at: string, completed_at?: string, driver_id?: string }>} */
   const out = {}
   if (!isSupabaseConfigured || !supabase) return out
   const ids = [...new Set((quoteIds || []).map((x) => String(x || '').trim()).filter(Boolean))]
   if (ids.length === 0) return out
   const { data, error } = await supabase
     .from(TABLE)
-    .select('quote_id, driver_id, status, updated_at')
+    .select('quote_id, driver_id, status, updated_at, completed_at')
     .in('quote_id', ids.slice(0, 200))
   if (error) {
     if (import.meta.env.DEV) {
@@ -43,7 +43,35 @@ export async function fetchJobAssignmentsByQuoteIds(quoteIds) {
     out[String(row.quote_id)] = {
       status: String(row.status || ''),
       updated_at: row.updated_at != null ? String(row.updated_at) : '',
+      completed_at: row.completed_at != null ? String(row.completed_at) : '',
       driver_id: row.driver_id != null ? String(row.driver_id) : '',
+    }
+  }
+  return out
+}
+
+/** All driver assignments marked completed (for admin Completed Jobs inbox). */
+export async function fetchCompletedJobAssignmentsMap() {
+  /** @type {Record<string, { status: string, updated_at: string, completed_at?: string }>} */
+  const out = {}
+  if (!isSupabaseConfigured || !supabase) return out
+  const { data, error } = await supabase
+    .from(TABLE)
+    .select('quote_id, status, updated_at, completed_at')
+    .in('status', ['completed', 'Completed'])
+  if (error) {
+    if (import.meta.env.DEV) {
+      // eslint-disable-next-line no-console
+      console.warn('[jobAssignments] completed fetch failed', error.message)
+    }
+    return out
+  }
+  for (const row of data ?? []) {
+    if (!row?.quote_id) continue
+    out[String(row.quote_id)] = {
+      status: String(row.status || ''),
+      updated_at: row.updated_at != null ? String(row.updated_at) : '',
+      completed_at: row.completed_at != null ? String(row.completed_at) : '',
     }
   }
   return out

@@ -15,7 +15,7 @@ import {
   saveAvailableJobAdminOverrides,
 } from '../lib/availableJobLocalStore'
 import { mergedAdminWorkflowForQuote } from '../lib/quoteAdminWorkflowMerge'
-import { isSupabaseConfigured } from '../lib/supabase'
+import { isSupabaseConfigured, supabase } from '../lib/supabase'
 import {
   buildPricingBreakdownSections,
   parsePricingText,
@@ -35,7 +35,12 @@ import { buildAdminJobQuoteDetailsViewModel } from '../lib/adminJobQuoteDetailsV
 import AdminJobDetailsSidebar from './admin-workflow/AdminJobDetailsSidebar'
 import JobDispatchControlPanel from './admin-workflow/JobDispatchControlPanel'
 import JobDispatchDetailExtras from './admin-workflow/JobDispatchDetailExtras'
+import JobExtraChargesPanel from './admin-workflow/JobExtraChargesPanel'
 import JobAcceptedPayoutEditor from './admin-workflow/JobAcceptedPayoutEditor'
+import {
+  fetchBookingWorkflowByQuoteIds,
+  fetchJobStatusHistoryForQuote,
+} from '../lib/data/bookingWorkflowRepository'
 import { fetchJobAssignmentsByQuoteIds } from '../lib/data/jobAssignmentsRepository'
 import { normalizeJobAdjustments, sumJobAdjustmentsGbp } from '../lib/jobAdjustments'
 
@@ -118,6 +123,12 @@ export default function AvailableJobDetails() {
   const [jobsList, setJobsList] = useState([])
   const [resolvedJobId, setResolvedJobId] = useState(null)
   const [jobAssignment, setJobAssignment] = useState(/** @type {{ status: string, updated_at: string } | null} */ (null))
+  const [jobWorkflow, setJobWorkflow] = useState(
+    /** @type {{ workflow_status: string, workflow_at: string } | null} */ (null),
+  )
+  const [jobStatusHistory, setJobStatusHistory] = useState(
+    /** @type {Array<{ status: string, created_at: string }>} */ ([]),
+  )
 
   const moreDetailsRef = useRef(null)
   const debugDetailsRef = useRef(null)
@@ -220,16 +231,65 @@ export default function AvailableJobDetails() {
     }
   }, [linkedJob?.id, photoQuoteRef])
 
-  useEffect(() => {
+  const refreshWorkflowMeta = useCallback(async () => {
     if (!id) return
+    const qid = String(id)
+    const [assignMap, workflowMap, history] = await Promise.all([
+      fetchJobAssignmentsByQuoteIds([qid]),
+      fetchBookingWorkflowByQuoteIds([qid]),
+      fetchJobStatusHistoryForQuote(qid),
+    ])
+    setJobAssignment(assignMap[qid] || null)
+    setJobWorkflow(workflowMap[qid] || null)
+    setJobStatusHistory(Array.isArray(history) ? history : [])
+  }, [id])
+
+  useEffect(() => {
     let cancelled = false
-    void fetchJobAssignmentsByQuoteIds([String(id)]).then((map) => {
-      if (!cancelled) setJobAssignment(map[String(id)] || null)
+    void refreshWorkflowMeta().then(() => {
+      if (cancelled) return undefined
+      return undefined
     })
     return () => {
       cancelled = true
     }
-  }, [id, q?.assigned_driver_id, q?.operational_status, q?.updated_at])
+  }, [refreshWorkflowMeta, q?.assigned_driver_id, q?.operational_status, q?.status, q?.updated_at])
+
+  useEffect(() => {
+    if (!id || !isSupabaseConfigured || !supabase) return undefined
+    const qid = String(id)
+    const channel = supabase
+      .channel(`job-detail-workflow-${qid}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'job_status_history',
+          filter: `quote_id=eq.${qid}`,
+        },
+        () => {
+          void refreshWorkflowMeta()
+          void load()
+        },
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'quotes',
+          filter: `id=eq.${qid}`,
+        },
+        () => {
+          void refreshWorkflowMeta()
+        },
+      )
+      .subscribe()
+    return () => {
+      void supabase.removeChannel(channel)
+    }
+  }, [id, load, refreshWorkflowMeta])
 
   const terminal = Boolean(q && (quoteIsCompleted(q, linkedJob) || quoteIsCancelled(q, linkedJob)))
 
@@ -468,6 +528,8 @@ export default function AvailableJobDetails() {
             overrides={overrides}
             linkedJob={linkedJob}
             assignment={jobAssignment}
+            workflow={jobWorkflow}
+            statusHistory={jobStatusHistory}
             adjustments={adjustments}
             onAdjustmentsChange={handleAdjustmentsChange}
             adjSum={adjSum}
@@ -481,6 +543,15 @@ export default function AvailableJobDetails() {
             onReload={load}
             onNotify={showToast}
           />
+          {fullPageDispatch || tab === 'overview' ? (
+            <AdminCard title="Driver extra charges (mobile)">
+              <JobExtraChargesPanel
+                quoteId={q.id}
+                quoteRef={q.quote_ref || ''}
+                onNotify={showToast}
+              />
+            </AdminCard>
+          ) : null}
           {!fullPageDispatch && tab === 'overview' ? (
             <AdminCard title="Payment & marketplace payout">
               <JobAcceptedPayoutEditor q={q} onUpdated={load} />

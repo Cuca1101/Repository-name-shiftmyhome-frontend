@@ -8,8 +8,10 @@ import { checkDriverCanHardDelete, DRIVER_ARCHIVE_INSTEAD_MESSAGE } from '../../
  *   quotes?: Record<string, unknown>[],
  *   jobs?: Record<string, unknown>[],
  *   busy?: boolean,
+ *   error?: string,
  *   onClose: () => void,
  *   onConfirmDelete: () => void | Promise<void>,
+ *   onForceDelete?: () => void | Promise<void>,
  *   onArchive: () => void | Promise<void>,
  * }} props
  */
@@ -19,18 +21,24 @@ export default function DriverDeleteConfirmModal({
   quotes = [],
   jobs = [],
   busy = false,
+  error = '',
   onClose,
   onConfirmDelete,
+  onForceDelete,
   onArchive,
 }) {
   const [checking, setChecking] = useState(false)
   const [canDelete, setCanDelete] = useState(true)
+  const [canForceDelete, setCanForceDelete] = useState(false)
   const [blockMessage, setBlockMessage] = useState('')
+  const [reasons, setReasons] = useState(/** @type {string[]} */ ([]))
 
   useEffect(() => {
     if (!open || !driver?.id) {
       setCanDelete(true)
+      setCanForceDelete(false)
       setBlockMessage('')
+      setReasons([])
       return
     }
     let cancelled = false
@@ -39,11 +47,14 @@ export default function DriverDeleteConfirmModal({
       .then((result) => {
         if (cancelled) return
         setCanDelete(result.canDelete)
+        setCanForceDelete(Boolean(result.canForceDelete))
+        setReasons(Array.isArray(result.reasons) ? result.reasons : [])
         setBlockMessage(result.canDelete ? '' : result.message || DRIVER_ARCHIVE_INSTEAD_MESSAGE)
       })
       .catch(() => {
         if (!cancelled) {
           setCanDelete(false)
+          setCanForceDelete(false)
           setBlockMessage(DRIVER_ARCHIVE_INSTEAD_MESSAGE)
         }
       })
@@ -82,10 +93,28 @@ export default function DriverDeleteConfirmModal({
           <p className="mt-3 text-sm text-slate-500">Checking job and payment history…</p>
         ) : null}
 
-        {!checking && !canDelete ? (
-          <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950" role="alert">
-            {blockMessage}
+        {error ? (
+          <p className="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-800" role="alert">
+            {error}
           </p>
+        ) : null}
+
+        {!checking && !canDelete ? (
+          <div className="mt-3 space-y-2">
+            <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950" role="alert">
+              {blockMessage}
+            </p>
+            {reasons.length > 0 ? (
+              <p className="text-[11px] text-slate-500">
+                Linked data: {reasons.join(', ').replace(/_/g, ' ')}
+              </p>
+            ) : null}
+            {!canForceDelete && reasons.some((r) => r === 'driver_charges' || r === 'driver_payout_audit_log') ? (
+              <p className="text-[11px] text-slate-600">
+                Completed moves stay on the booking; only payment history blocks permanent delete.
+              </p>
+            ) : null}
+          </div>
         ) : null}
 
         {!checking && canDelete ? (
@@ -112,6 +141,16 @@ export default function DriverDeleteConfirmModal({
               className="rounded-xl bg-slate-800 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-900 disabled:opacity-50"
             >
               {busy ? 'Working…' : 'Archive driver'}
+            </button>
+          ) : null}
+          {!canDelete && !checking && canForceDelete && onForceDelete ? (
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => void onForceDelete()}
+              className="rounded-xl bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-50"
+            >
+              {busy ? 'Deleting…' : 'Remove assignments & delete'}
             </button>
           ) : null}
           {canDelete && !checking ? (

@@ -454,20 +454,29 @@ export function buildOperationsMapWarnings(ctx) {
  * @param {Record<string, unknown>[]} assignedQuotes
  */
 export function driverDispatchPresentation(driver, liveRow, assignedQuotes, etaLabel = '—') {
-  const name = String(driver?.name || '').trim() || 'Driver'
+  const name =
+    String(liveRow?.driver_name || driver?.name || '').trim() || 'Driver'
   const dispatchStatus = driverStatusFromContext(driver, liveRow, assignedQuotes)
   const status = dispatchStatusLabel(dispatchStatus)
-  const updated =
-    liveRow?.updated_at != null
+  const trackingStatus = String(liveRow?.tracking_status || liveRow?.status || '').trim()
+  const stale = Boolean(liveRow?.stale)
+  const updated = stale
+    ? String(liveRow?.stale_label || 'Last location unavailable')
+    : liveRow?.updated_at != null
       ? String(liveRow.updated_at).replace('T', ' ').slice(0, 16)
       : 'No live GPS yet'
   return {
     name,
     status,
     dispatchStatus,
+    trackingStatus,
+    stale,
     updated,
     eta: etaLabel,
     initials: name.slice(0, 2).toUpperCase(),
+    driverPhone: liveRow?.driver_phone != null ? String(liveRow.driver_phone) : '',
+    quoteRef: liveRow?.quote_ref != null ? String(liveRow.quote_ref) : '',
+    assignmentRef: liveRow?.assignment_ref != null ? String(liveRow.assignment_ref) : '',
   }
 }
 
@@ -487,8 +496,9 @@ export function buildDriverMapFeatures(drivers, activeQuotes, jobs, liveByDriver
     const id = String(d?.id || '').trim()
     if (!id) continue
     const live = liveByDriverKey[id] || null
-    let lng = live != null && Number.isFinite(Number(live.lng)) ? Number(live.lng) : null
-    let lat = live != null && Number.isFinite(Number(live.lat)) ? Number(live.lat) : null
+    const lng = live != null && Number.isFinite(Number(live.lng)) ? Number(live.lng) : null
+    const lat = live != null && Number.isFinite(Number(live.lat)) ? Number(live.lat) : null
+    if (lng == null || lat == null) continue
 
     const nameNorm = String(d.name || '').trim().toLowerCase()
     const assigned = activeQuotes.filter((q) => {
@@ -498,21 +508,11 @@ export function buildDriverMapFeatures(drivers, activeQuotes, jobs, liveByDriver
       return dn && dn === nameNorm
     })
 
-    if (lng == null || lat == null) {
-      const first = assigned[0]
-      if (first) {
-        const c = coordsByQuoteId[String(first.id)]
-        const pick = c?.pickup
-        if (pick && Number.isFinite(pick.lng) && Number.isFinite(pick.lat)) {
-          lng = pick.lng
-          lat = pick.lat
-        }
-      }
-    }
-    if (lng == null || lat == null) continue
-
     const pres = driverDispatchPresentation(d, live, assigned)
     const jobRefs = assigned.map((q) => quoteJobRef(q)).slice(0, 6)
+    const quoteRef =
+      (live?.quote_ref != null && String(live.quote_ref).trim()) ||
+      (assigned[0] ? quoteJobRef(assigned[0]) : '')
 
     features.push({
       type: 'Feature',
@@ -520,8 +520,11 @@ export function buildDriverMapFeatures(drivers, activeQuotes, jobs, liveByDriver
         driverId: id,
         ...pres,
         jobRefs: jobRefs.join(', '),
+        quoteRef,
+        assignmentRef: live?.assignment_ref != null ? String(live.assignment_ref) : '',
         assignedCount: assigned.length,
         speedMph: live?.speed_mph != null ? Number(live.speed_mph) : 0,
+        stale: Boolean(live?.stale),
       },
       geometry: { type: 'Point', coordinates: [lng, lat] },
     })

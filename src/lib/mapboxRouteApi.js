@@ -58,6 +58,7 @@ export async function geocodeAddress(query, token) {
     const url = new URL(`https://api.mapbox.com/geocoding/v5/mapbox.places/${path}.json`)
     url.searchParams.set('access_token', token)
     url.searchParams.set('limit', '1')
+    url.searchParams.set('country', 'gb')
     const res = await fetch(url.toString())
     if (!res.ok) return null
     const data = await res.json()

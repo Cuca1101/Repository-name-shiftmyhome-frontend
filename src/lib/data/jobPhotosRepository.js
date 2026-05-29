@@ -185,6 +185,13 @@ async function fetchJobPhotosClient(keys, trace) {
     }
   }
 
+  if (keys.quoteId) {
+    trace.tablesQueried.push(`job_photos.quote_id = ${keys.quoteId}`)
+    const { data, error } = await supabase.from(TABLE).select('*').eq('quote_id', keys.quoteId)
+    if (error) trace.queryErrors.push({ query: 'quote_id.eq', message: error.message })
+    else merge(data)
+  }
+
   if (keys.quoteRefs.length) {
     trace.tablesQueried.push(`job_photos.quote_ref IN (${keys.quoteRefs.length})`)
     const { data, error } = await supabase.from(TABLE).select('*').in('quote_ref', keys.quoteRefs)
@@ -406,6 +413,25 @@ export async function fetchJobPhotosForAdmin(quoteRef, jobId, quoteRow = null, l
  * @param {Record<string, unknown>[]} rows
  * @returns {Promise<(Record<string, unknown> & { signedUrl: string | null })[]>}
  */
+const DRIVER_EVIDENCE_BUCKETS = [JOB_PHOTO_BUCKET, 'job-photos', 'job-evidence']
+
+/**
+ * @param {string} path
+ * @returns {Promise<{ signedUrl: string|null, bucket: string|null, error: string|null }>}
+ */
+async function createSignedUrlForEvidencePath(path) {
+  if (!isSupabaseConfigured || !supabase || !path) {
+    return { signedUrl: null, bucket: null, error: 'No storage path' }
+  }
+  for (const bucket of DRIVER_EVIDENCE_BUCKETS) {
+    const { data, error } = await supabase.storage.from(bucket).createSignedUrl(path, SIGNED_URL_TTL_SEC)
+    if (!error && data?.signedUrl) {
+      return { signedUrl: data.signedUrl, bucket, error: null }
+    }
+  }
+  return { signedUrl: null, bucket: null, error: 'Could not create signed URL' }
+}
+
 export async function attachSignedUrlsToJobPhotos(rows) {
   if (!isSupabaseConfigured || !supabase || !rows.length) return []
 
@@ -416,23 +442,22 @@ export async function attachSignedUrlsToJobPhotos(rows) {
     rows.map(async (row) => {
       const path = normalizeStoragePath(row.storage_path)
       if (!path) return { ...row, signedUrl: null }
-      const { data, error } = await supabase.storage.from(JOB_PHOTO_BUCKET).createSignedUrl(path, SIGNED_URL_TTL_SEC)
-      if (error) {
+      const { signedUrl, bucket, error } = await createSignedUrlForEvidencePath(path)
+      if (!signedUrl) {
         if (import.meta.env.DEV) {
           console.warn('[job_photos] signed URL failed', path, error)
         }
         return {
           ...row,
           signedUrl: null,
-          signedUrlError: error.message || 'Could not create signed URL',
+          signedUrlError: error || 'Could not create signed URL',
         }
       }
-      const signedUrl = data?.signedUrl ?? null
       if (import.meta.env.DEV && signedUrl) {
         // eslint-disable-next-line no-console
-        console.debug('[job_photos] signed URL ok', { path, signedUrl: signedUrl.slice(0, 80) + '…' })
+        console.debug('[job_photos] signed URL ok', { path, bucket, signedUrl: signedUrl.slice(0, 80) + '…' })
       }
-      return { ...row, signedUrl, signedUrlError: null }
+      return { ...row, signedUrl, signedUrlError: null, signedUrlBucket: bucket }
     }),
   )
   return out

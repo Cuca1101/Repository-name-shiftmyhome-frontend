@@ -7,6 +7,7 @@ import { liftReadable } from '../../lib/adminJobQuoteDetailsViewModel'
 import TruncatedAddressText from './TruncatedAddressText'
 import JobDispatchRouteMap from './JobDispatchRouteMap'
 import JobDispatchOpsTimeline from './JobDispatchOpsTimeline'
+import JobLocationHistoryPanel from './JobLocationHistoryPanel'
 import JobDriverAssignmentPanel from './JobDriverAssignmentPanel'
 import JobAdjustmentsPanel from './JobAdjustmentsPanel'
 import GenerateJobSheetButton from './GenerateJobSheetButton'
@@ -25,6 +26,8 @@ function money(n) {
  *   overrides: Record<string, unknown>,
  *   linkedJob?: Record<string, unknown> | null,
  *   assignment?: { status?: string, updated_at?: string } | null,
+ *   workflow?: { workflow_status?: string, workflow_at?: string } | null,
+ *   statusHistory?: Array<{ status: string, created_at: string }>,
  *   adjustments: import('../../lib/jobAdjustments.js').JobAdjustmentRow[],
  *   onAdjustmentsChange: (next: import('../../lib/jobAdjustments.js').JobAdjustmentRow[]) => void,
  *   adjSum: number,
@@ -46,6 +49,8 @@ export default function JobDispatchControlPanel({
   overrides,
   linkedJob = null,
   assignment = null,
+  workflow = null,
+  statusHistory = [],
   adjustments,
   onAdjustmentsChange,
   adjSum,
@@ -132,7 +137,7 @@ export default function JobDispatchControlPanel({
       {/* Map + timeline grid */}
       <div className="grid lg:grid-cols-[minmax(0,1fr)_11rem] xl:grid-cols-[minmax(0,1fr)_12.5rem]">
         <div className="min-w-0">
-          <JobDispatchRouteMap q={q} />
+          <JobDispatchRouteMap q={q} job={linkedJob} />
 
           <div className="grid divide-y border-t border-slate-200 md:grid-cols-2 md:divide-x md:divide-y-0">
             <DispatchStopBlock
@@ -158,8 +163,21 @@ export default function JobDispatchControlPanel({
           </div>
         </div>
 
-        <JobDispatchOpsTimeline q={q} overrides={overrides} linkedJob={linkedJob} assignment={assignment} />
+        <JobDispatchOpsTimeline
+          q={q}
+          overrides={overrides}
+          linkedJob={linkedJob}
+          assignment={assignment}
+          workflow={workflow}
+          statusHistory={statusHistory}
+        />
       </div>
+
+      <JobLocationHistoryPanel
+        quote={q}
+        linkedJob={linkedJob}
+        mapboxToken={String(import.meta.env.VITE_MAPBOX_TOKEN || '').trim()}
+      />
 
       {/* Adjustments — visually separate */}
       <div className="border-t border-amber-200/60 bg-amber-50/30 p-3 sm:p-4" data-job-adjustments>

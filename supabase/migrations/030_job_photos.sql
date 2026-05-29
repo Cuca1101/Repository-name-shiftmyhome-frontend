@@ -146,6 +146,10 @@ create policy "Authenticated insert job photos"
   to authenticated
   with check (true);
 
+-- Data API grants: customer anon upload/read (033); admin/driver via authenticated RLS.
+grant select, insert on table public.job_photos to anon;
+grant select, insert, update, delete on table public.job_photos to authenticated;
+
 -- ---------------------------------------------------------------------------
 -- Storage policies: quote-photos bucket (path folder = quote ref, not a DB column)
 -- ---------------------------------------------------------------------------

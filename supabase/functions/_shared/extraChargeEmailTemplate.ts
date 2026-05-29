@@ -260,3 +260,137 @@ export function renderExtraChargeEmailTemplate(params: {
 
   return { subject, html, text }
 }
+
+/** Receipt email after customer has paid extra charges (items + amount paid). */
+export function renderExtraChargePaidEmailTemplate(params: {
+  bookingReference: string
+  customerName: string
+  paidAmount: number
+  currency: string
+  addedItems: AddedItem[]
+  supportEmail: string
+}): { subject: string; html: string; text: string } {
+  const { bookingReference, customerName, paidAmount, currency, addedItems, supportEmail } = params
+
+  const formattedAmount = formatCurrency(paidAmount, currency)
+  const greeting = customerName ? `Hi ${escHtml(customerName)},` : 'Hi,'
+
+  const itemsHtml = addedItems.length
+    ? addedItems
+        .map(
+          (item) =>
+            `<tr>
+              <td style="padding:6px 10px;font-size:14px;color:#334155;border-bottom:1px solid #f1f5f9;">${escHtml(item.name || 'Item')}</td>
+              <td style="padding:6px 10px;font-size:14px;color:#334155;border-bottom:1px solid #f1f5f9;text-align:center;">${item.quantity ?? 1}</td>
+              <td style="padding:6px 10px;font-size:14px;color:#64748b;border-bottom:1px solid #f1f5f9;">${escHtml(item.notes || '—')}</td>
+            </tr>`,
+        )
+        .join('')
+    : '<tr><td colspan="3" style="padding:8px 10px;font-size:14px;color:#64748b;">Additional items from your move.</td></tr>'
+
+  const itemsText = addedItems.length
+    ? addedItems.map((item) => `  • ${item.name || 'Item'} x${item.quantity ?? 1}${item.notes ? ` (${item.notes})` : ''}`).join('\n')
+    : '  Additional items from your move.'
+
+  const subject = `[ShiftMyHome] Payment received — extra charges ${bookingReference || ''}`.trim()
+
+  const html = `<!doctype html>
+<html lang="en">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>${escHtml(subject)}</title>
+  </head>
+  <body style="margin:0;padding:0;background:#eff6ff;font-family:Inter,Segoe UI,Arial,sans-serif;">
+    <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="background:#eff6ff;">
+      <tr>
+        <td align="center" style="padding:24px 12px;">
+          <table role="presentation" width="600" border="0" cellspacing="0" cellpadding="0" style="width:600px;max-width:600px;background:#ffffff;border-radius:18px;border:1px solid #dbeafe;">
+            <tr>
+              <td style="padding:20px 24px;font-size:28px;font-weight:800;color:#0f172a;">ShiftMy<span style="color:#2563eb;">Home</span></td>
+            </tr>
+            <tr>
+              <td style="padding:0 24px;">
+                <table role="presentation" width="100%" style="background:linear-gradient(135deg,#16a34a,#15803d);border-radius:14px;">
+                  <tr>
+                    <td style="padding:24px 22px;">
+                      <div style="font-size:26px;font-weight:800;color:#ffffff;">Payment received</div>
+                      <div style="margin-top:8px;font-size:13px;color:#dcfce7;">Thank you — your additional charges have been paid.</div>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:20px 24px;font-size:15px;color:#334155;">
+                ${greeting}<br/><br/>
+                We have received your payment for additional items during your move.
+                ${bookingReference ? `<br/><br/><strong>Booking reference:</strong> ${escHtml(bookingReference)}` : ''}
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:0 24px;">
+                <table role="presentation" width="100%" style="border:1px solid #e2e8f0;border-radius:12px;">
+                  <tr><td style="padding:16px 18px 8px;font-size:16px;font-weight:700;color:#0f172a;">Items paid for</td></tr>
+                  <tr>
+                    <td style="padding:0 12px 12px;">
+                      <table role="presentation" width="100%">
+                        <tr style="background:#f8fafc;">
+                          <td style="padding:8px 10px;font-size:12px;font-weight:700;color:#64748b;">Item</td>
+                          <td style="padding:8px 10px;font-size:12px;font-weight:700;color:#64748b;text-align:center;">Qty</td>
+                          <td style="padding:8px 10px;font-size:12px;font-weight:700;color:#64748b;">Notes</td>
+                        </tr>
+                        ${itemsHtml}
+                      </table>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:16px 24px;">
+                <table role="presentation" width="100%" style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:12px;">
+                  <tr>
+                    <td style="padding:18px;text-align:center;">
+                      <div style="font-size:14px;color:#166534;font-weight:600;">Amount paid</div>
+                      <div style="font-size:32px;font-weight:800;color:#166534;margin:4px 0;">${escHtml(formattedAmount)}</div>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:0 24px 24px;font-size:14px;color:#64748b;text-align:center;">
+                Questions? <a href="mailto:${escHtml(supportEmail)}" style="color:#2563eb;">${escHtml(supportEmail)}</a>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>`
+
+  const text = [
+    subject,
+    '',
+    greeting.replace(/,?$/, ''),
+    '',
+    'Thank you — we have received your payment for additional items during your move.',
+    bookingReference ? `Booking reference: ${bookingReference}` : '',
+    '',
+    'Items paid for:',
+    itemsText,
+    '',
+    `Amount paid: ${formattedAmount}`,
+    '',
+    `Questions? ${supportEmail}`,
+    '',
+    'Kind regards,',
+    'ShiftMyHome Team',
+  ]
+    .filter(Boolean)
+    .join('\n')
+
+  return { subject, html, text }
+}

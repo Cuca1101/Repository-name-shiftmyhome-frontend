@@ -1,4 +1,3 @@
-import { countAssignedJobsForDriver, countCompletedJobsForDriver } from './adminDriverStats'
 import { invokeAdminDriverLifecycle } from './adminDriverLifecycleApi'
 import { isSupabaseConfigured, supabase } from './supabase'
 import { upsertFleetDriver } from './data/driversRepository'
@@ -25,6 +24,31 @@ export function getDriverLifecyclePhase(driver) {
  */
 export function isDriverEligibleForAssignment(driver) {
   return getDriverLifecyclePhase(driver) === 'active'
+}
+
+/** Status badge + filters (accounts for active=false while status still Active). */
+export function getDriverDisplayStatus(driver) {
+  const phase = getDriverLifecyclePhase(driver)
+  if (phase === 'archived') return 'Archived'
+  if (phase === 'suspended') return 'Suspended'
+  return String(driver?.status || 'Active')
+}
+
+/**
+ * @param {Record<string, unknown>} driver
+ * @param {'active' | 'suspended' | 'archived' | 'all'} filterId
+ */
+export function driverMatchesStatusFilter(driver, filterId) {
+  const phase = getDriverLifecyclePhase(driver)
+  if (filterId === 'active') return phase === 'active'
+  if (filterId === 'suspended') return phase === 'suspended'
+  if (filterId === 'archived') return phase === 'archived'
+  return true
+}
+
+/** @param {Record<string, unknown>} driver */
+export function driverReactivateButtonLabel(driver) {
+  return getDriverLifecyclePhase(driver) === 'archived' ? 'Reactivate Driver' : 'Enable Driver'
 }
 
 /**
@@ -100,9 +124,22 @@ async function tableHasDriverRows(client, table, column, driverId) {
       // eslint-disable-next-line no-console
       console.warn(`[driverHistory] ${table}`, error.message)
     }
-    return true
+    return false
   }
   return (count ?? 0) > 0
+}
+
+const SOFT_REASONS = new Set([
+  'assigned_quotes',
+  'job_assignments',
+  'job_status_history',
+  'driver_locations',
+])
+const HARD_REASONS = new Set(['driver_charges', 'driver_payout_audit_log'])
+
+function canForceDeleteFromReasons(reasons) {
+  if (!reasons.length) return true
+  return reasons.every((r) => SOFT_REASONS.has(r))
 }
 
 /**
@@ -119,13 +156,6 @@ export async function checkDriverCanHardDelete(driverId, ctx = {}) {
   const driver = { id }
   const quotes = ctx.quotes || []
   const jobs = ctx.jobs || []
-
-  if (countAssignedJobsForDriver(driver, quotes, jobs) > 0) {
-    reasons.push('assigned_quotes')
-  }
-  if (countCompletedJobsForDriver(driver, quotes, jobs) > 0) {
-    reasons.push('completed_jobs')
-  }
 
   if (isSupabaseConfigured && supabase) {
     const checks = await Promise.all([
@@ -144,9 +174,20 @@ export async function checkDriverCanHardDelete(driverId, ctx = {}) {
 
   const unique = [...new Set(reasons)]
   if (unique.length > 0) {
-    return { canDelete: false, message: HISTORY_MESSAGE, reasons: unique }
+    const hardOnly = unique.filter((r) => HARD_REASONS.has(r))
+    const canForce = hardOnly.length === 0 && canForceDeleteFromReasons(unique)
+    return {
+      canDelete: false,
+      canForceDelete: canForce,
+      message: canForce
+        ? 'Driver has job links from the mobile app. Use “Remove assignments & delete” to clear them, or Archive to keep the profile.'
+        : hardOnly.length > 0
+          ? 'Driver has payment or payout records and cannot be deleted. Archive the driver instead.'
+          : HISTORY_MESSAGE,
+      reasons: unique,
+    }
   }
-  return { canDelete: true, message: '', reasons: [] }
+  return { canDelete: true, canForceDelete: false, message: '', reasons: [] }
 }
 
 export { HISTORY_MESSAGE as DRIVER_ARCHIVE_INSTEAD_MESSAGE }

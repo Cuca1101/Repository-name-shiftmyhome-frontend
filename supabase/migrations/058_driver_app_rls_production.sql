@@ -73,8 +73,11 @@ as $$
         'active',
         'Assigned',
         'Accepted',
+        'on_way',
         'in_progress',
         'arrived',
+        'in_transit',
+        'pickup_completed',
         'completed',
         'Completed'
       )
@@ -112,6 +115,9 @@ create index if not exists job_status_history_driver_id_idx on public.job_status
 create index if not exists job_status_history_created_at_idx on public.job_status_history (created_at desc);
 
 alter table public.job_status_history enable row level security;
+
+-- Data API grants: driver status timeline — authenticated only; no anon.
+grant select, insert on table public.job_status_history to authenticated;
 
 -- Optional completion timestamp on assignments (mobile may set when job completes)
 alter table public.job_assignments add column if not exists completed_at timestamptz;
@@ -169,8 +175,11 @@ create policy "Drivers update own job assignments"
       'active',
       'Assigned',
       'Accepted',
+      'on_way',
       'in_progress',
       'arrived',
+      'in_transit',
+      'pickup_completed',
       'completed',
       'Completed'
     )
@@ -264,16 +273,23 @@ create policy "Drivers insert own job status history"
     and driver_id = public.auth_driver_id()
     and public.driver_has_quote_assignment(quote_id)
     and lower(trim(status)) in (
+      'on_way',
       'assigned',
       'in_progress',
       'arrived',
       'arrived_pickup',
       'arrived_delivery',
+      'pickup_completed',
+      'loaded',
+      'in_transit',
       'completed',
+      'cancelled',
       'gps',
       'location',
       'started',
-      'start'
+      'start',
+      'available_location',
+      'active_job_location'
     )
   );
 

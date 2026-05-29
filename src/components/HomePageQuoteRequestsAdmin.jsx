@@ -69,17 +69,26 @@ export default function HomePageQuoteRequestsAdmin() {
         <div>
           <h2 className="text-2xl font-bold text-slate-900">Quote requests</h2>
           <p className="mt-1 text-sm text-slate-600">
-            Simple enquiry form on the homepage — public leads with source{' '}
-            <code className="rounded bg-slate-100 px-1">home_page_quote_form</code> (and related public sources).
+            Public enquiries and phone bookings not yet paid — sources{' '}
+            <code className="rounded bg-slate-100 px-1">home_page_quote_form</code>,{' '}
+            <code className="rounded bg-slate-100 px-1">admin_phone_booking</code>, etc.
           </p>
         </div>
-        <button
-          type="button"
-          onClick={load}
-          className="min-h-[48px] rounded-xl border border-slate-200 bg-white px-5 py-2.5 text-sm font-semibold text-slate-800 shadow-sm hover:bg-slate-50 sm:min-h-0 sm:px-4 sm:py-2"
-        >
-          Refresh
-        </button>
+        <div className="flex flex-wrap gap-2">
+          <Link
+            to="/admin/new-phone-booking"
+            className="inline-flex min-h-[48px] items-center rounded-xl bg-brand-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-brand-700"
+          >
+            + New phone booking
+          </Link>
+          <button
+            type="button"
+            onClick={load}
+            className="min-h-[48px] rounded-xl border border-slate-200 bg-white px-5 py-2.5 text-sm font-semibold text-slate-800 shadow-sm hover:bg-slate-50 sm:min-h-0 sm:px-4 sm:py-2"
+          >
+            Refresh
+          </button>
+        </div>
       </div>
 
       <AdminRecordsSearchRow

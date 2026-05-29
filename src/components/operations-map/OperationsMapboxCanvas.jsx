@@ -17,6 +17,8 @@ const SRC = {
   jStops: 'ops-src-journey-stops',
   drivers: 'ops-src-drivers',
   heatmap: 'ops-src-heatmap',
+  gpsTrail: 'ops-src-gps-trail',
+  gpsStops: 'ops-src-gps-stops',
 }
 
 const LYR = {
@@ -34,6 +36,8 @@ const LYR = {
   traveledCore: 'ops-lyr-traveled-core',
   remainingCore: 'ops-lyr-remaining-core',
   heatmap: 'ops-lyr-heatmap',
+  gpsTrail: 'ops-lyr-gps-trail',
+  gpsStops: 'ops-lyr-gps-stops',
 }
 
 const LEG_LAYOUT = { 'line-cap': 'round', 'line-join': 'round' }
@@ -173,6 +177,8 @@ export default function OperationsMapboxCanvas({
   routeTraveled,
   routeRemaining,
   heatmapPoints,
+  gpsTrail,
+  gpsStops,
   showHeatmap = false,
   useRouteProgress = false,
   selectedQuoteIds,
@@ -218,12 +224,14 @@ export default function OperationsMapboxCanvas({
         /** @type {import('mapbox-gl').GeoJSONSource} */ (map.getSource(SRC.jStops))?.setData(journeyStops || emptyFc())
         /** @type {import('mapbox-gl').GeoJSONSource} */ (map.getSource(SRC.drivers))?.setData(drivers || emptyFc())
         /** @type {import('mapbox-gl').GeoJSONSource} */ (map.getSource(SRC.heatmap))?.setData(heatmapPoints || emptyFc())
+        /** @type {import('mapbox-gl').GeoJSONSource} */ (map.getSource(SRC.gpsTrail))?.setData(gpsTrail || emptyFc())
+        /** @type {import('mapbox-gl').GeoJSONSource} */ (map.getSource(SRC.gpsStops))?.setData(gpsStops || emptyFc())
       } catch {
         /* ignore */
       }
     }
     run()
-  }, [styleReady, jobLegs, routeTraveled, routeRemaining, journeyLines, journeyStops, drivers, heatmapPoints])
+  }, [styleReady, jobLegs, routeTraveled, routeRemaining, journeyLines, journeyStops, drivers, heatmapPoints, gpsTrail, gpsStops])
 
   /** Map boot (once per token): layers + guaranteed style-ready state for downstream effects */
   useEffect(() => {
@@ -354,6 +362,32 @@ export default function OperationsMapboxCanvas({
             'text-allow-overlap': true,
           },
           paint: { 'text-color': '#1e1b4b' },
+        })
+
+        map.addSource(SRC.gpsTrail, { type: 'geojson', data: emptyFc() })
+        map.addLayer({
+          id: LYR.gpsTrail,
+          type: 'line',
+          source: SRC.gpsTrail,
+          layout: LEG_LAYOUT,
+          paint: {
+            'line-color': '#7c3aed',
+            'line-width': 4,
+            'line-opacity': 0.85,
+          },
+        })
+
+        map.addSource(SRC.gpsStops, { type: 'geojson', data: emptyFc() })
+        map.addLayer({
+          id: LYR.gpsStops,
+          type: 'circle',
+          source: SRC.gpsStops,
+          paint: {
+            'circle-radius': 8,
+            'circle-color': '#f59e0b',
+            'circle-stroke-width': 2,
+            'circle-stroke-color': '#fff',
+          },
         })
 
         map.addSource(SRC.drivers, { type: 'geojson', data: emptyFc() })
@@ -617,6 +651,7 @@ export default function OperationsMapboxCanvas({
           etaLabel: d.etaLabel,
           online: d.online,
           isFocused: hi,
+          stale: d.stale,
         })
         el.addEventListener('click', (ev) => {
           ev.preventDefault()

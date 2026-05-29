@@ -54,4 +54,7 @@ alter table public.job_assignments enable row level security;
 drop policy if exists "Authenticated manage job assignments" on public.job_assignments;
 drop policy if exists "Drivers read own job assignments" on public.job_assignments;
 drop policy if exists "Drivers update own job assignments" on public.job_assignments;
+-- Data API grants: driver job list — authenticated only (admin/driver RLS in 058); no anon.
+grant select, insert, update, delete on table public.job_assignments to authenticated;
+
 drop policy if exists "Admin session manage job assignments" on public.job_assignments;

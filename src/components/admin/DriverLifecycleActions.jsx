@@ -38,6 +38,16 @@ export default function DriverLifecycleActions({
         >
           {saving ? 'Working…' : 'Reactivate Driver'}
         </button>
+        {showDelete && onDelete ? (
+          <button
+            type="button"
+            disabled={saving || !driver?.id}
+            onClick={onDelete}
+            className={`${btnBase} border border-red-300 bg-white text-red-800 hover:bg-red-50`}
+          >
+            Delete Driver
+          </button>
+        ) : null}
       </div>
     )
   }

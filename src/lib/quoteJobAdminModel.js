@@ -339,10 +339,40 @@ export function deriveCardStatusBadge(q) {
  * @param {Record<string, string>} [kv]
  */
 export function formatMoveArrivalSummary(q, kv = {}) {
-  if (q.arrival_window) return String(q.arrival_window)
-  if (q.arrival_type === 'exact' && q.arrival_time) return `${q.arrival_time} (Exact)`
-  const fromDetails = kv['Preferred arrival']
-  if (fromDetails) return fromDetails
+  const awRaw = String(q.arrival_window ?? '').trim()
+  const arrivalTime = String(q.arrival_time ?? '').trim()
+  const preferred = String(kv['Preferred arrival'] ?? '').trim()
+
+  const rangeFrom = (text) => {
+    const m = String(text).match(/(\d{1,2}):(\d{2})\s*[-–—]\s*(\d{1,2}):(\d{2})/)
+    if (!m) return null
+    const pad = (h, min) => `${String(parseInt(h, 10)).padStart(2, '0')}:${String(parseInt(min, 10)).padStart(2, '0')}`
+    return { start: pad(m[1], m[2]), end: pad(m[3], m[4]) }
+  }
+
+  const PRESETS = {
+    flex_window: 'Flexible collection window',
+    morning: 'Morning · 08:00–12:00',
+    midday: 'Midday · 12:00–16:00',
+    evening: 'Evening · 16:00–20:00',
+    exact: 'Exact arrival time',
+  }
+
+  if (awRaw && awRaw !== '—') {
+    if (PRESETS[awRaw]) return PRESETS[awRaw]
+    if (rangeFrom(awRaw) || /exact|\(Exact/i.test(awRaw) || awRaw.includes('·')) return awRaw
+    if (awRaw === 'flex_window' && arrivalTime) {
+      const r = rangeFrom(arrivalTime)
+      if (r) return `Flexible window · ${r.start}–${r.end}`
+    }
+    return awRaw
+  }
+  if (q.arrival_type === 'exact' && arrivalTime) return `${arrivalTime} (Exact time)`
+  if (arrivalTime) {
+    const r = rangeFrom(arrivalTime)
+    if (r) return `Flexible window · ${r.start}–${r.end}`
+  }
+  if (preferred) return preferred
   return '—'
 }
 

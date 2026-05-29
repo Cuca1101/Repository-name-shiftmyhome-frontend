@@ -8,7 +8,9 @@
     "build": "node scripts/generate-sitemap.mjs && vite build && node scripts/inject-seo-html.mjs",
     "preview": "vite preview",
     "test:pricing": "node scripts/run-pricing-tests.mjs",
-    "seo:audit:dist": "node scripts/seo-audit-dist.mjs"
+    "seo:audit:dist": "node scripts/seo-audit-dist.mjs",
+    "db:apply-062": "node scripts/apply-migration-062.mjs",
+    "test:extra-charge-pricing": "node scripts/test-extra-charge-pricing.mjs"
   },
   "dependencies": {
     "@emailjs/browser": "^4.4.1",

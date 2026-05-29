@@ -29,6 +29,7 @@ import AdminJobOverrideActions from './AdminJobOverrideActions'
 import MarketplaceJobRemoveButton from './MarketplaceJobRemoveButton'
 import DriverChargeQuickActions from '../admin-driver-charges/DriverChargeQuickActions'
 import { subscribeAdminDataRefresh } from '../../lib/adminDataRefresh'
+import { fetchCompletedJobAssignmentsMap, fetchJobAssignmentsByQuoteIds } from '../../lib/data/jobAssignmentsRepository'
 import { fetchDriverChargesByQuoteIds } from '../../lib/data/driverChargesRepository'
 import { partnerAcceptanceLabelForMarketplaceCard } from '../../lib/marketplaceListingStatus'
 
@@ -57,6 +58,7 @@ function marketplaceVisibilityLabel(v) {
 function completionTimestamp(q, job) {
   const tryIso = (x) => (x ? formatDateUK(x) : null)
   return (
+    tryIso(q.completed_at) ||
     tryIso(job?.updated_at) ||
     tryIso(q.paid_at) ||
     tryIso(q.updated_at) ||
@@ -162,6 +164,7 @@ export default function AdminWorkflowJobList({ workflow, title, description }) {
   const [viewMode, setViewMode] = useState('list')
   const [page, setPage] = useState(0)
   const [cancelledCharges, setCancelledCharges] = useState([])
+  const [assignmentsByQuoteId, setAssignmentsByQuoteId] = useState({})
 
   useEffect(() => {
     const t = setTimeout(() => setActiveSearch(searchInput.trim()), 300)
@@ -186,6 +189,14 @@ export default function AdminWorkflowJobList({ workflow, title, description }) {
       const jSafe = Array.isArray(jList) ? jList : []
       setQuotes(qSafe)
       setJobs(jSafe)
+      if (workflow === 'completed') {
+        setAssignmentsByQuoteId(await fetchCompletedJobAssignmentsMap())
+      } else if (workflow === 'active' && qSafe.length > 0) {
+        const ids = qSafe.map((q) => String(q.id || '')).filter(Boolean)
+        setAssignmentsByQuoteId(await fetchJobAssignmentsByQuoteIds(ids))
+      } else {
+        setAssignmentsByQuoteId({})
+      }
       if (workflow === 'active') void loadFleetDriversForAdmin()
       if (workflow === 'cancelled' && qSafe.length > 0) {
         const ids = qSafe.map((q) => String(q.id || '')).filter(Boolean)
@@ -223,9 +234,9 @@ export default function AdminWorkflowJobList({ workflow, title, description }) {
     const qSafe = Array.isArray(quotes) ? quotes : []
     const jSafe = Array.isArray(jobs) ? jobs : []
     let list = qSafe
-    if (workflow === 'marketplace') list = filterMarketplaceQuotes(qSafe, jSafe)
-    else if (workflow === 'active') list = filterActiveQuotes(qSafe, jSafe)
-    else if (workflow === 'completed') list = filterCompletedQuotes(qSafe, jSafe)
+    if (workflow === 'marketplace') list = filterMarketplaceQuotes(qSafe, jSafe, assignmentsByQuoteId)
+    else if (workflow === 'active') list = filterActiveQuotes(qSafe, jSafe, assignmentsByQuoteId)
+    else if (workflow === 'completed') list = filterCompletedQuotes(qSafe, jSafe, assignmentsByQuoteId)
     else if (workflow === 'cancelled') list = filterCancelledQuotes(qSafe, jSafe)
 
     if (payFilter === 'paid') {
@@ -237,7 +248,7 @@ export default function AdminWorkflowJobList({ workflow, title, description }) {
       list = [...list].filter((q) => q && typeof q === 'object').sort(compareMarketplaceJobsAdmin)
     }
     return list
-  }, [quotes, jobs, workflow, payFilter])
+  }, [quotes, jobs, workflow, payFilter, assignmentsByQuoteId])
 
   const pageSlice = useMemo(() => {
     const start = page * PAGE_SIZE
