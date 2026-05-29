@@ -7,7 +7,8 @@ import {
   recalculateExtraChargePricing,
   updateExtraChargeRequest,
 } from '../lib/data/extraChargeRequestsRepository'
-import { isSupabaseConfigured, supabase } from '../lib/supabase'
+import PaymentLinkSharePanel from './extra-charges/PaymentLinkSharePanel'
+import { approveAndGenerateExtraChargePaymentLink } from '../lib/extraChargePaymentLinkApi'
 
 const STATUS_LABELS = {
   pending_review: 'Pending Review',
@@ -116,6 +117,9 @@ function ExtraChargeDetailModal({ request, onClose, onAction }) {
   const [bookingRef, setBookingRef] = useState(request.bookingReference || '')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  const [generatedPaymentLink, setGeneratedPaymentLink] = useState(
+    request.stripePaymentLink || '',
+  )
 
   useEffect(() => {
     setLiveRequest(request)
@@ -127,6 +131,7 @@ function ExtraChargeDetailModal({ request, onClose, onAction }) {
     setCustomerEmail(request.customerEmail || '')
     setCustomerName(request.customerName || '')
     setBookingRef(request.bookingReference || '')
+    setGeneratedPaymentLink(request.stripePaymentLink || '')
   }, [request])
 
   useEffect(() => {
@@ -165,7 +170,7 @@ function ExtraChargeDetailModal({ request, onClose, onAction }) {
     }
   }
 
-  async function handleApproveAndSendPayment() {
+  async function handleApproveAndGeneratePayment() {
     const amt = Number(approvedAmount)
     if (!Number.isFinite(amt) || amt <= 0) {
       setError('Please enter a valid approved amount.')
@@ -186,33 +191,24 @@ function ExtraChargeDetailModal({ request, onClose, onAction }) {
         bookingReference: bookingRef,
       })
 
-      if (!isSupabaseConfigured || !supabase) throw new Error('Supabase not configured')
-      const invokeOpts = {
-        body: {
-          request_id: liveRequest.id,
-          customer_email: customerEmail,
-          customer_name: customerName,
-          booking_reference: bookingRef,
-        },
-      }
-      const raw = (import.meta.env.VITE_SUPABASE_ANON_KEY || '').trim().replace(/^["']|["']$/g, '')
-      if (raw.startsWith('eyJ')) invokeOpts.headers = { Authorization: `Bearer ${raw}` }
+      const { paymentLink, approvedAmount: approved } = await approveAndGenerateExtraChargePaymentLink({
+        requestId: liveRequest.id,
+        approvedAmount: amt,
+        customerEmail,
+        customerName,
+        bookingReference: bookingRef,
+      })
 
-      const { data, error: fnErr } = await supabase.functions.invoke('create-extra-charge-payment', invokeOpts)
-
-      if (fnErr) {
-        let detail = fnErr.message || 'Payment creation failed'
-        try {
-          if (fnErr.context && typeof fnErr.context.json === 'function') {
-            const j = await fnErr.context.json()
-            if (j?.error) detail = j.error
-          }
-        } catch { /* ignore */ }
-        throw new Error(detail)
-      }
-      if (data?.error) throw new Error(data.error)
-
-      onAction()
+      setGeneratedPaymentLink(paymentLink)
+      setLiveRequest((prev) => ({
+        ...prev,
+        status: 'pending_customer_payment',
+        approvedAmount: approved,
+        stripePaymentLink: paymentLink,
+        customerEmail,
+        customerName,
+        bookingReference: bookingRef,
+      }))
     } catch (e) {
       setError(e.message || 'Something went wrong.')
     } finally {
@@ -248,11 +244,17 @@ function ExtraChargeDetailModal({ request, onClose, onAction }) {
 
   const isPending = liveRequest.status === 'pending_review'
   const isAwaitingPayment = liveRequest.status === 'pending_customer_payment'
+  const paymentLinkToShow = generatedPaymentLink || liveRequest.stripePaymentLink || ''
+
+  function handleClose() {
+    onAction()
+    onClose()
+  }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-0 sm:items-center sm:p-4" onClick={handleClose}>
       <div
-        className="max-h-[90vh] w-full max-w-xl overflow-y-auto rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl sm:p-6"
+        className="max-h-[92vh] w-full max-w-xl overflow-y-auto rounded-t-2xl border border-slate-200 bg-white p-4 shadow-2xl sm:rounded-2xl sm:p-6"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-start justify-between gap-3">
@@ -261,10 +263,10 @@ function ExtraChargeDetailModal({ request, onClose, onAction }) {
         </div>
 
         <div className="mt-4 space-y-3 text-sm">
-          <div className="grid grid-cols-2 gap-3">
-            <div>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div className="min-w-0">
               <span className="text-xs font-semibold uppercase text-slate-500">Booking / quote</span>
-              <p className="text-sm font-semibold text-slate-900">
+              <p className="break-all text-sm font-semibold text-slate-900">
                 {quoteRef || bookingRef || '—'}
               </p>
               {liveRequest.quoteId ? (
@@ -315,27 +317,28 @@ function ExtraChargeDetailModal({ request, onClose, onAction }) {
             </button>
           ) : null}
 
-          {(isAwaitingPayment || request.status === 'paid') && request.stripePaymentLink ? (
-            <div>
-              <span className="text-xs font-semibold uppercase text-slate-500">Payment Link</span>
-              <a href={request.stripePaymentLink} target="_blank" rel="noreferrer" className="mt-0.5 block truncate text-xs font-medium text-brand-700 hover:underline">
-                {request.stripePaymentLink}
-              </a>
-            </div>
+          {paymentLinkToShow && (isAwaitingPayment || liveRequest.status === 'paid') ? (
+            <PaymentLinkSharePanel
+              paymentLink={paymentLinkToShow}
+              customerEmail={customerEmail}
+              customerName={customerName}
+              bookingReference={bookingRef || quoteRef}
+              approvedAmount={liveRequest.approvedAmount}
+            />
           ) : null}
 
-          {request.status === 'paid' && request.paidAt ? (
+          {liveRequest.status === 'paid' && liveRequest.paidAt ? (
             <div>
               <span className="text-xs font-semibold uppercase text-slate-500">Paid At</span>
-              <p className="text-xs text-slate-800">{new Date(request.paidAt).toLocaleString()}</p>
+              <p className="text-xs text-slate-800">{new Date(liveRequest.paidAt).toLocaleString()}</p>
             </div>
           ) : null}
         </div>
 
         {isPending ? (
           <div className="mt-5 space-y-3 border-t border-slate-100 pt-4">
-            <div className="grid grid-cols-2 gap-3">
-              <div>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div className="min-w-0">
                 <label className="text-xs font-semibold text-slate-700">Approved Amount (£)</label>
                 <input
                   type="number"
@@ -343,38 +346,39 @@ function ExtraChargeDetailModal({ request, onClose, onAction }) {
                   min="0"
                   value={approvedAmount}
                   onChange={(e) => setApprovedAmount(e.target.value)}
-                  className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
+                  className="mt-1 w-full min-w-0 rounded-lg border border-slate-200 px-3 py-2 text-sm"
                 />
               </div>
-              <div>
+              <div className="min-w-0 sm:col-span-2">
                 <label className="text-xs font-semibold text-slate-700">Booking Reference</label>
                 <input
                   type="text"
                   value={bookingRef}
                   onChange={(e) => setBookingRef(e.target.value)}
-                  className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
+                  className="mt-1 w-full min-w-0 rounded-lg border border-slate-200 px-3 py-2 text-sm"
                   placeholder="SMH-XXXX"
                 />
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div className="min-w-0 sm:col-span-2">
                 <label className="text-xs font-semibold text-slate-700">Customer Email</label>
                 <input
                   type="email"
                   value={customerEmail}
                   onChange={(e) => setCustomerEmail(e.target.value)}
-                  className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
+                  className="mt-1 w-full min-w-0 rounded-lg border border-slate-200 px-3 py-2 text-sm"
                   placeholder="customer@email.com"
+                  autoComplete="email"
                 />
               </div>
-              <div>
+              <div className="min-w-0 sm:col-span-2">
                 <label className="text-xs font-semibold text-slate-700">Customer Name</label>
                 <input
                   type="text"
                   value={customerName}
                   onChange={(e) => setCustomerName(e.target.value)}
-                  className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
+                  className="mt-1 w-full min-w-0 rounded-lg border border-slate-200 px-3 py-2 text-sm"
                   placeholder="John Smith"
                 />
               </div>
@@ -392,14 +396,14 @@ function ExtraChargeDetailModal({ request, onClose, onAction }) {
 
             {error ? <p className="text-sm font-medium text-red-600">{error}</p> : null}
 
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
               <button
                 type="button"
-                onClick={handleApproveAndSendPayment}
+                onClick={() => void handleApproveAndGeneratePayment()}
                 disabled={busy}
-                className="inline-flex min-h-[40px] items-center rounded-xl bg-emerald-600 px-4 py-2 text-sm font-bold text-white shadow-sm transition hover:bg-emerald-700 disabled:opacity-50"
+                className="inline-flex min-h-[44px] w-full items-center justify-center rounded-xl bg-emerald-600 px-4 py-2 text-sm font-bold text-white shadow-sm transition hover:bg-emerald-700 disabled:opacity-50 sm:w-auto"
               >
-                {busy ? 'Processing...' : 'Approve & Send Payment Link'}
+                {busy ? 'Generating link…' : 'Approve & Generate Payment Link'}
               </button>
               <button
                 type="button"
@@ -421,20 +425,19 @@ function ExtraChargeDetailModal({ request, onClose, onAction }) {
           </div>
         ) : null}
 
-        {isAwaitingPayment ? (
+        {isAwaitingPayment && !paymentLinkToShow ? (
           <div className="mt-5 border-t border-slate-100 pt-4">
-            <p className="text-sm text-blue-700">Payment link created — share with customer. Confirmation email after they pay.</p>
-            {request.approvedAmount != null ? (
-              <p className="mt-1 text-sm font-semibold text-slate-800">Approved: {money(request.approvedAmount)}</p>
-            ) : null}
+            <p className="text-sm text-amber-800">
+              Approved — generate a payment link above if you have not already.
+            </p>
           </div>
         ) : null}
 
         <div className="mt-5 flex justify-end">
           <button
             type="button"
-            onClick={onClose}
-            className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+            onClick={handleClose}
+            className="min-h-[44px] w-full rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 sm:w-auto"
           >
             Close
           </button>

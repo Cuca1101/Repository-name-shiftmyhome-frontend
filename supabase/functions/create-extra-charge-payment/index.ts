@@ -2,6 +2,7 @@ import 'jsr:@supabase/functions-js/edge-runtime.d.ts'
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import { validateStripeSecretKey } from '../_shared/stripeMode.ts'
 import { processExtraChargePayment } from '../_shared/extraChargePayment.ts'
+import { assertAdminCaller } from '../_shared/verifyAdminCaller.ts'
 
 /**
  * Creates Stripe checkout for extra charges (link for admin to share with customer).
@@ -39,19 +40,19 @@ async function callerMayProcessRequest(
 
   const { data: userData, error: userErr } = await userClient.auth.getUser()
   if (userErr || !userData?.user) {
-    return { ok: false, error: 'Invalid session' }
+    return { ok: false, error: 'Admin sign-in required — sign in at /admin/login and retry.' }
   }
 
-  const appRole = String(userData.user.app_metadata?.role || '').toLowerCase()
-  if (appRole === 'admin') {
+  const adminClient = createClient(supabaseUrl, serviceRole)
+  const adminCheck = await assertAdminCaller(adminClient, userData.user)
+  if (adminCheck.ok) {
     return { ok: true }
   }
 
   if (!driverIdOnRequest) {
-    return { ok: false, error: 'Not allowed' }
+    return { ok: false, error: adminCheck.message || 'Not allowed' }
   }
 
-  const adminClient = createClient(supabaseUrl, serviceRole)
   const { data: driverRow } = await adminClient
     .from('drivers')
     .select('id')
@@ -59,7 +60,7 @@ async function callerMayProcessRequest(
     .maybeSingle()
 
   if (!driverRow?.id || String(driverRow.id) !== String(driverIdOnRequest)) {
-    return { ok: false, error: 'You can only send payment for your own extra charge requests.' }
+    return { ok: false, error: 'You can only create payment for your own extra charge requests.' }
   }
 
   return { ok: true }

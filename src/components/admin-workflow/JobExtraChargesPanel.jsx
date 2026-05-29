@@ -6,7 +6,7 @@ import {
   recalculateExtraChargePricing,
   updateExtraChargeRequest,
 } from '../../lib/data/extraChargeRequestsRepository'
-import { isSupabaseConfigured, supabase } from '../../lib/supabase'
+import { approveAndGenerateExtraChargePaymentLink } from '../../lib/extraChargePaymentLinkApi'
 
 const STATUS_LABELS = {
   pending_review: 'Pending review',
@@ -76,18 +76,17 @@ export default function JobExtraChargesPanel({ quoteId, quoteRef = '', onNotify 
         customerName: name,
         bookingReference: ref,
       })
-      if (!isSupabaseConfigured || !supabase) throw new Error('Supabase not configured')
-      const { data, error: fnErr } = await supabase.functions.invoke('create-extra-charge-payment', {
-        body: {
-          request_id: req.id,
-          customer_email: email,
-          customer_name: name,
-          booking_reference: ref,
-        },
+      const { paymentLink } = await approveAndGenerateExtraChargePaymentLink({
+        requestId: req.id,
+        approvedAmount: req.estimatedAmount,
+        customerEmail: email,
+        customerName: name,
+        bookingReference: ref,
       })
-      if (fnErr) throw fnErr
-      if (data?.error) throw new Error(data.error)
-      onNotify?.('Payment link created — share with customer (confirmation email after they pay).')
+      onNotify?.('Payment link ready — open Extra Charges to copy or share with the customer.')
+      if (paymentLink) {
+        onNotify?.(paymentLink)
+      }
       await load()
     } catch (e) {
       onNotify?.(e.message || 'Payment failed.')
@@ -162,7 +161,7 @@ export default function JobExtraChargesPanel({ quoteId, quoteRef = '', onNotify 
                       onClick={() => void approveQuick(req)}
                       className="rounded-md bg-emerald-600 px-2 py-1 text-[11px] font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
                     >
-                      Approve & pay link
+                      Approve & generate link
                     </button>
                   </>
                 ) : null}
