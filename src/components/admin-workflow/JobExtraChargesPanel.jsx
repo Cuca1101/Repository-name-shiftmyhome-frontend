@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
+import PaymentLinkSharePanel from '../extra-charges/PaymentLinkSharePanel'
 import {
   fetchExtraChargeRequestsByQuoteId,
   fetchQuoteContextForExtraCharge,
@@ -23,12 +24,14 @@ function money(n) {
 
 /**
  * Driver extra charge requests for one booking (Available Job / Dispatch).
+ * Includes payment link + share actions for admin on mobile/desktop.
  * @param {{ quoteId: string, quoteRef?: string, onNotify?: (msg: string) => void }} props
  */
 export default function JobExtraChargesPanel({ quoteId, quoteRef = '', onNotify }) {
   const [rows, setRows] = useState([])
   const [loading, setLoading] = useState(true)
   const [busyId, setBusyId] = useState(/** @type {string|null} */ (null))
+  const [freshLinkById, setFreshLinkById] = useState(/** @type {Record<string, string>} */ ({}))
 
   const load = useCallback(async () => {
     if (!quoteId) {
@@ -65,31 +68,33 @@ export default function JobExtraChargesPanel({ quoteId, quoteRef = '', onNotify 
       }
     }
     if (!email) {
-      onNotify?.('Add customer email on the quote or in Extra Charges admin before sending payment.')
+      onNotify?.('Add customer email on the quote before generating a payment link.')
       return
     }
+    const approvedAmount =
+      req.approvedAmount != null && req.approvedAmount > 0
+        ? req.approvedAmount
+        : req.estimatedAmount
     setBusyId(req.id)
     try {
       await updateExtraChargeRequest(req.id, {
-        approvedAmount: req.estimatedAmount,
+        approvedAmount,
         customerEmail: email,
         customerName: name,
         bookingReference: ref,
       })
       const { paymentLink } = await approveAndGenerateExtraChargePaymentLink({
         requestId: req.id,
-        approvedAmount: req.estimatedAmount,
+        approvedAmount,
         customerEmail: email,
         customerName: name,
         bookingReference: ref,
       })
-      onNotify?.('Payment link ready — open Extra Charges to copy or share with the customer.')
-      if (paymentLink) {
-        onNotify?.(paymentLink)
-      }
+      setFreshLinkById((prev) => ({ ...prev, [req.id]: paymentLink }))
+      onNotify?.('Payment link ready — copy or share below.')
       await load()
     } catch (e) {
-      onNotify?.(e.message || 'Payment failed.')
+      onNotify?.(e.message || 'Could not generate payment link.')
     } finally {
       setBusyId(null)
     }
@@ -108,7 +113,7 @@ export default function JobExtraChargesPanel({ quoteId, quoteRef = '', onNotify 
   }
 
   return (
-    <div className="space-y-3">
+    <div className="min-w-0 space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-xs text-slate-500">
           {rows.length} request{rows.length === 1 ? '' : 's'} from mobile Add Item
@@ -117,68 +122,81 @@ export default function JobExtraChargesPanel({ quoteId, quoteRef = '', onNotify 
           to="/admin/extra-charges"
           className="text-xs font-semibold text-brand-700 hover:underline"
         >
-          Open Extra Charges →
+          Full approval form →
         </Link>
       </div>
       <ul className="divide-y divide-slate-100 rounded-lg border border-slate-200 bg-white">
-        {rows.map((req) => (
-          <li key={req.id} className="px-3 py-3 text-sm">
-            <div className="flex flex-wrap items-start justify-between gap-2">
-              <div>
-                <p className="font-semibold text-slate-900">
-                  {money(req.estimatedAmount)}{' '}
-                  <span className="font-normal text-slate-500">
-                    engine · {req.addedVolumeM3 ? `${req.addedVolumeM3} m³` : '—'}
-                  </span>
-                </p>
-                <p className="mt-0.5 text-xs text-slate-500">
-                  {req.createdAt ? new Date(req.createdAt).toLocaleString() : '—'} ·{' '}
-                  {STATUS_LABELS[req.status] || req.status}
-                </p>
-                {Array.isArray(req.addedItems) && req.addedItems.length > 0 ? (
-                  <p className="mt-1 text-xs text-slate-700">
-                    {req.addedItems.map((i) => i.name).filter(Boolean).join(', ')}
+        {rows.map((req) => {
+          const paymentLink =
+            freshLinkById[req.id] || req.stripePaymentLink || ''
+          const customerEmail = req.customerEmail || ''
+          const customerName = req.customerName || ''
+          const bookingRef = req.bookingReference || quoteRef || ''
+
+          return (
+            <li key={req.id} className="min-w-0 px-3 py-3 text-sm">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                <div className="min-w-0 flex-1">
+                  <p className="font-semibold text-slate-900">
+                    {money(req.approvedAmount ?? req.estimatedAmount)}{' '}
+                    <span className="font-normal text-slate-500">
+                      {req.approvedAmount != null ? 'approved' : 'estimate'}
+                      {req.addedVolumeM3 ? ` · ${req.addedVolumeM3} m³` : ''}
+                    </span>
                   </p>
-                ) : null}
-                {req.notes ? (
-                  <p className="mt-1 text-xs text-amber-900 whitespace-pre-wrap">{req.notes}</p>
-                ) : null}
+                  <p className="mt-0.5 break-all text-xs text-slate-500">
+                    {req.createdAt ? new Date(req.createdAt).toLocaleString() : '—'} ·{' '}
+                    {STATUS_LABELS[req.status] || req.status}
+                  </p>
+                  {customerEmail ? (
+                    <p className="mt-0.5 break-all text-xs text-slate-600">{customerEmail}</p>
+                  ) : null}
+                  {Array.isArray(req.addedItems) && req.addedItems.length > 0 ? (
+                    <p className="mt-1 text-xs text-slate-700">
+                      {req.addedItems.map((i) => i.name).filter(Boolean).join(', ')}
+                    </p>
+                  ) : null}
+                  {req.notes ? (
+                    <p className="mt-1 whitespace-pre-wrap text-xs text-amber-900">{req.notes}</p>
+                  ) : null}
+                </div>
+                <div className="flex flex-wrap gap-1.5 sm:shrink-0">
+                  {req.status === 'pending_review' ? (
+                    <>
+                      <button
+                        type="button"
+                        disabled={busyId === req.id}
+                        onClick={() => void recalculateExtraChargePricing(req.id).then(load)}
+                        className="min-h-[36px] rounded-md border border-slate-200 px-2 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                      >
+                        Recalc
+                      </button>
+                      <button
+                        type="button"
+                        disabled={busyId === req.id}
+                        onClick={() => void approveQuick(req)}
+                        className="min-h-[36px] rounded-md bg-emerald-600 px-2 py-1 text-[11px] font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
+                      >
+                        {busyId === req.id ? 'Generating…' : 'Approve & generate link'}
+                      </button>
+                    </>
+                  ) : null}
+                </div>
               </div>
-              <div className="flex flex-wrap gap-1.5">
-                {req.status === 'pending_review' ? (
-                  <>
-                    <button
-                      type="button"
-                      disabled={busyId === req.id}
-                      onClick={() => void recalculateExtraChargePricing(req.id).then(load)}
-                      className="rounded-md border border-slate-200 px-2 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
-                    >
-                      Recalc
-                    </button>
-                    <button
-                      type="button"
-                      disabled={busyId === req.id}
-                      onClick={() => void approveQuick(req)}
-                      className="rounded-md bg-emerald-600 px-2 py-1 text-[11px] font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
-                    >
-                      Approve & generate link
-                    </button>
-                  </>
-                ) : null}
-                {req.stripePaymentLink ? (
-                  <a
-                    href={req.stripePaymentLink}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="rounded-md border border-brand-200 px-2 py-1 text-[11px] font-semibold text-brand-700 hover:bg-brand-50"
-                  >
-                    Payment link
-                  </a>
-                ) : null}
-              </div>
-            </div>
-          </li>
-        ))}
+              {paymentLink ? (
+                <div className="mt-3 min-w-0">
+                  <PaymentLinkSharePanel
+                    paymentLink={paymentLink}
+                    customerEmail={customerEmail}
+                    customerName={customerName}
+                    bookingReference={bookingRef}
+                    approvedAmount={req.approvedAmount}
+                  />
+                </div>
+              ) : null}
+            </li>
+          )
+        })}
       </ul>
     </div>
   )
