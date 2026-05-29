@@ -544,11 +544,10 @@ export default function AvailableJobDetails() {
             onNotify={showToast}
           />
           {fullPageDispatch || tab === 'overview' ? (
-            <AdminCard title="Driver extra charges (mobile)">
+            <AdminCard title="Driver extra charges (audit)">
               <JobExtraChargesPanel
                 quoteId={q.id}
                 quoteRef={q.quote_ref || ''}
-                onNotify={showToast}
               />
             </AdminCard>
           ) : null}

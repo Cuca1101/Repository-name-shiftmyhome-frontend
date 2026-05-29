@@ -136,13 +136,16 @@ export async function cancelJobAssignmentForQuote(quoteId, status = 'cancelled')
   if (!qid) return { cancelled: false }
 
   const now = new Date().toISOString()
-  const { error } = await supabase
+  const terminalStatus = status === 'inactive' ? 'inactive' : 'cancelled'
+  const { data, error } = await supabase
     .from(TABLE)
     .update({
-      status: status === 'inactive' ? 'inactive' : 'cancelled',
+      status: terminalStatus,
       updated_at: now,
+      completed_at: null,
     })
     .eq('quote_id', qid)
+    .select('quote_id')
 
   if (error) {
     if (import.meta.env.DEV) {
@@ -150,6 +153,9 @@ export async function cancelJobAssignmentForQuote(quoteId, status = 'cancelled')
       console.warn('[jobAssignments] cancel failed', error.message)
     }
     return { cancelled: false, error }
+  }
+  if (!data?.length) {
+    return { cancelled: false, error: { message: 'No job_assignments row for this quote' } }
   }
   return { cancelled: true }
 }

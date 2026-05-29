@@ -4,6 +4,7 @@ import { isSupabaseConfigured, supabase } from '../../lib/supabase'
 import { appendAdminNotesLog } from '../../lib/adminNotesLog'
 import { quoteMarketplaceJobAccepted } from '../../lib/adminJobListRules'
 import { resolveAssignedDriverDisplay } from '../../lib/adminJobAcceptedStatus'
+import { notifyAdminDataRefresh } from '../../lib/adminDataRefresh'
 import { assignDriverToQuote, clearDriverFromQuote } from '../../lib/data/driverAssignmentSync'
 import {
   fetchAssignedByActor,
@@ -77,6 +78,7 @@ export default function JobDriverAssignmentPanel({
 
   const notify = useCallback(async () => {
     if (onApplied) await onApplied()
+    notifyAdminDataRefresh({ source: 'driver-assignment' })
   }, [onApplied])
 
   const persistLocal = useCallback(
@@ -113,6 +115,13 @@ export default function JobDriverAssignmentPanel({
           },
           (qid, patch) => updateQuoteWorkflowAssignment(qid, patch),
         )
+        persistLocal({
+          assignedDriver: driver.name,
+          assignedPartnerCompany: '',
+          marketplaceVisibility: 'assigned',
+          operationalStatus: 'Assigned',
+          adminNotesLog: log,
+        })
       } else {
         persistLocal({
           assignedDriver: driver.name,
@@ -146,10 +155,6 @@ export default function JobDriverAssignmentPanel({
       await clearDriverFromQuote(
         id,
         {
-          operational_status: null,
-          marketplace_visibility: 'hidden_from_partners',
-          assigned_partner_id: null,
-          assigned_partner_company: null,
           admin_notes_log: log,
           assigned_at: ts,
           assigned_by: actor,
@@ -157,6 +162,12 @@ export default function JobDriverAssignmentPanel({
         (qid, patch) => updateQuoteWorkflowAssignment(qid, patch),
         { priorDriverId: driverId },
       )
+      persistLocal({
+        assignedDriver: '',
+        assignedPartnerCompany: '',
+        marketplaceVisibility: 'hidden_from_partners',
+        operationalStatus: '',
+      })
     } else {
       persistLocal({
         assignedDriver: '',

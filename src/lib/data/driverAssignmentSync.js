@@ -142,7 +142,12 @@ export async function clearDriverFromQuote(quoteId, quoteWorkflowPatch, updateQu
     ...quoteWorkflowPatch,
     assigned_driver_id: null,
     assigned_driver_name: null,
+    assigned_partner_id: null,
+    assigned_partner_company: null,
     status: 'Booked',
+    operational_status: null,
+    marketplace_visibility: 'hidden_from_partners',
+    completed_at: null,
   }
   await updateQuote(quoteId, patch)
   const cancelled = await cancelJobAssignmentForQuote(quoteId, 'cancelled')
