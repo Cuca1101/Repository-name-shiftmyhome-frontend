@@ -125,6 +125,20 @@ const orphanPages = routes.filter((r) => r !== '/' && (inbound.get(r) || 0) === 
 const cityPages = pages.filter((p) => p.isCityRemovals)
 const cityMissingSchema = cityPages.filter((p) => p.missingSchema.length > 0)
 
+const cityTitleCounts = new Map()
+const cityDescCounts = new Map()
+for (const p of cityPages) {
+  if (p.title) cityTitleCounts.set(p.title, (cityTitleCounts.get(p.title) || 0) + 1)
+  if (p.description) cityDescCounts.set(p.description, (cityDescCounts.get(p.description) || 0) + 1)
+}
+const cityDuplicateTitles = [...cityTitleCounts.entries()].filter(([, c]) => c > 1)
+const cityDuplicateDescriptions = [...cityDescCounts.entries()].filter(([, c]) => c > 1)
+const cityInternalLinks = cityPages.map((p) => p.internalLinkCount)
+const avgCityInternalLinks =
+  cityInternalLinks.length > 0
+    ? Math.round(cityInternalLinks.reduce((a, b) => a + b, 0) / cityInternalLinks.length)
+    : 0
+
 const beforePath = 'seo-crawl-report-before.json'
 const before = fs.existsSync(beforePath) ? JSON.parse(fs.readFileSync(beforePath, 'utf8')) : null
 
@@ -133,17 +147,27 @@ const report = {
   productionUrl: 'https://www.shiftmyhome.co.uk',
   summary: {
     sitemapUrlCount: routes.length,
+    cityPagesOptimised: cityPages.filter((p) => !p.error && p.missingSchema.length === 0).length,
     indexedCityRemovalPages: cityPages.length,
     expectedCityPages: SCOTLAND_LOCATION_NAMES.length,
     pagesWithMissingSchema: pages.filter((p) => p.missingSchema.length > 0).length,
     cityPagesWithMissingSchema: cityMissingSchema.length,
     duplicateTitleGroups: duplicateTitles.length,
     duplicateMetaDescriptionGroups: duplicateDescriptions.length,
+    cityPagesWithDuplicateTitles: cityDuplicateTitles.length,
+    cityPagesWithDuplicateDescriptions: cityDuplicateDescriptions.length,
+    averageInternalLinksPerCityPage: avgCityInternalLinks,
+    minInternalLinksPerCityPage: cityInternalLinks.length ? Math.min(...cityInternalLinks) : 0,
+    maxInternalLinksPerCityPage: cityInternalLinks.length ? Math.max(...cityInternalLinks) : 0,
     orphanPages: orphanPages.length,
     seoLandingWithPrerenderNav: pages.filter((p) => p.isSeoLanding && p.hasPrerenderNav).length,
+    homepageHasCityPrerenderNav: pages.find((p) => p.route === '/')?.internalLinkCount > 10,
+    coverageHasCityPrerenderNav: pages.find((p) => p.route === '/coverage')?.internalLinkCount > 100,
   },
   duplicateTitles,
   duplicateDescriptions,
+  cityDuplicateTitles: cityDuplicateTitles.map(([value, count]) => ({ value, count })),
+  cityDuplicateDescriptions: cityDuplicateDescriptions.map(([value, count]) => ({ value, count })),
   orphanPages: orphanPages.slice(0, 50),
   cityMissingSchemaSample: cityMissingSchema.slice(0, 20).map((p) => ({
     route: p.route,

@@ -21,27 +21,62 @@ export function buildLocationH1(cityName) {
 }
 
 /**
+ * Generic city-keyword title variants (primary: "<City> removals", secondary phrases rotated).
  * @param {string} cityName
- * @param {{ titleSuffix?: string }} [opts]
+ * @param {number} [variant]
  */
-export function buildLocationSeoTitle(cityName, opts = {}) {
-  if (opts.titleSuffix) return `${opts.titleSuffix} | ShiftMyHome`
-  return `${cityName} Removals | House Removals & Man With Van | ShiftMyHome`
+export function buildLocationSeoTitle(cityName, variant = 0) {
+  const titles = [
+    `${cityName} Removals | House Removals & Man With Van | ShiftMyHome`,
+    `${cityName} Removal Company | Local Movers | ShiftMyHome`,
+    `House Removals ${cityName} | Man With Van | ShiftMyHome`,
+    `Removal Company ${cityName} | Instant Online Quote | ShiftMyHome`,
+    `${cityName} Removals & Man With Van | Local Movers | ShiftMyHome`,
+    `Local Movers ${cityName} | Furniture Delivery | ShiftMyHome`,
+    `${cityName} Removals | Furniture Delivery & Van | ShiftMyHome`,
+    `Moving Company ${cityName} | House Removals | ShiftMyHome`,
+  ]
+  return titles[variant % titles.length]
 }
 
 /**
  * @param {string} cityName
- * @param {{ areaPhrase: string, label: string }} region
+ * @param {{ areaPhrase: string, label: string, moveContext?: string }} region
  * @param {number} variant
  */
 export function buildLocationMetaDescription(cityName, region, variant = 0) {
   const templates = [
-    `Professional ${cityName} removals — house moves, man with van, and furniture delivery. Instant online quotes, insured crews, and local knowledge across ${region.areaPhrase}. ShiftMyHome.`,
-    `Book house removals and man with van services in ${cityName}. Transparent pricing, experienced movers, and Scotland-wide routes. Get your ${cityName} moving quote in minutes.`,
-    `ShiftMyHome ${cityName} removals for flats, family homes, and local business moves. Serving ${region.areaPhrase} with careful handling and clear communication.`,
-    `Looking for a moving company in ${cityName}? We provide local and long-distance removals, furniture delivery, and same-day help when crews are available.`,
+    `${cityName} removals — house removals, removal company quotes, man with van and furniture delivery in ${region.areaPhrase}. Instant online pricing.`,
+    `Removal company ${cityName} for flats and family homes. Local movers, house removals, man with van ${cityName}, and UK routes. Get a quote in minutes.`,
+    `House removals ${cityName} with insured crews. Local movers covering ${region.label} — furniture delivery, man with van, and same-day help when available.`,
+    `Man with van ${cityName} and full house removals. Removal company services, furniture delivery, and local movers across ${region.areaPhrase}.`,
+    `Local movers in ${cityName} — ${cityName} removals for homes and businesses. House removals, removal company pricing online, serving ${region.areaPhrase}.`,
+    `Furniture delivery ${cityName} plus house removals and man with van. Trusted local movers and removal company quotes for ${region.label}.`,
+    `Book ${cityName} removals online — removal company, house removals, man with van ${cityName}, and furniture delivery with clear insured pricing.`,
+    `Moving company ${cityName}: local removals, house moves, and man with van. Serving ${region.areaPhrase} with professional local movers.`,
+    `${cityName} removal company for local and long-distance moves. House removals, furniture delivery, and man with van — quote with your postcodes.`,
+    `Affordable ${cityName} removals — local movers for ${region.moveContext || 'homes and flats'}. House removals, man with van, and furniture delivery.`,
+    `Need removals in ${cityName}? House removals, removal company crews, man with van ${cityName}, and furniture delivery across ${region.label}.`,
+    `Professional local movers ${cityName}. ${cityName} removals, house removals, removal company service, and furniture delivery — instant quote.`,
   ]
   return clampMetaDescription(templates[variant % templates.length])
+}
+
+/**
+ * @param {string} cityName
+ * @param {{ areaPhrase: string }} region
+ * @param {number} variant
+ */
+export function buildLocationHeroTeaser(cityName, region, variant = 0) {
+  const teasers = [
+    `${cityName} removals — house removals, man with van, and furniture delivery across ${region.areaPhrase}.`,
+    `Removal company ${cityName} with local movers for house moves, flats, and furniture delivery.`,
+    `House removals and man with van ${cityName} — instant quotes from a trusted local removal company.`,
+    `Local movers ${cityName}: removals, furniture delivery, and Scotland-wide routes from ${region.areaPhrase}.`,
+    `${cityName} removal company — professional house removals, van loads, and careful furniture delivery.`,
+    `Moving company ${cityName} — local removals, house moves, and man with van when you need flexible help.`,
+  ]
+  return teasers[variant % teasers.length]
 }
 
 /**
@@ -73,8 +108,10 @@ export function buildLocationKeywordPhrases(cityName) {
   return [
     `${cityName} removals`,
     `removals ${cityName}`,
+    `removal company ${cityName}`,
     `house removals ${cityName}`,
     `man with van ${cityName}`,
+    `local movers ${cityName}`,
     `moving company ${cityName}`,
     `furniture removals ${cityName}`,
     `flat removals ${cityName}`,

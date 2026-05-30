@@ -11,9 +11,12 @@ import { pickSeoContentVariant } from './seoKeywordHelpers.js'
  */
 export function buildLocationIntro(cityName, region, variant) {
   const intros = [
-    `ShiftMyHome provides professional removals in ${cityName}, with crews who know ${region.areaPhrase}. Whether you are relocating within the town or moving to another part of Scotland, we plan access, parking, and loading so your ${region.moveContext} are handled with care.`,
-    `Looking for dependable removals in ${cityName}? We support moves across ${region.label}, from compact flats to full-house relocations. Our team confirms vehicle size, crew, and timing before move day.`,
-    `From ${cityName} to anywhere in Scotland or the UK, ShiftMyHome delivers structured removals with clear communication. We regularly work in ${region.areaPhrase} and understand the practical details that matter on local streets.`,
+    `ShiftMyHome provides professional ${cityName} removals, with local movers who know ${region.areaPhrase}. Whether you need a removal company for a full house move, man with van ${cityName}, or furniture delivery, we plan access, parking, and loading so your ${region.moveContext} are handled with care.`,
+    `Looking for a removal company in ${cityName}? We support house removals across ${region.label}, from compact flats to larger family homes. Our local movers confirm vehicle size, crew, and timing before move day — not a vague estimate.`,
+    `From ${cityName} to anywhere in Scotland or the UK, our moving company delivers structured removals with clear communication. We regularly work in ${region.areaPhrase} and understand the streets, parking, and access that matter for ${cityName} removals.`,
+    `Book ${cityName} removals online in minutes. ShiftMyHome combines house removals, man with van, and furniture delivery with insured crews and transparent pricing for moves within ${region.label} or further afield.`,
+    `Need local movers in ${cityName}? Our removal company covers ${region.areaPhrase} daily — house removals, partial loads, and furniture collections quoted from your actual addresses and inventory.`,
+    `Customers searching for ${cityName} removals, removal company ${cityName}, or man with van ${cityName} get one instant quote path. We serve ${region.moveContext} and longer UK routes with the same careful loading standards.`,
   ]
   return intros[variant % intros.length]
 }
@@ -25,9 +28,12 @@ export function buildLocationIntro(cityName, region, variant) {
  */
 export function buildLocationIntroSecondary(cityName, regionLabel, variant) {
   const lines = [
-    `Based in Glasgow, we combine Scotland-wide coverage with local crews who know ${regionLabel}. Moves are fully insured on booked jobs, and same-day slots are sometimes available when you quote early.`,
-    `You receive a transparent online price, experienced movers, and clear updates before arrival. Tell us about stairs, parking, or fragile items so the ${cityName} crew arrives prepared.`,
-    `Need packing help, extra hands, or a specific time window? Add it in the quote wizard — we shape each ${cityName} job around your access and timing.`,
+    `Based in Glasgow, we combine Scotland-wide coverage with local movers who know ${regionLabel}. ${cityName} house removals are fully insured on booked jobs, and same-day man with van slots are sometimes available when you quote early.`,
+    `You receive a transparent online price from our removal company, experienced movers, and clear updates before arrival. Tell us about stairs, parking, or fragile items so your ${cityName} removals crew arrives prepared.`,
+    `Need packing help, extra hands, or a specific time window? Add it in the quote wizard — we shape each ${cityName} removal around your access, furniture delivery needs, and timing.`,
+    `Our ${cityName} removal company quotes house removals, furniture delivery, and man with van jobs the same way — real addresses, real items, and honest crew sizing for ${regionLabel}.`,
+    `Whether you are comparing local movers or booking a moving company for the first time in ${cityName}, you get upfront pricing without phone-tag. Coverage spans ${regionLabel} and UK routes.`,
+    `Furniture delivery ${cityName}, flat removals, and full house moves share one platform. Local crews know ${regionLabel} postcodes and typical access for local properties.`,
   ]
   return lines[variant % lines.length]
 }
@@ -38,7 +44,7 @@ export function buildLocationIntroSecondary(cityName, regionLabel, variant) {
  * @param {number} variant
  */
 export function buildLocationRemovalsBodySections(cityName, region, variant) {
-  return [
+  const sections = [
     {
       heading: `House removals in ${cityName}`,
       paragraphs: [
@@ -82,6 +88,8 @@ export function buildLocationRemovalsBodySections(cityName, region, variant) {
       ],
     },
   ]
+  const offset = variant % sections.length
+  return [...sections.slice(offset), ...sections.slice(0, offset)]
 }
 
 /**
@@ -125,9 +133,22 @@ export function buildLocationFaqs(cityName, region, variant) {
       q: `Do you handle office or student moves in ${cityName}?`,
       a: 'We provide office relocations and student moves where availability allows. Select the relevant service in the quote wizard or mention it in your notes.',
     },
+    {
+      q: `How do I book a removal company in ${cityName}?`,
+      a: `Use our instant quote wizard with your ${cityName} pickup and delivery postcodes, list your items, and receive a live price. You can book house removals, man with van, or furniture delivery in one flow.`,
+    },
+    {
+      q: `Are you local movers in ${cityName}?`,
+      a: `We provide local movers and removal company services across ${region.areaPhrase}, with Scotland-wide routes when you are moving further. Crews are assigned based on your quote details.`,
+    },
+    {
+      q: `What is included in ${cityName} removals pricing?`,
+      a: 'Your quote reflects volume, distance, access, and crew size. Insurance applies on confirmed bookings; add packing or extra stops in the wizard so pricing stays transparent.',
+    },
   ]
-  const pick = variant % 2 === 0 ? extras[0] : extras[1]
-  return [...base, pick, extras[2]]
+  const extraStart = variant % extras.length
+  const picked = [extras[extraStart % extras.length], extras[(extraStart + 1) % extras.length]]
+  return [...base, ...picked]
 }
 
 export { pickSeoContentVariant as pickContentVariant }

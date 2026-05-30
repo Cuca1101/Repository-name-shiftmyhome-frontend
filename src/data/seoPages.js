@@ -20,6 +20,7 @@ import {
   buildOpenGraphMeta,
   buildLocationKeywordPhrases,
   buildLocationKeywordSentence,
+  buildLocationHeroTeaser,
   pickSeoContentVariant,
   clampMetaDescription,
 } from '../lib/seo/seoKeywordHelpers.js'
@@ -352,6 +353,7 @@ function buildSeoPage(kind, cityName) {
   const region = getRegion(cityName)
   const meta = kindMeta(kind, cityName)
   const variant = pickVariant(cityName, kind.length * 11)
+  const cityVariant = pickSeoContentVariant(cityName)
 
   let path
   switch (kind) {
@@ -375,26 +377,29 @@ function buildSeoPage(kind, cityName) {
   const isRemovals = kind === 'removals'
 
   const title = isRemovals
-    ? buildLocationSeoTitle(cityName)
+    ? buildLocationSeoTitle(cityName, cityVariant)
     : buildPageTitle(meta, variant)
   const h1 = isRemovals ? buildLocationH1(cityName) : meta.h1
   const metaDescription = isRemovals
-    ? buildLocationMetaDescription(cityName, region, variant + 2)
+    ? buildLocationMetaDescription(cityName, region, cityVariant)
     : buildMetaDescription(cityName, region, meta, variant + 2)
   const intro = isRemovals
-    ? buildLocationIntro(cityName, region, variant)
+    ? buildLocationIntro(cityName, region, cityVariant)
     : buildIntro(cityName, region, meta.label, variant)
   const introSecondary = isRemovals
-    ? buildLocationIntroSecondary(cityName, region.label, variant + 1)
+    ? buildLocationIntroSecondary(cityName, region.label, cityVariant + 1)
     : buildIntroSecondary(cityName, region.label, variant + 1)
-  const faqs = isRemovals ? buildLocationFaqs(cityName, region, variant) : buildFaqs(kind, cityName, region)
+  const faqs = isRemovals ? buildLocationFaqs(cityName, region, cityVariant) : buildFaqs(kind, cityName, region)
   const bodySections = isRemovals
-    ? buildLocationRemovalsBodySections(cityName, region, variant)
+    ? buildLocationRemovalsBodySections(cityName, region, cityVariant)
     : buildBodySections(meta.label, cityName, region, variant)
   const keywordPhrases = isRemovals ? buildLocationKeywordPhrases(cityName) : SEO_KEYWORD_PHRASES
   const keywordSentence = isRemovals
-    ? buildLocationKeywordSentence(cityName, variant)
+    ? buildLocationKeywordSentence(cityName, cityVariant)
     : buildKeywordSentence(cityName, meta.label)
+  const heroTeaser = isRemovals
+    ? buildLocationHeroTeaser(cityName, region, cityVariant)
+    : meta.heroTeaser
   const og = buildOpenGraphMeta(path, title, metaDescription)
 
   return /** @type {SeoPageConfig} */ ({
@@ -411,7 +416,7 @@ function buildSeoPage(kind, cityName) {
     intro,
     introSecondary,
     serviceType: meta.serviceType,
-    heroTeaser: meta.heroTeaser,
+    heroTeaser,
     serviceBullets: meta.bullets,
     faqs,
     relatedLinks: buildRelatedLinks(cityName, citySlug, kind, path),

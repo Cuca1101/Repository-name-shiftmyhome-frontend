@@ -4,7 +4,12 @@
 import { getSeoPageByPath } from '../data/seoPages.js'
 import { getRouteSeoMetadata } from './seoRouteMetadata.js'
 import { buildFaqPageJsonLd, buildSeoLocalBusinessJsonLd } from './seoStructuredData.js'
-import { buildSeoStaticBodyHtml, escapeHtmlText } from './seoStaticPrerenderHtml.js'
+import {
+  buildSeoStaticBodyHtml,
+  buildHomepageStaticCityLinksHtml,
+  buildCoverageStaticCityLinksHtml,
+  escapeHtmlText,
+} from './seoStaticPrerenderHtml.js'
 
 /**
  * @param {string} pathname
@@ -22,13 +27,20 @@ export function getSeoPrerenderPayload(pathname) {
     jsonLd.push(buildSeoLocalBusinessJsonLd(page))
   }
 
-  const staticBodyHtml = page
-    ? buildSeoStaticBodyHtml({
-        h1: page.h1,
-        relatedLinks: page.relatedLinks,
-        nearbyLocations: page.nearbyLocations,
-      })
-    : `<h1 class="sr-only">${escapeHtmlText(meta.h1)}</h1>`
+  let staticBodyHtml
+  if (pathname === '/') {
+    staticBodyHtml = `<h1 class="sr-only">${escapeHtmlText(meta.h1)}</h1>${buildHomepageStaticCityLinksHtml()}`
+  } else if (pathname === '/coverage') {
+    staticBodyHtml = `<h1 class="sr-only">${escapeHtmlText(meta.h1)}</h1>${buildCoverageStaticCityLinksHtml()}`
+  } else if (page) {
+    staticBodyHtml = buildSeoStaticBodyHtml({
+      h1: page.h1,
+      relatedLinks: page.relatedLinks,
+      nearbyLocations: page.nearbyLocations,
+    })
+  } else {
+    staticBodyHtml = `<h1 class="sr-only">${escapeHtmlText(meta.h1)}</h1>`
+  }
 
   return { meta, jsonLd, staticBodyHtml }
 }

@@ -1,15 +1,27 @@
 import { Link } from 'react-router-dom'
+import { cityToSlug } from '../lib/citySlug'
+import { FOOTER_PRIMARY_CITIES } from '../lib/seo/locations'
 
-/** Homepage internal links for priority local SEO pages — minimal, non-intrusive. */
+const EXTRA_HOME_CITIES = ['Perth', 'Stirling', 'Falkirk', 'Motherwell', 'Hamilton']
+
+/** Homepage internal links targeting generic city removal keywords. */
 const LOCAL_SEO_LINKS = [
-  { to: '/glasgow-removals', label: 'Glasgow House Removals' },
-  { to: '/edinburgh-removals', label: 'Edinburgh Removals' },
-  { to: '/aberdeen-removals', label: 'Aberdeen Removals' },
-  { to: '/dundee-removals', label: 'Dundee Removals' },
-  { to: '/man-with-van-glasgow', label: 'Man with Van Glasgow' },
-  { to: '/furniture-delivery-glasgow', label: 'Furniture Delivery Glasgow' },
-  { to: '/coverage', label: 'All Scotland locations' },
+  ...FOOTER_PRIMARY_CITIES,
+  ...EXTRA_HOME_CITIES,
 ]
+  .filter((city, index, arr) => arr.indexOf(city) === index)
+  .flatMap((city) => {
+    const slug = cityToSlug(city)
+    const links = [{ to: `/${slug}-removals`, label: `${city} removals` }]
+    if (city === 'Glasgow') {
+      links.push(
+        { to: '/man-with-van-glasgow', label: 'Man with van Glasgow' },
+        { to: '/furniture-delivery-glasgow', label: 'Furniture delivery Glasgow' },
+      )
+    }
+    return links
+  })
+  .concat([{ to: '/coverage', label: 'All Scotland locations' }])
 
 export default function HomeLocalSeoLinks() {
   return (
@@ -21,7 +33,7 @@ export default function HomeLocalSeoLinks() {
         <p className="text-center text-xs leading-relaxed text-slate-500 sm:text-sm">
           <span className="text-slate-600">Scotland removals:</span>{' '}
           {LOCAL_SEO_LINKS.map((link, index) => (
-            <span key={link.to}>
+            <span key={`${link.to}-${link.label}`}>
               {index > 0 ? (
                 <span className="mx-1 text-slate-300" aria-hidden>
                   ·
