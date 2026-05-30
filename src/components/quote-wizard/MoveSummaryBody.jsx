@@ -294,7 +294,7 @@ export default function MoveSummaryBody({
         </dl>
       </div>
 
-      {showPricing && breakdown && (step === 2 || step === 3) ? (
+      {showPricing && breakdown && step === 3 ? (
         <QuotePricingDebugPanel
           pricingBreakdown={breakdown}
           estimatedTotal={breakdown.estimatedTotal}
@@ -302,7 +302,7 @@ export default function MoveSummaryBody({
         />
       ) : null}
 
-      {showPricing && breakdown && (
+      {showPricing && breakdown && step !== 2 && (
         <div className="min-w-0 rounded-xl border border-emerald-100 bg-gradient-to-br from-emerald-50/90 to-white p-3 ring-1 ring-emerald-100/80 sm:p-5">
           <h3 className="text-sm font-bold text-slate-900">Estimated total</h3>
           <p className="mt-1 text-xl font-bold tracking-tight text-emerald-700 sm:text-2xl">

@@ -305,7 +305,10 @@ export default function MobileQuoteMoveSummary({
         </div>
       ) : null}
 
-      {showPricing && breakdown?.estimatedTotal != null && Number.isFinite(breakdown.estimatedTotal) ? (
+      {showPricing &&
+      step !== 2 &&
+      breakdown?.estimatedTotal != null &&
+      Number.isFinite(breakdown.estimatedTotal) ? (
         <div className="border-t border-emerald-100 bg-gradient-to-br from-emerald-50/90 to-white px-3 py-3">
           <p className="text-[10px] font-semibold uppercase tracking-wide text-emerald-800">Estimated total</p>
           <p className="mt-0.5 text-lg font-bold text-emerald-700">£{breakdown.estimatedTotal.toFixed(2)}</p>
@@ -313,7 +316,7 @@ export default function MobileQuoteMoveSummary({
         </div>
       ) : null}
 
-      {(step === 2 || step === 3) && showPricing && breakdown ? (
+      {step === 3 && showPricing && breakdown ? (
         <QuotePricingDebugPanel
           pricingBreakdown={breakdown}
           estimatedTotal={breakdown.estimatedTotal}
