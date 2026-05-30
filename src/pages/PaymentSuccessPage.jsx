@@ -91,103 +91,103 @@ export default function PaymentSuccessPage() {
         robots="noindex, nofollow"
       />
       <div className="min-w-0 bg-white py-5 sm:py-12 md:py-16">
-      <div
-        ref={successContentRef}
-        className="mx-auto max-w-lg scroll-mt-20 px-4 text-center sm:scroll-mt-24 sm:px-6 lg:px-8"
-      >
-        <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-emerald-50 ring-2 ring-emerald-100 sm:mb-6 sm:h-14 sm:w-14">
-          <svg
-            className="h-7 w-7 text-emerald-600 sm:h-8 sm:w-8"
-            xmlns="http://www.w3.org/2000/svg"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            aria-hidden
-          >
-            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
-            <polyline points="22 4 12 14.01 9 11.01" />
-          </svg>
-        </div>
-
-        <h1 className="text-xl font-bold tracking-tight text-slate-900 sm:text-3xl">Payment successful</h1>
-
-        {photoUploadNotice ? (
-          <div
-            role="status"
-            className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-3 py-3 text-left text-sm leading-relaxed text-amber-950 sm:mt-6 sm:px-4"
-          >
-            {photoUploadNotice}
+        <div
+          ref={successContentRef}
+          className="mx-auto max-w-lg scroll-mt-20 px-4 text-center sm:scroll-mt-24 sm:px-6 lg:px-8"
+        >
+          <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-emerald-50 ring-2 ring-emerald-100 sm:mb-6 sm:h-14 sm:w-14">
+            <svg
+              className="h-7 w-7 text-emerald-600 sm:h-8 sm:w-8"
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden
+            >
+              <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+              <polyline points="22 4 12 14.01 9 11.01" />
+            </svg>
           </div>
-        ) : null}
 
-        <div className="mt-4 space-y-3 text-sm leading-relaxed text-slate-600 sm:mt-6 sm:space-y-4 sm:text-[15px]">
-          {paymentIntentId ? (
-            <>
-              <p>Thank you — your payment has been received.</p>
+          <h1 className="text-xl font-bold tracking-tight text-slate-900 sm:text-3xl">Payment successful</h1>
 
-              {quoteRef ? (
-                <div
-                  ref={bookingRefSectionRef}
-                  className="scroll-mt-24 rounded-xl border border-emerald-100 bg-emerald-50/50 px-3 py-3 sm:px-4 sm:py-4"
-                >
-                  <p className="text-xs font-semibold uppercase tracking-wide text-emerald-800">
-                    Your booking reference
-                  </p>
-                  <div className="mt-2 flex flex-wrap items-center justify-center gap-2">
-                    <span className="font-mono text-base font-bold tabular-nums text-slate-900 sm:text-lg">
-                      {quoteRef}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={copyReference}
-                      className="inline-flex min-h-[36px] items-center gap-1.5 rounded-lg border border-emerald-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-emerald-800 shadow-sm transition hover:bg-emerald-50"
-                    >
-                      {copied ? (
-                        <>
-                          <Check className="h-3.5 w-3.5" aria-hidden />
-                          Copied
-                        </>
-                      ) : (
-                        <>
-                          <Copy className="h-3.5 w-3.5" aria-hidden />
-                          Copy reference
-                        </>
-                      )}
-                    </button>
+          {photoUploadNotice ? (
+            <div
+              role="status"
+              className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-3 py-3 text-left text-sm leading-relaxed text-amber-950 sm:mt-6 sm:px-4"
+            >
+              {photoUploadNotice}
+            </div>
+          ) : null}
+
+          <div className="mt-4 space-y-3 text-sm leading-relaxed text-slate-600 sm:mt-6 sm:space-y-4 sm:text-[15px]">
+            {paymentIntentId ? (
+              <>
+                <p>Thank you — your payment has been received.</p>
+
+                {quoteRef ? (
+                  <div
+                    ref={bookingRefSectionRef}
+                    className="scroll-mt-24 rounded-xl border border-emerald-100 bg-emerald-50/50 px-3 py-3 sm:px-4 sm:py-4"
+                  >
+                    <p className="text-xs font-semibold uppercase tracking-wide text-emerald-800">
+                      Your booking reference
+                    </p>
+                    <div className="mt-2 flex flex-wrap items-center justify-center gap-2">
+                      <span className="font-mono text-base font-bold tabular-nums text-slate-900 sm:text-lg">
+                        {quoteRef}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={copyReference}
+                        className="inline-flex min-h-[36px] items-center gap-1.5 rounded-lg border border-emerald-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-emerald-800 shadow-sm transition hover:bg-emerald-50"
+                      >
+                        {copied ? (
+                          <>
+                            <Check className="h-3.5 w-3.5" aria-hidden />
+                            Copied
+                          </>
+                        ) : (
+                          <>
+                            <Copy className="h-3.5 w-3.5" aria-hidden />
+                            Copy reference
+                          </>
+                        )}
+                      </button>
+                    </div>
                   </div>
-                </div>
-              ) : (
-                <p className="text-slate-500">Loading your booking reference…</p>
-              )}
+                ) : (
+                  <p className="text-slate-500">Loading your booking reference…</p>
+                )}
 
-              <p>We will confirm your move details shortly.</p>
+                <p>We will confirm your move details shortly.</p>
 
-              <p>A confirmation email has been sent to your email address.</p>
+                <p>A confirmation email has been sent to your email address.</p>
 
-              <p>If you have any questions, contact us with your reference number.</p>
-            </>
-          ) : (
-            <>
-              <p>Thank you for choosing ShiftMyHome.</p>
-              <p>We will confirm your move details shortly.</p>
-              <p>If you have any questions, contact us — please include your booking reference if you have one.</p>
-            </>
-          )}
-        </div>
+                <p>If you have any questions, contact us with your reference number.</p>
+              </>
+            ) : (
+              <>
+                <p>Thank you for choosing ShiftMyHome.</p>
+                <p>We will confirm your move details shortly.</p>
+                <p>If you have any questions, contact us — please include your booking reference if you have one.</p>
+              </>
+            )}
+          </div>
 
-        <div className="mt-8 sm:mt-10">
-          <Link
-            to="/"
-            className="inline-flex min-h-[48px] items-center justify-center rounded-xl bg-brand-600 px-8 py-3 text-sm font-bold text-white shadow-md transition hover:bg-brand-700"
-          >
-            Back to home
-          </Link>
+          <div className="mt-8 sm:mt-10">
+            <Link
+              to="/"
+              className="inline-flex min-h-[48px] items-center justify-center rounded-xl bg-brand-600 px-8 py-3 text-sm font-bold text-white shadow-md transition hover:bg-brand-700"
+            >
+              Back to home
+            </Link>
+          </div>
         </div>
       </div>
-    </div>
     </>
   )
 }
