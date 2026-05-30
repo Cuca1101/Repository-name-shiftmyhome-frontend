@@ -23,7 +23,8 @@ import {
   buildLocationKeywordSentence,
   buildLocationHeroTeaser,
   pickSeoContentVariant,
-  clampMetaDescription,
+  finalizeMetaDescription,
+  shortenSeoTitle,
 } from '../lib/seo/seoKeywordHelpers.js'
 import {
   buildLocationIntro,
@@ -142,13 +143,15 @@ function buildIntroSecondary(cityName, regionLabel, variant) {
  * @param {number} variant
  */
 function buildMetaDescription(cityName, region, meta, variant) {
+  const area =
+    String(region.label || '').length <= 32 ? region.label : cityName
   const templates = [
-    `${meta.label} in ${cityName} — instant online quote, insured crews, and experienced local drivers. Serving ${region.areaPhrase}. ShiftMyHome.`,
-    `Book ${meta.label} in ${cityName} (${region.label}). Transparent pricing, Scotland-wide coverage, and professional movers. Get your quote in minutes.`,
-    `ShiftMyHome ${meta.label} for ${cityName} homes and businesses. Fully insured transport, local knowledge, and UK routes. Quote online today.`,
-    `Looking for ${meta.label} near ${cityName}? We cover ${region.areaPhrase} with clear pricing and careful handling. Same-day availability when crews are free.`,
+    `Book ${meta.label} in ${cityName} with ShiftMyHome. Insured crews, house removals and man with van across ${area}. Get a quote today.`,
+    `${cityName} ${meta.label} — local movers, furniture delivery and removal company service in ${area}. Transparent pricing. Quote online today.`,
+    `ShiftMyHome ${meta.label} for ${cityName} homes and businesses. Professional movers across ${area}. Fully insured. Get your quote today.`,
+    `Need ${meta.label} near ${cityName}? ShiftMyHome covers ${area} with careful handling and clear pricing. Book online today.`,
   ]
-  return clampMetaDescription(templates[variant % templates.length])
+  return finalizeMetaDescription(templates[variant % templates.length])
 }
 
 /**
@@ -156,12 +159,11 @@ function buildMetaDescription(cityName, region, meta, variant) {
  * @param {number} variant
  */
 function buildPageTitle(meta, variant) {
-  const suffixes = [
-    `${meta.titleSuffix} | ShiftMyHome`,
-    `${meta.titleSuffix} — Instant Quote | ShiftMyHome`,
-    `${meta.titleSuffix} | Insured Movers | ShiftMyHome`,
-  ]
-  return suffixes[variant % suffixes.length]
+  const alt =
+    variant % 2 === 1 && meta.titleSuffix.includes('Removals')
+      ? `${meta.titleSuffix} & Van | ShiftMyHome`
+      : `${meta.titleSuffix} | ShiftMyHome`
+  return shortenSeoTitle(alt)
 }
 
 /** @param {SeoPageKind} kind @param {string} cityName */
@@ -377,13 +379,15 @@ function buildSeoPage(kind, cityName) {
   const linkKind = kind === 'man-with-van' ? 'man-with-van' : 'removals'
   const isRemovals = kind === 'removals'
 
-  const title = isRemovals
-    ? buildLocationSeoTitle(cityName, cityVariant)
-    : buildPageTitle(meta, variant)
+  const title = shortenSeoTitle(
+    isRemovals ? buildLocationSeoTitle(cityName, cityVariant) : buildPageTitle(meta, variant),
+  )
   const h1 = isRemovals ? buildLocationH1(cityName) : meta.h1
-  const metaDescription = isRemovals
-    ? buildLocationMetaDescription(cityName, region, cityVariant)
-    : buildMetaDescription(cityName, region, meta, variant + 2)
+  const metaDescription = finalizeMetaDescription(
+    isRemovals
+      ? buildLocationMetaDescription(cityName, region, cityVariant)
+      : buildMetaDescription(cityName, region, meta, variant + 2),
+  )
   const intro = isRemovals
     ? buildLocationIntro(cityName, region, cityVariant)
     : buildIntro(cityName, region, meta.label, variant)
@@ -483,8 +487,8 @@ function buildIntentPage(def) {
     citySlug,
     regionKey: region.key,
     regionLabel: def.regionLabel,
-    title: buildPageTitle({ titleSuffix: def.h1 }, variant),
-    metaDescription: def.metaDescription,
+    title: shortenSeoTitle(buildPageTitle({ titleSuffix: def.h1 }, variant)),
+    metaDescription: finalizeMetaDescription(def.metaDescription),
     h1: def.h1,
     intro: def.intro,
     introSecondary: def.introSecondary,
@@ -497,8 +501,12 @@ function buildIntentPage(def) {
     bodySections: buildBodySections(intentServiceLabel(def), def.cityName, region, variant),
     keywordPhrases: SEO_KEYWORD_PHRASES,
     keywordSentence: buildKeywordSentence(def.cityName, intentServiceLabel(def)),
-    ogTitle: buildOpenGraphMeta(def.path, buildPageTitle({ titleSuffix: def.h1 }, variant), def.metaDescription).ogTitle,
-    ogDescription: def.metaDescription,
+    ogTitle: buildOpenGraphMeta(
+      def.path,
+      shortenSeoTitle(buildPageTitle({ titleSuffix: def.h1 }, variant)),
+      finalizeMetaDescription(def.metaDescription),
+    ).ogTitle,
+    ogDescription: finalizeMetaDescription(def.metaDescription),
   }
 }
 

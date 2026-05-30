@@ -11,6 +11,7 @@ import {
   pickContentVariant,
   SEO_KEYWORD_PHRASES,
 } from '../lib/seoPageBodyContent.js'
+import { finalizeMetaDescription, shortenSeoTitle } from '../lib/seo/seoKeywordHelpers.js'
 
 /** @typedef {import('./seoPages.js').SeoPageConfig} SeoPageConfig */
 
@@ -256,8 +257,12 @@ export function buildServiceMatrixPages(existingPaths) {
       const region = getRegion(cityName)
       const variant = pickContentVariant(cityName, def.key.length * 13)
       const h1 = def.h1(cityName)
-      const title = `${h1} | ShiftMyHome`
-      const metaDescription = `Book ${def.label} in ${cityName} (${region.label}). Insured crews, instant online quotes, and professional movers from ShiftMyHome — trusted UK movers.`
+      const title = shortenSeoTitle(`${h1} | ShiftMyHome`)
+      const area =
+        String(region.label || '').length <= 32 ? region.label : cityName
+      const metaDescription = finalizeMetaDescription(
+        `Book ${def.label} in ${cityName} with ShiftMyHome. Insured crews and local movers across ${area}. Get your quote today.`,
+      )
 
       const linkKind = def.key === 'man-with-van' ? 'man-with-van' : 'removals'
 

@@ -4,7 +4,12 @@
  */
 import { getSeoPageByPath } from '../data/seoPages.js'
 import { getServicePageByPath } from '../constants/servicePages.js'
-import { buildCanonicalUrl, buildOpenGraphMeta } from './seo/seoKeywordHelpers.js'
+import {
+  buildCanonicalUrl,
+  buildOpenGraphMeta,
+  finalizeMetaDescription,
+  shortenSeoTitle,
+} from './seo/seoKeywordHelpers.js'
 import { SEO_SITE_ORIGIN } from '../data/seoPages.js'
 
 const HOMEPAGE_SEO_TITLE = 'House Removals Scotland | ShiftMyHome'
@@ -65,11 +70,11 @@ const STATIC_ROUTE_META = {
   '/coverage': {
     title: 'Scotland Removals Coverage Areas | ShiftMyHome',
     description:
-      'House removals, man with van and furniture delivery across Scottish towns and cities — Glasgow, Edinburgh, Aberdeen, Dundee, Inverness, Paisley and nationwide routes.',
+      'House removals, man with van and furniture delivery across Scotland — Glasgow, Edinburgh, Aberdeen, Dundee and UK routes. Get a quote today.',
     h1: 'Scotland removals coverage',
     ogTitle: 'Scotland Removals Coverage Areas | ShiftMyHome',
     ogDescription:
-      'House removals, man with van and furniture delivery across Scottish towns and cities — Glasgow, Edinburgh, Aberdeen, Dundee, Inverness, Paisley and nationwide routes.',
+      'House removals, man with van and furniture delivery across Scotland — Glasgow, Edinburgh, Aberdeen, Dundee and UK routes. Get a quote today.',
     breadcrumbJsonLd: buildBreadcrumbJsonLd([
       { name: 'Home', path: '/' },
       { name: 'Coverage', path: '/coverage' },
@@ -179,8 +184,8 @@ function fromSeoPage(page) {
 
 /** @param {string} path @param {{ title: string, shortDescription: string, seoTitle?: string, metaDescription?: string, ogTitle?: string, ogDescription?: string }} page */
 function fromServicePage(path, page) {
-  const title = page.seoTitle || `${page.title} | ShiftMyHome`
-  const description = page.metaDescription || page.shortDescription
+  const title = shortenSeoTitle(page.seoTitle || `${page.title} | ShiftMyHome`)
+  const description = finalizeMetaDescription(page.metaDescription || page.shortDescription)
   const og = buildOpenGraphMeta(path, title, description)
   const breadcrumbJsonLd = buildBreadcrumbJsonLd([
     { name: 'Home', path: '/' },
@@ -200,10 +205,18 @@ function fromServicePage(path, page) {
 
 /** @param {string} path @param {Omit<RouteSeoMetadata, 'path' | 'canonicalUrl'>} meta */
 function withCanonical(path, meta) {
-  const { robots, ...rest } = meta
+  const { robots, title, description, ogTitle, ogDescription, ...rest } = meta
+  const safeTitle = shortenSeoTitle(title)
+  const safeDescription = finalizeMetaDescription(description)
+  const safeOgTitle = shortenSeoTitle(ogTitle || title)
+  const safeOgDescription = finalizeMetaDescription(ogDescription || description)
   return {
     path,
     ...rest,
+    title: safeTitle,
+    description: safeDescription,
+    ogTitle: safeOgTitle,
+    ogDescription: safeOgDescription,
     canonicalUrl: buildCanonicalUrl(path),
     ...(robots ? { robots } : {}),
   }

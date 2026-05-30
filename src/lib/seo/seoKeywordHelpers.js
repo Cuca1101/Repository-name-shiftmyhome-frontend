@@ -4,6 +4,9 @@
 
 const SEO_SITE_ORIGIN = 'https://www.shiftmyhome.co.uk'
 const META_DESCRIPTION_MAX = 160
+const META_DESCRIPTION_MIN = 120
+const SEO_TITLE_MAX = 60
+const BRAND_SUFFIX = ' | ShiftMyHome'
 
 /** Trim to a complete sentence within Google's snippet length. */
 export function clampMetaDescription(text, max = META_DESCRIPTION_MAX) {
@@ -13,6 +16,43 @@ export function clampMetaDescription(text, max = META_DESCRIPTION_MAX) {
   const lastSpace = slice.lastIndexOf(' ')
   const trimmed = (lastSpace > 80 ? slice.slice(0, lastSpace) : slice).replace(/[.,;:\s]+$/, '')
   return `${trimmed}.`
+}
+
+/**
+ * Enforce 120–160 char meta descriptions with CTA when too short.
+ * @param {string} text
+ */
+export function finalizeMetaDescription(text) {
+  let d = String(text || '')
+    .replace(/\s+/g, ' ')
+    .replace(/ & /g, ' and ')
+    .trim()
+  d = clampMetaDescription(d, META_DESCRIPTION_MAX)
+  if (d.length < META_DESCRIPTION_MIN) {
+    d = clampMetaDescription(`${d} Get a quote today.`, META_DESCRIPTION_MAX)
+  }
+  if (d.length < META_DESCRIPTION_MIN) {
+    d = clampMetaDescription(`${d} Book online with ShiftMyHome.`, META_DESCRIPTION_MAX)
+  }
+  if (d.length > META_DESCRIPTION_MAX) {
+    d = clampMetaDescription(d, META_DESCRIPTION_MAX)
+  }
+  return d
+}
+
+/**
+ * @param {string} title
+ * @param {number} [max]
+ */
+export function shortenSeoTitle(title, max = SEO_TITLE_MAX) {
+  const t = String(title || '').replace(/\s+/g, ' ').trim()
+  if (t.length <= max) return t
+  if (t.endsWith(BRAND_SUFFIX)) {
+    const core = t.slice(0, -BRAND_SUFFIX.length).trim()
+    const room = max - BRAND_SUFFIX.length
+    if (room > 12) return `${core.slice(0, room).replace(/[|\s-]+$/, '').trim()}${BRAND_SUFFIX}`
+  }
+  return t.slice(0, max).replace(/[|\s-]+$/, '').trim()
 }
 
 /** @param {string} cityName */
@@ -26,17 +66,10 @@ export function buildLocationH1(cityName) {
  * @param {number} [variant]
  */
 export function buildLocationSeoTitle(cityName, variant = 0) {
-  const titles = [
-    `${cityName} Removals | House Removals & Man With Van | ShiftMyHome`,
-    `${cityName} Removal Company | Local Movers | ShiftMyHome`,
-    `House Removals ${cityName} | Man With Van | ShiftMyHome`,
-    `Removal Company ${cityName} | Instant Online Quote | ShiftMyHome`,
-    `${cityName} Removals & Man With Van | Local Movers | ShiftMyHome`,
-    `Local Movers ${cityName} | Furniture Delivery | ShiftMyHome`,
-    `${cityName} Removals | Furniture Delivery & Van | ShiftMyHome`,
-    `Moving Company ${cityName} | House Removals | ShiftMyHome`,
-  ]
-  return titles[variant % titles.length]
+  const short = `${cityName} Removals${BRAND_SUFFIX}`
+  const long = `${cityName} Removals & Man With Van${BRAND_SUFFIX}`
+  const useLong = variant % 2 === 1 && long.length <= SEO_TITLE_MAX
+  return shortenSeoTitle(useLong ? long : short)
 }
 
 /**
@@ -45,21 +78,19 @@ export function buildLocationSeoTitle(cityName, variant = 0) {
  * @param {number} variant
  */
 export function buildLocationMetaDescription(cityName, region, variant = 0) {
+  const area =
+    String(region.label || '').length <= 32 ? region.label : cityName
   const templates = [
-    `${cityName} removals — house removals, removal company quotes, man with van and furniture delivery in ${region.areaPhrase}. Instant online pricing.`,
-    `Removal company ${cityName} for flats and family homes. Local movers, house removals, man with van ${cityName}, and UK routes. Get a quote in minutes.`,
-    `House removals ${cityName} with insured crews. Local movers covering ${region.label} — furniture delivery, man with van, and same-day help when available.`,
-    `Man with van ${cityName} and full house removals. Removal company services, furniture delivery, and local movers across ${region.areaPhrase}.`,
-    `Local movers in ${cityName} — ${cityName} removals for homes and businesses. House removals, removal company pricing online, serving ${region.areaPhrase}.`,
-    `Furniture delivery ${cityName} plus house removals and man with van. Trusted local movers and removal company quotes for ${region.label}.`,
-    `Book ${cityName} removals online — removal company, house removals, man with van ${cityName}, and furniture delivery with clear insured pricing.`,
-    `Moving company ${cityName}: local removals, house moves, and man with van. Serving ${region.areaPhrase} with professional local movers.`,
-    `${cityName} removal company for local and long-distance moves. House removals, furniture delivery, and man with van — quote with your postcodes.`,
-    `Affordable ${cityName} removals — local movers for ${region.moveContext || 'homes and flats'}. House removals, man with van, and furniture delivery.`,
-    `Need removals in ${cityName}? House removals, removal company crews, man with van ${cityName}, and furniture delivery across ${region.label}.`,
-    `Professional local movers ${cityName}. ${cityName} removals, house removals, removal company service, and furniture delivery — instant quote.`,
+    `Book trusted ${cityName} removals with ShiftMyHome. House moves, furniture delivery and man with van across ${area}. Get a quote today.`,
+    `${cityName} removals from a local removal company — house moves, man with van and furniture delivery in ${area}. Insured crews. Quote online.`,
+    `Need ${cityName} removals? ShiftMyHome offers house removals, local movers and man with van in ${area}. Clear pricing. Get your quote today.`,
+    `Professional ${cityName} removals — house moves, furniture delivery and removal company crews serving ${area}. Book your move online today.`,
+    `House removals ${cityName} with ShiftMyHome. Local movers, man with van and furniture delivery across ${area}. Instant online quote today.`,
+    `Trusted ${cityName} removal company for homes and flats. House removals, man with van ${cityName} and furniture delivery. Get a quote today.`,
+    `Local movers ${cityName} — ${cityName} removals, house moves and furniture delivery across ${area}. ShiftMyHome. Get your quote today.`,
+    `Moving company ${cityName} for local and UK routes. House removals, man with van and furniture delivery in ${area}. Quote online today.`,
   ]
-  return clampMetaDescription(templates[variant % templates.length])
+  return finalizeMetaDescription(templates[variant % templates.length])
 }
 
 /**

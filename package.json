@@ -9,6 +9,7 @@
     "preview": "vite preview",
     "test:pricing": "node scripts/run-pricing-tests.mjs",
     "seo:audit:dist": "node scripts/seo-audit-dist.mjs",
+    "seo:final-audit": "node scripts/seo-final-audit.mjs",
     "seo:crawl:report": "node scripts/seo-crawl-report.mjs",
     "db:apply-062": "node scripts/apply-migration-062.mjs",
     "test:extra-charge-pricing": "node scripts/test-extra-charge-pricing.mjs"

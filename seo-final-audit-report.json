@@ -1,0 +1,71 @@
+{
+  "generatedAt": "2026-05-30T22:39:32.376Z",
+  "deploymentUrl": "https://www.shiftmyhome.co.uk",
+  "commitHash": "2d9aed8553d4006a0115ddae28a7e422c6621b3b",
+  "summary": {
+    "totalPagesAudited": 306,
+    "sitemapUrlCount": 306,
+    "titlesOver60Chars": 0,
+    "descriptionsOver160Chars": 0,
+    "descriptionsUnder120Chars": 0,
+    "duplicateTitleGroups": 0,
+    "duplicateDescriptionGroups": 0,
+    "pagesMissingSchema": 0,
+    "cityPagesMissingPrimaryKeyword": 0,
+    "averageCityPageWordCount": 757,
+    "cityPagesUnder500Words": 0,
+    "cityPagesUnder800Words": 179,
+    "lowestCityPageWordCount": 732,
+    "highestCityPageWordCount": 807,
+    "missingPrerenderFiles": 0,
+    "pagesWithInvalidH1Count": 0
+  },
+  "duplicateTitles": [],
+  "duplicateDescriptions": [],
+  "titleOver60Sample": [],
+  "descOver160Sample": [],
+  "descUnder120Sample": [],
+  "missingSchemaSample": [],
+  "cityWordCountSample": [
+    {
+      "route": "/lerwick-removals",
+      "words": 732
+    },
+    {
+      "route": "/carnoustie-removals",
+      "words": 735
+    },
+    {
+      "route": "/dundee-removals",
+      "words": 735
+    },
+    {
+      "route": "/forfar-removals",
+      "words": 735
+    },
+    {
+      "route": "/rothesay-removals",
+      "words": 737
+    },
+    {
+      "route": "/aberfeldy-removals",
+      "words": 738
+    },
+    {
+      "route": "/montrose-removals",
+      "words": 738
+    },
+    {
+      "route": "/bellshill-removals",
+      "words": 739
+    },
+    {
+      "route": "/wishaw-removals",
+      "words": 739
+    },
+    {
+      "route": "/bearsden-removals",
+      "words": 740
+    }
+  ]
+}

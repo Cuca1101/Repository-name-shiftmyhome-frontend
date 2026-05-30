@@ -1,7 +1,7 @@
 /**
  * Slug-based SEO metadata fallback for public routes not in seoPages config.
  */
-import { buildCanonicalUrl } from './seo/seoKeywordHelpers.js'
+import { buildCanonicalUrl, finalizeMetaDescription, shortenSeoTitle } from './seo/seoKeywordHelpers.js'
 
 const SCOTTISH_LOCATIONS = [
   'glasgow',
@@ -77,27 +77,27 @@ function detectServiceLabel(slug) {
 
 /** @param {string} service @param {string} location */
 function buildTitle(service, location) {
-  if (location === 'Scotland') return `${service} Scotland | ShiftMyHome`
-  if (service === 'Furniture Delivery') return `Furniture Delivery ${location} | ShiftMyHome`
-  if (service === 'Man and Van') return `${location} Man and Van | ShiftMyHome`
-  if (service === 'Student Moves') return `Student Moves ${location} | ShiftMyHome`
-  if (service === 'Same Day Removals') return `Same Day Removals ${location} | ShiftMyHome`
-  return `${location} ${service} | ShiftMyHome`
+  if (location === 'Scotland') return shortenSeoTitle(`${service} Scotland | ShiftMyHome`)
+  if (service === 'Furniture Delivery') return shortenSeoTitle(`Furniture Delivery ${location} | ShiftMyHome`)
+  if (service === 'Man and Van') return shortenSeoTitle(`${location} Man and Van | ShiftMyHome`)
+  if (service === 'Student Moves') return shortenSeoTitle(`Student Moves ${location} | ShiftMyHome`)
+  if (service === 'Same Day Removals') return shortenSeoTitle(`Same Day Removals ${location} | ShiftMyHome`)
+  if (service === 'House Removals') return shortenSeoTitle(`${location} Removals | ShiftMyHome`)
+  return shortenSeoTitle(`${location} ${service} | ShiftMyHome`)
 }
 
 /** @param {string} service @param {string} location @param {string} slug */
 function buildDescription(service, location, slug) {
-  const locPhrase = location === 'Scotland' ? 'across Scotland' : `in ${location}`
+  const locPhrase = location === 'Scotland' ? 'Scotland' : location
+  const serviceLower = service.toLowerCase()
   const templates = [
-    `Professional ${service.toLowerCase()} ${locPhrase} with trusted moving teams, careful furniture handling and affordable moving services across Scotland.`,
-    `Reliable ${service.toLowerCase()} ${locPhrase} for home moves, furniture transport and local deliveries. Get an instant ShiftMyHome quote online today.`,
-    `Book ${service.toLowerCase()} ${locPhrase} with insured crews, clear pricing and experienced movers. ShiftMyHome helps you move with confidence.`,
-    `Looking for ${service.toLowerCase()} ${locPhrase}? ShiftMyHome offers ${slug.includes('same-day') ? 'same-day ' : ''}removals support with friendly local teams.`,
+    `Book trusted ${locPhrase} ${serviceLower} with ShiftMyHome. House moves, furniture delivery and man with van. Get a quote today.`,
+    `Professional ${serviceLower} in ${locPhrase} with ShiftMyHome. Insured local movers and clear online pricing. Get your quote today.`,
+    `Need ${serviceLower} in ${locPhrase}? ShiftMyHome offers house removals, local movers and furniture delivery. Quote online today.`,
+    `Reliable ${serviceLower} across ${locPhrase} from ShiftMyHome. Experienced crews and transparent pricing. Get a quote today.`,
   ]
   const idx = Math.abs(hashString(slug)) % templates.length
-  let desc = templates[idx]
-  if (desc.length > 165) desc = `${desc.slice(0, 162).trim()}…`
-  return desc
+  return finalizeMetaDescription(templates[idx])
 }
 
 /** @param {string} s */
