@@ -16,13 +16,22 @@ export async function deleteDriverAccountAdmin(input) {
   const driverId = String(input.driverId || '').trim()
   if (!driverId) throw new Error('Driver id is required.')
 
+  const forceCleanup = input.forceCleanup !== false
+
   try {
-    if (input.forceCleanup) {
-      await adminCleanupDriverFleetLinksClient(driverId)
+    if (forceCleanup) {
+      try {
+        await adminCleanupDriverFleetLinksClient(driverId)
+      } catch (clientCleanupErr) {
+        if (import.meta.env.DEV) {
+          // eslint-disable-next-line no-console
+          console.warn('[deleteDriverAccountAdmin] client cleanup partial:', clientCleanupErr)
+        }
+      }
     }
     const result = await invokeAdminDriverLifecycle(driverId, 'delete', {
       deleteAuthUser: input.deleteAuthUser !== false,
-      forceCleanup: Boolean(input.forceCleanup),
+      forceCleanup,
     })
     return {
       message: result.message || 'Driver deleted',

@@ -13,7 +13,7 @@ const LIFECYCLE_FN = 'admin-driver-lifecycle'
 function mapLifecycleError(code) {
   switch (String(code || '')) {
     case 'driver_has_history':
-      return 'Driver cannot be deleted because history exists. Archive the driver instead.'
+      return 'Driver still has linked records. Try delete again to clear driver-only data.'
     case 'driver_not_found':
       return 'Driver not found.'
     case 'unauthorized':

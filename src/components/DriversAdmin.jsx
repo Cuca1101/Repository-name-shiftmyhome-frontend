@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import DriverChargeQuickActions from './admin-driver-charges/DriverChargeQuickActions'
+import DriverFleetCard from './admin/DriverFleetCard'
 import { fetchQuotesForAdmin } from '../lib/data/quotesAdminRepository'
 import { fetchAllJobs } from '../lib/data/jobsRepository'
 import { fetchFleetDrivers, upsertFleetDriver, setFleetDriverUserId } from '../lib/data/driversRepository'
@@ -16,7 +16,6 @@ import { countAssignedJobsForDriver, countCompletedJobsForDriver } from '../lib/
 import {
   driverVerificationBadges,
   formatDriverDateOfBirth,
-  shortenAddress,
 } from '../lib/driverDisplayHelpers'
 import { isSupabaseConfigured } from '../lib/supabase'
 import JobStatusBadge from './admin-workflow/JobStatusBadge'
@@ -51,21 +50,6 @@ function statusTone(st) {
   if (st === 'Suspended') return 'rose'
   if (st === 'Archived') return 'violet'
   return 'slate'
-}
-
-function VerificationBadge({ label, tone }) {
-  const tones = {
-    emerald: 'bg-emerald-50 text-emerald-800 ring-emerald-200/80',
-    sky: 'bg-sky-50 text-sky-800 ring-sky-200/80',
-    violet: 'bg-violet-50 text-violet-800 ring-violet-200/80',
-  }
-  return (
-    <span
-      className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold ring-1 ${tones[tone] || tones.emerald}`}
-    >
-      {label}
-    </span>
-  )
 }
 
 function FormSection({ title, description, children }) {
@@ -589,120 +573,23 @@ export default function DriversAdmin() {
           </p>
         </div>
       ) : (
-        <ul className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {filtered.map((d) => {
-            const assigned = countAssignedJobsForDriver(d, quotes, jobs)
-            const completed = countCompletedJobsForDriver(d, quotes, jobs)
-            const rating = (d.rating || '').trim() || '—'
-            const notes = (d.notes || '').trim() || 'No notes yet'
-            const addrShort = shortenAddress(d.address)
-            const dob = formatDriverDateOfBirth(d.dateOfBirth)
-            const badges = driverVerificationBadges(docTypesMap.get(d.id))
-            const lifecyclePhase = getDriverLifecyclePhase(d)
-            return (
-              <li
-                key={d.id}
-                className="flex flex-col rounded-2xl border border-slate-200/90 bg-white p-5 shadow-sm ring-1 ring-slate-900/[0.04]"
-              >
-                <div className="flex items-start justify-between gap-2">
-                  <div className="min-w-0">
-                    <p className="truncate text-lg font-bold text-slate-900">{d.name}</p>
-                    <p className="truncate text-sm text-slate-600">{d.email || '—'}</p>
-                    <p className="truncate text-sm text-slate-600">{d.phone || '—'}</p>
-                    {d.vehicleRegistration ? (
-                      <p className="truncate text-xs text-slate-500">Reg: {d.vehicleRegistration}</p>
-                    ) : d.vehicleType ? (
-                      <p className="truncate text-xs text-slate-500">{d.vehicleType}</p>
-                    ) : null}
-                    {addrShort ? (
-                      <p className="mt-1 truncate text-xs text-slate-500" title={d.address}>
-                        {addrShort}
-                      </p>
-                    ) : null}
-                    {dob ? <p className="mt-0.5 text-xs text-slate-500">DOB: {dob}</p> : null}
-                    {d.hasLogin || d.userId ? (
-                      <p
-                        className={`mt-1 text-[10px] font-semibold uppercase tracking-wide ${
-                          lifecyclePhase === 'active' ? 'text-emerald-700' : 'text-slate-600'
-                        }`}
-                      >
-                        Mobile login linked
-                        {lifecyclePhase === 'suspended' ? ' · disabled' : ''}
-                        {lifecyclePhase === 'archived' ? ' · archived' : ''}
-                      </p>
-                    ) : (
-                      <p className="mt-1 text-[10px] font-semibold uppercase tracking-wide text-amber-700">
-                        No mobile login
-                      </p>
-                    )}
-                  </div>
-                  <JobStatusBadge
-                    label={getDriverDisplayStatus(d)}
-                    tone={statusTone(getDriverDisplayStatus(d))}
-                  />
-                </div>
-                {badges.length > 0 ? (
-                  <div className="mt-3 flex flex-wrap gap-1.5">
-                    {badges.map((b) => (
-                      <VerificationBadge key={b.key} label={b.label} tone={b.tone} />
-                    ))}
-                  </div>
-                ) : null}
-                <dl className="mt-4 space-y-2 border-t border-slate-100 pt-4 text-xs text-slate-600">
-                  <div className="flex justify-between gap-2">
-                    <dt>Assigned jobs</dt>
-                    <dd className="font-semibold text-slate-900">{assigned}</dd>
-                  </div>
-                  <div className="flex justify-between gap-2">
-                    <dt>Completed jobs</dt>
-                    <dd className="font-semibold text-slate-900">{completed}</dd>
-                  </div>
-                  <div className="flex justify-between gap-2">
-                    <dt>Rating</dt>
-                    <dd className="max-w-[60%] truncate text-right font-medium text-slate-800">{rating}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-slate-500">Notes</dt>
-                    <dd className="mt-1 line-clamp-3 text-slate-800">{notes}</dd>
-                  </div>
-                </dl>
-                <div className="mt-3">
-                  <DriverChargeQuickActions driverId={String(d.id)} onUpdated={reloadDrivers} />
-                </div>
-                <div className="mt-4 flex flex-wrap gap-2">
-                  <Link
-                    to="/admin/driver-payments"
-                    className="inline-flex min-h-[40px] flex-1 items-center justify-center rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-900 shadow-sm hover:bg-rose-100"
-                  >
-                    Payments
-                  </Link>
-                  <button
-                    type="button"
-                    onClick={() => openView(d)}
-                    className="inline-flex min-h-[40px] flex-1 items-center justify-center rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-800 shadow-sm hover:bg-slate-50"
-                  >
-                    View Driver
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => openEdit(d)}
-                    className="inline-flex min-h-[40px] flex-1 items-center justify-center rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-800 shadow-sm hover:bg-slate-50"
-                  >
-                    Edit Driver
-                  </button>
-                </div>
-                <DriverLifecycleActions
-                  driver={d}
-                  saving={saving}
-                  onDisable={() => requestDisableDriver(d)}
-                  onArchive={() => requestArchiveDriver(d)}
-                  onReactivate={() => requestReactivateDriver(d)}
-                  onDelete={() => setDeleteTarget(d)}
-                  showDelete={Boolean(d.id)}
-                />
-              </li>
-            )
-          })}
+        <ul className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+          {filtered.map((d) => (
+            <DriverFleetCard
+              key={d.id}
+              driver={d}
+              assigned={countAssignedJobsForDriver(d, quotes, jobs)}
+              completed={countCompletedJobsForDriver(d, quotes, jobs)}
+              badges={driverVerificationBadges(docTypesMap.get(d.id))}
+              saving={saving}
+              onView={() => openView(d)}
+              onEdit={() => openEdit(d)}
+              onDisable={() => requestDisableDriver(d)}
+              onArchive={() => requestArchiveDriver(d)}
+              onReactivate={() => requestReactivateDriver(d)}
+              onDelete={() => setDeleteTarget(d)}
+            />
+          ))}
         </ul>
       )}
 
@@ -1093,8 +980,6 @@ export default function DriversAdmin() {
       <DriverDeleteConfirmModal
         open={Boolean(deleteTarget)}
         driver={deleteTarget}
-        quotes={quotes}
-        jobs={jobs}
         busy={saving}
         error={deleteError}
         onClose={() => {
@@ -1103,8 +988,7 @@ export default function DriversAdmin() {
             setDeleteError('')
           }
         }}
-        onConfirmDelete={() => confirmDeleteDriver()}
-        onForceDelete={() => confirmDeleteDriver({ forceCleanup: true })}
+        onConfirmDelete={() => confirmDeleteDriver({ forceCleanup: true })}
         onArchive={() => (deleteTarget ? archiveDriverRecord(deleteTarget) : undefined)}
       />
     </div>

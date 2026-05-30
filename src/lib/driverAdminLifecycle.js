@@ -5,7 +5,7 @@ import { upsertFleetDriver } from './data/driversRepository'
 /** @typedef {'active' | 'suspended' | 'archived'} DriverLifecyclePhase */
 
 const HISTORY_MESSAGE =
-  'Driver cannot be deleted because history exists. Archive the driver instead.'
+  'Driver has linked records. Confirm delete to clear driver-only data and remove the profile.'
 
 /**
  * @param {{ status?: string, accountActive?: boolean } | null | undefined} driver
@@ -129,17 +129,8 @@ async function tableHasDriverRows(client, table, column, driverId) {
   return (count ?? 0) > 0
 }
 
-const SOFT_REASONS = new Set([
-  'assigned_quotes',
-  'job_assignments',
-  'job_status_history',
-  'driver_locations',
-])
-const HARD_REASONS = new Set(['driver_charges', 'driver_payout_audit_log'])
-
 function canForceDeleteFromReasons(reasons) {
-  if (!reasons.length) return true
-  return reasons.every((r) => SOFT_REASONS.has(r))
+  return reasons.length > 0
 }
 
 /**
@@ -166,6 +157,9 @@ export async function checkDriverCanHardDelete(driverId, ctx = {}) {
       tableHasDriverRows(supabase, 'driver_payout_audit_log', 'driver_id', id).then(
         (v) => v && 'driver_payout_audit_log',
       ),
+      tableHasDriverRows(supabase, 'driver_documents', 'driver_id', id).then(
+        (v) => v && 'driver_documents',
+      ),
     ])
     for (const r of checks) {
       if (r && !reasons.includes(r)) reasons.push(r)
@@ -174,20 +168,14 @@ export async function checkDriverCanHardDelete(driverId, ctx = {}) {
 
   const unique = [...new Set(reasons)]
   if (unique.length > 0) {
-    const hardOnly = unique.filter((r) => HARD_REASONS.has(r))
-    const canForce = hardOnly.length === 0 && canForceDeleteFromReasons(unique)
     return {
       canDelete: false,
-      canForceDelete: canForce,
-      message: canForce
-        ? 'Driver has job links from the mobile app. Use “Remove assignments & delete” to clear them, or Archive to keep the profile.'
-        : hardOnly.length > 0
-          ? 'Driver has payment or payout records and cannot be deleted. Archive the driver instead.'
-          : HISTORY_MESSAGE,
+      canForceDelete: canForceDeleteFromReasons(unique),
+      message: HISTORY_MESSAGE,
       reasons: unique,
     }
   }
-  return { canDelete: true, canForceDelete: false, message: '', reasons: [] }
+  return { canDelete: true, canForceDelete: true, message: '', reasons: [] }
 }
 
 export { HISTORY_MESSAGE as DRIVER_ARCHIVE_INSTEAD_MESSAGE }

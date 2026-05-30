@@ -112,48 +112,38 @@ async function deleteDriverAdmin(
   }
 
   let history = await driverHasFleetHistory(admin, driverId)
-  let cleanupDone = false
-  if (history.hasHistory) {
-    if (forceCleanup && history.canForceDelete) {
-      const cleaned = await cleanupDriverFleetLinks(admin, driverId)
-      if (!cleaned.ok) {
-        return lifecycleJson(
-          {
-            ok: false,
-            error: 'driver_cleanup_failed',
-            message: cleaned.message,
-          },
-          400,
-        )
-      }
-      cleanupDone = true
-      history = await driverHasFleetHistory(admin, driverId)
-    }
-    if (history.hasHistory) {
-      const hardLeft = history.reasons.filter((r) =>
-        ['driver_charges', 'driver_payout_audit_log', 'completed_jobs'].includes(r),
+
+  if (history.hasHistory && forceCleanup) {
+    const cleaned = await cleanupDriverFleetLinks(admin, driverId)
+    if (!cleaned.ok) {
+      return lifecycleJson(
+        {
+          ok: false,
+          error: 'driver_cleanup_failed',
+          message: cleaned.message,
+        },
+        400,
       )
-      if (cleanupDone && hardLeft.length === 0) {
-        console.warn(
-          '[deleteDriverAdmin] soft history after cleanup, proceeding:',
-          history.reasons.join(','),
-        )
-      } else {
-        const msg = history.canForceDelete
-          ? 'Driver has assignment history. Use “Remove assignments & delete” or Archive instead.'
-          : 'Driver cannot be deleted because payment or completed job history exists. Archive the driver instead.'
-        return lifecycleJson(
-          {
-            ok: false,
-            error: 'driver_has_history',
-            message: msg,
-            reasons: history.reasons,
-            canForceDelete: history.canForceDelete,
-          },
-          409,
-        )
-      }
     }
+    history = await driverHasFleetHistory(admin, driverId)
+    if (history.hasHistory) {
+      console.warn(
+        '[deleteDriverAdmin] leftover links after cleanup, proceeding:',
+        history.reasons.join(','),
+      )
+    }
+  } else if (history.hasHistory) {
+    return lifecycleJson(
+      {
+        ok: false,
+        error: 'driver_has_history',
+        message:
+          'Driver still has linked records. Confirm delete again to clear driver-only data and remove the profile.',
+        reasons: history.reasons,
+        canForceDelete: true,
+      },
+      409,
+    )
   }
 
   const authUserId = driverRow.user_id != null ? String(driverRow.user_id) : ''

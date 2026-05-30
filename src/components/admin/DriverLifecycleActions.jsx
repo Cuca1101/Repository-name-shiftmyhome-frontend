@@ -14,6 +14,7 @@ const btnBase =
  *   onReactivate: () => void,
  *   onDelete?: () => void,
  *   showDelete?: boolean,
+ *   compact?: boolean,
  * }} props
  */
 export default function DriverLifecycleActions({
@@ -24,28 +25,35 @@ export default function DriverLifecycleActions({
   onReactivate,
   onDelete,
   showDelete = false,
+  compact = false,
 }) {
   const phase = getDriverLifecyclePhase(driver)
+  const wrap = compact
+    ? 'flex flex-wrap gap-1.5'
+    : 'mt-4 flex flex-wrap gap-2 border-t border-slate-100 pt-4'
+  const btn = compact
+    ? 'inline-flex min-h-[36px] flex-1 items-center justify-center rounded-lg px-2 py-1.5 text-[11px] font-semibold disabled:cursor-not-allowed disabled:opacity-40'
+    : btnBase
 
   if (phase === 'archived') {
     return (
-      <div className="mt-4 flex flex-wrap gap-2 border-t border-slate-100 pt-4">
+      <div className={wrap}>
         <button
           type="button"
           disabled={saving}
           onClick={onReactivate}
-          className={`${btnBase} border border-emerald-200 bg-emerald-50 text-emerald-900 hover:bg-emerald-100`}
+          className={`${btn} border border-emerald-200 bg-emerald-50 text-emerald-900 hover:bg-emerald-100`}
         >
-          {saving ? 'Working…' : 'Reactivate Driver'}
+          {saving ? 'Working…' : compact ? 'Enable' : 'Reactivate Driver'}
         </button>
         {showDelete && onDelete ? (
           <button
             type="button"
             disabled={saving || !driver?.id}
             onClick={onDelete}
-            className={`${btnBase} border border-red-300 bg-white text-red-800 hover:bg-red-50`}
+            className={`${btn} border border-red-200 bg-red-50 text-red-800 hover:bg-red-100`}
           >
-            Delete Driver
+            Delete
           </button>
         ) : null}
       </div>
@@ -54,45 +62,55 @@ export default function DriverLifecycleActions({
 
   if (phase === 'suspended') {
     return (
-      <div className="mt-4 flex flex-wrap gap-2 border-t border-slate-100 pt-4">
+      <div className={wrap}>
         <button
           type="button"
           disabled={saving}
           onClick={onReactivate}
-          className={`${btnBase} border border-emerald-200 bg-emerald-50 text-emerald-900 hover:bg-emerald-100`}
+          className={`${btn} border border-emerald-200 bg-emerald-50 text-emerald-900 hover:bg-emerald-100`}
         >
-          {saving ? 'Working…' : 'Enable Driver'}
+          {saving ? 'Working…' : compact ? 'Enable' : 'Enable Driver'}
         </button>
+        {showDelete && onDelete ? (
+          <button
+            type="button"
+            disabled={saving || !driver?.id}
+            onClick={onDelete}
+            className={`${btn} border border-red-200 bg-red-50 text-red-800 hover:bg-red-100`}
+          >
+            Delete
+          </button>
+        ) : null}
       </div>
     )
   }
 
   return (
-    <div className="mt-4 flex flex-wrap gap-2 border-t border-slate-100 pt-4">
+    <div className={wrap}>
       <button
         type="button"
         disabled={saving}
         onClick={onDisable}
-        className={`${btnBase} border border-red-200 bg-red-50 text-red-900 hover:bg-red-100`}
+        className={`${btn} border border-red-200 bg-red-50 text-red-900 hover:bg-red-100`}
       >
-        {saving ? 'Working…' : 'Disable Driver'}
+        {saving ? 'Working…' : compact ? 'Disable' : 'Disable Driver'}
       </button>
       <button
         type="button"
         disabled={saving}
         onClick={onArchive}
-        className={`${btnBase} border border-violet-200 bg-violet-50 text-violet-900 hover:bg-violet-100`}
+        className={`${btn} border border-violet-200 bg-violet-50 text-violet-900 hover:bg-violet-100`}
       >
-        Archive Driver
+        {compact ? 'Archive' : 'Archive Driver'}
       </button>
       {showDelete && onDelete ? (
         <button
           type="button"
           disabled={saving || !driver?.id}
           onClick={onDelete}
-          className={`${btnBase} border border-red-300 bg-white text-red-800 hover:bg-red-50`}
+          className={`${btn} border border-red-200 bg-red-50 text-red-800 hover:bg-red-100`}
         >
-          Delete Driver
+          Delete
         </button>
       ) : null}
     </div>

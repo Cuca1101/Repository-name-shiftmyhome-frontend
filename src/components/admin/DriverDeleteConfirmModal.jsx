@@ -1,71 +1,23 @@
-import { useEffect, useState } from 'react'
-import { checkDriverCanHardDelete, DRIVER_ARCHIVE_INSTEAD_MESSAGE } from '../../lib/driverAdminLifecycle'
-
 /**
  * @param {{
  *   open: boolean,
  *   driver: { id: string, name: string } | null,
- *   quotes?: Record<string, unknown>[],
- *   jobs?: Record<string, unknown>[],
  *   busy?: boolean,
  *   error?: string,
  *   onClose: () => void,
  *   onConfirmDelete: () => void | Promise<void>,
- *   onForceDelete?: () => void | Promise<void>,
- *   onArchive: () => void | Promise<void>,
+ *   onArchive?: () => void | Promise<void>,
  * }} props
  */
 export default function DriverDeleteConfirmModal({
   open,
   driver,
-  quotes = [],
-  jobs = [],
   busy = false,
   error = '',
   onClose,
   onConfirmDelete,
-  onForceDelete,
   onArchive,
 }) {
-  const [checking, setChecking] = useState(false)
-  const [canDelete, setCanDelete] = useState(true)
-  const [canForceDelete, setCanForceDelete] = useState(false)
-  const [blockMessage, setBlockMessage] = useState('')
-  const [reasons, setReasons] = useState(/** @type {string[]} */ ([]))
-
-  useEffect(() => {
-    if (!open || !driver?.id) {
-      setCanDelete(true)
-      setCanForceDelete(false)
-      setBlockMessage('')
-      setReasons([])
-      return
-    }
-    let cancelled = false
-    setChecking(true)
-    void checkDriverCanHardDelete(driver.id, { quotes, jobs })
-      .then((result) => {
-        if (cancelled) return
-        setCanDelete(result.canDelete)
-        setCanForceDelete(Boolean(result.canForceDelete))
-        setReasons(Array.isArray(result.reasons) ? result.reasons : [])
-        setBlockMessage(result.canDelete ? '' : result.message || DRIVER_ARCHIVE_INSTEAD_MESSAGE)
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setCanDelete(false)
-          setCanForceDelete(false)
-          setBlockMessage(DRIVER_ARCHIVE_INSTEAD_MESSAGE)
-        }
-      })
-      .finally(() => {
-        if (!cancelled) setChecking(false)
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [open, driver?.id, quotes, jobs])
-
   if (!open || !driver) return null
 
   return (
@@ -86,45 +38,34 @@ export default function DriverDeleteConfirmModal({
           Delete driver?
         </h3>
         <p className="mt-2 text-sm text-slate-600">
-          Are you sure you want to delete <strong className="text-slate-900">{driver.name}</strong>?
+          Permanently remove <strong className="text-slate-900">{driver.name}</strong> from the fleet and
+          delete their mobile login.
+        </p>
+        <p className="mt-3 text-xs leading-relaxed text-slate-500">
+          Customer bookings stay in the system with the driver&apos;s name and job dates kept on each move.
+          Only the fleet profile and mobile login are removed.
         </p>
 
-        {checking ? (
-          <p className="mt-3 text-sm text-slate-500">Checking job and payment history…</p>
-        ) : null}
-
         {error ? (
-          <p className="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-800" role="alert">
+          <p
+            className="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-800"
+            role="alert"
+          >
             {error}
           </p>
         ) : null}
 
-        {!checking && !canDelete ? (
-          <div className="mt-3 space-y-2">
-            <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950" role="alert">
-              {blockMessage}
-            </p>
-            {reasons.length > 0 ? (
-              <p className="text-[11px] text-slate-500">
-                Linked data: {reasons.join(', ').replace(/_/g, ' ')}
-              </p>
-            ) : null}
-            {!canForceDelete && reasons.some((r) => r === 'driver_charges' || r === 'driver_payout_audit_log') ? (
-              <p className="text-[11px] text-slate-600">
-                Completed moves stay on the booking; only payment history blocks permanent delete.
-              </p>
-            ) : null}
-          </div>
-        ) : null}
-
-        {!checking && canDelete ? (
-          <p className="mt-3 text-xs text-slate-500">
-            This removes the driver profile and their mobile login account. Job and payment records are not affected
-            because this driver has no linked history.
-          </p>
-        ) : null}
-
-        <div className="mt-6 flex flex-wrap justify-end gap-2 border-t border-slate-100 pt-4">
+        <div className="mt-6 flex flex-wrap items-center justify-end gap-2 border-t border-slate-100 pt-4">
+          {onArchive ? (
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => void onArchive()}
+              className="mr-auto rounded-xl px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50 hover:text-slate-900 disabled:opacity-50"
+            >
+              Archive instead
+            </button>
+          ) : null}
           <button
             type="button"
             disabled={busy}
@@ -133,36 +74,14 @@ export default function DriverDeleteConfirmModal({
           >
             Cancel
           </button>
-          {!canDelete && !checking ? (
-            <button
-              type="button"
-              disabled={busy}
-              onClick={() => void onArchive()}
-              className="rounded-xl bg-slate-800 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-900 disabled:opacity-50"
-            >
-              {busy ? 'Working…' : 'Archive driver'}
-            </button>
-          ) : null}
-          {!canDelete && !checking && canForceDelete && onForceDelete ? (
-            <button
-              type="button"
-              disabled={busy}
-              onClick={() => void onForceDelete()}
-              className="rounded-xl bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-50"
-            >
-              {busy ? 'Deleting…' : 'Remove assignments & delete'}
-            </button>
-          ) : null}
-          {canDelete && !checking ? (
-            <button
-              type="button"
-              disabled={busy}
-              onClick={() => void onConfirmDelete()}
-              className="rounded-xl bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-50"
-            >
-              {busy ? 'Deleting…' : 'Delete driver'}
-            </button>
-          ) : null}
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => void onConfirmDelete()}
+            className="rounded-xl bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-50"
+          >
+            {busy ? 'Deleting…' : 'Delete driver'}
+          </button>
         </div>
       </div>
     </div>

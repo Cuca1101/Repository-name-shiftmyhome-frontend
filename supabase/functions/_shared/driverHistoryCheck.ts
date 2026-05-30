@@ -6,15 +6,15 @@ export type DriverHistoryCheck = {
   canForceDelete: boolean
 }
 
-/** Blocks hard delete even after assignment cleanup (financial audit). */
-export const DRIVER_HISTORY_HARD_BLOCKERS = new Set(['driver_charges', 'driver_payout_audit_log'])
-
-/** Safe to clear before delete (test / mistaken assignment). */
-export const DRIVER_HISTORY_SOFT_REASONS = new Set([
+/** Cleared automatically when admin deletes with force_cleanup. */
+export const DRIVER_HISTORY_ADMIN_PURGE_REASONS = new Set([
   'assigned_quotes',
   'job_assignments',
   'job_status_history',
   'driver_locations',
+  'driver_charges',
+  'driver_payout_audit_log',
+  'driver_documents',
 ])
 
 async function hasRows(
@@ -48,30 +48,79 @@ async function hasCompletedQuotes(admin: SupabaseClient, driverId: string): Prom
 }
 
 export function canForceDeleteFromReasons(reasons: string[]): boolean {
-  if (!reasons.length) return true
-  return reasons.every((r) => DRIVER_HISTORY_SOFT_REASONS.has(r))
+  return reasons.length > 0
+}
+
+async function resolveDriverDisplayName(admin: SupabaseClient, driverId: string): Promise<string> {
+  const { data, error } = await admin.from('drivers').select('full_name').eq('id', driverId).maybeSingle()
+  if (error) {
+    console.warn('[cleanupDriverFleetLinks] driver name:', error.message)
+  }
+  const name = String(data?.full_name || '').trim()
+  return name || 'Former driver'
+}
+
+/** Stamp driver name on job rows; keep timeline rows (driver_id cleared on drivers delete). */
+async function stampDriverOnQuotes(
+  admin: SupabaseClient,
+  driverId: string,
+  driverName: string,
+): Promise<string | null> {
+  const { data: rows, error: selErr } = await admin
+    .from('quotes')
+    .select('id, assigned_driver_name')
+    .eq('assigned_driver_id', driverId)
+  if (selErr) return `quotes read: ${selErr.message}`
+
+  for (const row of rows ?? []) {
+    const stampedName = String(row.assigned_driver_name || '').trim() || driverName
+    const { error } = await admin
+      .from('quotes')
+      .update({ assigned_driver_id: null, assigned_driver_name: stampedName })
+      .eq('id', row.id)
+    if (error) return `quotes: ${error.message}`
+  }
+  return null
+}
+
+/** Stamp driver_name on status history (rows kept for Status Tracker dates). */
+async function stampDriverOnStatusHistory(
+  admin: SupabaseClient,
+  driverId: string,
+  driverName: string,
+): Promise<string | null> {
+  const { data: rows, error: selErr } = await admin
+    .from('job_status_history')
+    .select('id, driver_name')
+    .eq('driver_id', driverId)
+  if (selErr) return `status history read: ${selErr.message}`
+
+  for (const row of rows ?? []) {
+    const stampedName = String(row.driver_name || '').trim() || driverName
+    const { error } = await admin.from('job_status_history').update({ driver_name: stampedName }).eq('id', row.id)
+    if (error) return `status history: ${error.message}`
+  }
+  return null
 }
 
 /**
- * Remove assignment / status links so driver row can be deleted (admin test cleanup).
+ * Detach live fleet links; preserve job stamps (names + status timeline).
  */
 export async function cleanupDriverFleetLinks(
   admin: SupabaseClient,
   driverId: string,
 ): Promise<{ ok: true } | { ok: false; message: string }> {
   const errors: string[] = []
+  const driverName = await resolveDriverDisplayName(admin, driverId)
 
-  const { error: histErr } = await admin.from('job_status_history').delete().eq('driver_id', driverId)
-  if (histErr) errors.push(`status history: ${histErr.message}`)
+  const quoteStampErr = await stampDriverOnQuotes(admin, driverId, driverName)
+  if (quoteStampErr) errors.push(quoteStampErr)
+
+  const histStampErr = await stampDriverOnStatusHistory(admin, driverId, driverName)
+  if (histStampErr) errors.push(histStampErr)
 
   const { error: jaErr } = await admin.from('job_assignments').delete().eq('driver_id', driverId)
   if (jaErr) errors.push(`assignments: ${jaErr.message}`)
-
-  const { error: quotesErr } = await admin
-    .from('quotes')
-    .update({ assigned_driver_id: null })
-    .eq('assigned_driver_id', driverId)
-  if (quotesErr) errors.push(`quotes: ${quotesErr.message}`)
 
   const { error: locErr } = await admin.from('driver_locations').delete().eq('driver_id', driverId)
   if (locErr && !String(locErr.message || '').toLowerCase().includes('does not exist')) {
@@ -84,6 +133,20 @@ export async function cleanupDriverFleetLinks(
     .eq('driver_id', driverId)
   if (ecrErr) {
     console.warn('[cleanupDriverFleetLinks] extra_charge_requests:', ecrErr.message)
+  }
+
+  const { error: chargesErr } = await admin.from('driver_charges').delete().eq('driver_id', driverId)
+  if (chargesErr) errors.push(`charges: ${chargesErr.message}`)
+
+  const { error: auditErr } = await admin
+    .from('driver_payout_audit_log')
+    .update({ driver_id: null })
+    .eq('driver_id', driverId)
+  if (auditErr) errors.push(`payout audit: ${auditErr.message}`)
+
+  const { error: docsErr } = await admin.from('driver_documents').delete().eq('driver_id', driverId)
+  if (docsErr && !String(docsErr.message || '').toLowerCase().includes('does not exist')) {
+    errors.push(`documents: ${docsErr.message}`)
   }
 
   if (errors.length) {
@@ -119,12 +182,14 @@ export async function driverHasFleetHistory(
   if (await hasRows(admin, 'driver_locations', 'driver_id', driverId)) {
     reasons.push('driver_locations')
   }
+  if (await hasRows(admin, 'driver_documents', 'driver_id', driverId)) {
+    reasons.push('driver_documents')
+  }
 
   const unique = [...new Set(reasons)]
-  const hasHard = unique.some((r) => DRIVER_HISTORY_HARD_BLOCKERS.has(r))
   return {
     hasHistory: unique.length > 0,
     reasons: unique,
-    canForceDelete: unique.length > 0 && !hasHard && canForceDeleteFromReasons(unique),
+    canForceDelete: canForceDeleteFromReasons(unique),
   }
 }
