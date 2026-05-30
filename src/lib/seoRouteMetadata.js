@@ -11,6 +11,7 @@ const HOMEPAGE_SEO_TITLE = 'House Removals Scotland | ShiftMyHome'
 const HOMEPAGE_SEO_DESCRIPTION =
   'ShiftMyHome — Glasgow removals, Edinburgh removals, and Scotland-wide house moves, man with van, and furniture delivery. Instant online quotes.'
 import { buildSeoMetadataFromSlug } from './seoSlugMetadata.js'
+import { normalizePublicPath } from './normalizePublicPath.js'
 
 /** @typedef {import('../data/seoPages.js').SeoPageConfig} SeoPageConfig */
 
@@ -154,10 +155,7 @@ export function getRouteSeoMetadata(pathname) {
 
 /** @param {string} pathname */
 function normalizePath(pathname) {
-  const raw = String(pathname || '').trim()
-  if (!raw || raw === '/') return '/'
-  const withSlash = raw.startsWith('/') ? raw : `/${raw}`
-  return withSlash.replace(/\/+$/, '') || '/'
+  return normalizePublicPath(pathname)
 }
 
 /** @param {SeoPageConfig} page */

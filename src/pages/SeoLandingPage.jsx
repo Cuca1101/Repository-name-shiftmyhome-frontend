@@ -8,6 +8,7 @@ import SeoBreadcrumbJsonLd from '../components/seo/SeoBreadcrumbJsonLd'
 import SeoFaqAccordion from '../components/seo/SeoFaqAccordion'
 import SeoInternalLinks from '../components/seo/SeoInternalLinks'
 import { getSeoPageByPath } from '../data/seoPages'
+import { normalizePublicPath } from '../lib/normalizePublicPath'
 import { useSeoSettings } from '../context/SeoSettingsContext'
 import { mergeSeoLandingPageConfig } from '../lib/seoSettingsMerge'
 import { CONTACT, WHATSAPP_URL } from '../config'
@@ -102,9 +103,10 @@ function TrustIcon({ name, className = 'h-3 w-3' }) {
 
 export default function SeoLandingPage() {
   const { pathname } = useLocation()
+  const routePath = normalizePublicPath(pathname)
   const { getForPath } = useSeoSettings()
-  const basePage = getSeoPageByPath(pathname)
-  const page = mergeSeoLandingPageConfig(basePage, getForPath(pathname))
+  const basePage = getSeoPageByPath(routePath)
+  const page = mergeSeoLandingPageConfig(basePage, getForPath(routePath))
 
   if (!page) {
     return <NotFoundPage />
@@ -120,7 +122,7 @@ export default function SeoLandingPage() {
       <SeoHead
         title={page.title}
         description={page.metaDescription}
-        path={page.path}
+        path={routePath}
         includeSocial
         ogTitle={page.ogTitle ?? page.title}
         ogDescription={page.ogDescription ?? page.metaDescription}
@@ -132,7 +134,7 @@ export default function SeoLandingPage() {
         ]}
       />
       <SeoBusinessJsonLd
-        path={page.path}
+        path={routePath}
         pageTitle={page.h1}
         description={page.metaDescription}
       />
@@ -380,7 +382,7 @@ export default function SeoLandingPage() {
       </section>
 
       <SeoInternalLinks
-        currentPath={pathname}
+        currentPath={routePath}
         cityName={page.cityName}
         regionKey={page.regionKey}
       />

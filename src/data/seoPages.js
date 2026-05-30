@@ -1,4 +1,5 @@
 import { cityToSlug } from '../lib/citySlug.js'
+import { normalizePublicPath } from '../lib/normalizePublicPath.js'
 import { buildNearbyLocationLinks, SCOTLAND_HUB_LINKS } from '../lib/seoNearbyAreas.js'
 import { INTENT_PAGE_DEFINITIONS } from './seoIntentPages.js'
 import { buildServiceMatrixPages } from './seoServiceMatrixPages.js'
@@ -540,7 +541,7 @@ const byPath = new Map(ALL_SEO_PAGES.map((p) => [p.path, p]))
 
 /** @param {string} pathname */
 export function getSeoPageByPath(pathname) {
-  return byPath.get(pathname) ?? null
+  return byPath.get(normalizePublicPath(pathname)) ?? null
 }
 
 export const SEO_PAGE_PATHS = ALL_SEO_PAGES.map((p) => p.path)

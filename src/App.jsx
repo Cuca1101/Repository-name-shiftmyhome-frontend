@@ -48,20 +48,23 @@ import PaymentCancelledPage from './pages/PaymentCancelledPage'
 import SeoLandingPage from './pages/SeoLandingPage'
 import NotFoundPage from './pages/NotFoundPage'
 import { SEO_PAGE_PATHS } from './data/seoPages'
+import { withTrailingSlashVariants } from './lib/normalizePublicPath'
 
 function RedirectLegacyQuoteDetail() {
   const { id } = useParams()
   return <Navigate to={`/admin/quote-requests/${id}`} replace />
 }
 
-const servicePaths = [
+const servicePaths = withTrailingSlashVariants([
   '/house-removals',
   '/man-with-van',
   '/furniture-delivery',
   '/office-moves',
   '/student-moves',
   '/clearance',
-]
+])
+
+const seoRoutePaths = withTrailingSlashVariants(SEO_PAGE_PATHS)
 
 export default function App() {
   return (
@@ -132,7 +135,7 @@ export default function App() {
           }
         />
       ))}
-      {SEO_PAGE_PATHS.map((path) => (
+      {seoRoutePaths.map((path) => (
         <Route
           key={path}
           path={path}
