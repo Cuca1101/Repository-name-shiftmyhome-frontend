@@ -87,6 +87,20 @@ export async function recalcMarketplacePayoutsAll(quotes, clearManualOverrides) 
 }
 
 /**
+ * Apply default deduction to every Available Jobs quote (preview/save payout before marketplace publish).
+ * @param {Record<string, unknown>[]} quotes
+ */
+export async function recalcAvailableJobsPayoutsAll(quotes, clearManualOverrides) {
+  for (const q of quotes) {
+    await applyDefaultMarketplacePayoutToQuote(q, {
+      clearManualOverride: clearManualOverrides,
+      source: 'available_jobs',
+      skipIfFixedFromAvailableJobs: !clearManualOverrides,
+    })
+  }
+}
+
+/**
  * @param {string} quoteId
  * @param {Record<string, unknown>} q
  * @param {number} payoutGbp

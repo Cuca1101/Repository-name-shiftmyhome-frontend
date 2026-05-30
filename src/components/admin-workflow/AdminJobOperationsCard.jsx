@@ -207,6 +207,48 @@ function PaymentStrip({ fin, compact = false }) {
 /**
  * @param {{ mpFin: ReturnType<typeof getMarketplaceFinancePresentation>, compact?: boolean }} props
  */
+function AvailableJobsPricingStrip({ mpFin, compact = false }) {
+  function fmt(v) {
+    if (v == null || !Number.isFinite(v)) return '—'
+    return money(v)
+  }
+  const rows = [
+    { label: 'Customer', value: fmt(mpFin.customerTotal), tone: '' },
+    { label: 'Payout', value: fmt(mpFin.marketplacePayout), tone: 'text-violet-900' },
+    { label: 'Profit', value: fmt(mpFin.platformProfit), tone: 'text-emerald-800' },
+  ]
+  const cell = compact ? 'text-right' : 'flex flex-col items-center justify-center text-center'
+  const labelCls = 'text-[10px] font-semibold uppercase tracking-wide text-slate-500'
+  const valueCls = 'text-sm font-bold tabular-nums text-slate-900'
+
+  if (compact) {
+    return (
+      <dl className="grid shrink-0 grid-cols-3 gap-x-4 text-xs sm:gap-x-6">
+        {rows.map((r) => (
+          <div key={r.label} className={cell}>
+            <dt className={labelCls}>{r.label}</dt>
+            <dd className={`${valueCls} ${r.tone}`.trim()}>{r.value}</dd>
+          </div>
+        ))}
+      </dl>
+    )
+  }
+
+  return (
+    <dl className="grid grid-cols-3 gap-2 border-t border-emerald-100/80 bg-emerald-50/30 px-3 py-2.5">
+      {rows.map((r) => (
+        <div key={r.label} className={cell}>
+          <dt className={labelCls}>{r.label}</dt>
+          <dd className={`${valueCls} ${r.tone}`.trim()}>{r.value}</dd>
+        </div>
+      ))}
+    </dl>
+  )
+}
+
+/**
+ * @param {{ mpFin: ReturnType<typeof getMarketplaceFinancePresentation>, compact?: boolean }} props
+ */
 function MarketplacePaymentStrip({ mpFin, compact = false }) {
   function fmt(v) {
     if (v == null || !Number.isFinite(v)) return '—'
@@ -402,7 +444,10 @@ export default function AdminJobOperationsCard({
   const autoMpBadge = cardVariant === 'available' ? getAutoMarketplaceCardBadge(q) : null
   const pickupLabel = routeLocationLabel(q.pickup_address)
   const deliveryLabel = routeLocationLabel(q.delivery_address)
-  const mpFin = cardVariant === 'marketplace' ? getMarketplaceFinancePresentation(q) : null
+  const mpFin =
+    cardVariant === 'marketplace' || cardVariant === 'available'
+      ? getMarketplaceFinancePresentation(q)
+      : null
   const partnerListingLabel =
     cardVariant === 'marketplace' ? partnerListingLabelForMarketplaceCard(q) : null
   const partnerAcceptanceLabel =
@@ -440,7 +485,9 @@ export default function AdminJobOperationsCard({
     : ''
 
   const financeBlock =
-    cardVariant === 'marketplace' && mpFin ? (
+    cardVariant === 'available' && mpFin ? (
+      <AvailableJobsPricingStrip mpFin={mpFin} compact={layoutMode === 'list'} />
+    ) : cardVariant === 'marketplace' && mpFin ? (
       <MarketplacePaymentStrip mpFin={mpFin} compact={layoutMode === 'list'} />
     ) : (
       <PaymentStrip fin={fin} compact={layoutMode === 'list'} />
@@ -456,8 +503,13 @@ export default function AdminJobOperationsCard({
     ) : null
 
   const marketplacePayoutMeta =
-    cardVariant === 'marketplace' && mpFin ? (
-      <div className="flex flex-wrap gap-1">
+    (cardVariant === 'marketplace' || cardVariant === 'available') && mpFin ? (
+      <div className="flex flex-wrap items-center gap-1">
+        {mpFin.deductionLabel && mpFin.deductionLabel !== '—' ? (
+          <span className="inline-flex rounded-full bg-slate-100 px-2 py-0.5 text-[9px] font-semibold text-slate-800 ring-1 ring-slate-200/90">
+            Deduction {mpFin.deductionLabel}
+          </span>
+        ) : null}
         {mpFin.payoutFixedFromAvailableJobs ? (
           <span className="inline-flex rounded-full bg-emerald-100 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-emerald-900 ring-1 ring-emerald-200/90">
             {PAYOUT_FIXED_FROM_AVAILABLE_LABEL}

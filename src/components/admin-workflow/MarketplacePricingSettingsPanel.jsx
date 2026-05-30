@@ -4,7 +4,7 @@ import {
   loadMarketplacePricingDefaults,
   saveMarketplacePricingDefaults,
 } from '../../lib/marketplacePricingDefaultsStore'
-import { recalcMarketplacePayoutsAll } from '../../lib/marketplacePayoutApply'
+import { recalcAvailableJobsPayoutsAll, recalcMarketplacePayoutsAll } from '../../lib/marketplacePayoutApply'
 import { useProtectedMarketplaceSettingsUnlock } from '../../hooks/useProtectedMarketplaceSettingsUnlock'
 import ProtectedMarketplaceSettingsUnlockBar, {
   ProtectedFieldLabel,
@@ -15,11 +15,20 @@ const inputCls =
   'w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm text-slate-900 shadow-sm disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-500'
 
 /**
- * @param {{ marketplaceQuotes: Record<string, unknown>[], onApplied: () => void | Promise<void>, compact?: boolean, embedded?: boolean }} props
+ * @param {{
+ *   marketplaceQuotes: Record<string, unknown>[],
+ *   onApplied: () => void | Promise<void>,
+ *   onSettingsSaved?: () => void,
+ *   recalcScope?: 'marketplace' | 'available',
+ *   compact?: boolean,
+ *   embedded?: boolean,
+ * }} props
  */
 export default function MarketplacePricingSettingsPanel({
   marketplaceQuotes,
   onApplied,
+  onSettingsSaved,
+  recalcScope = 'marketplace',
   compact = false,
   embedded = false,
 }) {
@@ -126,8 +135,9 @@ export default function MarketplacePricingSettingsPanel({
 
     saveMarketplacePricingDefaults(payload)
     setMsg(unlocked ? 'Settings saved.' : 'Deduction settings saved (protected sections unchanged).')
+    onSettingsSaved?.()
     window.setTimeout(() => setMsg(''), 4000)
-  }, [buildPayload, deductionType, deductionValue, defaultMarginPct, unlocked])
+  }, [buildPayload, deductionType, deductionValue, defaultMarginPct, unlocked, onSettingsSaved])
 
   const onAutoToggle = useCallback(
     (next) => {
@@ -160,36 +170,48 @@ export default function MarketplacePricingSettingsPanel({
   }, [buildPayload, unlocked])
 
   const runApplyAll = useCallback(async () => {
+    const isAvailable = recalcScope === 'available'
     if (
       !window.confirm(
-        'Apply the current default deduction to every marketplace job? Custom payout overrides will be cleared.',
+        isAvailable
+          ? 'Apply the current default deduction to every available job? Custom payout overrides will be cleared.'
+          : 'Apply the current default deduction to every marketplace job? Custom payout overrides will be cleared.',
       )
     )
       return
     setBusy(true)
     setMsg('')
     try {
-      await recalcMarketplacePayoutsAll(quotes, true)
-      setMsg('All marketplace payouts updated.')
+      if (isAvailable) {
+        await recalcAvailableJobsPayoutsAll(quotes, true)
+      } else {
+        await recalcMarketplacePayoutsAll(quotes, true)
+      }
+      setMsg(isAvailable ? 'All available job payouts updated.' : 'All marketplace payouts updated.')
       await onApplied()
     } finally {
       setBusy(false)
       window.setTimeout(() => setMsg(''), 5000)
     }
-  }, [quotes, onApplied])
+  }, [quotes, onApplied, recalcScope])
 
   const runRecalc = useCallback(async () => {
+    const isAvailable = recalcScope === 'available'
     setBusy(true)
     setMsg('')
     try {
-      await recalcMarketplacePayoutsAll(quotes, false)
+      if (isAvailable) {
+        await recalcAvailableJobsPayoutsAll(quotes, false)
+      } else {
+        await recalcMarketplacePayoutsAll(quotes, false)
+      }
       setMsg('Payouts recalculated (custom overrides kept).')
       await onApplied()
     } finally {
       setBusy(false)
       window.setTimeout(() => setMsg(''), 5000)
     }
-  }, [quotes, onApplied])
+  }, [quotes, onApplied, recalcScope])
 
   const shell = embedded
     ? ''
@@ -391,6 +413,26 @@ export default function MarketplacePricingSettingsPanel({
         >
           Save settings
         </button>
+        {compact && recalcScope === 'available' ? (
+          <>
+            <button
+              type="button"
+              disabled={busy || quotes.length === 0}
+              onClick={() => void runApplyAll()}
+              className="rounded-lg border border-violet-200 bg-violet-50 px-3 py-1.5 text-xs font-semibold text-violet-950 hover:bg-violet-100 disabled:opacity-40"
+            >
+              Apply to all available jobs
+            </button>
+            <button
+              type="button"
+              disabled={busy || quotes.length === 0}
+              onClick={() => void runRecalc()}
+              className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-40"
+            >
+              Recalculate payouts
+            </button>
+          </>
+        ) : null}
         {!compact ? (
           <>
             <button
@@ -399,7 +441,7 @@ export default function MarketplacePricingSettingsPanel({
               onClick={() => void runApplyAll()}
               className="rounded-lg border border-violet-200 bg-violet-50 px-3 py-1.5 text-xs font-semibold text-violet-950 hover:bg-violet-100 disabled:opacity-40"
             >
-              Apply to all marketplace jobs
+              {recalcScope === 'available' ? 'Apply to all available jobs' : 'Apply to all marketplace jobs'}
             </button>
             <button
               type="button"

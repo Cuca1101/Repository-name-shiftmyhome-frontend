@@ -118,6 +118,7 @@ export default function AvailableJobsAdmin() {
   const [highlightIds, setHighlightIds] = useState(() => new Set())
   const [toast, setToast] = useState('')
   const [testEmailBusy, setTestEmailBusy] = useState(false)
+  const [settingsVersion, setSettingsVersion] = useState(0)
   const [testEmailToast, setTestEmailToast] = useState(null)
   const [soundEnabled, setSoundEnabled] = useState(() => readAvailableJobsSoundEnabled())
   const [soundUnlocked, setSoundUnlocked] = useState(() => readAvailableJobsSoundUnlocked())
@@ -483,8 +484,10 @@ export default function AvailableJobsAdmin() {
             title: 'Marketplace pricing settings',
             content: (
               <MarketplacePricingSettingsPanel
-                marketplaceQuotes={[]}
+                marketplaceQuotes={rows}
+                recalcScope="available"
                 onApplied={load}
+                onSettingsSaved={() => setSettingsVersion((v) => v + 1)}
                 compact
                 embedded
               />
@@ -575,6 +578,7 @@ export default function AvailableJobsAdmin() {
         </p>
       ) : (
         <AdminJobListSections
+          key={settingsVersion}
           jobs={sortedRows}
           viewMode={viewMode}
           renderJob={(q) => (
