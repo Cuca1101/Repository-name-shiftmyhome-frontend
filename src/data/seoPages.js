@@ -21,6 +21,7 @@ import {
   buildLocationKeywordPhrases,
   buildLocationKeywordSentence,
   pickSeoContentVariant,
+  clampMetaDescription,
 } from '../lib/seo/seoKeywordHelpers.js'
 import {
   buildLocationIntro,
@@ -145,7 +146,7 @@ function buildMetaDescription(cityName, region, meta, variant) {
     `ShiftMyHome ${meta.label} for ${cityName} homes and businesses. Fully insured transport, local knowledge, and UK routes. Quote online today.`,
     `Looking for ${meta.label} near ${cityName}? We cover ${region.areaPhrase} with clear pricing and careful handling. Same-day availability when crews are free.`,
   ]
-  return templates[variant % templates.length]
+  return clampMetaDescription(templates[variant % templates.length])
 }
 
 /**

@@ -6,6 +6,7 @@ import { clearQuoteDraft } from '../lib/quoteDraftStorage'
 import { consumePhotoUploadNotice } from '../lib/quotePhotoUpload'
 import { trackWebsiteLeadEvent } from '../lib/websiteLeadTracker'
 import { trackMarketingPurchase } from '../lib/marketingPixels'
+import SeoHead from '../components/seo/SeoHead'
 
 function scrollToEl(el, block = 'center') {
   if (!el || typeof el.scrollIntoView !== 'function') return
@@ -82,7 +83,14 @@ export default function PaymentSuccessPage() {
   }, [quoteRef])
 
   return (
-    <div className="min-w-0 bg-white py-5 sm:py-12 md:py-16">
+    <>
+      <SeoHead
+        title="Payment Successful | ShiftMyHome"
+        description="Your ShiftMyHome payment was successful. Your booking reference is shown on this page."
+        path="/payment-success"
+        robots="noindex, nofollow"
+      />
+      <div className="min-w-0 bg-white py-5 sm:py-12 md:py-16">
       <div
         ref={successContentRef}
         className="mx-auto max-w-lg scroll-mt-20 px-4 text-center sm:scroll-mt-24 sm:px-6 lg:px-8"
@@ -180,5 +188,6 @@ export default function PaymentSuccessPage() {
         </div>
       </div>
     </div>
+    </>
   )
 }

@@ -13,9 +13,10 @@ const STATIC_PATHS = [
   '/office-moves',
   '/student-moves',
   '/clearance',
-  '/payment-success',
-  '/payment-cancelled',
 ]
+
+/** Transactional routes — excluded from sitemap (noindex at runtime/build). */
+export const SITEMAP_EXCLUDED_PATHS = ['/payment-success', '/payment-cancelled']
 
 /**
  * @param {string} [origin]
@@ -26,7 +27,7 @@ export function buildSitemapXml(origin = SEO_SITE_ORIGIN) {
   const urls = allPaths
     .map(
       (path) => `  <url>
-    <loc>${origin}${path === '/' ? '' : path}</loc>
+    <loc>${origin}${path === '/' ? '/' : path}</loc>
     <changefreq>weekly</changefreq>
     <priority>${path === '/' ? '1.0' : path.endsWith('-removals') || path.startsWith('/man-with-van-') ? '0.8' : '0.7'}</priority>
   </url>`,

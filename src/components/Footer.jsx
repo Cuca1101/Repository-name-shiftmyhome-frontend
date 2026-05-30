@@ -4,6 +4,7 @@ import Logo from './Logo'
 import HomeSectionLink from './HomeSectionLink'
 import CoverageLink from './CoverageLink'
 import { CONTACT, WHATSAPP_URL } from '../config'
+import { FOOTER_SEO_LOCATION_LINKS } from '../lib/seo/locations'
 import { supabase } from '../lib/supabase'
 import { useWebsiteCms } from '../context/WebsiteCmsContext'
 
@@ -35,12 +36,7 @@ const legalLinks = [
   { to: '/cookies', label: 'Cookie Preferences' },
 ]
 
-const popularLocationLinks = [
-  { to: '/glasgow-removals', label: 'Glasgow House Removals' },
-  { to: '/edinburgh-removals', label: 'Edinburgh Removals' },
-  { to: '/man-with-van-glasgow', label: 'Man with Van Glasgow' },
-  { to: '/furniture-delivery-glasgow', label: 'Furniture Delivery Glasgow' },
-]
+const popularLocationLinks = FOOTER_SEO_LOCATION_LINKS
 
 function FooterNavColumn({ title, children, className = '' }) {
   return (

@@ -12,6 +12,7 @@ import { applySeoHeadTags, restoreSeoHeadTags } from '../../lib/seoHeadTags'
  *   ogImage?: string,
  *   ogType?: string,
  *   includeSocial?: boolean,
+ *   robots?: string,
  * }} props
  */
 export default function SeoHead({
@@ -23,6 +24,7 @@ export default function SeoHead({
   ogImage,
   ogType = 'website',
   includeSocial = false,
+  robots = '',
 }) {
   useEffect(() => {
     const prevTitle = document.title
@@ -35,12 +37,13 @@ export default function SeoHead({
       ogImage,
       ogType,
       includeSocial,
+      robots,
     })
 
     return () => {
       restoreSeoHeadTags(prevTitle, [...metas, ...links])
     }
-  }, [title, description, path, ogTitle, ogDescription, ogImage, ogType, includeSocial])
+  }, [title, description, path, ogTitle, ogDescription, ogImage, ogType, includeSocial, robots])
 
   return null
 }

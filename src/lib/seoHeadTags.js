@@ -48,6 +48,7 @@ export function resolveAbsoluteSeoImage(imageUrl) {
  *   ogImage?: string,
  *   ogType?: string,
  *   includeSocial?: boolean,
+ *   robots?: string,
  * }} options
  */
 export function applySeoHeadTags(options) {
@@ -60,6 +61,7 @@ export function applySeoHeadTags(options) {
     ogImage = '',
     ogType = 'website',
     includeSocial = false,
+    robots = '',
   } = options
 
   const canonicalHref = `${SEO_SITE_ORIGIN}${path}`
@@ -70,6 +72,7 @@ export function applySeoHeadTags(options) {
   document.title = title
 
   const metas = [setMeta('name', 'description', description)]
+  if (robots) metas.push(setMeta('name', 'robots', robots))
   const links = [setLink('canonical', canonicalHref)]
 
   if (includeSocial) {

@@ -3,6 +3,17 @@
  */
 
 const SEO_SITE_ORIGIN = 'https://www.shiftmyhome.co.uk'
+const META_DESCRIPTION_MAX = 160
+
+/** Trim to a complete sentence within Google's snippet length. */
+export function clampMetaDescription(text, max = META_DESCRIPTION_MAX) {
+  const normalized = String(text || '').replace(/\s+/g, ' ').trim()
+  if (normalized.length <= max) return normalized
+  const slice = normalized.slice(0, max)
+  const lastSpace = slice.lastIndexOf(' ')
+  const trimmed = (lastSpace > 80 ? slice.slice(0, lastSpace) : slice).replace(/[.,;:\s]+$/, '')
+  return `${trimmed}.`
+}
 
 /** @param {string} cityName */
 export function buildLocationH1(cityName) {
@@ -30,7 +41,7 @@ export function buildLocationMetaDescription(cityName, region, variant = 0) {
     `ShiftMyHome ${cityName} removals for flats, family homes, and local business moves. Serving ${region.areaPhrase} with careful handling and clear communication.`,
     `Looking for a moving company in ${cityName}? We provide local and long-distance removals, furniture delivery, and same-day help when crews are available.`,
   ]
-  return templates[variant % templates.length]
+  return clampMetaDescription(templates[variant % templates.length])
 }
 
 /**

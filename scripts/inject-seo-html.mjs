@@ -4,7 +4,7 @@
  */
 import fs from 'node:fs'
 import path from 'node:path'
-import { buildSitemapXml } from '../src/lib/generateSitemapXml.js'
+import { buildSitemapXml, SITEMAP_EXCLUDED_PATHS } from '../src/lib/generateSitemapXml.js'
 import { getRouteSeoMetadata } from '../src/lib/seoRouteMetadata.js'
 import { buildSiteBrandHeadHtml } from '../src/lib/siteBrandMeta.js'
 
@@ -52,6 +52,10 @@ function injectSeoIntoHtml(template, meta) {
   html = upsertMeta(html, 'name', 'twitter:title', meta.ogTitle || meta.title)
   html = upsertMeta(html, 'name', 'twitter:description', meta.ogDescription || meta.description)
 
+  if (meta.robots) {
+    html = upsertMeta(html, 'name', 'robots', meta.robots)
+  }
+
   if (meta.breadcrumbJsonLd) {
     const json = JSON.stringify(meta.breadcrumbJsonLd).replace(/</g, '\\u003c')
     const breadcrumbScript = `<script type="application/ld+json">${json}</script>`
@@ -77,10 +81,12 @@ if (!fs.existsSync(templatePath)) {
 }
 
 const template = fs.readFileSync(templatePath, 'utf8')
+
 const { paths } = buildSitemapXml()
+const injectPaths = [...paths, ...SITEMAP_EXCLUDED_PATHS]
 let written = 0
 
-for (const route of paths) {
+for (const route of injectPaths) {
   const meta = getRouteSeoMetadata(route)
   const html = injectSeoIntoHtml(template, meta)
   const outPath = distIndexPathForRoute(route)

@@ -127,7 +127,7 @@ export default function SeoLandingPage() {
       <SeoBreadcrumbJsonLd
         items={[
           { name: 'Home', path: '/' },
-          { name: page.cityName, path: page.path },
+          { name: page.h1, path: page.path },
         ]}
       />
       <SeoBusinessJsonLd
@@ -155,7 +155,7 @@ export default function SeoLandingPage() {
               Home
             </Link>
             <span className="mx-2 text-brand-400/60">/</span>
-            <span className="text-white/90">{page.cityName}</span>
+            <span className="text-white/90">{page.h1}</span>
           </nav>
           <p className="mt-3 text-xs font-semibold uppercase tracking-wider text-brand-300 sm:mt-4 sm:text-sm">
             {page.regionLabel}
@@ -235,6 +235,31 @@ export default function SeoLandingPage() {
             </p>
             <ul className="seo-chip-list mt-4 flex flex-wrap gap-2 sm:mt-5">
               {nearby.map(({ href, label }) => (
+                <li key={href} className="min-w-0 max-w-full">
+                  <Link to={href} className="seo-chip">
+                    {label}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </section>
+      ) : null}
+
+      {(page.relatedLinks ?? []).length > 0 ? (
+        <section
+          className="seo-section seo-section--tint"
+          aria-labelledby="seo-related-heading"
+        >
+          <div className="seo-section-inner">
+            <h2 id="seo-related-heading" className="text-lg font-bold tracking-tight text-slate-900 sm:text-xl">
+              Related {page.cityName === 'Scotland' ? 'Scotland' : page.cityName} pages
+            </h2>
+            <p className="mt-2 max-w-2xl text-sm leading-relaxed text-slate-600">
+              Explore related removals services, nearby areas, and popular guides.
+            </p>
+            <ul className="seo-chip-list mt-4 flex flex-wrap gap-2 sm:mt-5">
+              {page.relatedLinks.map(({ href, label }) => (
                 <li key={href} className="min-w-0 max-w-full">
                   <Link to={href} className="seo-chip">
                     {label}

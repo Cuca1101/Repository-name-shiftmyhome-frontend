@@ -4,8 +4,11 @@ import { Link } from 'react-router-dom'
 const LOCAL_SEO_LINKS = [
   { to: '/glasgow-removals', label: 'Glasgow House Removals' },
   { to: '/edinburgh-removals', label: 'Edinburgh Removals' },
+  { to: '/aberdeen-removals', label: 'Aberdeen Removals' },
+  { to: '/dundee-removals', label: 'Dundee Removals' },
   { to: '/man-with-van-glasgow', label: 'Man with Van Glasgow' },
   { to: '/furniture-delivery-glasgow', label: 'Furniture Delivery Glasgow' },
+  { to: '/coverage', label: 'All Scotland locations' },
 ]
 
 export default function HomeLocalSeoLinks() {

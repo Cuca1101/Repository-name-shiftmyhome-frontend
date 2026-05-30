@@ -24,6 +24,7 @@ import { buildSeoMetadataFromSlug } from './seoSlugMetadata.js'
  *   ogDescription: string,
  *   canonicalUrl: string,
  *   breadcrumbJsonLd?: object,
+ *   robots?: string,
  * }} RouteSeoMetadata
  */
 
@@ -68,6 +69,10 @@ const STATIC_ROUTE_META = {
     ogTitle: 'Scotland Removals Coverage Areas | ShiftMyHome',
     ogDescription:
       'House removals, man with van and furniture delivery across Scottish towns and cities — Glasgow, Edinburgh, Aberdeen, Dundee, Inverness, Paisley and nationwide routes.',
+    breadcrumbJsonLd: buildBreadcrumbJsonLd([
+      { name: 'Home', path: '/' },
+      { name: 'Coverage', path: '/coverage' },
+    ]),
   },
   '/terms': {
     title: 'Terms & Conditions | ShiftMyHome',
@@ -104,6 +109,7 @@ const STATIC_ROUTE_META = {
     ogTitle: 'Payment Successful | ShiftMyHome',
     ogDescription:
       'Your ShiftMyHome payment was successful. Your booking reference is shown on this page — keep it for move day and customer support.',
+    robots: 'noindex, nofollow',
   },
   '/payment-cancelled': {
     title: 'Payment Cancelled | ShiftMyHome',
@@ -113,6 +119,7 @@ const STATIC_ROUTE_META = {
     ogTitle: 'Payment Cancelled | ShiftMyHome',
     ogDescription:
       'Your ShiftMyHome payment was cancelled. You can return to your quote to try again or contact our team if you need help completing your booking.',
+    robots: 'noindex, nofollow',
   },
 }
 
@@ -185,5 +192,11 @@ function fromServicePage(path, page) {
 
 /** @param {string} path @param {Omit<RouteSeoMetadata, 'path' | 'canonicalUrl'>} meta */
 function withCanonical(path, meta) {
-  return { path, ...meta, canonicalUrl: buildCanonicalUrl(path) }
+  const { robots, ...rest } = meta
+  return {
+    path,
+    ...rest,
+    canonicalUrl: buildCanonicalUrl(path),
+    ...(robots ? { robots } : {}),
+  }
 }

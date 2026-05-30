@@ -1,8 +1,16 @@
 import { Link } from 'react-router-dom'
+import SeoHead from '../components/seo/SeoHead'
 
 export default function PaymentCancelledPage() {
   return (
-    <div className="min-w-0 bg-white py-12 sm:py-16">
+    <>
+      <SeoHead
+        title="Payment Cancelled | ShiftMyHome"
+        description="Your ShiftMyHome payment was cancelled. Return to your quote to try again."
+        path="/payment-cancelled"
+        robots="noindex, nofollow"
+      />
+      <div className="min-w-0 bg-white py-12 sm:py-16">
       <div className="mx-auto max-w-lg px-4 text-center sm:px-6 lg:px-8">
         <h1 className="text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">Payment cancelled</h1>
         <p className="mt-4 text-sm leading-relaxed text-slate-600 sm:text-[15px]">
@@ -24,5 +32,6 @@ export default function PaymentCancelledPage() {
         </div>
       </div>
     </div>
+    </>
   )
 }
