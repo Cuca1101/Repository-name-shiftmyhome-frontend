@@ -111,6 +111,16 @@ const STATIC_ROUTE_META = {
       'Your ShiftMyHome payment was successful. Your booking reference is shown on this page — keep it for move day and customer support.',
     robots: 'noindex, nofollow',
   },
+  '/404': {
+    title: 'Page Not Found | ShiftMyHome',
+    description:
+      'The page you requested could not be found. Browse our removals services or get an instant quote.',
+    h1: 'Page not found',
+    ogTitle: 'Page Not Found | ShiftMyHome',
+    ogDescription:
+      'The page you requested could not be found. Browse our removals services or get an instant quote.',
+    robots: 'noindex, nofollow',
+  },
   '/payment-cancelled': {
     title: 'Payment Cancelled | ShiftMyHome',
     description:

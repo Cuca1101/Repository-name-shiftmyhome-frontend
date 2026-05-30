@@ -46,6 +46,7 @@ import OperationsMapPage from './components/OperationsMapPage'
 import PaymentSuccessPage from './pages/PaymentSuccessPage'
 import PaymentCancelledPage from './pages/PaymentCancelledPage'
 import SeoLandingPage from './pages/SeoLandingPage'
+import NotFoundPage from './pages/NotFoundPage'
 import { SEO_PAGE_PATHS } from './data/seoPages'
 
 function RedirectLegacyQuoteDetail() {
@@ -183,7 +184,14 @@ export default function App() {
         <Route path="seo" element={<SeoDashboardAdmin />} />
         <Route path="extra-charges" element={<ExtraChargesAdmin />} />
       </Route>
-      <Route path="*" element={<Navigate to="/" replace />} />
+      <Route
+        path="*"
+        element={
+          <PublicLayout>
+            <NotFoundPage />
+          </PublicLayout>
+        }
+      />
     </Routes>
     </>
   )

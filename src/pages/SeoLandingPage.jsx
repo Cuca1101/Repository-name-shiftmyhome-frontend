@@ -1,4 +1,5 @@
-import { Link, Navigate, useLocation } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
+import NotFoundPage from './NotFoundPage'
 import QuoteWizard from '../components/quote-wizard/QuoteWizard'
 import SeoHead from '../components/seo/SeoHead'
 import SeoFaqJsonLd from '../components/seo/SeoFaqJsonLd'
@@ -106,7 +107,7 @@ export default function SeoLandingPage() {
   const page = mergeSeoLandingPageConfig(basePage, getForPath(pathname))
 
   if (!page) {
-    return <Navigate to="/" replace />
+    return <NotFoundPage />
   }
 
   const servicesHeading =

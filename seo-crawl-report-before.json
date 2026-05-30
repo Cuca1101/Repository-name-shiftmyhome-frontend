@@ -1,0 +1,17 @@
+{
+  "generatedAt": "2026-05-30T20:00:00.000Z",
+  "note": "Baseline before prerender FAQ, LocalBusiness, internal links, lastmod, and 404 fixes",
+  "summary": {
+    "sitemapUrlCount": 306,
+    "indexedCityRemovalPages": 180,
+    "pagesWithMissingSchema": 294,
+    "cityPagesWithMissingSchema": 180,
+    "duplicateTitleGroups": 0,
+    "duplicateMetaDescriptionGroups": 0,
+    "orphanPages": null,
+    "seoLandingWithPrerenderNav": 0,
+    "faqInRawHtml": false,
+    "localBusinessInRawHtml": false,
+    "soft404RedirectsToHome": true
+  }
+}

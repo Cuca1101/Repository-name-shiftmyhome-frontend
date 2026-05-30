@@ -18,16 +18,23 @@ const STATIC_PATHS = [
 /** Transactional routes — excluded from sitemap (noindex at runtime/build). */
 export const SITEMAP_EXCLUDED_PATHS = ['/payment-success', '/payment-cancelled']
 
+/** ISO 8601 date (YYYY-MM-DD) used for sitemap lastmod at build time. */
+export function getSitemapLastmodDate(date = new Date()) {
+  return date.toISOString().slice(0, 10)
+}
+
 /**
  * @param {string} [origin]
+ * @param {string} [lastmod]
  * @returns {{ xml: string, urlCount: number, paths: string[] }}
  */
-export function buildSitemapXml(origin = SEO_SITE_ORIGIN) {
+export function buildSitemapXml(origin = SEO_SITE_ORIGIN, lastmod = getSitemapLastmodDate()) {
   const allPaths = [...new Set([...STATIC_PATHS, ...SEO_PAGE_PATHS])].sort()
   const urls = allPaths
     .map(
       (path) => `  <url>
     <loc>${origin}${path === '/' ? '/' : path}</loc>
+    <lastmod>${lastmod}</lastmod>
     <changefreq>weekly</changefreq>
     <priority>${path === '/' ? '1.0' : path.endsWith('-removals') || path.startsWith('/man-with-van-') ? '0.8' : '0.7'}</priority>
   </url>`,

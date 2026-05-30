@@ -4,7 +4,7 @@ import {
   COMPANY_PHONE_E164,
   COMPANY_SAME_AS_URLS,
   filterValidSameAsUrls,
-} from '../constants/companyContact'
+} from '../constants/companyContact.js'
 
 const BUSINESS_NAME = 'ShiftMyHome'
 const BUSINESS_ALTERNATE_NAMES = ['Shift My Home', 'Shift My Home Removals']
