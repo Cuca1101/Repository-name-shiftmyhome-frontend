@@ -5,7 +5,11 @@ import {
   acceptEssentialCookiesOnly,
   needsCookieConsentChoice,
 } from '../lib/cookieConsent.js'
-import { isGaConfigured, isMetaPixelConfigured } from '../lib/marketingPixels.js'
+import {
+  isGaConfigured,
+  isGoogleAdsConfigured,
+  isMetaPixelConfigured,
+} from '../lib/marketingPixels.js'
 
 export default function CookieConsentBanner() {
   const { pathname } = useLocation()
@@ -16,7 +20,7 @@ export default function CookieConsentBanner() {
       setVisible(false)
       return
     }
-    const hasOptionalPixels = isGaConfigured() || isMetaPixelConfigured()
+    const hasOptionalPixels = isGaConfigured() || isMetaPixelConfigured() || isGoogleAdsConfigured()
     setVisible(needsCookieConsentChoice() && hasOptionalPixels)
   }, [pathname])
 
@@ -34,7 +38,8 @@ export default function CookieConsentBanner() {
         </h2>
         <p className="mt-2 text-xs leading-relaxed text-slate-600 sm:text-sm">
           We use essential cookies to run the site. With your permission, we also use analytics and marketing cookies
-          (Google Analytics and Meta Pixel) to measure visits, quote interest, and ad performance. You can change your
+          (Google Analytics, Google Ads, and Meta Pixel) to measure visits, quote interest, and ad performance. You can
+          change your
           choice anytime in{' '}
           <Link to="/cookies" className="font-semibold text-brand-700 hover:text-brand-800">
             cookie preferences

@@ -5,7 +5,11 @@ import { verifyPaymentIntent, scheduleAdminAvailableJobNotification } from '../l
 import { clearQuoteDraft } from '../lib/quoteDraftStorage'
 import { consumePhotoUploadNotice } from '../lib/quotePhotoUpload'
 import { trackWebsiteLeadEvent } from '../lib/websiteLeadTracker'
-import { trackMarketingPurchase } from '../lib/marketingPixels'
+import {
+  getGoogleAdsPurchaseSendTo,
+  trackGoogleAdsConversion,
+  trackMarketingPurchase,
+} from '../lib/marketingPixels'
 import SeoHead from '../components/seo/SeoHead'
 
 function scrollToEl(el, block = 'center') {
@@ -41,7 +45,26 @@ export default function PaymentSuccessPage() {
             quoteRef: ref,
             recoveredBooking: true,
           })
-          trackMarketingPurchase({ transactionId: paymentIntentId, quoteRef: ref })
+          const amountGbp = Number(data.amount_gbp)
+          const hasAmount = Number.isFinite(amountGbp) && amountGbp > 0
+          const currency =
+            typeof data.currency === 'string' && data.currency.trim()
+              ? data.currency.trim().toUpperCase()
+              : 'GBP'
+          trackMarketingPurchase({
+            transactionId: paymentIntentId,
+            quoteRef: ref,
+            value: hasAmount ? amountGbp : undefined,
+            currency,
+          })
+          const adsSendTo = getGoogleAdsPurchaseSendTo()
+          if (adsSendTo) {
+            trackGoogleAdsConversion(adsSendTo, {
+              transactionId: paymentIntentId,
+              value: hasAmount ? amountGbp : undefined,
+              currency,
+            })
+          }
         }
       } catch {
         /* Keep friendly UI; reference may still arrive by email */

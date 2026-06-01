@@ -21,6 +21,25 @@ export function getGaMeasurementId() {
   return trimmed || GA4_MEASUREMENT_ID
 }
 
+/** @returns {string} Google Ads conversion ID (e.g. AW-123456789). */
+export function getGoogleAdsConversionId() {
+  const id = import.meta.env.VITE_GOOGLE_ADS_CONVERSION_ID
+  return typeof id === 'string' ? id.trim() : ''
+}
+
+/** @returns {string} Google Ads purchase conversion label (no AW- prefix). */
+export function getGoogleAdsPurchaseLabel() {
+  const label = import.meta.env.VITE_GOOGLE_ADS_PURCHASE_LABEL
+  return typeof label === 'string' ? label.trim() : ''
+}
+
+/** @returns {string} `AW-xxx/label` for gtag conversion send_to. */
+export function getGoogleAdsPurchaseSendTo() {
+  const id = getGoogleAdsConversionId()
+  const label = getGoogleAdsPurchaseLabel()
+  return id && label ? `${id}/${label}` : ''
+}
+
 /** @returns {boolean} */
 export function isMetaPixelConfigured() {
   return Boolean(getMetaPixelId())
@@ -31,8 +50,18 @@ export function isGaConfigured() {
   return Boolean(getGaMeasurementId())
 }
 
+/** @returns {boolean} */
+export function isGoogleAdsConfigured() {
+  const id = getGoogleAdsConversionId()
+  const label = getGoogleAdsPurchaseLabel()
+  if (!id || !label) return false
+  if (/x{3,}/i.test(id) || /x{3,}/i.test(label)) return false
+  return /^AW-\d+$/i.test(id)
+}
+
 let gaInitialized = false
 let metaInitialized = false
+let adsInitialized = false
 
 function canUseDom() {
   return typeof window !== 'undefined' && typeof document !== 'undefined'
@@ -96,12 +125,37 @@ function initMetaPixel(id) {
   metaInitialized = true
 }
 
+/** @param {string} conversionId AW-XXXXXXXXX */
+function initGoogleAds(conversionId) {
+  if (!canUseDom() || adsInitialized || !conversionId) return
+
+  window.dataLayer = window.dataLayer || []
+  window.gtag =
+    window.gtag ||
+    function gtag() {
+      window.dataLayer.push(arguments)
+    }
+
+  if (!hasGtagLoaderInHead() && !document.querySelector(`script[data-smh-gtag-ads="${conversionId}"]`)) {
+    const script = document.createElement('script')
+    script.async = true
+    script.src = `https://www.googletagmanager.com/gtag/js?id=${encodeURIComponent(conversionId)}`
+    script.setAttribute('data-smh-gtag-ads', conversionId)
+    document.head.appendChild(script)
+  }
+
+  window.gtag('js', new Date())
+  window.gtag('config', conversionId)
+  adsInitialized = true
+}
+
 /** Sync third-party scripts with current consent + env configuration. */
 export function syncMarketingPixels() {
   if (!canUseDom()) return
 
   const gaId = getGaMeasurementId()
   const metaId = getMetaPixelId()
+  const adsId = getGoogleAdsConversionId()
 
   if (gaId && hasAnalyticsConsent()) {
     initGoogleAnalytics(gaId)
@@ -109,6 +163,10 @@ export function syncMarketingPixels() {
 
   if (metaId && hasMarketingConsent()) {
     initMetaPixel(metaId)
+  }
+
+  if (adsId && hasMarketingConsent()) {
+    initGoogleAds(adsId)
   }
 }
 
@@ -237,10 +295,47 @@ export function trackMarketingPurchase(params = {}) {
   }
 }
 
+/**
+ * Google Ads conversion (marketing consent only).
+ *
+ * @param {string} sendTo AW-xxx/label
+ * @param {object} [params]
+ * @param {string} [params.transactionId]
+ * @param {number} [params.value]
+ * @param {string} [params.currency]
+ */
+export function trackGoogleAdsConversion(sendTo, params = {}) {
+  syncMarketingPixels()
+
+  const sendToTrimmed = typeof sendTo === 'string' ? sendTo.trim() : ''
+  if (!sendToTrimmed || !hasMarketingConsent()) return
+  if (!adsInitialized || typeof window.gtag !== 'function') return
+
+  const transactionId = String(params.transactionId || '').trim()
+  if (transactionId) {
+    const dedupeKey = `smh_ads_conv_${transactionId}`
+    if (window.sessionStorage.getItem(dedupeKey)) return
+    window.sessionStorage.setItem(dedupeKey, '1')
+  }
+
+  const value = Number(params.value)
+  const hasValue = Number.isFinite(value) && value > 0
+  const currency = params.currency || 'GBP'
+
+  window.gtag('event', 'conversion', {
+    send_to: sendToTrimmed,
+    value: hasValue ? value : undefined,
+    currency: hasValue ? currency : undefined,
+    transaction_id: transactionId || undefined,
+  })
+}
+
 /** @returns {boolean} */
 export function shouldShowMarketingScripts() {
   return (
-    (isGaConfigured() && hasAnalyticsConsent()) || (isMetaPixelConfigured() && hasMarketingConsent())
+    (isGaConfigured() && hasAnalyticsConsent()) ||
+    (isMetaPixelConfigured() && hasMarketingConsent()) ||
+    (isGoogleAdsConfigured() && hasMarketingConsent())
   )
 }
 

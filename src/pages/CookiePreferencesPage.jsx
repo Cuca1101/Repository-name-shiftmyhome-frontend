@@ -7,6 +7,7 @@ import {
 } from '../lib/cookieConsent.js'
 import {
   isGaConfigured,
+  isGoogleAdsConfigured,
   isMetaPixelConfigured,
   subscribeMarketingConsentChanges,
 } from '../lib/marketingPixels.js'
@@ -26,7 +27,7 @@ export default function CookiePreferencesPage() {
     return subscribeMarketingConsentChanges(sync)
   }, [])
 
-  const hasOptionalPixels = isGaConfigured() || isMetaPixelConfigured()
+  const hasOptionalPixels = isGaConfigured() || isMetaPixelConfigured() || isGoogleAdsConfigured()
 
   function savePreferences() {
     setCookieConsent({ analytics, marketing })
@@ -66,7 +67,7 @@ export default function CookiePreferencesPage() {
                 </label>
               ) : null}
 
-              {isMetaPixelConfigured() ? (
+              {isMetaPixelConfigured() || isGoogleAdsConfigured() ? (
                 <label className="flex cursor-pointer items-start gap-3">
                   <input
                     type="checkbox"
@@ -75,9 +76,10 @@ export default function CookiePreferencesPage() {
                     onChange={(e) => setMarketing(e.target.checked)}
                   />
                   <span>
-                    <span className="font-medium text-slate-900">Marketing (Meta Pixel)</span>
+                    <span className="font-medium text-slate-900">Marketing (Google Ads &amp; Meta Pixel)</span>
                     <span className="mt-1 block text-slate-600">
-                      Used to measure ad performance on Facebook and Instagram when you interact with our quote tools.
+                      Used to measure paid ad performance — including Google Ads conversions after a booking payment and
+                      Meta ads when you interact with our quote tools.
                     </span>
                   </span>
                 </label>

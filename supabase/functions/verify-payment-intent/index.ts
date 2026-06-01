@@ -117,12 +117,23 @@ Deno.serve(async (req) => {
     })
   }
 
+  const amount_gbp =
+    typeof pi.amount === 'number' && pi.amount > 0
+      ? Math.round((pi.amount / 100) * 100) / 100
+      : undefined
+  const currency =
+    typeof pi.currency === 'string' && pi.currency.trim()
+      ? pi.currency.trim().toUpperCase()
+      : 'GBP'
+
   return jsonResponse({
     ok: result.ok,
     updated: result.ok,
     error: result.error,
     payment_status: pi.status,
     quote_ref: quote_ref || undefined,
+    amount_gbp,
+    currency,
     email_sent,
     email_reason,
     email_debug,
