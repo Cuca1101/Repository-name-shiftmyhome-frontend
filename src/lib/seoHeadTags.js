@@ -1,5 +1,13 @@
 import { SEO_SITE_ORIGIN } from '../data/seoPages'
 import { applySiteBrandHeadTags } from './siteBrandMeta'
+import { buildBreadcrumbJsonLd } from './seoRouteMetadata'
+import { buildFaqPageJsonLd, buildSeoLocalBusinessJsonLd } from './seoStructuredData'
+import {
+  dedupeLandingPageJsonLdInHead,
+  removeManagedJsonLdFromHead,
+  removeSeoLandingBodyJsonLd,
+  upsertJsonLdInHead,
+} from './seoJsonLdHead'
 
 /** @param {string} attr @param {string} key @param {string} content */
 export function setMeta(attr, key, content) {
@@ -103,4 +111,53 @@ export function restoreSeoHeadTags(prevTitle, entries) {
       else el.setAttribute('content', prev)
     }
   })
+}
+
+/**
+ * SEO landing pages: one FAQPage, BreadcrumbList, and LocalBusiness in head only.
+ * @param {{
+ *   path: string,
+ *   faqs?: { q: string, a: string }[],
+ *   breadcrumbItems?: { name: string, path: string }[],
+ *   localBusiness?: { path: string, pageTitle: string, description: string },
+ * }} options
+ */
+export function applySeoLandingPageJsonLd(options) {
+  const { path, faqs, breadcrumbItems, localBusiness } = options
+
+  removeSeoLandingBodyJsonLd()
+  dedupeLandingPageJsonLdInHead()
+
+  const faqData = Array.isArray(faqs) ? buildFaqPageJsonLd(faqs, path) : null
+  const breadcrumbData = breadcrumbItems ? buildBreadcrumbJsonLd(breadcrumbItems) : null
+  const localBusinessData = localBusiness
+    ? buildSeoLocalBusinessJsonLd({
+        path: localBusiness.path,
+        h1: localBusiness.pageTitle,
+        metaDescription: localBusiness.description,
+      })
+    : null
+
+  upsertJsonLdInHead('FAQPage', faqData)
+  upsertJsonLdInHead('BreadcrumbList', breadcrumbData)
+  upsertJsonLdInHead('LocalBusiness', localBusinessData)
+
+  removeSeoLandingBodyJsonLd()
+  dedupeLandingPageJsonLdInHead()
+}
+
+/** @param {boolean} hadLandingJsonLd */
+export function restoreSeoLandingPageJsonLd(hadLandingJsonLd) {
+  if (!hadLandingJsonLd) return
+  removeManagedJsonLdFromHead(['FAQPage', 'BreadcrumbList', 'LocalBusiness'])
+}
+
+/** @param {{ q: string, a: string }[]} faqs @param {string} path */
+export function applySeoFaqJsonLd(faqs, path) {
+  upsertJsonLdInHead('FAQPage', buildFaqPageJsonLd(faqs, path))
+  removeSeoLandingBodyJsonLd()
+}
+
+export function restoreSeoFaqJsonLd() {
+  removeManagedJsonLdFromHead(['FAQPage'])
 }

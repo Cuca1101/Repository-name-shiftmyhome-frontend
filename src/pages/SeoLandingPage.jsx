@@ -2,15 +2,13 @@ import { Link, useLocation } from 'react-router-dom'
 import NotFoundPage from './NotFoundPage'
 import QuoteWizard from '../components/quote-wizard/QuoteWizard'
 import SeoHead from '../components/seo/SeoHead'
-import SeoFaqJsonLd from '../components/seo/SeoFaqJsonLd'
-import SeoBusinessJsonLd from '../components/seo/SeoBusinessJsonLd'
-import SeoBreadcrumbJsonLd from '../components/seo/SeoBreadcrumbJsonLd'
 import SeoFaqAccordion from '../components/seo/SeoFaqAccordion'
 import SeoInternalLinks from '../components/seo/SeoInternalLinks'
 import { getSeoPageByPath } from '../data/seoPages'
 import { normalizePublicPath } from '../lib/normalizePublicPath'
 import { useSeoSettings } from '../context/SeoSettingsContext'
 import { mergeSeoLandingPageConfig } from '../lib/seoSettingsMerge'
+import { normalizeSeoFaqs } from '../lib/seoStructuredData'
 import { CONTACT, WHATSAPP_URL } from '../config'
 
 const SERVICE_HERO_IMAGE = {
@@ -116,6 +114,7 @@ export default function SeoLandingPage() {
     page.cityName === 'Scotland' ? 'Moving services across Scotland' : `Services in ${page.cityName}`
   const nearby = page.nearbyLocations ?? []
   const heroImage = SERVICE_HERO_IMAGE[page.serviceType] || SERVICE_HERO_IMAGE['House Removals']
+  const faqs = normalizeSeoFaqs(page.faqs)
 
   return (
     <article className="seo-landing">
@@ -126,20 +125,17 @@ export default function SeoLandingPage() {
         includeSocial
         ogTitle={page.ogTitle ?? page.title}
         ogDescription={page.ogDescription ?? page.metaDescription}
-      />
-      <SeoBreadcrumbJsonLd
-        items={[
+        faqs={faqs}
+        breadcrumbItems={[
           { name: 'Home', path: '/' },
           { name: page.h1, path: page.path },
         ]}
+        localBusiness={{
+          path: routePath,
+          pageTitle: page.h1,
+          description: page.metaDescription,
+        }}
       />
-      <SeoBusinessJsonLd
-        path={routePath}
-        pageTitle={page.h1}
-        description={page.metaDescription}
-      />
-      <SeoFaqJsonLd faqs={page.faqs} path={page.path} />
-
       <header className="seo-hero" aria-label="Page introduction">
         <img
           src={heroImage}
@@ -350,7 +346,7 @@ export default function SeoLandingPage() {
           <p className="mt-2 text-sm text-slate-600 sm:text-base">
             Tap a question to expand — all answers stay on this page for easy reference.
           </p>
-          <SeoFaqAccordion faqs={page.faqs} />
+          <SeoFaqAccordion faqs={faqs} />
         </div>
       </section>
 

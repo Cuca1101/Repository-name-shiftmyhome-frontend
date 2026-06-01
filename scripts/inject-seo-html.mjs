@@ -8,6 +8,7 @@ import { buildSitemapXml, SITEMAP_EXCLUDED_PATHS } from '../src/lib/generateSite
 import { getSeoPrerenderPayload } from '../src/lib/seoPrerender.js'
 import { getRouteSeoMetadata } from '../src/lib/seoRouteMetadata.js'
 import { buildSiteBrandHeadHtml } from '../src/lib/siteBrandMeta.js'
+import { seoJsonLdScriptId } from '../src/lib/seoJsonLdHead.js'
 
 function escapeHtml(value) {
   return String(value || '')
@@ -42,7 +43,12 @@ function injectJsonLdScripts(html, jsonLdList) {
   for (const data of jsonLdList) {
     if (!data) continue
     const json = JSON.stringify(data).replace(/</g, '\\u003c')
-    out = out.replace(/<\/head>/i, `  <script type="application/ld+json">${json}</script>\n  </head>`)
+    const scriptId = seoJsonLdScriptId(data['@type'])
+    const idAttr = scriptId ? ` id="${scriptId}"` : ''
+    out = out.replace(
+      /<\/head>/i,
+      `  <script type="application/ld+json"${idAttr}>${json}</script>\n  </head>`,
+    )
   }
   return out
 }

@@ -237,23 +237,40 @@ function kindMeta(kind, cityName) {
   }
 }
 
+/** @param {SeoPageKind} kind */
+function faqServiceLabel(kind) {
+  switch (kind) {
+    case 'furniture-delivery':
+      return 'furniture delivery'
+    case 'man-with-van':
+      return 'man with van'
+    case 'office-removals':
+      return 'office removals'
+    case 'student-moves':
+      return 'student moves'
+    default:
+      return 'removals'
+  }
+}
+
 /** @param {SeoPageKind} kind @param {string} cityName @param {ReturnType<typeof getRegion>} region */
 function buildFaqs(kind, cityName, region) {
+  const service = faqServiceLabel(kind)
   const common = [
     {
-      q: `How much do removals cost in ${cityName}?`,
+      q: `How much does ${service} cost in ${cityName}?`,
       a: `Pricing depends on volume, distance, access, and date. Use our instant quote wizard with your ${cityName} pickup and delivery addresses for a live estimate — no obligation.`,
     },
     {
       q: `Do you cover postcodes around ${cityName}?`,
-      a: `Yes. We serve ${region.areaPhrase} and can quote moves from ${cityName} to other Scottish towns or UK destinations.`,
+      a: `Yes. We serve ${region.areaPhrase} and can quote ${service} from ${cityName} to other Scottish towns or UK destinations.`,
     },
     {
-      q: 'Are moves fully insured?',
+      q: `Is ${service} in ${cityName} fully insured?`,
       a: 'Goods-in-transit cover applies on booked jobs. Share high-value or fragile items in your quote so we can confirm the right approach.',
     },
     {
-      q: `Can I get a same-day move in ${cityName}?`,
+      q: `Can I get same-day ${service} in ${cityName}?`,
       a: 'Same-day availability depends on crew schedules — quote with your preferred date and we confirm honestly if we can help.',
     },
   ]
