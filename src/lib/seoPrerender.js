@@ -2,13 +2,14 @@
  * Build-time SEO payload for static HTML injection.
  */
 import { getSeoPageByPath } from '../data/seoPages.js'
+import { getServicePageByPath } from '../constants/servicePages.js'
 import { getRouteSeoMetadata } from './seoRouteMetadata.js'
 import { buildFaqPageJsonLd, buildSeoLocalBusinessJsonLd } from './seoStructuredData.js'
 import {
   buildSeoStaticBodyHtml,
+  buildSeoStaticMainContentHtml,
   buildHomepageStaticCityLinksHtml,
   buildCoverageStaticCityLinksHtml,
-  escapeHtmlText,
 } from './seoStaticPrerenderHtml.js'
 
 /**
@@ -29,17 +30,58 @@ export function getSeoPrerenderPayload(pathname) {
 
   let staticBodyHtml
   if (pathname === '/') {
-    staticBodyHtml = `<h1 class="sr-only">${escapeHtmlText(meta.h1)}</h1>${buildHomepageStaticCityLinksHtml()}`
+    staticBodyHtml =
+      buildSeoStaticMainContentHtml({
+        h1: meta.h1,
+        metaDescription: meta.description,
+        introHeading: 'Scotland removals services',
+        intro: meta.description,
+        introSecondary:
+          'Book house removals, man with van, and furniture delivery across Glasgow, Edinburgh, Aberdeen, Dundee and Scotland-wide routes.',
+      }) + buildHomepageStaticCityLinksHtml()
   } else if (pathname === '/coverage') {
-    staticBodyHtml = `<h1 class="sr-only">${escapeHtmlText(meta.h1)}</h1>${buildCoverageStaticCityLinksHtml()}`
+    staticBodyHtml =
+      buildSeoStaticMainContentHtml({
+        h1: meta.h1,
+        metaDescription: meta.description,
+        introHeading: 'Areas we cover',
+        intro: meta.description,
+        introSecondary:
+          'Select your town or city below for local removals quotes, or use our instant quote form for any Scotland address.',
+      }) + buildCoverageStaticCityLinksHtml()
   } else if (page) {
     staticBodyHtml = buildSeoStaticBodyHtml({
       h1: page.h1,
+      cityName: page.cityName,
+      heroTeaser: page.heroTeaser,
+      intro: page.intro,
+      introSecondary: page.introSecondary,
+      bodySections: page.bodySections,
+      keywordSentence: page.keywordSentence,
+      faqs: page.faqs,
+      metaDescription: page.metaDescription,
       relatedLinks: page.relatedLinks,
       nearbyLocations: page.nearbyLocations,
     })
   } else {
-    staticBodyHtml = `<h1 class="sr-only">${escapeHtmlText(meta.h1)}</h1>`
+    const service = getServicePageByPath(pathname)
+    if (service) {
+      staticBodyHtml = buildSeoStaticBodyHtml({
+        h1: service.title,
+        heroTeaser: service.heroTeaser,
+        intro: service.shortDescription,
+        introHeading: `About ${service.title}`,
+        metaDescription: meta.description,
+      })
+    } else if (meta.description) {
+      staticBodyHtml = buildSeoStaticMainContentHtml({
+        h1: meta.h1,
+        metaDescription: meta.description,
+        intro: meta.description,
+      })
+    } else {
+      staticBodyHtml = buildSeoStaticMainContentHtml({ h1: meta.h1 })
+    }
   }
 
   return { meta, jsonLd, staticBodyHtml }
