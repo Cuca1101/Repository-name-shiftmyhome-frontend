@@ -1,4 +1,5 @@
 import { SEO_PAGE_PATHS, SEO_SITE_ORIGIN } from '../data/seoPages.js'
+import { buildPublicPageUrl } from './normalizePublicPath.js'
 
 const STATIC_PATHS = [
   '/',
@@ -33,7 +34,7 @@ export function buildSitemapXml(origin = SEO_SITE_ORIGIN, lastmod = getSitemapLa
   const urls = allPaths
     .map(
       (path) => `  <url>
-    <loc>${origin}${path === '/' ? '/' : path}</loc>
+    <loc>${buildPublicPageUrl(origin, path)}</loc>
     <lastmod>${lastmod}</lastmod>
     <changefreq>weekly</changefreq>
     <priority>${path === '/' ? '1.0' : path.endsWith('-removals') || path.startsWith('/man-with-van-') ? '0.8' : '0.7'}</priority>

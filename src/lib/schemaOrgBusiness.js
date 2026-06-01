@@ -5,6 +5,7 @@ import {
   COMPANY_SAME_AS_URLS,
   filterValidSameAsUrls,
 } from '../constants/companyContact.js'
+import { buildPublicPageUrl } from './normalizePublicPath.js'
 
 const BUSINESS_NAME = 'ShiftMyHome'
 const BUSINESS_ALTERNATE_NAMES = ['Shift My Home', 'Shift My Home Removals']
@@ -88,7 +89,7 @@ export function buildMovingCompanyJsonLd(siteOrigin, options = {}) {
  */
 export function buildLocalBusinessJsonLd(siteOrigin, options) {
   const path = options.path || '/'
-  const pageUrl = `${siteOrigin}${path}`
+  const pageUrl = buildPublicPageUrl(siteOrigin, path)
   const sameAs = filterValidSameAsUrls(COMPANY_SAME_AS_URLS)
 
   /** @type {Record<string, unknown>} */

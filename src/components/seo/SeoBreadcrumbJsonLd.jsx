@@ -1,4 +1,5 @@
 import { SEO_SITE_ORIGIN } from '../../data/seoPages'
+import { buildPublicPageUrl } from '../../lib/normalizePublicPath'
 
 /**
  * BreadcrumbList JSON-LD for pages with visible breadcrumb navigation.
@@ -14,7 +15,7 @@ export default function SeoBreadcrumbJsonLd({ items }) {
       '@type': 'ListItem',
       position: index + 1,
       name: item.name,
-      item: `${SEO_SITE_ORIGIN}${item.path}`,
+      item: buildPublicPageUrl(SEO_SITE_ORIGIN, item.path),
     })),
   }
 

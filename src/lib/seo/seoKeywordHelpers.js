@@ -2,6 +2,8 @@
  * SEO keyword and metadata helpers for Scotland location pages.
  */
 
+import { buildPublicPageUrl } from '../normalizePublicPath.js'
+
 const SEO_SITE_ORIGIN = 'https://www.shiftmyhome.co.uk'
 const META_DESCRIPTION_MAX = 160
 const META_DESCRIPTION_MIN = 120
@@ -111,11 +113,11 @@ export function buildLocationHeroTeaser(cityName, region, variant = 0) {
 }
 
 /**
+ * Canonical URL (trailing slash on directory routes — matches live 200 response).
  * @param {string} path
  */
 export function buildCanonicalUrl(path) {
-  const p = path.startsWith('/') ? path : `/${path}`
-  return `${SEO_SITE_ORIGIN}${p}`
+  return buildPublicPageUrl(SEO_SITE_ORIGIN, path)
 }
 
 /**

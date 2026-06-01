@@ -1,11 +1,12 @@
 import { SEO_SITE_ORIGIN } from '../../data/seoPages'
+import { buildPublicPageUrl } from '../../lib/normalizePublicPath'
 
 /**
  * Standalone Service schema for main service quote pages.
  * @param {{ name: string, description: string, path: string, serviceType?: string }} props
  */
 export default function SeoServiceJsonLd({ name, description, path, serviceType }) {
-  const pageUrl = `${SEO_SITE_ORIGIN}${path}`
+  const pageUrl = buildPublicPageUrl(SEO_SITE_ORIGIN, path)
   const data = {
     '@context': 'https://schema.org',
     '@type': 'Service',

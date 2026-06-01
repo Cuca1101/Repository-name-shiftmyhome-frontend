@@ -22,3 +22,15 @@ export function withTrailingSlashVariants(paths) {
   }
   return [...out]
 }
+
+/**
+ * Absolute public URL matching Cloudflare Pages trailing-slash hosting (200 URL).
+ * @param {string} origin e.g. https://www.shiftmyhome.co.uk
+ * @param {string} pathname
+ */
+export function buildPublicPageUrl(origin, pathname) {
+  const base = String(origin || '').replace(/\/+$/, '')
+  const path = normalizePublicPath(pathname)
+  if (path === '/') return `${base}/`
+  return `${base}${path}/`
+}

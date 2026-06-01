@@ -1,4 +1,5 @@
 import { SEO_SITE_ORIGIN } from '../data/seoPages'
+import { buildCanonicalUrl } from './seo/seoKeywordHelpers.js'
 import { applySiteBrandHeadTags } from './siteBrandMeta'
 import { buildBreadcrumbJsonLd } from './seoRouteMetadata'
 import { buildFaqPageJsonLd, buildSeoLocalBusinessJsonLd } from './seoStructuredData'
@@ -72,7 +73,7 @@ export function applySeoHeadTags(options) {
     robots = '',
   } = options
 
-  const canonicalHref = `${SEO_SITE_ORIGIN}${path}`
+  const canonicalHref = buildCanonicalUrl(path)
   const absoluteImage = resolveAbsoluteSeoImage(ogImage)
 
   applySiteBrandHeadTags()
