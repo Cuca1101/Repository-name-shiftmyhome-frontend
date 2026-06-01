@@ -11,10 +11,14 @@ export function getMetaPixelId() {
   return typeof id === 'string' ? id.trim() : ''
 }
 
+/** Default GA4 measurement ID (override with VITE_GA_MEASUREMENT_ID). */
+export const GA4_MEASUREMENT_ID = 'G-JHFQTSQRTL'
+
 /** @returns {string} */
 export function getGaMeasurementId() {
-  const id = import.meta.env.VITE_GA_MEASUREMENT_ID
-  return typeof id === 'string' ? id.trim() : ''
+  const envId = import.meta.env.VITE_GA_MEASUREMENT_ID
+  const trimmed = typeof envId === 'string' ? envId.trim() : ''
+  return trimmed || GA4_MEASUREMENT_ID
 }
 
 /** @returns {boolean} */
@@ -34,6 +38,12 @@ function canUseDom() {
   return typeof window !== 'undefined' && typeof document !== 'undefined'
 }
 
+function hasGtagLoaderInHead() {
+  return Boolean(
+    document.querySelector('script[src*="googletagmanager.com/gtag/js"]'),
+  )
+}
+
 /** @param {string} id */
 function initGoogleAnalytics(id) {
   if (!canUseDom() || gaInitialized || !id) return
@@ -45,7 +55,7 @@ function initGoogleAnalytics(id) {
       window.dataLayer.push(arguments)
     }
 
-  if (!document.querySelector(`script[data-smh-gtag="${id}"]`)) {
+  if (!hasGtagLoaderInHead() && !document.querySelector(`script[data-smh-gtag="${id}"]`)) {
     const script = document.createElement('script')
     script.async = true
     script.src = `https://www.googletagmanager.com/gtag/js?id=${encodeURIComponent(id)}`

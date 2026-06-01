@@ -18,6 +18,11 @@ function isAdminPath(pathname) {
   return pathname.startsWith('/admin')
 }
 
+/** @param {string} pathname */
+function isPublicMarketingPath(pathname) {
+  return !isAdminPath(pathname)
+}
+
 /**
  * @param {HTMLAnchorElement} anchor
  */
@@ -41,10 +46,11 @@ export default function PublicMarketingTracker() {
   const lastTrackedPathRef = useRef('')
 
   useEffect(() => {
-    if (isAdminPath(pathname)) return undefined
+    if (!isPublicMarketingPath(pathname)) return undefined
 
     syncMarketingPixels()
     return subscribeMarketingConsentChanges(() => {
+      if (!isPublicMarketingPath(window.location.pathname)) return
       syncMarketingPixels()
     })
   }, [pathname])
