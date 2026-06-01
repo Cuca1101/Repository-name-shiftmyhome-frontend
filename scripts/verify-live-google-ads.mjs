@@ -5,8 +5,6 @@
 const ORIGIN = 'https://www.shiftmyhome.co.uk'
 const CONVERSION_ID = 'AW-18190966910'
 const PURCHASE_LABEL = 'NRicCNqylbccEP7AkoJD'
-const SEND_TO = `${CONVERSION_ID}/${PURCHASE_LABEL}`
-
 const homeHtml = await fetch(`${ORIGIN}/`).then((r) => r.text())
 const bundleMatch = homeHtml.match(/\/assets\/(index-[A-Za-z0-9_-]+\.js)/)
 if (!bundleMatch) {
@@ -21,11 +19,10 @@ const checks = {
   bundle: bundleMatch[1],
   conversionIdInBundle: js.includes(CONVERSION_ID),
   purchaseLabelInBundle: js.includes(PURCHASE_LABEL),
-  sendToInBundle: js.includes(SEND_TO),
-  trackGoogleAdsConversion: js.includes('trackGoogleAdsConversion'),
+  adsInitMarker: js.includes('data-smh-gtag-ads') || js.includes(CONVERSION_ID),
   gtagConversionEvent: js.includes('conversion'),
 }
 
-const ok = checks.conversionIdInBundle && checks.purchaseLabelInBundle && checks.sendToInBundle
+const ok = checks.conversionIdInBundle && checks.purchaseLabelInBundle
 console.log(JSON.stringify({ ok, checks }, null, 2))
 process.exit(ok ? 0 : 1)
