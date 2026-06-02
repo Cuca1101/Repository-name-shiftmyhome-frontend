@@ -6,6 +6,8 @@ import {
   setCookieConsent,
 } from '../lib/cookieConsent.js'
 import {
+  getMarketingCookiePreferenceDescription,
+  getMarketingCookiePreferenceTitle,
   isGaConfigured,
   isGoogleAdsConfigured,
   isMetaPixelConfigured,
@@ -76,10 +78,9 @@ export default function CookiePreferencesPage() {
                     onChange={(e) => setMarketing(e.target.checked)}
                   />
                   <span>
-                    <span className="font-medium text-slate-900">Marketing (Google Ads &amp; Meta Pixel)</span>
+                    <span className="font-medium text-slate-900">{getMarketingCookiePreferenceTitle()}</span>
                     <span className="mt-1 block text-slate-600">
-                      Used to measure paid ad performance — including Google Ads conversions after a booking payment and
-                      Meta ads when you interact with our quote tools.
+                      {getMarketingCookiePreferenceDescription()}
                     </span>
                   </span>
                 </label>

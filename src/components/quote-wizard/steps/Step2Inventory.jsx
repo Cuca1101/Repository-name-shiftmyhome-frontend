@@ -179,16 +179,17 @@ export default function Step2Inventory({
   function renderCatalogRow(item, highlightQuery, emphasizeMatch) {
     const line = catalogLineForItem(lines, item.id, item.name)
     const qty = line?.quantity ?? 0
+    const isSelected = qty > 0
     const volumeHint = ITEM_VOLUME_HINT[item.id]
     const perUnitVol = Number(item.m3) || 0
+    const cardTone = emphasizeMatch
+      ? 'bg-amber-50/50 ring-1 ring-amber-200/70'
+      : 'bg-slate-50/80'
+
     return (
       <li
         key={item.id}
-        className={`flex min-h-[64px] items-stretch gap-3 rounded-xl border border-slate-100 px-3 py-3 sm:gap-4 sm:px-4 ${
-          emphasizeMatch
-            ? 'bg-amber-50/50 ring-1 ring-amber-200/70'
-            : 'bg-slate-50/80'
-        }`}
+        className={`flex min-h-[64px] min-w-0 items-center gap-3 rounded-xl border border-slate-100 px-3 py-3 sm:gap-4 sm:px-4 ${cardTone}`}
       >
         <div className="flex min-w-0 flex-1 items-center gap-3">
           <div
@@ -197,8 +198,8 @@ export default function Step2Inventory({
           >
             <CatalogItemLucideIcon itemId={item.id} className="h-5 w-5" />
           </div>
-          <div className="min-w-0 flex-1">
-            <p className="text-sm font-semibold leading-snug text-slate-900">
+          <div className="min-w-0 flex-1 overflow-hidden">
+            <p className="text-sm font-semibold leading-snug text-slate-900 break-normal">
               {highlightQuery ? (
                 <HighlightedInventoryName name={item.name} query={highlightQuery} />
               ) : (
@@ -211,8 +212,9 @@ export default function Step2Inventory({
             </p>
           </div>
         </div>
-        <div className="flex shrink-0 items-center self-center">
+        <div className="flex h-11 w-[5.5rem] shrink-0 items-center justify-end sm:w-[5.75rem]">
           <InlineInventoryQtyControl
+            catalog={isSelected}
             quantity={qty}
             onAdd={() => addFromCatalog(item.id)}
             onDecrement={() => line && bump(line.lineId, -1)}
@@ -274,12 +276,13 @@ export default function Step2Inventory({
   function renderMobileCatalogRow(item, highlightQuery, emphasizeMatch) {
     const line = catalogLineForItem(lines, item.id, item.name)
     const qty = line?.quantity ?? 0
+    const isSelected = qty > 0
+    const cardTone = emphasizeMatch ? 'border-amber-200 bg-amber-50/50' : 'border-slate-100 bg-slate-50/80'
+
     return (
       <li
         key={item.id}
-        className={`flex min-h-[52px] min-w-0 items-center gap-2 rounded-lg border px-2 py-2 ${
-          emphasizeMatch ? 'border-amber-200 bg-amber-50/50' : 'border-slate-100 bg-slate-50/80'
-        }`}
+        className={`flex min-h-[52px] min-w-0 items-center gap-2 rounded-lg border px-2 py-2 ${cardTone}`}
       >
         <div
           className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white text-brand-700 ring-1 ring-slate-200/80"
@@ -287,8 +290,8 @@ export default function Step2Inventory({
         >
           <CatalogItemLucideIcon itemId={item.id} className="h-4 w-4" />
         </div>
-        <div className="min-w-0 flex-1">
-          <p className="text-sm font-medium leading-snug text-slate-900">
+        <div className="min-w-0 flex-1 overflow-hidden">
+          <p className="text-sm font-medium leading-snug text-slate-900 break-normal">
             {highlightQuery ? (
               <HighlightedInventoryName name={item.name} query={highlightQuery} />
             ) : (
@@ -296,9 +299,10 @@ export default function Step2Inventory({
             )}
           </p>
         </div>
-        <div className="shrink-0">
+        <div className="flex h-9 w-16 shrink-0 items-center justify-end">
           <InlineInventoryQtyControl
             compact
+            catalog={isSelected}
             quantity={qty}
             onAdd={() => addFromCatalog(item.id)}
             onDecrement={() => line && bump(line.lineId, -1)}

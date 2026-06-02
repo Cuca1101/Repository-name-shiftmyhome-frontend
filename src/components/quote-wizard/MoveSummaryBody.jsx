@@ -11,6 +11,7 @@ import {
 } from '../../lib/moveSummaryDisplay'
 import { formatDateUK } from '../../lib/formatDateDisplay'
 import QuotePricingDebugPanel from './QuotePricingDebugPanel'
+import QuoteEstimatedTotalStrip from './QuoteEstimatedTotalStrip'
 import {
   formatCompactArrivalLine,
   formatWizardServiceExtrasSummary,
@@ -91,6 +92,10 @@ export default function MoveSummaryBody({
 
   return (
     <>
+      {step === 3 && showPricing && breakdown ? (
+        <QuoteEstimatedTotalStrip breakdown={breakdown} className={cardRound} />
+      ) : null}
+
       <div className={`min-w-0 border border-slate-200 bg-white ${cardRound} ${cardPad} ${hideRefCardOnMobileStep1}`}>
         <p className="text-[0.65rem] font-semibold uppercase tracking-wide text-slate-500">Quote reference</p>
         <p className="mt-0.5 font-mono text-sm font-bold text-brand-800">{quoteRef}</p>

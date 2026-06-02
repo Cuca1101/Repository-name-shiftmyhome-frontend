@@ -59,6 +59,49 @@ export function isGoogleAdsConfigured() {
   return /^AW-\d+$/i.test(id)
 }
 
+/** Human-readable names of optional cookies that are configured in env. */
+export function getConfiguredOptionalCookieServiceNames() {
+  const names = []
+  if (isGaConfigured()) names.push('Google Analytics')
+  if (isGoogleAdsConfigured()) names.push('Google Ads')
+  if (isMetaPixelConfigured()) names.push('Meta Pixel')
+  return names
+}
+
+/** @param {string[]} names */
+export function formatCookieServiceList(names) {
+  if (!names?.length) return ''
+  if (names.length === 1) return names[0]
+  if (names.length === 2) return `${names[0]} and ${names[1]}`
+  return `${names.slice(0, -1).join(', ')}, and ${names[names.length - 1]}`
+}
+
+/** @returns {string} */
+export function getMarketingCookiePreferenceTitle() {
+  const hasAds = isGoogleAdsConfigured()
+  const hasMeta = isMetaPixelConfigured()
+  if (hasAds && hasMeta) return 'Marketing (Google Ads & Meta Pixel)'
+  if (hasAds) return 'Marketing (Google Ads)'
+  if (hasMeta) return 'Marketing (Meta Pixel)'
+  return 'Marketing'
+}
+
+/** @returns {string} */
+export function getMarketingCookiePreferenceDescription() {
+  const hasAds = isGoogleAdsConfigured()
+  const hasMeta = isMetaPixelConfigured()
+  if (hasAds && hasMeta) {
+    return 'Used to measure paid ad performance — including Google Ads conversions after a booking payment and Meta ads when you interact with our quote tools.'
+  }
+  if (hasAds) {
+    return 'Used to measure Google Ads conversions after a booking payment.'
+  }
+  if (hasMeta) {
+    return 'Used to measure Meta ad performance when you interact with our quote tools.'
+  }
+  return 'Used to measure paid ad performance.'
+}
+
 let gaInitialized = false
 let metaInitialized = false
 let adsInitialized = false

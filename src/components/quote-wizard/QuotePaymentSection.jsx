@@ -1,7 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Check, ShieldCheck } from 'lucide-react'
-import { isDepositPaymentAllowedForMoveDate } from '../../lib/moveDateLocal'
+import {
+  isDepositPaymentAllowedForMoveDate,
+  isMoveDateOnOrAfterToday,
+  moveDatePastErrorMessage,
+} from '../../lib/moveDateLocal'
 import { trackWebsiteLeadEvent } from '../../lib/websiteLeadTracker'
 import QuoteStripePayment from './QuoteStripePayment'
 import { shouldShowStripeTestModeWarning, stripeTestModeWarningMessage } from '../../lib/stripeConfig'
@@ -92,6 +96,7 @@ export default function QuotePaymentSection({
   const panelVisible = usePanelVisible(rootRef)
 
   const depositAllowed = isDepositPaymentAllowedForMoveDate(wizard?.moveDate)
+  const moveDatePayReady = isMoveDateOnOrAfterToday(wizard?.moveDate)
 
   const card =
     'min-w-0 max-md:overflow-visible overflow-hidden rounded-2xl border border-slate-200/90 bg-white p-4 shadow-sm md:border-slate-200 md:p-6 md:shadow-card'
@@ -149,11 +154,12 @@ export default function QuotePaymentSection({
     if (autoTriggeredRef.current) return
     if (!panelVisible || !paymentChoice) return
     if (cardFormOpen) return
+    if (!moveDatePayReady) return
     autoTriggeredRef.current = true
     if (typeof onPay === 'function') {
       onPay(paymentChoice)
     }
-  }, [panelVisible, paymentChoice, cardFormOpen, onPay])
+  }, [panelVisible, paymentChoice, cardFormOpen, onPay, moveDatePayReady])
 
   function selectChoice(kind) {
     setPaymentChoice(kind)
@@ -336,7 +342,7 @@ export default function QuotePaymentSection({
           <button
             type="button"
             onClick={() => selectChoice('full')}
-            disabled={!termsReady}
+            disabled={!termsReady || !moveDatePayReady}
             aria-pressed={paymentChoice === 'full'}
             className={`${optionClass(paymentChoice === 'full', paymentChoice === 'full' && termsReady)} disabled:cursor-not-allowed disabled:opacity-50`}
           >
@@ -355,7 +361,7 @@ export default function QuotePaymentSection({
             <button
               type="button"
               onClick={() => selectChoice('deposit')}
-              disabled={!termsReady}
+              disabled={!termsReady || !moveDatePayReady}
               aria-pressed={paymentChoice === 'deposit'}
               className={`${optionClass(paymentChoice === 'deposit', paymentChoice === 'deposit' && termsReady)} disabled:cursor-not-allowed disabled:opacity-50`}
             >
@@ -403,7 +409,17 @@ export default function QuotePaymentSection({
           </p>
         ) : null}
 
-        {payError ? (
+        {!moveDatePayReady ? (
+          <p
+            className="quote-error mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-800 md:mt-4 md:text-sm"
+            role="alert"
+            data-quote-error="true"
+          >
+            {moveDatePastErrorMessage(wizard?.moveDate)}
+          </p>
+        ) : null}
+
+        {payError && moveDatePayReady ? (
           <p
             className="quote-error mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-800 md:text-sm"
             role="alert"
@@ -454,15 +470,19 @@ export default function QuotePaymentSection({
           ) : panelVisible ? (
             <div className="space-y-3 text-center">
               <p className="text-sm text-slate-600">
-                {payError || 'Could not load secure payment. Please try again.'}
+                {payError
+                  ? 'Update your move date on step 1, then try again.'
+                  : 'Could not load secure payment. Please try again.'}
               </p>
-              <button
-                type="button"
-                onClick={() => onPay(paymentChoice)}
-                className="inline-flex min-h-[44px] items-center justify-center rounded-xl border border-brand-200 bg-brand-50 px-4 text-sm font-semibold text-brand-900"
-              >
-                Load secure payment
-              </button>
+              {!payError ? (
+                <button
+                  type="button"
+                  onClick={() => onPay(paymentChoice)}
+                  className="inline-flex min-h-[44px] items-center justify-center rounded-xl border border-brand-200 bg-brand-50 px-4 text-sm font-semibold text-brand-900"
+                >
+                  Load secure payment
+                </button>
+              ) : null}
             </div>
           ) : (
             <div className="flex flex-col items-center gap-2 py-4" role="status">

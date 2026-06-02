@@ -6,6 +6,8 @@ import {
   needsCookieConsentChoice,
 } from '../lib/cookieConsent.js'
 import {
+  formatCookieServiceList,
+  getConfiguredOptionalCookieServiceNames,
   isGaConfigured,
   isGoogleAdsConfigured,
   isMetaPixelConfigured,
@@ -26,6 +28,8 @@ export default function CookieConsentBanner() {
 
   if (!visible) return null
 
+  const optionalServices = formatCookieServiceList(getConfiguredOptionalCookieServiceNames())
+
   return (
     <div className="pointer-events-none fixed inset-x-0 bottom-0 z-[120] px-4 pb-4 sm:px-6 sm:pb-6"
       role="dialog"
@@ -38,7 +42,7 @@ export default function CookieConsentBanner() {
         </h2>
         <p className="mt-2 text-xs leading-relaxed text-slate-600 sm:text-sm">
           We use essential cookies to run the site. With your permission, we also use analytics and marketing cookies
-          (Google Analytics, Google Ads, and Meta Pixel) to measure visits, quote interest, and ad performance. You can
+          ({optionalServices}) to measure visits, quote interest, and ad performance. You can
           change your
           choice anytime in{' '}
           <Link to="/cookies" className="font-semibold text-brand-700 hover:text-brand-800">

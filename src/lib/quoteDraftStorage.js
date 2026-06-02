@@ -1,5 +1,6 @@
 import { SERVICE_PAGES } from '../constants/servicePages'
 import { initialWizardState } from './quoteWizardDefaults'
+import { sanitizeDraftMoveDate } from './moveDateLocal'
 
 export const QUOTE_DRAFT_STORAGE_KEY = 'shiftmyhome_quote_draft_v1'
 
@@ -67,19 +68,40 @@ export function loadQuoteDraft() {
       return null
     }
     if (!data.wizard || typeof data.quoteRef !== 'string') return null
-    const step = Math.min(4, Math.max(1, Number(data.step) || 1))
+    let step = Math.min(4, Math.max(1, Number(data.step) || 1))
+    let wizard = hydrateWizardFromDraft(data.wizard)
+    const serviceType = typeof data.serviceType === 'string' ? data.serviceType : ''
+    const returnPath = typeof data.returnPath === 'string' ? data.returnPath : '/quote'
+    const estimatedTotal =
+      typeof data.estimatedTotal === 'number' && Number.isFinite(data.estimatedTotal)
+        ? data.estimatedTotal
+        : null
+
+    const sanitized = sanitizeDraftMoveDate(wizard, step)
+    wizard = sanitized.wizard
+    step = sanitized.step
+
+    if (sanitized.dateWasReset) {
+      saveQuoteDraft({
+        step,
+        quoteRef: data.quoteRef,
+        serviceType,
+        returnPath,
+        wizard,
+        estimatedTotal,
+      })
+    }
+
     return {
       version: DRAFT_VERSION,
       savedAt: data.savedAt,
       step,
       quoteRef: data.quoteRef,
-      serviceType: typeof data.serviceType === 'string' ? data.serviceType : '',
-      returnPath: typeof data.returnPath === 'string' ? data.returnPath : '/quote',
-      wizard: hydrateWizardFromDraft(data.wizard),
-      estimatedTotal:
-        typeof data.estimatedTotal === 'number' && Number.isFinite(data.estimatedTotal)
-          ? data.estimatedTotal
-          : null,
+      serviceType,
+      returnPath,
+      wizard,
+      estimatedTotal,
+      dateWasReset: sanitized.dateWasReset,
     }
   } catch {
     clearQuoteDraft()
@@ -133,4 +155,5 @@ export function hasQuoteDraft() {
  * @property {string} returnPath
  * @property {ReturnType<typeof initialWizardState>} wizard
  * @property {number | null} estimatedTotal
+ * @property {boolean} [dateWasReset]
  */

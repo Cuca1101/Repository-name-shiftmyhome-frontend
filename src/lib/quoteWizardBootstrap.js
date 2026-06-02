@@ -21,6 +21,7 @@ export function resolveWizardBootstrap(serviceTypeProp) {
         wizard: draft.wizard,
         serviceType: draft.serviceType || serviceTypeProp,
         isResumed: true,
+        dateWasReset: Boolean(draft.dateWasReset),
       }
     }
     clearResumeSavedQuote()
@@ -34,5 +35,6 @@ export function resolveWizardBootstrap(serviceTypeProp) {
     wizard: initialWizardState(),
     serviceType: serviceTypeProp,
     isResumed: false,
+    dateWasReset: false,
   }
 }

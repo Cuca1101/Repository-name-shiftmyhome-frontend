@@ -60,8 +60,8 @@ import {
   resolveDepositAmountGbp,
 } from '../../lib/pricingCalculator'
 import {
-  MOVE_DATE_PAST_ERROR,
   isMoveDateOnOrAfterToday,
+  moveDatePastErrorMessage,
 } from '../../lib/moveDateLocal'
 import { clearQuoteDraft, saveQuoteDraft } from '../../lib/quoteDraftStorage'
 import { resolveWizardBootstrap } from '../../lib/quoteWizardBootstrap'
@@ -139,6 +139,15 @@ export function QuoteWizardProvider({ children, serviceType: serviceTypeProp, al
   useEffect(() => {
     if (step >= 3) preloadStripeJs()
   }, [step])
+
+  useEffect(() => {
+    if (!bootstrap.dateWasReset) return
+    setFeedback({
+      type: 'warning',
+      text: 'Your saved move date has passed. Please choose a new date on step 1 before continuing.',
+    })
+    scheduleQuoteValidationScroll({ hint: QUOTE_ERROR_SCROLL_HINTS.moveDate })
+  }, [bootstrap.dateWasReset])
 
   const addQuotePhotos = useCallback((fileList) => {
     const incoming = Array.from(fileList).filter(
@@ -501,7 +510,16 @@ export function QuoteWizardProvider({ children, serviceType: serviceTypeProp, al
       wizard.moveDate &&
       !isMoveDateOnOrAfterToday(wizard.moveDate)
     ) {
-      setFeedback({ type: 'error', text: MOVE_DATE_PAST_ERROR })
+      setFeedback({ type: 'error', text: moveDatePastErrorMessage(wizard.moveDate) })
+      scheduleQuoteValidationScroll({ hint: QUOTE_ERROR_SCROLL_HINTS.moveDate })
+      return
+    }
+    if (
+      step === 3 &&
+      wizard.moveDate &&
+      !isMoveDateOnOrAfterToday(wizard.moveDate)
+    ) {
+      setFeedback({ type: 'error', text: moveDatePastErrorMessage(wizard.moveDate) })
       scheduleQuoteValidationScroll({ hint: QUOTE_ERROR_SCROLL_HINTS.moveDate })
       return
     }
@@ -650,8 +668,8 @@ export function QuoteWizardProvider({ children, serviceType: serviceTypeProp, al
         return
       }
       if (!isMoveDateOnOrAfterToday(wizard.moveDate)) {
-        setPayError(MOVE_DATE_PAST_ERROR)
-        scheduleQuoteValidationScroll({ hint: QUOTE_ERROR_SCROLL_HINTS.payment })
+        setPayError(moveDatePastErrorMessage(wizard.moveDate))
+        scheduleQuoteValidationScroll({ hint: QUOTE_ERROR_SCROLL_HINTS.moveDate })
         return
       }
       if (wizard.phone.trim().length <= 5) {
@@ -739,7 +757,7 @@ export function QuoteWizardProvider({ children, serviceType: serviceTypeProp, al
   const handleSubmit = useCallback(async () => {
     if (!breakdown || !settings) return
     if (!isMoveDateOnOrAfterToday(wizard.moveDate)) {
-      setFeedback({ type: 'error', text: MOVE_DATE_PAST_ERROR })
+      setFeedback({ type: 'error', text: moveDatePastErrorMessage(wizard.moveDate) })
       scheduleQuoteValidationScroll({ hint: QUOTE_ERROR_SCROLL_HINTS.moveDate })
       return
     }
