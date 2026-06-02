@@ -18,6 +18,7 @@ import {
   insertQuoteFromTemplateParams,
 } from '../../lib/data/quotesRepository'
 import { createPaymentIntent } from '../../lib/stripeCheckout'
+import { preloadStripeJs } from '../../lib/stripePromise'
 import {
   buildQuoteEmailTemplateParams,
   buildWizardFullSummaryText,
@@ -130,6 +131,14 @@ export function QuoteWizardProvider({ children, serviceType: serviceTypeProp, al
   const [lastQuoteData, setLastQuoteData] = useState(null)
   const [quotePhotoFiles, setQuotePhotoFiles] = useState([])
   const pendingStepScrollRef = useRef(false)
+
+  useEffect(() => {
+    preloadStripeJs()
+  }, [])
+
+  useEffect(() => {
+    if (step >= 3) preloadStripeJs()
+  }, [step])
 
   const addQuotePhotos = useCallback((fileList) => {
     const incoming = Array.from(fileList).filter(
@@ -673,6 +682,7 @@ export function QuoteWizardProvider({ children, serviceType: serviceTypeProp, al
       setPayLoading(true)
       setPayError('')
       setCardPayment(null)
+      preloadStripeJs()
       try {
         const quote_lead = buildQuoteRowFromTemplateParams(payload.templateParams, payload.extras)
         const depositGbp = resolveDepositAmountGbp(settings)

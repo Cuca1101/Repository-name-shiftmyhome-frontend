@@ -12,7 +12,11 @@ function paymentElementOptions(customerEmail) {
       radios: 'auto',
       spacedAccordionItems: false,
     },
-    paymentMethodOrder: ['card', 'klarna', 'revolut_pay', 'amazon_pay'],
+    paymentMethodOrder: ['card'],
+    wallets: {
+      applePay: 'never',
+      googlePay: 'never',
+    },
   }
   if (customerEmail) {
     options.defaultValues = {

@@ -1,9 +1,15 @@
+import { useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import PublicLayout from '../layouts/PublicLayout'
 import SeoHead from '../components/seo/SeoHead'
 import CustomerQuoteCalculator from '../components/CustomerQuoteCalculator'
+import { preloadStripeJs } from '../lib/stripePromise'
 
 export default function QuotePage() {
+  useEffect(() => {
+    preloadStripeJs()
+  }, [])
+
   return (
     <PublicLayout>
       <SeoHead

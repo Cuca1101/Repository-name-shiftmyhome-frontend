@@ -432,7 +432,13 @@ export default function QuotePaymentSection({
               Select a payment option above to load secure payment.
             </p>
           ) : busy && !stripeReady ? (
-            <p className="text-center text-sm text-slate-600">Preparing secure payment form…</p>
+            <div className="flex flex-col items-center gap-2 py-4" role="status" aria-live="polite">
+              <span
+                className="h-8 w-8 animate-spin rounded-full border-2 border-brand-200 border-t-brand-600"
+                aria-hidden
+              />
+              <p className="text-center text-sm text-slate-600">Preparing secure card form…</p>
+            </div>
           ) : stripeReady && cardPayment ? (
             <QuoteStripePayment
               key={`${intentType || paymentChoice}-${clientSecret}`}
@@ -459,7 +465,13 @@ export default function QuotePaymentSection({
               </button>
             </div>
           ) : (
-            <p className="text-center text-sm text-slate-500">Preparing secure payment form…</p>
+            <div className="flex flex-col items-center gap-2 py-4" role="status">
+              <span
+                className="h-8 w-8 animate-spin rounded-full border-2 border-slate-200 border-t-brand-500"
+                aria-hidden
+              />
+              <p className="text-center text-sm text-slate-500">Preparing secure card form…</p>
+            </div>
           )}
         </div>
 
