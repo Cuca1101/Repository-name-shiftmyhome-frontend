@@ -9,6 +9,7 @@ import {
   buildSeoStaticBodyHtml,
   buildSeoStaticMainContentHtml,
   buildCoverageStaticCityLinksHtml,
+  escapeHtmlText,
 } from './seoStaticPrerenderHtml.js'
 
 /**
@@ -29,15 +30,8 @@ export function getSeoPrerenderPayload(pathname) {
 
   let staticBodyHtml
   if (pathname === '/') {
-    staticBodyHtml =
-      buildSeoStaticMainContentHtml({
-        h1: meta.h1,
-        metaDescription: meta.description,
-        introHeading: 'Scotland removals services',
-        intro: meta.description,
-        introSecondary:
-          'Book house removals, man with van, and furniture delivery across Glasgow, Edinburgh, Aberdeen, Dundee and Scotland-wide routes.',
-      })
+    // Screen-reader / crawler only — React hero replaces #root; avoids visible flash on refresh.
+    staticBodyHtml = `<h1 class="sr-only">${escapeHtmlText(meta.h1)}</h1>`
   } else if (pathname === '/coverage') {
     staticBodyHtml =
       buildSeoStaticMainContentHtml({
