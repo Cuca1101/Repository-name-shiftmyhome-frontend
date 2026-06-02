@@ -1,4 +1,5 @@
 import { extractMoveYmd } from './adminJobWarningBadges'
+import { formatDateMediumUK } from './formatDateDisplay'
 
 /** @typedef {'today' | 'tomorrow' | 'this_week' | 'custom' | 'all'} OperationsMapDatePreset */
 
@@ -116,7 +117,7 @@ export function formatDatePresetLabel(preset, customYmd) {
   if (preset === 'custom') {
     const d = parseYmd(customYmd)
     if (!d) return customYmd || '—'
-    return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })
+    return formatDateMediumUK(d)
   }
   return ''
 }

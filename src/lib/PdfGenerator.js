@@ -173,6 +173,7 @@ function formatDateLongUK(isoOrDate) {
   const d = /^\d{4}-\d{2}-\d{2}$/.test(s) ? new Date(`${s}T12:00:00`) : new Date(s)
   if (Number.isNaN(d.getTime())) return s
   return d.toLocaleDateString('en-GB', {
+    timeZone: 'Europe/London',
     weekday: 'long',
     day: 'numeric',
     month: 'long',
@@ -264,10 +265,7 @@ async function mountJobSheetHtml(job, extra = {}) {
   const b = job.price_breakdown && typeof job.price_breakdown === 'object' ? job.price_breakdown : {}
   const priceRows = Array.isArray(b.rows) ? b.rows : []
 
-  const generated = new Date().toLocaleString('en-GB', {
-    dateStyle: 'medium',
-    timeStyle: 'short',
-  })
+  const generated = formatDateTimeUK(new Date().toISOString())
 
   const safeRef = String(job.job_reference || 'job').replace(/[^\w.-]+/g, '_')
   const filename = `${safeRef}-job-sheet.pdf`

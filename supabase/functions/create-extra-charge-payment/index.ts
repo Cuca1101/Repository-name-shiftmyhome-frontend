@@ -1,6 +1,6 @@
 import 'jsr:@supabase/functions-js/edge-runtime.d.ts'
 import { createClient } from 'npm:@supabase/supabase-js@2'
-import { guardStripeSecretKey } from '../_shared/stripeSecretGuard.ts'
+import { guardStripeSecretKey, respondStripeConfigFailure } from '../_shared/stripeSecretGuard.ts'
 import { processExtraChargePayment } from '../_shared/extraChargePayment.ts'
 import { assertAdminCaller } from '../_shared/verifyAdminCaller.ts'
 
@@ -84,7 +84,7 @@ Deno.serve(async (req) => {
   const siteUrl = (Deno.env.get('SITE_URL') || 'https://www.shiftmyhome.co.uk').trim()
 
   if (!stripeGuard.ok) {
-    return jsonResponse({ error: stripeGuard.customerError, code: 'stripe_config' }, 500)
+    return respondStripeConfigFailure(jsonResponse, stripeGuard)
   }
   const stripeKey = stripeGuard.key
   if (!supabaseUrl || !serviceRole) {

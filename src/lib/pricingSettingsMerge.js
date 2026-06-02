@@ -1,5 +1,10 @@
 import { getDefaultPricingSettings } from './defaultPricingSettings'
 import {
+  copyWebsiteRatesToDriverAppExtraCharge,
+  getDriverAppExtraChargeMode,
+  mergeDriverAppExtraChargePricing,
+} from './driverExtraChargePricingSettings.js'
+import {
   detectVolumeMultiplierSources,
   VOLUME_MULTIPLIER_SETTING_KEYS,
 } from './volumePricingMultiplier'
@@ -73,6 +78,37 @@ export function mergePricingSettingsWithDefaults(raw, opts = {}) {
     basePriceByService: base,
     customSizeM3: custom,
     promoCodes,
+    driverAppExtraChargeMode:
+      raw?.driverAppExtraChargesCustomEnabled === true &&
+      raw?.driverAppExtraChargeMode === 'custom'
+        ? 'custom'
+        : 'website',
+    driverAppExtraChargesCustomEnabled: raw?.driverAppExtraChargesCustomEnabled === true,
+    driverAppExtraCharges: (() => {
+      const mergedMain = {
+        ...defaults,
+        ...(raw && typeof raw === 'object' ? raw : {}),
+        basePriceByService: base,
+        customSizeM3: custom,
+        driverAppExtraChargeMode:
+          raw?.driverAppExtraChargesCustomEnabled === true &&
+          raw?.driverAppExtraChargeMode === 'custom'
+            ? 'custom'
+            : 'website',
+        driverAppExtraChargesCustomEnabled: raw?.driverAppExtraChargesCustomEnabled === true,
+      }
+      if (getDriverAppExtraChargeMode(mergedMain) === 'custom') {
+        return {
+          ...copyWebsiteRatesToDriverAppExtraCharge(mergedMain),
+          ...mergeDriverAppExtraChargePricing(
+            raw?.driverAppExtraCharges && typeof raw.driverAppExtraCharges === 'object'
+              ? raw.driverAppExtraCharges
+              : null,
+          ),
+        }
+      }
+      return copyWebsiteRatesToDriverAppExtraCharge(mergedMain)
+    })(),
     volumeMultiplierSources: detectVolumeMultiplierSources(raw),
   }
 

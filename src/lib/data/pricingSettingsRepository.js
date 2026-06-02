@@ -6,8 +6,49 @@ import {
   mergePricingSettingsWithDefaults,
 } from '../pricingSettingsMerge'
 import { dispatchPricingSettingsUpdated } from '../pricingSettingsEvents'
+import { preparePricingSettingsForSave } from '../driverExtraChargePricingSettings'
 
 const TABLE = 'pricing_settings'
+
+/** @param {{ message?: string } | null | undefined} err */
+function isMissingPricingRpc(err) {
+  const msg = String(err?.message || '')
+  return /admin_(get|upsert)_pricing_settings|schema cache|function.*does not exist/i.test(msg)
+}
+
+/**
+ * @returns {Promise<{ data: Record<string, unknown>, updated_at: string | null } | null>}
+ */
+async function loadPricingRowFromSupabase() {
+  if (!supabase) return null
+
+  const { data: rpcRows, error: rpcErr } = await supabase.rpc('admin_get_pricing_settings')
+  if (!rpcErr) {
+    const row = Array.isArray(rpcRows) ? rpcRows[0] : rpcRows
+    if (row?.data && typeof row.data === 'object') {
+      return {
+        data: /** @type {Record<string, unknown>} */ (row.data),
+        updated_at: row.updated_at ?? null,
+      }
+    }
+  } else if (!isMissingPricingRpc(rpcErr)) {
+    throw rpcErr
+  }
+
+  const { data, error } = await supabase
+    .from(TABLE)
+    .select('data, updated_at')
+    .eq('id', 1)
+    .maybeSingle()
+  if (error) throw error
+  if (data?.data && typeof data.data === 'object') {
+    return {
+      data: /** @type {Record<string, unknown>} */ (data.data),
+      updated_at: data.updated_at ?? null,
+    }
+  }
+  return null
+}
 
 /**
  * @param {import('../pricingCalculator.js').PricingSettings} settings
@@ -48,6 +89,23 @@ function readOfflinePricingCache() {
 export async function fetchPricingSettings() {
   if (isSupabaseConfigured && supabase) {
     try {
+      const { data: sessionData } = await supabase.auth.getSession()
+      if (sessionData?.session) {
+        const row = await loadPricingRowFromSupabase()
+        if (row?.data) {
+          const raw = row.data
+          const missingKeys = detectMissingPricingSettingKeys(raw)
+          if (missingKeys.length > 0) {
+            console.warn('Pricing fallback used because admin settings were missing', missingKeys, {
+              source: 'supabase',
+            })
+          }
+          const merged = mergeWithDefaults(raw, { warnOnFallback: false, source: 'supabase' })
+          writeLocalPricingCache(merged, row.updated_at, 'supabase')
+          return merged
+        }
+      }
+
       const { data, error } = await supabase
         .from(TABLE)
         .select('data, updated_at')
@@ -56,17 +114,11 @@ export async function fetchPricingSettings() {
       if (error) throw error
       if (data?.data && typeof data.data === 'object') {
         const raw = /** @type {Record<string, unknown>} */ (data.data)
-        const missingKeys = detectMissingPricingSettingKeys(raw)
-        if (missingKeys.length > 0) {
-          console.warn('Pricing fallback used because admin settings were missing', missingKeys, {
-            source: 'supabase',
-          })
-        }
         const merged = mergeWithDefaults(raw, { warnOnFallback: false, source: 'supabase' })
         writeLocalPricingCache(merged, data.updated_at, 'supabase')
         return merged
       }
-      // Supabase reachable but no admin row — use coded defaults only (never stale localStorage).
+
       const defaults = mergeWithDefaults(null, { source: 'defaults', warnOnFallback: true })
       writeLocalPricingCache(defaults, data?.updated_at || null, 'defaults')
       return defaults
@@ -95,7 +147,10 @@ export async function fetchPricingSettings() {
  * @param {import('../pricingCalculator.js').PricingSettings} next
  */
 export async function savePricingSettings(next) {
-  const merged = mergeWithDefaults(next, { source: 'save', warnOnFallback: false })
+  const prepared = preparePricingSettingsForSave(
+    next && typeof next === 'object' ? { ...next } : {},
+  )
+  const merged = mergeWithDefaults(prepared, { source: 'save', warnOnFallback: false })
   let updatedAt = new Date().toISOString()
 
   if (isSupabaseConfigured && supabase) {
@@ -103,20 +158,29 @@ export async function savePricingSettings(next) {
     if (!sessionData?.session) {
       throw new Error('Sign in to save pricing settings.')
     }
-    const { data, error } = await supabase
-      .from(TABLE)
-      .upsert(
-        {
-          id: 1,
-          data: merged,
-          updated_at: updatedAt,
-        },
-        { onConflict: 'id' },
-      )
-      .select('updated_at')
-      .single()
-    if (error) throw error
-    if (data?.updated_at) updatedAt = data.updated_at
+    const { data: rpcTs, error: rpcErr } = await supabase.rpc('admin_upsert_pricing_settings', {
+      p_data: merged,
+    })
+    if (!rpcErr && rpcTs) {
+      updatedAt = String(rpcTs)
+    } else if (rpcErr && !isMissingPricingRpc(rpcErr)) {
+      throw rpcErr
+    } else {
+      const { data, error } = await supabase
+        .from(TABLE)
+        .upsert(
+          {
+            id: 1,
+            data: merged,
+            updated_at: updatedAt,
+          },
+          { onConflict: 'id' },
+        )
+        .select('updated_at')
+        .single()
+      if (error) throw error
+      if (data?.updated_at) updatedAt = data.updated_at
+    }
   }
 
   writeLocalPricingCache(merged, updatedAt, 'save')

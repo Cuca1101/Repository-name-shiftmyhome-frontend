@@ -18,7 +18,6 @@ import {
   insertQuoteFromTemplateParams,
 } from '../../lib/data/quotesRepository'
 import { createPaymentIntent } from '../../lib/stripeCheckout'
-import { sanitizePaymentErrorMessage } from '../../lib/paymentErrorMessage'
 import {
   buildQuoteEmailTemplateParams,
   buildWizardFullSummaryText,
@@ -709,7 +708,7 @@ export function QuoteWizardProvider({ children, serviceType: serviceTypeProp, al
           deliveryAddress: wizard.deliveryAddress,
         })
       } catch (e) {
-        setPayError(sanitizePaymentErrorMessage(e?.message ?? 'Payment could not start.'))
+        setPayError(e?.message ?? 'Payment could not start.')
         scheduleQuoteValidationScroll({ hint: QUOTE_ERROR_SCROLL_HINTS.payment })
       } finally {
         setPayLoading(false)

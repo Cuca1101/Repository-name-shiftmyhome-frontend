@@ -1,7 +1,6 @@
 import { supabase, isSupabaseConfigured } from './supabase'
 import { assertStripePublishableKeyConfigured } from './stripeConfig'
 import { detailFromFunctionsInvokeError } from './functionsInvokeError'
-import { sanitizePaymentErrorMessage } from './paymentErrorMessage'
 
 /**
  * Edge Functions JWT gateway expects `Bearer <JWT>`. Use legacy anon key (`eyJ…`), not service role.
@@ -41,12 +40,15 @@ export async function createPaymentIntent(body) {
 
   if (error) {
     throw new Error(
-      await detailFromFunctionsInvokeError(error, 'Could not start payment.', { sanitizeStripe: true }),
+      await detailFromFunctionsInvokeError(error, 'Could not start payment.'),
     )
   }
 
   if (data?.error) {
-    throw new Error(sanitizePaymentErrorMessage(String(data.error)))
+    if (data.diagnostics) {
+      console.error('[create-payment-intent] stripe_config', data.error, data.diagnostics)
+    }
+    throw new Error(String(data.error))
   }
 
   const clientSecret = data?.client_secret
@@ -81,7 +83,7 @@ export async function verifyPaymentIntent(paymentIntentId) {
 
   if (error) {
     throw new Error(
-      await detailFromFunctionsInvokeError(error, 'Could not verify payment.', { sanitizeStripe: true }),
+      await detailFromFunctionsInvokeError(error, 'Could not verify payment.'),
     )
   }
 

@@ -9,6 +9,12 @@ Card payments use **two keys**:
 
 **Never** put `sk_*` in `.env`, Vite, or Expo. **Never** put `pk_*` in `STRIPE_SECRET_KEY`.
 
+**Do not use restricted keys (`rk_live_` / `rk_test_`)** — they will fail with:
+
+`STRIPE_SECRET_KEY is a restricted key (rk_). Use standard secret key sk_live_…`
+
+Use **Secret key** from Stripe Dashboard → Developers → API keys (starts with `sk_live_` or `sk_test_`), not Restricted key.
+
 ## Required Supabase secrets
 
 Set in [Supabase Dashboard](https://supabase.com/dashboard) → your project → **Edge Functions** → **Secrets**:

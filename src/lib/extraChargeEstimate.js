@@ -3,6 +3,7 @@
  */
 import { fetchItemsLibrary } from './data/itemsLibraryRepository'
 import { fetchPricingSettings } from './data/pricingSettingsRepository'
+import { resolveDriverExtraChargePricing } from './driverExtraChargePricingSettings'
 import { lineItemsToStoredAddedItems, resolveDriverItemsToLineItems } from './extraChargeInventory'
 import { calculateExtraItemsCharge } from './extraChargePricing'
 
@@ -20,9 +21,10 @@ import { calculateExtraItemsCharge } from './extraChargePricing'
  * @returns {Promise<ExtraChargeEstimate>}
  */
 export async function estimateExtraChargeFromDriverItems(driverItems) {
-  const [settings, library] = await Promise.all([fetchPricingSettings(), fetchItemsLibrary()])
+  const [allSettings, library] = await Promise.all([fetchPricingSettings(), fetchItemsLibrary()])
+  const driverRates = resolveDriverExtraChargePricing(allSettings)
   const lineItems = resolveDriverItemsToLineItems(driverItems, library)
-  const pricing = calculateExtraItemsCharge(settings, lineItems)
+  const pricing = calculateExtraItemsCharge(driverRates, lineItems)
   const addedItemsStored = lineItemsToStoredAddedItems(lineItems, pricing)
 
   return {

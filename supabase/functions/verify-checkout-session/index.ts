@@ -2,7 +2,7 @@ import 'jsr:@supabase/functions-js/edge-runtime.d.ts'
 import Stripe from 'npm:stripe@14.21.0'
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import { updateQuoteFromCheckoutSession } from '../_shared/updateQuoteFromCheckoutSession.ts'
-import { guardStripeSecretKey } from '../_shared/stripeSecretGuard.ts'
+import { guardStripeSecretKey, respondStripeConfigFailure } from '../_shared/stripeSecretGuard.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -30,7 +30,7 @@ Deno.serve(async (req) => {
   const serviceRole = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
 
   if (!stripeGuard.ok) {
-    return jsonResponse({ error: stripeGuard.customerError, code: 'stripe_config' }, 500)
+    return respondStripeConfigFailure(jsonResponse, stripeGuard)
   }
   const stripeKey = stripeGuard.key
   if (!supabaseUrl || !serviceRole) {

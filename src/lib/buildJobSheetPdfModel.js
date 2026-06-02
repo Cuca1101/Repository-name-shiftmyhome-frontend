@@ -427,7 +427,7 @@ export function buildJobSheetPdfModel(quote, options = {}) {
 
   return {
     quoteRef: pdfField(q.quote_ref || q.id),
-    generatedAt: new Date().toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' }),
+    generatedAt: formatDateTimeUK(new Date().toISOString()),
     paymentBadge: badge,
     paymentNote: buildPaymentNote(q, fin),
     titleLine: buildJobSheetTitleLine(serviceLabel, pdfField(q.quote_ref || q.id), moveDate, arrival),

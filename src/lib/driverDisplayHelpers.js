@@ -1,3 +1,5 @@
+import { formatDateShortUK } from './formatDateDisplay'
+
 /**
  * @param {string} address
  * @param {number} [maxLen]
@@ -13,11 +15,7 @@ export function shortenAddress(address, maxLen = 42) {
  * @param {string} isoDate YYYY-MM-DD
  */
 export function formatDriverDateOfBirth(isoDate) {
-  const s = String(isoDate || '').trim()
-  if (!s) return ''
-  const d = new Date(`${s}T12:00:00`)
-  if (Number.isNaN(d.getTime())) return s
-  return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+  return formatDateShortUK(isoDate)
 }
 
 /**

@@ -1,8 +1,19 @@
 /**
- * Estimate extra charge for driver "Add item" list (Items Library + pricing settings).
- * POST { items: [{ name, quantity, volume_m3?, library_item_id? }], quote_id?: string }
+ * Estimate extra charge for driver app (Items Library + access/time charges).
+ * POST {
+ *   items?: [{ name, quantity, volume_m3?, library_item_id? }],
+ *   operational?: {
+ *     extra_floors?, lift_available?: 'yes'|'no'|'na', stairs_flights?,
+ *     long_walking_distance?, parking_issue?, waiting_time_hours?,
+ *     dismantling_items?, reassembly_items?, extra_helpers?
+ *   }
+ * }
  */
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.1'
+import {
+  getDriverRatesDebugSnapshot,
+  resolveDriverExtraChargePricing,
+} from '../_shared/driverExtraChargePricing.ts'
 
 const cors = {
   'Access-Control-Allow-Origin': '*',
@@ -148,6 +159,147 @@ function calculate(settings: Record<string, unknown>, lineItems: LineItem[]) {
   }
 }
 
+type OperationalInput = {
+  extra_floors?: number
+  lift_available?: string
+  stairs_flights?: number
+  long_walking_distance?: boolean
+  parking_issue?: boolean
+  waiting_time_hours?: number
+  dismantling_items?: number
+  reassembly_items?: number
+  extra_helpers?: number
+}
+
+type BreakdownLine = { label: string; amount: number; amount_label: string }
+
+function operationalHasAny(op: OperationalInput): boolean {
+  const floors = Math.max(0, Math.round(Number(op.extra_floors) || 0))
+  const stairs = Math.max(0, Math.round(Number(op.stairs_flights) || 0))
+  const lift = String(op.lift_available || 'na').toLowerCase()
+  const waitH = Math.max(0, Number(op.waiting_time_hours) || 0)
+  const dismantle = Math.max(0, Math.round(Number(op.dismantling_items) || 0))
+  const reassembly = Math.max(0, Math.round(Number(op.reassembly_items) || 0))
+  const helpers = Math.max(0, Math.round(Number(op.extra_helpers) || 0))
+  return (
+    floors > 0 ||
+    stairs > 0 ||
+    lift === 'no' ||
+    lift === 'yes' ||
+    Boolean(op.long_walking_distance) ||
+    Boolean(op.parking_issue) ||
+    waitH > 0 ||
+    dismantle > 0 ||
+    reassembly > 0 ||
+    helpers > 0
+  )
+}
+
+function calculateOperationalCharges(
+  settings: Record<string, unknown>,
+  op: OperationalInput,
+): { total: number; lines: BreakdownLine[] } {
+  const lines: BreakdownLine[] = []
+  const floors = Math.max(0, Math.round(Number(op.extra_floors) || 0))
+  const perFloor = Number(settings.floorChargePerFloor) || 0
+  if (floors > 0 && perFloor > 0) {
+    const amt = money(floors * perFloor)
+    lines.push({
+      label: `Extra floors (${floors})`,
+      amount: amt,
+      amount_label: formatGbp(amt),
+    })
+  }
+
+  const lift = String(op.lift_available || 'na').toLowerCase()
+  const noLift = Number(settings.noLiftCharge) || 0
+  if (lift === 'no' && noLift > 0) {
+    const amt = money(noLift)
+    lines.push({ label: 'No lift supplement', amount: amt, amount_label: formatGbp(amt) })
+  }
+  const yesLift = Number(settings.yesLiftChargePerEnd) || 0
+  if (lift === 'yes' && floors > 0 && yesLift > 0) {
+    const amt = money(yesLift)
+    lines.push({ label: 'Lift access', amount: amt, amount_label: formatGbp(amt) })
+  }
+
+  const stairs = Math.max(0, Math.round(Number(op.stairs_flights) || 0))
+  const stairsRate = Number(settings.stairsChargePerFlight) || 0
+  if (stairs > 0 && stairsRate > 0) {
+    const amt = money(stairs * stairsRate)
+    lines.push({
+      label: `Stairs (${stairs} flight${stairs === 1 ? '' : 's'})`,
+      amount: amt,
+      amount_label: formatGbp(amt),
+    })
+  }
+
+  if (op.long_walking_distance) {
+    const w = Number(settings.longWalkingDistanceCharge) || 0
+    if (w > 0) {
+      const amt = money(w)
+      lines.push({ label: 'Long walking distance', amount: amt, amount_label: formatGbp(amt) })
+    }
+  }
+
+  if (op.parking_issue) {
+    const p = Number(settings.parkingCharge) || 0
+    if (p > 0) {
+      const amt = money(p)
+      lines.push({ label: 'Parking / access', amount: amt, amount_label: formatGbp(amt) })
+    }
+  }
+
+  const waitH = Math.max(0, Number(op.waiting_time_hours) || 0)
+  const waitRate = Number(settings.waitingTimePricePerHour) || 0
+  if (waitH > 0 && waitRate > 0) {
+    const amt = money(waitH * waitRate)
+    lines.push({
+      label: `Waiting time (${waitH} hr${waitH === 1 ? '' : 's'})`,
+      amount: amt,
+      amount_label: formatGbp(amt),
+    })
+  }
+
+  const dismantleN = Math.max(0, Math.round(Number(op.dismantling_items) || 0))
+  const dismantleRate =
+    Number(settings.dismantlingPricePerItem ?? settings.dismantlingPrice) || 0
+  if (dismantleN > 0 && dismantleRate > 0) {
+    const amt = money(dismantleN * dismantleRate)
+    lines.push({
+      label: `Dismantling (${dismantleN} item${dismantleN === 1 ? '' : 's'})`,
+      amount: amt,
+      amount_label: formatGbp(amt),
+    })
+  }
+
+  const reassemblyN = Math.max(0, Math.round(Number(op.reassembly_items) || 0))
+  const reassembleRate =
+    Number(settings.reassemblyPricePerItem ?? settings.reassemblyPrice) || 0
+  if (reassemblyN > 0 && reassembleRate > 0) {
+    const amt = money(reassemblyN * reassembleRate)
+    lines.push({
+      label: `Reassembly (${reassemblyN} item${reassemblyN === 1 ? '' : 's'})`,
+      amount: amt,
+      amount_label: formatGbp(amt),
+    })
+  }
+
+  const helpers = Math.max(0, Math.round(Number(op.extra_helpers) || 0))
+  const helperRate = Number(settings.extraHelperPrice) || 0
+  if (helpers > 0 && helperRate > 0) {
+    const amt = money(helpers * helperRate)
+    lines.push({
+      label: `Extra helper${helpers === 1 ? '' : 's'} (${helpers})`,
+      amount: amt,
+      amount_label: formatGbp(amt),
+    })
+  }
+
+  const total = money(lines.reduce((sum, l) => sum + l.amount, 0))
+  return { total, lines }
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors })
   if (req.method !== 'POST') return json({ ok: false, error: 'method_not_allowed' }, 405)
@@ -158,9 +310,20 @@ Deno.serve(async (req) => {
     if (!url || !serviceKey) return json({ ok: false, error: 'server_misconfigured' }, 503)
 
     const admin = createClient(url, serviceKey)
-    const body = (await req.json().catch(() => ({}))) as { items?: unknown[] }
+    const body = (await req.json().catch(() => ({}))) as {
+      items?: unknown[]
+      operational?: OperationalInput
+      access_charges?: OperationalInput
+    }
     const rawItems = Array.isArray(body.items) ? body.items : []
-    if (rawItems.length === 0) {
+    const operational =
+      body.operational && typeof body.operational === 'object'
+        ? body.operational
+        : body.access_charges && typeof body.access_charges === 'object'
+          ? body.access_charges
+          : {}
+
+    if (rawItems.length === 0 && !operationalHasAny(operational)) {
       return json({
         ok: true,
         engine_price_gbp: 0,
@@ -174,72 +337,95 @@ Deno.serve(async (req) => {
     }
 
     const [{ data: settingsRow }, { data: library }] = await Promise.all([
-      admin.from('pricing_settings').select('data').eq('id', 1).maybeSingle(),
-      admin.from('items_library').select('id, name, cubic_metres, weight_type, handling_multiplier'),
+      admin.from('pricing_settings').select('data, updated_at').eq('id', 1).maybeSingle(),
+      rawItems.length > 0
+        ? admin.from('items_library').select('id, name, cubic_metres, weight_type, handling_multiplier')
+        : Promise.resolve({ data: [] as LibRow[] }),
     ])
 
-    const settings =
+    const pricingData =
       settingsRow?.data && typeof settingsRow.data === 'object'
         ? (settingsRow.data as Record<string, unknown>)
-        : {}
+        : null
+    const settings = resolveDriverExtraChargePricing(pricingData)
+    const pricingSource = 'main_engine'
 
-    const resolved = resolveItems(rawItems, (library || []) as LibRow[])
-    const lineItems: LineItem[] = resolved.map((r) => ({
-      name: r.name,
-      quantity: r.quantity,
-      volumePerUnitM3: r.volumePerUnitM3,
-      handlingMultiplier: r.handlingMultiplier,
-      weightType: r.weightType,
-    }))
+    let itemsAmount = 0
+    let totalM3 = 0
+    let bandLabel = '0–3 m³'
+    let multiplier = 1
+    let added_items: Record<string, unknown>[] = []
+    const breakdown: BreakdownLine[] = []
 
-    const calc = calculate(settings, lineItems)
-    const lineByName = new Map(calc.itemLines.map((l) => [normName(l.name), l]))
-
-    const added_items = resolved.map((r) => {
-      const line = lineByName.get(normName(r.name))
-      return {
+    if (rawItems.length > 0) {
+      const resolved = resolveItems(rawItems, (library || []) as LibRow[])
+      const lineItems: LineItem[] = resolved.map((r) => ({
         name: r.name,
         quantity: r.quantity,
-        volume_m3: r.volumePerUnitM3,
-        volume_per_unit_m3: r.volumePerUnitM3,
-        weight_type: r.weightType,
-        library_item_id: r.matched?.id ?? null,
-        matched_library: Boolean(r.matched),
-        line_volume_m3: line?.line_volume_m3 ?? null,
-        line_amount_gbp: line?.line_amount_gbp ?? null,
-        line_price_label: line?.line_price_label ?? null,
-      }
-    })
+        volumePerUnitM3: r.volumePerUnitM3,
+        handlingMultiplier: r.handlingMultiplier,
+        weightType: r.weightType,
+      }))
 
-    const breakdown = [
-      {
-        label: `Volume (${calc.totalM3} m³)`,
-        amount: calc.scaled,
-        amount_label: formatGbp(calc.scaled),
-      },
-      ...(calc.heavyTotal > 0
-        ? [
-            {
-              label: `Heavy handling (${calc.heavy})`,
-              amount: calc.heavyTotal,
-              amount_label: formatGbp(calc.heavyTotal),
-            },
-          ]
-        : []),
-    ]
+      const calc = calculate(settings, lineItems)
+      itemsAmount = calc.estimatedAmount
+      totalM3 = calc.totalM3
+      bandLabel = calc.bandLabel
+      multiplier = calc.multiplier
+      const lineByName = new Map(calc.itemLines.map((l) => [normName(l.name), l]))
+
+      added_items = resolved.map((r) => {
+        const line = lineByName.get(normName(r.name))
+        return {
+          name: r.name,
+          quantity: r.quantity,
+          volume_m3: r.volumePerUnitM3,
+          volume_per_unit_m3: r.volumePerUnitM3,
+          weight_type: r.weightType,
+          library_item_id: r.matched?.id ?? null,
+          matched_library: Boolean(r.matched),
+          line_volume_m3: line?.line_volume_m3 ?? null,
+          line_amount_gbp: line?.line_amount_gbp ?? null,
+          line_price_label: line?.line_price_label ?? null,
+        }
+      })
+
+      if (calc.scaled > 0) {
+        breakdown.push({
+          label: `Volume (${calc.totalM3} m³)`,
+          amount: calc.scaled,
+          amount_label: formatGbp(calc.scaled),
+        })
+      }
+      if (calc.heavyTotal > 0) {
+        breakdown.push({
+          label: `Heavy handling (${calc.heavy})`,
+          amount: calc.heavyTotal,
+          amount_label: formatGbp(calc.heavyTotal),
+        })
+      }
+    }
+
+    const opCalc = calculateOperationalCharges(settings, operational)
+    breakdown.push(...opCalc.lines)
+    const estimatedAmount = money(itemsAmount + opCalc.total)
 
     return json({
       ok: true,
-      /** Show this on Add Item screen (large text). */
-      engine_price_gbp: calc.estimatedAmount,
-      price_label: formatGbp(calc.estimatedAmount),
-      estimated_amount: calc.estimatedAmount,
-      added_volume_m3: calc.totalM3,
-      total_volume_label: `${calc.totalM3} m³`,
+      engine_price_gbp: estimatedAmount,
+      price_label: formatGbp(estimatedAmount),
+      estimated_amount: estimatedAmount,
+      added_volume_m3: totalM3,
+      total_volume_label: `${totalM3} m³`,
       added_items,
       breakdown,
-      volume_band: calc.bandLabel,
-      volume_multiplier: calc.multiplier,
+      volume_band: bandLabel,
+      volume_multiplier: multiplier,
+      items_subtotal_gbp: itemsAmount,
+      operational_subtotal_gbp: opCalc.total,
+      pricing_source: pricingSource,
+      rates_used: getDriverRatesDebugSnapshot(settings, pricingData),
+      pricing_settings_updated_at: settingsRow?.updated_at ?? null,
     })
   } catch (e) {
     console.error('[estimate-extra-charge]', e)

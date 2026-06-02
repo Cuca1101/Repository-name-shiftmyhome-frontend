@@ -1,3 +1,10 @@
+import { endOfDayUK, startOfDayUK, ukCalendarYmd } from './formatDateDisplay.js'
+
+function ukMonthStartYmd() {
+  const ymd = ukCalendarYmd()
+  return `${ymd.slice(0, 7)}-01`
+}
+
 /** @typedef {'today'|'7d'|'30d'|'90d'|'month'|'year'} AnalyticsRangePreset */
 
 /**
@@ -5,32 +12,38 @@
  * @returns {{ start: Date, end: Date, label: string }}
  */
 export function analyticsDateRange(preset) {
-  const end = new Date()
-  const start = new Date(end)
-  start.setHours(0, 0, 0, 0)
-  end.setHours(23, 59, 59, 999)
+  const end = endOfDayUK()
+  const start = startOfDayUK()
 
   switch (preset) {
     case 'today':
       return { start, end, label: 'Today' }
-    case '7d':
-      start.setDate(start.getDate() - 6)
-      return { start, end, label: 'Last 7 days' }
-    case '30d':
-      start.setDate(start.getDate() - 29)
-      return { start, end, label: 'Last 30 days' }
-    case '90d':
-      start.setDate(start.getDate() - 89)
-      return { start, end, label: 'Last 90 days' }
-    case 'month':
-      start.setDate(1)
-      return { start, end, label: 'This month' }
-    case 'year':
-      start.setMonth(0, 1)
-      return { start, end, label: 'This year' }
-    default:
-      start.setDate(start.getDate() - 29)
-      return { start, end, label: 'Last 30 days' }
+    case '7d': {
+      const s = startOfDayUK(new Date(end.getTime() - 6 * 86400000))
+      return { start: s, end, label: 'Last 7 days' }
+    }
+    case '30d': {
+      const s = startOfDayUK(new Date(end.getTime() - 29 * 86400000))
+      return { start: s, end, label: 'Last 30 days' }
+    }
+    case '90d': {
+      const s = startOfDayUK(new Date(end.getTime() - 89 * 86400000))
+      return { start: s, end, label: 'Last 90 days' }
+    }
+    case 'month': {
+      const ymd = ukMonthStartYmd()
+      const s = startOfDayUK(new Date(`${ymd}T12:00:00Z`))
+      return { start: s, end, label: 'This month' }
+    }
+    case 'year': {
+      const y = ukCalendarYmd().slice(0, 4)
+      const s = startOfDayUK(new Date(`${y}-01-01T12:00:00Z`))
+      return { start: s, end, label: 'This year' }
+    }
+    default: {
+      const s = startOfDayUK(new Date(end.getTime() - 29 * 86400000))
+      return { start: s, end, label: 'Last 30 days' }
+    }
   }
 }
 

@@ -3,7 +3,7 @@ import { createClient } from 'npm:@supabase/supabase-js@2'
 import { updateQuoteFromPaymentIntent } from '../_shared/updateQuoteFromPaymentIntent.ts'
 import { sendPaymentConfirmationWithPdfIfNeeded } from '../_shared/paymentConfirmationEmail.ts'
 import { sendExtraChargePaidConfirmationEmail } from '../_shared/extraChargePaidConfirmationEmail.ts'
-import { guardStripeSecretKey } from '../_shared/stripeSecretGuard.ts'
+import { guardStripeSecretKey, respondStripeConfigFailure } from '../_shared/stripeSecretGuard.ts'
 
 /**
  * Stripe webhook for ShiftMyHome (embedded Payment Element + PaymentIntent).
@@ -32,10 +32,14 @@ Deno.serve(async (req) => {
   const serviceRole = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
 
   if (!stripeGuard.ok) {
-    return new Response(JSON.stringify({ error: stripeGuard.customerError, code: 'stripe_config' }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' },
-    })
+    return respondStripeConfigFailure(
+      (body, status = 500) =>
+        new Response(JSON.stringify(body), {
+          status,
+          headers: { 'Content-Type': 'application/json' },
+        }),
+      stripeGuard,
+    )
   }
   const stripeKey = stripeGuard.key
   if (!webhookSecret || !supabaseUrl || !serviceRole) {

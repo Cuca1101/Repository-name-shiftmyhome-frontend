@@ -26,7 +26,10 @@ export async function detailFromFunctionsInvokeError(error, fallback = 'Request 
     if (typeof ctx.json === 'function') {
       const j = await ctx.json()
       if (j?.message != null) return finish(String(j.message))
-      if (j?.error != null) return finish(String(j.error))
+      if (j?.error != null) {
+        if (j.diagnostics) console.error('[edge-function]', j.code || 'error', j.error, j.diagnostics)
+        return finish(String(j.error))
+      }
       if (j?.ok === false && j?.message) return finish(String(j.message))
     }
   } catch {
@@ -38,7 +41,10 @@ export async function detailFromFunctionsInvokeError(error, fallback = 'Request 
       const status = ctx.status
       const j = await ctx.clone().json().catch(() => null)
       if (j?.message != null) return finish(String(j.message))
-      if (j?.error != null) return finish(String(j.error))
+      if (j?.error != null) {
+        if (j.diagnostics) console.error('[edge-function]', j.code || 'error', j.error, j.diagnostics)
+        return finish(String(j.error))
+      }
       if (status === 404) {
         return finish(
           'Edge Function not found — deploy admin-create-driver in Supabase (Dashboard → Edge Functions).',
