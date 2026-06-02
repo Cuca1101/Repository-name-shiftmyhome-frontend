@@ -1,10 +1,6 @@
 /** Crawlable HTML fragments injected into per-route index.html files at build time. */
 
-import { cityToSlug } from './citySlug.js'
-import {
-  FOOTER_PRIMARY_CITIES,
-  getScotlandLocationsGroupedByRegion,
-} from './seo/locations.js'
+import { getScotlandLocationsGroupedByRegion } from './seo/locations.js'
 
 /**
  * @param {string} value
@@ -161,29 +157,6 @@ export function buildSeoStaticBodyHtml(page) {
       : ''
 
   return `${main}${nav}`
-}
-
-/** Priority cities linked from homepage static HTML for generic keyword discovery. */
-const HOMEPAGE_CITY_LINKS = [
-  ...FOOTER_PRIMARY_CITIES,
-  'Perth',
-  'Stirling',
-  'Falkirk',
-  'Motherwell',
-  'Hamilton',
-  'Paisley',
-  'Inverness',
-]
-
-export function buildHomepageStaticCityLinksHtml() {
-  const unique = [...new Set(HOMEPAGE_CITY_LINKS)]
-  const items = unique
-    .map((city) => {
-      const slug = cityToSlug(city)
-      return `<li><a href="/${slug}-removals">${escapeHtmlText(city)} removals</a></li>`
-    })
-    .join('')
-  return `<nav id="home-prerender-nav" aria-label="Scotland removals locations"><ul>${items}</ul><p><a href="/coverage">All Scotland removal locations</a> · <a href="/man-with-van-glasgow">Man with van Glasgow</a> · <a href="/furniture-delivery-glasgow">Furniture delivery Glasgow</a></p></nav>`
 }
 
 export function buildCoverageStaticCityLinksHtml() {

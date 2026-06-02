@@ -5,8 +5,9 @@ import { DEFAULT_COVERAGE } from '../lib/websiteCmsDefaults'
 
 /** Homepage anchor target for navbar "Coverage" → #coverage */
 export default function CoverageHomeSection() {
-  const { coverage } = useWebsiteCms()
+  const { coverage, loading } = useWebsiteCms()
   const c = coverage ?? DEFAULT_COVERAGE
+  const cities = !loading && Array.isArray(c.cities) ? c.cities : []
 
   return (
     <section id="coverage" className="scroll-mt-[76px] border-t border-slate-200 bg-slate-50 py-12 sm:py-20">
@@ -17,8 +18,8 @@ export default function CoverageHomeSection() {
           </h2>
           <p className="mt-4 text-base text-slate-600 sm:text-lg">{c.subheading}</p>
           {c.bodyText ? <p className="mt-3 text-sm text-slate-600">{c.bodyText}</p> : null}
-          {c.cities?.length ? (
-            <p className="mt-4 text-sm font-medium text-slate-700">{c.cities.join(' · ')}</p>
+          {cities.length > 0 ? (
+            <p className="mt-4 text-sm font-medium text-slate-700">{cities.join(' · ')}</p>
           ) : null}
           {c.imageUrl ? (
             <img src={c.imageUrl} alt="" className="mx-auto mt-6 max-h-48 rounded-xl object-cover shadow-md" />

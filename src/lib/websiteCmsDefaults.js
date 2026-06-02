@@ -59,7 +59,21 @@ export const DEFAULT_COVERAGE = {
   seoText:
     'We cover major Scottish cities and UK-wide moves. Book Glasgow removals, Edinburgh removals, or Scotland removals online.',
   imageUrl: '',
-  cities: ['Glasgow', 'Edinburgh', 'Stirling', 'Aberdeen', 'Manchester', 'London'],
+  cities: [],
+}
+
+/**
+ * Coverage CMS merge — empty `cities` in admin must stay empty (no default city list).
+ * @param {typeof DEFAULT_COVERAGE} defaults
+ * @param {Record<string, unknown> | null | undefined} saved
+ */
+export function mergeCoverageSection(defaults, saved) {
+  if (!saved || typeof saved !== 'object') return { ...defaults, cities: [] }
+  const merged = { ...defaults, ...saved }
+  merged.cities = Array.isArray(saved.cities)
+    ? saved.cities.map((c) => String(c || '').trim()).filter(Boolean)
+    : []
+  return merged
 }
 
 export const DEFAULT_NAVBAR = {

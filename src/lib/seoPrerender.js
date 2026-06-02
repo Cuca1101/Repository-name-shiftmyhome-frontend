@@ -8,7 +8,6 @@ import { buildFaqPageJsonLd, buildSeoLocalBusinessJsonLd } from './seoStructured
 import {
   buildSeoStaticBodyHtml,
   buildSeoStaticMainContentHtml,
-  buildHomepageStaticCityLinksHtml,
   buildCoverageStaticCityLinksHtml,
 } from './seoStaticPrerenderHtml.js'
 
@@ -38,7 +37,7 @@ export function getSeoPrerenderPayload(pathname) {
         intro: meta.description,
         introSecondary:
           'Book house removals, man with van, and furniture delivery across Glasgow, Edinburgh, Aberdeen, Dundee and Scotland-wide routes.',
-      }) + buildHomepageStaticCityLinksHtml()
+      })
   } else if (pathname === '/coverage') {
     staticBodyHtml =
       buildSeoStaticMainContentHtml({

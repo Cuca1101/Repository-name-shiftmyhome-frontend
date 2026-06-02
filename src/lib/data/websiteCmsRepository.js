@@ -8,6 +8,7 @@ import {
   DEFAULT_FOOTER,
   DEFAULT_ANNOUNCEMENT,
   mergeSection,
+  mergeCoverageSection,
   normalizeAnnouncement,
   serializeAnnouncement,
 } from '../websiteCmsDefaults'
@@ -50,7 +51,7 @@ export async function fetchWebsiteCmsPublic() {
     return {
       homepage: mergeSection(DEFAULT_HOMEPAGE, row?.homepage),
       about: mergeSection(DEFAULT_ABOUT, row?.about),
-      coverage: mergeSection(DEFAULT_COVERAGE, row?.coverage),
+      coverage: mergeCoverageSection(DEFAULT_COVERAGE, row?.coverage),
       navbar: mergeSection(DEFAULT_NAVBAR, row?.navbar),
       footer: mergeSection(DEFAULT_FOOTER, row?.footer),
       announcement: normalizeAnnouncement(row?.announcement),
@@ -88,7 +89,7 @@ export async function fetchWebsiteCmsAdmin() {
     settings: {
       homepage: mergeSection(DEFAULT_HOMEPAGE, row?.homepage),
       about: mergeSection(DEFAULT_ABOUT, row?.about),
-      coverage: mergeSection(DEFAULT_COVERAGE, row?.coverage),
+      coverage: mergeCoverageSection(DEFAULT_COVERAGE, row?.coverage),
       navbar: mergeSection(DEFAULT_NAVBAR, row?.navbar),
       footer: mergeSection(DEFAULT_FOOTER, row?.footer),
       announcement: normalizeAnnouncement(row?.announcement),
