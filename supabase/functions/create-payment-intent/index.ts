@@ -522,7 +522,7 @@ Deno.serve(async (req) => {
     const intent = await stripe.paymentIntents.create({
       amount: unitAmount,
       currency: 'gbp',
-      payment_method_types: ['card'],
+      payment_method_types: ['card', 'klarna'],
       receipt_email: customer_email || undefined,
       metadata,
       description:

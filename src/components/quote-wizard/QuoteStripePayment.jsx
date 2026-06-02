@@ -12,7 +12,7 @@ function paymentElementOptions(customerEmail) {
       radios: 'auto',
       spacedAccordionItems: false,
     },
-    paymentMethodOrder: ['card'],
+    paymentMethodOrder: ['card', 'klarna'],
     wallets: {
       applePay: 'never',
       googlePay: 'never',
