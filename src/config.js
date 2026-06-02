@@ -11,6 +11,7 @@ import {
   WHATSAPP_URL,
   WHATSAPP_SUPPORT_URL,
   WHATSAPP_ME_URL,
+  resolveWhatsAppUrl,
   COMPANY_CONTACT,
 } from './constants/companyContact'
 
@@ -24,6 +25,7 @@ export {
   WHATSAPP_URL,
   WHATSAPP_SUPPORT_URL,
   WHATSAPP_ME_URL,
+  resolveWhatsAppUrl,
 }
 
 export const CONTACT = COMPANY_CONTACT

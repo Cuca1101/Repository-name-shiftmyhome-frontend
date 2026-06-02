@@ -3,7 +3,7 @@
  */
 
 /** UK national format (no spaces) — use in UI and tel: links. */
-export const COMPANY_PHONE = '07466510975'
+export const COMPANY_PHONE = '07440365226'
 
 /** @deprecated Alias for COMPANY_PHONE — prefer COMPANY_PHONE. */
 export const COMPANY_PHONE_DISPLAY = COMPANY_PHONE
@@ -12,10 +12,10 @@ export const COMPANY_PHONE_DISPLAY = COMPANY_PHONE
 export const COMPANY_PHONE_TEL = COMPANY_PHONE
 
 /** E.164 for schema.org / Google structured data. */
-export const COMPANY_PHONE_E164 = '+447466510975'
+export const COMPANY_PHONE_E164 = '+447440365226'
 
 /** WhatsApp wa.me digits (country code, no +). */
-export const COMPANY_PHONE_WHATSAPP = '447466510975'
+export const COMPANY_PHONE_WHATSAPP = '447440365226'
 
 export const COMPANY_EMAIL = 'admin@shiftmyhome.co.uk'
 
@@ -28,6 +28,42 @@ export const WHATSAPP_SUPPORT_URL = `https://wa.me/${COMPANY_PHONE_WHATSAPP}?tex
 
 /** Base WhatsApp link (no pre-filled message) — CMS footer default. */
 export const WHATSAPP_ME_URL = `https://wa.me/${COMPANY_PHONE_WHATSAPP}`
+
+/**
+ * @param {string} url
+ * @returns {string | null}
+ */
+function waMeDigitsFromUrl(url) {
+  try {
+    const u = new URL(url)
+    if (/wa\.me$/i.test(u.hostname)) {
+      return u.pathname.replace(/\D/g, '') || null
+    }
+    if (u.hostname === 'api.whatsapp.com') {
+      return u.searchParams.get('phone')?.replace(/\D/g, '') || null
+    }
+  } catch {
+    /* ignore */
+  }
+  return null
+}
+
+/**
+ * CMS footer may store a stale wa.me link — always route to the official line.
+ * @param {string} [cmsUrl]
+ * @param {{ withQuoteText?: boolean }} [options]
+ */
+export function resolveWhatsAppUrl(cmsUrl, options = {}) {
+  const { withQuoteText = false } = options
+  const fallback = withQuoteText ? WHATSAPP_URL : WHATSAPP_ME_URL
+  const raw = String(cmsUrl || '').trim()
+  if (!raw) return fallback
+  const digits = waMeDigitsFromUrl(raw)
+  if (digits && digits !== COMPANY_PHONE_WHATSAPP) return fallback
+  if (!digits) return raw
+  if (withQuoteText && !raw.includes('text=')) return WHATSAPP_URL
+  return raw
+}
 
 /** Areas served in structured data. */
 export const COMPANY_AREA_SERVED = [
