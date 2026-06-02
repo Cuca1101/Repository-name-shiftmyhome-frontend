@@ -13,6 +13,7 @@ const quickLinks = [
   { sectionId: 'services', label: 'Services' },
   { sectionId: 'how-it-works', label: 'How it works' },
   { sectionId: 'about', label: 'About us' },
+  { to: '/blog', label: 'Blog' },
   { sectionId: 'reviews', label: 'Reviews' },
   { sectionId: 'coverage', label: 'Coverage' },
   { sectionId: 'contact', label: 'Contact' },

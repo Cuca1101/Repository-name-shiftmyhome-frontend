@@ -108,6 +108,15 @@ const STATIC_ROUTE_META = {
     ogDescription:
       'Manage analytics and marketing cookies on ShiftMyHome. Choose essential-only cookies or accept all to improve your browsing experience.',
   },
+  '/blog': {
+    title: 'Removals Blog | ShiftMyHome',
+    description:
+      'Tips, guides and updates on house removals, man with van moves and furniture delivery across Scotland from the ShiftMyHome team.',
+    h1: 'Blog',
+    ogTitle: 'Removals Blog | ShiftMyHome',
+    ogDescription:
+      'Tips, guides and updates on house removals, man with van moves and furniture delivery across Scotland from the ShiftMyHome team.',
+  },
   '/payment-success': {
     title: 'Payment Successful | ShiftMyHome',
     description:

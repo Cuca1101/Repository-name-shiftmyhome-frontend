@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useLocation } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
 import Logo from '../Logo'
 import HomeSectionLink from '../HomeSectionLink'
 import CoverageLink from '../CoverageLink'
@@ -96,6 +96,13 @@ export default function MobileNavbar() {
                 </HomeSectionLink>
               ),
             )}
+            <Link
+              to="/blog"
+              className="rounded-lg px-2 py-3 text-[15px] font-medium text-white/90 active:bg-white/10"
+              onClick={closeMenu}
+            >
+              Blog
+            </Link>
             <HomeSectionLink
               sectionId="services"
               className="btn-premium-primary mt-2 min-h-[48px] w-full text-sm"

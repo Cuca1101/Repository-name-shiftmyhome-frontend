@@ -8,6 +8,7 @@ const STATIC_PATHS = [
   '/terms',
   '/privacy',
   '/cookies',
+  '/blog',
   '/house-removals',
   '/man-with-van',
   '/furniture-delivery',

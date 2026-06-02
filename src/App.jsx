@@ -13,6 +13,7 @@ import CoveragePage from './pages/CoveragePage'
 import TermsPage from './pages/TermsPage'
 import PrivacyPage from './pages/PrivacyPage'
 import CookiePreferencesPage from './pages/CookiePreferencesPage'
+import BlogPage from './pages/BlogPage'
 import ServiceQuotePage from './pages/ServiceQuotePage'
 import AdminLogin from './pages/AdminLogin'
 import AdminHome from './pages/AdminHome'
@@ -35,6 +36,7 @@ import DriversAdmin from './components/DriversAdmin'
 import DriverPaymentsAdmin from './pages/DriverPaymentsAdmin'
 import PartnersAdmin from './components/PartnersAdmin'
 import HomePageQuoteRequestsAdmin from './components/HomePageQuoteRequestsAdmin'
+import AllQuotesAdmin from './components/AllQuotesAdmin'
 import QuoteRequestLeadDetails from './components/QuoteRequestLeadDetails'
 import WebsiteLeadsAdmin from './components/WebsiteLeadsAdmin'
 import AdminAnalyticsPage from './pages/AdminAnalyticsPage'
@@ -109,6 +111,14 @@ export default function App() {
         }
       />
       <Route
+        path="/blog"
+        element={
+          <PublicLayout>
+            <BlogPage />
+          </PublicLayout>
+        }
+      />
+      <Route
         path="/payment-success"
         element={
           <PublicLayout>
@@ -171,11 +181,12 @@ export default function App() {
         <Route path="driver-payments" element={<DriverPaymentsAdmin />} />
         <Route path="partners" element={<PartnersAdmin />} />
         <Route path="new-phone-booking" element={<PhoneBookingAdmin />} />
+        <Route path="all-quotes" element={<AllQuotesAdmin />} />
         <Route path="quote-requests" element={<HomePageQuoteRequestsAdmin />} />
         <Route path="quote-requests/:id" element={<QuoteRequestLeadDetails />} />
         <Route path="website-leads" element={<WebsiteLeadsAdmin />} />
         <Route path="quotes/:id" element={<RedirectLegacyQuoteDetail />} />
-        <Route path="quotes" element={<Navigate to="/admin/available-jobs" replace />} />
+        <Route path="quotes" element={<Navigate to="/admin/all-quotes" replace />} />
         <Route path="jobs" element={<JobCardsAdmin />} />
         <Route path="bookings" element={<BookingsAdmin />} />
         <Route path="job-history" element={<JobHistoryAdmin />} />

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useLocation } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
 import Logo from '../Logo'
 import HomeSectionLink from '../HomeSectionLink'
 import CoverageLink from '../CoverageLink'
@@ -14,6 +14,7 @@ const navItems = [
   { sectionId: 'reviews', label: 'Reviews' },
   { sectionId: 'coverage', label: 'Coverage' },
   { sectionId: 'contact', label: 'Contact' },
+  { to: '/blog', label: 'Blog' },
 ]
 
 function navLinkClass(isActive) {
@@ -48,7 +49,7 @@ export default function DesktopNavbar() {
   useEffect(() => {
     if (pathname !== '/') return undefined
 
-    const ids = navItems.map((n) => n.sectionId)
+    const ids = navItems.map((n) => n.sectionId).filter(Boolean)
     const observer = new IntersectionObserver(
       (entries) => {
         const visible = entries
@@ -83,7 +84,10 @@ export default function DesktopNavbar() {
 
         <div className="hidden min-w-0 flex-1 items-center justify-center gap-4 md:flex xl:gap-6">
           {navItems.map((item) => {
-            const linkClassName = navLinkClass(isHome && activeSection === item.sectionId)
+            const isBlog = Boolean(item.to)
+            const linkClassName = navLinkClass(
+              isBlog ? pathname === item.to : isHome && activeSection === item.sectionId,
+            )
             const label = (
               <span className="inline-flex items-center gap-0.5">
                 {item.label}
@@ -94,6 +98,13 @@ export default function DesktopNavbar() {
                 )}
               </span>
             )
+            if (isBlog) {
+              return (
+                <Link key={item.to} to={item.to} className={linkClassName}>
+                  {label}
+                </Link>
+              )
+            }
             if (item.sectionId === 'coverage') {
               return (
                 <CoverageLink
