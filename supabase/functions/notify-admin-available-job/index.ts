@@ -2,6 +2,7 @@ import 'jsr:@supabase/functions-js/edge-runtime.d.ts'
 import Stripe from 'npm:stripe@14.21.0'
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import { sendAdminAvailableJobNotificationIfNeeded } from '../_shared/adminAvailableJobNotification.ts'
+import { guardStripeSecretKey } from '../_shared/stripeSecretGuard.ts'
 
 /**
  * Sends admin email when a paid quote enters Available Jobs.
@@ -50,11 +51,11 @@ Deno.serve(async (req) => {
 
     let stripePi: Stripe.PaymentIntent | null = null
     if (paymentIntentId) {
-      const stripeKey = (Deno.env.get('STRIPE_SECRET_KEY') || '').trim()
-      if (!stripeKey) {
+      const stripeGuard = guardStripeSecretKey()
+      if (!stripeGuard.ok) {
         return jsonResponse({ ok: false, error: 'stripe_not_configured' }, 503)
       }
-      const stripe = new Stripe(stripeKey, { apiVersion: '2023-10-16' })
+      const stripe = new Stripe(stripeGuard.key, { apiVersion: '2023-10-16' })
       stripePi = await stripe.paymentIntents.retrieve(paymentIntentId)
       if (stripePi.status !== 'succeeded') {
         return jsonResponse({ ok: true, skipped: true, reason: 'payment_not_succeeded' })

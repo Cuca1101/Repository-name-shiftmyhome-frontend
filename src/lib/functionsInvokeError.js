@@ -1,9 +1,14 @@
+import { sanitizePaymentErrorMessage } from './paymentErrorMessage'
+
 /**
  * Parse Supabase Edge Function invoke errors into user-facing messages.
  * @param {{ message?: string, context?: unknown, name?: string }} error
  * @param {string} [fallback]
+ * @param {{ sanitizeStripe?: boolean }} [options]
  */
-export async function detailFromFunctionsInvokeError(error, fallback = 'Request failed.') {
+export async function detailFromFunctionsInvokeError(error, fallback = 'Request failed.', options = {}) {
+  const { sanitizeStripe = false } = options
+  const finish = (msg) => (sanitizeStripe ? sanitizePaymentErrorMessage(msg) : msg)
   const generic = 'Failed to send a request to the Edge Function'
   let detail = error?.message || fallback
 
@@ -13,16 +18,16 @@ export async function detailFromFunctionsInvokeError(error, fallback = 'Request 
 
   const ctx = error?.context
   if (!ctx) {
-    if (error?.message && error.message !== generic) return error.message
-    return detail || fallback
+    if (error?.message && error.message !== generic) return finish(error.message)
+    return finish(detail || fallback)
   }
 
   try {
     if (typeof ctx.json === 'function') {
       const j = await ctx.json()
-      if (j?.message != null) return String(j.message)
-      if (j?.error != null) return String(j.error)
-      if (j?.ok === false && j?.message) return String(j.message)
+      if (j?.message != null) return finish(String(j.message))
+      if (j?.error != null) return finish(String(j.error))
+      if (j?.ok === false && j?.message) return finish(String(j.message))
     }
   } catch {
     /* ignore */
@@ -32,21 +37,23 @@ export async function detailFromFunctionsInvokeError(error, fallback = 'Request 
     if (typeof Response !== 'undefined' && ctx instanceof Response) {
       const status = ctx.status
       const j = await ctx.clone().json().catch(() => null)
-      if (j?.message != null) return String(j.message)
-      if (j?.error != null) return String(j.error)
+      if (j?.message != null) return finish(String(j.message))
+      if (j?.error != null) return finish(String(j.error))
       if (status === 404) {
-        return 'Edge Function not found — deploy admin-create-driver in Supabase (Dashboard → Edge Functions).'
+        return finish(
+          'Edge Function not found — deploy admin-create-driver in Supabase (Dashboard → Edge Functions).',
+        )
       }
-      if (status === 401) return 'Admin sign-in required or session expired.'
-      if (status === 403) return j?.message || 'You do not have permission for this action.'
-      if (status >= 500) return j?.message || `Server error (${status}). Check Edge Function logs.`
-      return j?.message || `Request failed (HTTP ${status}).`
+      if (status === 401) return finish('Admin sign-in required or session expired.')
+      if (status === 403) return finish(j?.message || 'You do not have permission for this action.')
+      if (status >= 500) return finish(j?.message || `Server error (${status}). Check Edge Function logs.`)
+      return finish(j?.message || `Request failed (HTTP ${status}).`)
     }
   } catch {
     /* ignore */
   }
 
-  return detail || fallback
+  return finish(detail || fallback)
 }
 
 /**

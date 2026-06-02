@@ -1,7 +1,7 @@
 import 'jsr:@supabase/functions-js/edge-runtime.d.ts'
 import Stripe from 'npm:stripe@14.21.0'
 import { createClient } from 'npm:@supabase/supabase-js@2'
-import { validateStripeSecretKey } from '../_shared/stripeMode.ts'
+import { guardStripeSecretKey } from '../_shared/stripeSecretGuard.ts'
 import { formatGbpLabel, validateDepositAmountGbp } from '../_shared/stripeDepositAmount.ts'
 
 /**
@@ -343,14 +343,14 @@ Deno.serve(async (req) => {
     return jsonResponse({ error: 'Method not allowed' }, 405)
   }
 
-  const stripeKey = Deno.env.get('STRIPE_SECRET_KEY')
+  const stripeGuard = guardStripeSecretKey()
   const supabaseUrl = Deno.env.get('SUPABASE_URL')
   const serviceRole = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
 
-  const stripeKeyCheck = validateStripeSecretKey(stripeKey)
-  if (!stripeKeyCheck.ok) {
-    return jsonResponse({ error: stripeKeyCheck.error || 'Invalid STRIPE_SECRET_KEY' }, 500)
+  if (!stripeGuard.ok) {
+    return jsonResponse({ error: stripeGuard.customerError, code: 'stripe_config' }, 500)
   }
+  const stripeKey = stripeGuard.key
   if (!supabaseUrl || !serviceRole) {
     return jsonResponse({ error: 'Server misconfigured: SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY' }, 500)
   }

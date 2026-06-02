@@ -1,35 +1,7 @@
 import { supabase, isSupabaseConfigured } from './supabase'
 import { assertStripePublishableKeyConfigured } from './stripeConfig'
-
-/**
- * Edge Functions return JSON `{ error: "..." }` on failure; parse it for a useful UI message.
- * @param {{ message?: string, context?: unknown }} error
- * @param {string} [fallback]
- */
-async function detailFromFunctionsInvokeError(error, fallback = 'Request failed.') {
-  let detail = error?.message || fallback
-  const ctx = error?.context
-  if (!ctx) return detail || fallback
-  try {
-    if (typeof ctx.json === 'function') {
-      const j = await ctx.json()
-      if (j?.error != null) return String(j.error)
-      if (j?.message != null) return String(j.message)
-    }
-  } catch {
-    /* ignore */
-  }
-  try {
-    if (typeof Response !== 'undefined' && ctx instanceof Response) {
-      const j = await ctx.clone().json()
-      if (j?.error != null) return String(j.error)
-      if (j?.message != null) return String(j.message)
-    }
-  } catch {
-    /* ignore */
-  }
-  return detail || fallback
-}
+import { detailFromFunctionsInvokeError } from './functionsInvokeError'
+import { sanitizePaymentErrorMessage } from './paymentErrorMessage'
 
 /**
  * Edge Functions JWT gateway expects `Bearer <JWT>`. Use legacy anon key (`eyJ…`), not service role.
@@ -49,7 +21,7 @@ function assertStripeFrontendKey() {
 
 /**
  * Creates a PaymentIntent via Edge Function and returns client_secret for the embedded card form.
- * STRIPE_SECRET_KEY stays on Supabase only.
+ * STRIPE_SECRET_KEY stays on Supabase only (Edge Function secrets).
  *
  * @param {Record<string, unknown>} body
  * @returns {Promise<{ clientSecret: string, paymentIntentId: string }>}
@@ -68,11 +40,13 @@ export async function createPaymentIntent(body) {
   const { data, error } = await supabase.functions.invoke('create-payment-intent', invokeOpts)
 
   if (error) {
-    throw new Error(await detailFromFunctionsInvokeError(error, 'Could not start payment.'))
+    throw new Error(
+      await detailFromFunctionsInvokeError(error, 'Could not start payment.', { sanitizeStripe: true }),
+    )
   }
 
   if (data?.error) {
-    throw new Error(String(data.error))
+    throw new Error(sanitizePaymentErrorMessage(String(data.error)))
   }
 
   const clientSecret = data?.client_secret
@@ -106,7 +80,9 @@ export async function verifyPaymentIntent(paymentIntentId) {
   const { data, error } = await supabase.functions.invoke('verify-payment-intent', verifyOpts)
 
   if (error) {
-    throw new Error(await detailFromFunctionsInvokeError(error, 'Could not verify payment.'))
+    throw new Error(
+      await detailFromFunctionsInvokeError(error, 'Could not verify payment.', { sanitizeStripe: true }),
+    )
   }
 
   return data

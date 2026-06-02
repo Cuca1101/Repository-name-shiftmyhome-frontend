@@ -3,7 +3,7 @@ import { createClient } from 'npm:@supabase/supabase-js@2'
 import { updateQuoteFromPaymentIntent } from '../_shared/updateQuoteFromPaymentIntent.ts'
 import { sendPaymentConfirmationWithPdfIfNeeded } from '../_shared/paymentConfirmationEmail.ts'
 import { sendExtraChargePaidConfirmationEmail } from '../_shared/extraChargePaidConfirmationEmail.ts'
-import { validateStripeSecretKey } from '../_shared/stripeMode.ts'
+import { guardStripeSecretKey } from '../_shared/stripeSecretGuard.ts'
 
 /**
  * Stripe webhook for ShiftMyHome (embedded Payment Element + PaymentIntent).
@@ -24,20 +24,20 @@ import { validateStripeSecretKey } from '../_shared/stripeMode.ts'
  */
 
 Deno.serve(async (req) => {
-  const stripeKey = Deno.env.get('STRIPE_SECRET_KEY')
+  const stripeGuard = guardStripeSecretKey()
   const webhookSecret = Deno.env.get('STRIPE_WEBHOOK_SECRET')
   const resendApiKey = (Deno.env.get('RESEND_API_KEY') || '').trim()
   const resendFrom = (Deno.env.get('RESEND_FROM_EMAIL') || 'ShiftMyHome <onboarding@resend.dev>').trim()
   const supabaseUrl = Deno.env.get('SUPABASE_URL')
   const serviceRole = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
 
-  const stripeKeyCheck = validateStripeSecretKey(stripeKey)
-  if (!stripeKeyCheck.ok) {
-    return new Response(JSON.stringify({ error: stripeKeyCheck.error || 'Invalid STRIPE_SECRET_KEY' }), {
+  if (!stripeGuard.ok) {
+    return new Response(JSON.stringify({ error: stripeGuard.customerError, code: 'stripe_config' }), {
       status: 500,
       headers: { 'Content-Type': 'application/json' },
     })
   }
+  const stripeKey = stripeGuard.key
   if (!webhookSecret || !supabaseUrl || !serviceRole) {
     return new Response(JSON.stringify({ error: 'Server misconfigured' }), {
       status: 500,

@@ -1,6 +1,6 @@
 import 'jsr:@supabase/functions-js/edge-runtime.d.ts'
 import { createClient } from 'npm:@supabase/supabase-js@2'
-import { validateStripeSecretKey } from '../_shared/stripeMode.ts'
+import { guardStripeSecretKey } from '../_shared/stripeSecretGuard.ts'
 import { processExtraChargePayment } from '../_shared/extraChargePayment.ts'
 import { assertAdminCaller } from '../_shared/verifyAdminCaller.ts'
 
@@ -56,7 +56,7 @@ async function callerMayProcessRequest(
   const { data: driverRow } = await adminClient
     .from('drivers')
     .select('id')
-    .eq('auth_user_id', userData.user.id)
+    .eq('user_id', userData.user.id)
     .maybeSingle()
 
   if (!driverRow?.id || String(driverRow.id) !== String(driverIdOnRequest)) {
@@ -75,7 +75,7 @@ Deno.serve(async (req) => {
     return jsonResponse({ error: 'Method not allowed' }, 405)
   }
 
-  const stripeKey = Deno.env.get('STRIPE_SECRET_KEY')
+  const stripeGuard = guardStripeSecretKey()
   const supabaseUrl = Deno.env.get('SUPABASE_URL')
   const serviceRole = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
   const anonKey = Deno.env.get('SUPABASE_ANON_KEY') || ''
@@ -83,10 +83,10 @@ Deno.serve(async (req) => {
   const resendFrom = (Deno.env.get('RESEND_FROM_EMAIL') || 'ShiftMyHome <onboarding@resend.dev>').trim()
   const siteUrl = (Deno.env.get('SITE_URL') || 'https://www.shiftmyhome.co.uk').trim()
 
-  const stripeKeyCheck = validateStripeSecretKey(stripeKey)
-  if (!stripeKeyCheck.ok) {
-    return jsonResponse({ error: stripeKeyCheck.error || 'Invalid STRIPE_SECRET_KEY' }, 500)
+  if (!stripeGuard.ok) {
+    return jsonResponse({ error: stripeGuard.customerError, code: 'stripe_config' }, 500)
   }
+  const stripeKey = stripeGuard.key
   if (!supabaseUrl || !serviceRole) {
     return jsonResponse({ error: 'Server misconfigured' }, 500)
   }

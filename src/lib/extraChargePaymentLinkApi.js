@@ -3,6 +3,7 @@ import {
   buildAdminFunctionInvokeOpts,
   detailFromFunctionsInvokeError,
 } from './functionsInvokeError'
+import { sanitizePaymentErrorMessage } from './paymentErrorMessage'
 
 /**
  * Approve extra charge row + create Stripe checkout link (no customer email on create).
@@ -43,7 +44,7 @@ export async function approveAndGenerateExtraChargePaymentLink(input) {
   }
 
   if (data?.error) {
-    throw new Error(String(data.error))
+    throw new Error(sanitizePaymentErrorMessage(String(data.error)))
   }
 
   const paymentLink = data?.stripe_payment_link != null ? String(data.stripe_payment_link) : null
