@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "node scripts/generate-sitemap.mjs && vite build && node scripts/inject-seo-html.mjs",
+    "build": "node scripts/generate-sitemap.mjs && node scripts/generate-seo-redirects.mjs && vite build && node scripts/inject-seo-html.mjs",
+    "seo:verify-canonical": "node scripts/verify-canonical-dist.mjs",
     "preview": "vite preview",
     "test:pricing": "node scripts/run-pricing-tests.mjs",
     "seo:audit:dist": "node scripts/seo-audit-dist.mjs",

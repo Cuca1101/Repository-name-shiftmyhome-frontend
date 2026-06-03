@@ -99,8 +99,10 @@ export default function HomePageSeo() {
         if (created && el.parentNode) el.parentNode.removeChild(el)
         else if (prev != null) el.setAttribute('content', prev)
       })
-      if (canonicalLink.created && canonicalLink.el.parentNode) canonicalLink.el.parentNode.removeChild(canonicalLink.el)
-      else if (canonicalLink.prev != null) canonicalLink.el.setAttribute('href', canonicalLink.prev)
+      // Do not restore canonical — GlobalCanonicalLink / SeoHead own the next route.
+      if (canonicalLink.created && canonicalLink.el.parentNode) {
+        canonicalLink.el.parentNode.removeChild(canonicalLink.el)
+      }
       if (!hadScript && script?.parentNode) script.parentNode.removeChild(script)
       else if (hadScript) script.textContent = prevJson
     }

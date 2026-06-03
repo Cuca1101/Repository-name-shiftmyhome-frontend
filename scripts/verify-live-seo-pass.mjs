@@ -8,8 +8,15 @@ const ROUTES = [
   { path: '/edinburgh-removals/', city: true },
   { path: '/aberdeen-removals/', city: true },
   { path: '/inverness-removals/', city: true },
+  { path: '/man-with-van-glasgow/', city: true },
+  { path: '/student-moves-stirling/', city: true },
   { path: '/coverage', city: false },
 ]
+
+function expectedCanonical(path) {
+  const normalized = path === '/' ? '/' : path.replace(/\/+$/, '')
+  return normalized === '/' ? `${ORIGIN}/` : `${ORIGIN}${normalized}/`
+}
 
 function decodeHtmlEntities(text) {
   return String(text || '')
@@ -61,6 +68,7 @@ for (const { path, city } of ROUTES) {
     titleUnder60: title.length > 0 && title.length <= 60,
     desc120to160: description.length >= 120 && description.length <= 160,
     canonicalPresent: canonical.length > 0,
+    canonicalSelf: canonical === expectedCanonical(path),
     h1Present: h1.length > 0 && !/sr-only/i.test(h1),
     prerenderMain: html.includes('id="seo-prerender-content"'),
     prerenderTextRich: city ? prerenderTextLen >= 2000 : prerenderTextLen >= 400,
@@ -81,6 +89,7 @@ for (const { path, city } of ROUTES) {
     description,
     descLen: description.length,
     canonical,
+    canonicalExpected: expectedCanonical(path),
     h1,
     checks,
     ok,

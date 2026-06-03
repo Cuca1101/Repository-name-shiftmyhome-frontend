@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect } from 'react'
+import { useLayoutEffect } from 'react'
 import {
   applySeoHeadTags,
   applySeoLandingPageJsonLd,
@@ -63,7 +63,7 @@ export default function SeoHead({
     return () => restoreSeoLandingPageJsonLd(true)
   }, [landingJsonLdKey, path, hasLandingJsonLd])
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const prevTitle = document.title
     const { metas, links } = applySeoHeadTags({
       title,

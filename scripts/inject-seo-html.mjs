@@ -33,6 +33,15 @@ function upsertMeta(html, attr, key, content) {
   return html.replace(/<\/head>/i, `  ${tag}\n  </head>`)
 }
 
+function upsertLink(html, rel, href) {
+  const forward = new RegExp(`<link[^>]+rel=["']${rel}["'][^>]*>`, 'i')
+  const reverse = new RegExp(`<link[^>]+href=["'][^"']*["'][^>]+rel=["']${rel}["'][^>]*>`, 'i')
+  const tag = `<link rel="${rel}" href="${escapeHtml(href)}" />`
+  if (forward.test(html)) return html.replace(forward, tag)
+  if (reverse.test(html)) return html.replace(reverse, tag)
+  return html.replace(/<\/head>/i, `  ${tag}\n  </head>`)
+}
+
 function ensureBrandHead(html) {
   if (html.includes('data-seo-brand="1"')) return html
   return html.replace(/<\/head>/i, `${buildSiteBrandHeadHtml()}\n  </head>`)
@@ -59,10 +68,7 @@ function injectSeoIntoHtml(template, payload) {
 
   html = html.replace(/<title>[\s\S]*?<\/title>/i, `<title>${escapeHtml(meta.title)}</title>`)
   html = upsertMeta(html, 'name', 'description', meta.description)
-  html = html.replace(
-    /<link[^>]+rel=["']canonical["'][^>]*>/i,
-    `<link rel="canonical" href="${escapeHtml(meta.canonicalUrl)}" />`,
-  )
+  html = upsertLink(html, 'canonical', meta.canonicalUrl)
 
   html = upsertMeta(html, 'property', 'og:title', meta.ogTitle || meta.title)
   html = upsertMeta(html, 'property', 'og:description', meta.ogDescription || meta.description)

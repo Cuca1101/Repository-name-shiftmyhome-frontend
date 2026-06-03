@@ -3,6 +3,7 @@ import WebsiteLeadPageTracker from './components/WebsiteLeadPageTracker'
 import PublicMarketingTracker from './components/PublicMarketingTracker'
 import CookieConsentBanner from './components/CookieConsentBanner'
 import SiteBrandMeta from './components/seo/SiteBrandMeta'
+import GlobalCanonicalLink from './components/seo/GlobalCanonicalLink'
 import ProtectedRoute from './components/ProtectedRoute'
 import AdminLayout from './components/AdminLayout'
 import PublicLayout from './layouts/PublicLayout'
@@ -74,6 +75,7 @@ export default function App() {
       <WebsiteLeadPageTracker />
       <PublicMarketingTracker />
       <SiteBrandMeta />
+      <GlobalCanonicalLink />
       <CookieConsentBanner />
       <Routes>
       <Route path="/" element={<HomePage />} />
