@@ -1,3 +1,5 @@
+import { getServicePageSeoContent } from '../lib/seo/servicePageContent.js'
+
 /**
  * Public service landing pages: path, display title, and QuoteWizard service type bindings.
  * `serviceType` must match admin base price keys.
@@ -73,5 +75,14 @@ export const SERVICE_PAGES = [
 
 /** @param {string} path */
 export function getServicePageByPath(path) {
-  return SERVICE_PAGES.find((p) => p.path === path) ?? null
+  const page = SERVICE_PAGES.find((p) => p.path === path) ?? null
+  if (!page) return null
+  const seo = getServicePageSeoContent(page.slug)
+  if (!seo) return page
+  return {
+    ...page,
+    seoTitle: seo.seoTitle,
+    metaDescription: seo.metaDescription,
+    seoContent: seo,
+  }
 }

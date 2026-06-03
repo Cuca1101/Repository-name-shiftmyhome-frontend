@@ -19,6 +19,8 @@ const SERVICE_SLUG_BY_PATH = {
   '/furniture-delivery': 'furniture-delivery',
   '/man-with-van': 'man-with-van',
   '/office-moves': 'office-moves',
+  '/student-moves': 'student-moves',
+  '/clearance': 'clearance',
   '/emergency-man-with-van-glasgow': 'urgent-removals',
   '/same-day-removals-glasgow': 'same-day-delivery',
 }
@@ -29,6 +31,7 @@ const CITY_PATHS = {
   '/aberdeen-removals': 'aberdeen',
   '/dundee-removals': 'dundee',
   '/inverness-removals': 'inverness',
+  '/paisley-removals': 'paisley',
   '/stirling-removals': 'stirling',
   '/perth-removals': 'perth',
 }
@@ -83,8 +86,8 @@ export function mergeServicePageConfig(page, override) {
     ...page,
     title: override.h1?.trim() || override.seo_title?.trim() || page.title,
     shortDescription: override.intro_text?.trim() || page.shortDescription,
-    seoTitle: override.seo_title?.trim() || `${page.title} | ShiftMyHome`,
-    metaDescription: override.meta_description?.trim() || page.shortDescription,
+    seoTitle: override.seo_title?.trim() || page.seoTitle || `${page.title} | ShiftMyHome`,
+    metaDescription: override.meta_description?.trim() || page.metaDescription || page.shortDescription,
     canonicalUrl: override.canonical_url?.trim() || '',
     ogTitle: override.og_title?.trim() || override.seo_title?.trim() || page.title,
     ogDescription: override.og_description?.trim() || override.meta_description?.trim() || page.shortDescription,

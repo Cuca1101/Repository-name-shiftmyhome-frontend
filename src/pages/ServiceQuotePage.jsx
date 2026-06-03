@@ -4,7 +4,9 @@ import { useSeoSettings } from '../context/SeoSettingsContext'
 import { mergeServicePageConfig } from '../lib/seoSettingsMerge'
 import SeoHead from '../components/seo/SeoHead'
 import SeoServiceJsonLd from '../components/seo/SeoServiceJsonLd'
+import ServicePageSeoSections from '../components/seo/ServicePageSeoSections'
 import QuoteWizard from '../components/quote-wizard/QuoteWizard'
+import { normalizeSeoFaqs } from '../lib/seoStructuredData'
 
 export default function ServiceQuotePage() {
   const { pathname } = useLocation()
@@ -14,6 +16,12 @@ export default function ServiceQuotePage() {
   if (!page) {
     return <Navigate to="/" replace />
   }
+
+  const seoContent = page.seoContent ?? null
+  const faqs =
+    Array.isArray(page.faqs) && page.faqs.length
+      ? normalizeSeoFaqs(page.faqs)
+      : normalizeSeoFaqs(seoContent?.faqs)
 
   return (
     <div className="min-w-0">
@@ -26,6 +34,11 @@ export default function ServiceQuotePage() {
         ogImage={page.heroImage}
         ogType="website"
         includeSocial
+        faqs={faqs.length ? faqs : undefined}
+        breadcrumbItems={[
+          { name: 'Home', path: '/' },
+          { name: page.title, path: pathname },
+        ]}
       />
       <SeoServiceJsonLd
         name={page.title}
@@ -59,7 +72,13 @@ export default function ServiceQuotePage() {
         </div>
       </section>
 
-      <QuoteWizard serviceType={page.serviceType} compact />
+      <section id="service-quote" className="scroll-mt-[76px]" aria-label="Instant quote">
+        <QuoteWizard serviceType={page.serviceType} compact />
+      </section>
+
+      {seoContent ? (
+        <ServicePageSeoSections content={seoContent} quoteAnchor="#service-quote" />
+      ) : null}
     </div>
   )
 }

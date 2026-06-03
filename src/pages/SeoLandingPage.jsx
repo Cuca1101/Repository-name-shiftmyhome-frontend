@@ -112,6 +112,7 @@ export default function SeoLandingPage() {
 
   const servicesHeading =
     page.cityName === 'Scotland' ? 'Moving services across Scotland' : `Services in ${page.cityName}`
+  const areasWeCover = page.areasWeCover ?? []
   const nearby = page.nearbyLocations ?? []
   const heroImage = SERVICE_HERO_IMAGE[page.serviceType] || SERVICE_HERO_IMAGE['House Removals']
   const faqs = normalizeSeoFaqs(page.faqs)
@@ -219,6 +220,32 @@ export default function SeoLandingPage() {
           </div>
         </div>
       </section>
+
+      {areasWeCover.length > 0 ? (
+        <section
+          className="seo-section seo-section--tint"
+          aria-labelledby="seo-areas-heading"
+        >
+          <div className="seo-section-inner">
+            <h2 id="seo-areas-heading" className="text-lg font-bold tracking-tight text-slate-900 sm:text-xl">
+              Areas We Cover
+            </h2>
+            <p className="mt-2 max-w-2xl text-sm leading-relaxed text-slate-600">
+              We provide removals and man with van services across {page.cityName} and surrounding areas — select a
+              town for local pricing.
+            </p>
+            <ul className="seo-chip-list mt-4 flex flex-wrap gap-2 sm:mt-5">
+              {areasWeCover.map(({ href, name }) => (
+                <li key={href} className="min-w-0 max-w-full">
+                  <Link to={href} className="seo-chip">
+                    {name}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </section>
+      ) : null}
 
       {nearby.length > 0 ? (
         <section

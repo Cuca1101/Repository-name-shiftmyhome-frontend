@@ -1,6 +1,7 @@
 import { DEFAULT_HOMEPAGE } from './websiteCmsDefaults'
 import { SERVICE_PAGES } from '../constants/servicePages'
 import { getSeoPageByPath, SEO_SITE_ORIGIN } from '../data/seoPages'
+import { getServicePageSeoContent } from './seo/servicePageContent.js'
 
 /** @typedef {'homepage'|'service'|'city'|'system'} SeoPageType */
 
@@ -27,6 +28,8 @@ export const SEO_DASHBOARD_SERVICES = [
   { pageSlug: 'furniture-delivery', pageType: 'service', label: 'Furniture Removals', path: '/furniture-delivery' },
   { pageSlug: 'man-with-van', pageType: 'service', label: 'Man With Van', path: '/man-with-van' },
   { pageSlug: 'office-moves', pageType: 'service', label: 'Office Relocations', path: '/office-moves' },
+  { pageSlug: 'student-moves', pageType: 'service', label: 'Student Moves', path: '/student-moves' },
+  { pageSlug: 'clearance', pageType: 'service', label: 'Clearance', path: '/clearance' },
   { pageSlug: 'urgent-removals', pageType: 'service', label: 'Urgent Removals', path: '/emergency-man-with-van-glasgow' },
   { pageSlug: 'same-day-delivery', pageType: 'service', label: 'Same Day Delivery', path: '/same-day-removals-glasgow' },
 ]
@@ -113,15 +116,16 @@ export function buildSeoSettingsFallback(def) {
   const seoPage = getSeoPageByPath(def.path)
 
   if (servicePage) {
-    row.seo_title = `${servicePage.title} | ShiftMyHome`
-    row.meta_description = servicePage.shortDescription
+    const seoContent = getServicePageSeoContent(servicePage.slug)
+    row.seo_title = seoContent?.seoTitle || `${servicePage.title} | ShiftMyHome`
+    row.meta_description = seoContent?.metaDescription || servicePage.shortDescription
     row.og_title = row.seo_title
-    row.og_description = servicePage.shortDescription
+    row.og_description = row.meta_description
     row.canonical_url = `${SEO_SITE_ORIGIN}${servicePage.path}`
     row.h1 = servicePage.title
-    row.intro_text = servicePage.shortDescription
+    row.intro_text = seoContent?.intro || servicePage.shortDescription
     row.cta_text = 'Get an Instant Quote'
-    row.faq_json = []
+    row.faq_json = seoContent?.faqs?.map((f) => ({ q: f.q, a: f.a })) ?? []
     return row
   }
 

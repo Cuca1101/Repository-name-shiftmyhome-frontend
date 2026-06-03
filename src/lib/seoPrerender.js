@@ -3,6 +3,7 @@
  */
 import { getSeoPageByPath } from '../data/seoPages.js'
 import { getServicePageByPath } from '../constants/servicePages.js'
+import { getServicePageSeoContent } from './seo/servicePageContent.js'
 import { getRouteSeoMetadata } from './seoRouteMetadata.js'
 import { buildFaqPageJsonLd, buildSeoLocalBusinessJsonLd } from './seoStructuredData.js'
 import {
@@ -55,16 +56,27 @@ export function getSeoPrerenderPayload(pathname) {
       metaDescription: page.metaDescription,
       relatedLinks: page.relatedLinks,
       nearbyLocations: page.nearbyLocations,
+      areasWeCover: page.areasWeCover,
     })
   } else {
     const service = getServicePageByPath(pathname)
     if (service) {
+      const seoContent = getServicePageSeoContent(service.slug)
+      const serviceFaqs = seoContent?.faqs
+      if (serviceFaqs?.length) {
+        const faq = buildFaqPageJsonLd(serviceFaqs, pathname)
+        if (faq) jsonLd.push(faq)
+      }
       staticBodyHtml = buildSeoStaticBodyHtml({
         h1: service.title,
         heroTeaser: service.heroTeaser,
-        intro: service.shortDescription,
-        introHeading: `About ${service.title}`,
+        intro: seoContent?.intro || service.shortDescription,
+        introSecondary: seoContent?.introSecondary,
+        introHeading: seoContent?.introHeading || `About ${service.title}`,
+        bodySections: seoContent?.bodySections,
+        faqs: seoContent?.faqs,
         metaDescription: meta.description,
+        relatedLinks: seoContent?.cityLinks,
       })
     } else if (meta.description) {
       staticBodyHtml = buildSeoStaticMainContentHtml({

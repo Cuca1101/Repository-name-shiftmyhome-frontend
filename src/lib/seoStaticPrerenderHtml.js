@@ -126,6 +126,7 @@ export function buildSeoStaticMainContentHtml(content) {
  *   metaDescription?: string,
  *   relatedLinks?: { href: string, label: string }[],
  *   nearbyLocations?: { href: string, label: string }[],
+ *   areasWeCover?: { href: string, name: string }[],
  * }} page
  */
 export function buildSeoStaticBodyHtml(page) {
@@ -149,11 +150,16 @@ export function buildSeoStaticBodyHtml(page) {
     metaDescription: page.metaDescription,
   })
 
+  const areasWeCover = (page.areasWeCover ?? []).map(({ href, name }) => ({
+    href,
+    label: name,
+  }))
   const related = linkListSection(page.relatedLinks ?? [], 'Related pages')
   const nearby = linkListSection(page.nearbyLocations ?? [], 'Nearby locations')
+  const areas = linkListSection(areasWeCover, 'Areas We Cover')
   const nav =
-    related || nearby
-      ? `<nav id="seo-prerender-nav" aria-label="Site navigation links">${related}${nearby}</nav>`
+    related || nearby || areas
+      ? `<nav id="seo-prerender-nav" aria-label="Site navigation links">${areas}${nearby}${related}</nav>`
       : ''
 
   return `${main}${nav}`

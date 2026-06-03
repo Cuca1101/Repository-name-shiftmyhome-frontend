@@ -32,6 +32,7 @@ import {
   buildLocationRemovalsBodySections,
   buildLocationFaqs,
 } from '../lib/seo/locationSeoContent.js'
+import { buildCityAreaLinks, getCityAreasWeCover } from '../lib/seo/cityAreasWeCover.js'
 
 export const SEO_SITE_ORIGIN = 'https://www.shiftmyhome.co.uk'
 
@@ -72,6 +73,7 @@ export const SEO_SITE_ORIGIN = 'https://www.shiftmyhome.co.uk'
  * @property {{ heading: string, paragraphs: string[] }[]} [bodySections]
  * @property {string[]} [keywordPhrases]
  * @property {string} [keywordSentence]
+ * @property {{ name: string, href: string }[]} [areasWeCover]
  * @property {string} [ogTitle]
  * @property {string} [ogDescription]
  */
@@ -423,6 +425,10 @@ function buildSeoPage(kind, cityName) {
     ? buildLocationHeroTeaser(cityName, region, cityVariant)
     : meta.heroTeaser
   const og = buildOpenGraphMeta(path, title, metaDescription)
+  const areasWeCover =
+    kind === 'removals' && getCityAreasWeCover(cityName).length
+      ? buildCityAreaLinks(cityName)
+      : undefined
 
   return /** @type {SeoPageConfig} */ ({
     path,
@@ -446,6 +452,7 @@ function buildSeoPage(kind, cityName) {
     bodySections,
     keywordPhrases,
     keywordSentence,
+    areasWeCover,
     ogTitle: og.ogTitle,
     ogDescription: og.ogDescription,
   })
