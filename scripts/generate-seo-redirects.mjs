@@ -37,5 +37,6 @@ if (blockRe.test(content)) {
   content = `${content.trimEnd()}\n\n${generatedBlock}\n`
 }
 
-fs.writeFileSync(redirectsPath, content, 'utf8')
+const normalized = content.replace(/\r\n/g, '\n')
+fs.writeFileSync(redirectsPath, normalized, 'utf8')
 console.log(`Legacy city redirects written (${legacyLines.length} rules)`)
