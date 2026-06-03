@@ -1,10 +1,7 @@
-# Admin SPA - must stay on index.html
-/admin    /index.html    200
-/admin/*  /index.html    200
-
 # Prerendered HTML lives at /<route>/index.html (Cloudflare adds trailing slashes).
 # Do NOT use "/* /404.html 404" - it can override asset serving on some hosts.
 # Missing paths are handled by dist/404.html via the platform not_found behaviour.
+
 # BEGIN legacy city canonical redirects (auto-generated)
 /removals-glasgow /glasgow-removals/ 301
 /removals-glasgow/ /glasgow-removals/ 301
@@ -367,3 +364,7 @@
 /removals-whitehills /whitehills-removals/ 301
 /removals-whitehills/ /whitehills-removals/ 301
 # END legacy city canonical redirects (auto-generated)
+
+# Admin SPA - must stay on index.html
+/admin    /index.html    200
+/admin/*  /index.html    200
