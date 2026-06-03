@@ -1,5 +1,6 @@
 import QuoteNavbar from '../components/QuoteNavbar'
 import WhatsAppButton from '../components/WhatsAppButton'
+import FloatingReviewsBadge from '../components/reviews/FloatingReviewsBadge'
 import { CoverageModalProvider } from '../context/CoverageModalContext'
 import { WebsiteCmsProvider } from '../context/WebsiteCmsContext'
 import { SeoSettingsProvider } from '../context/SeoSettingsContext'
@@ -15,8 +16,9 @@ export default function ServiceQuoteLayout({ children }) {
           <main className="box-border min-w-0 flex-1 w-full max-w-full overflow-x-hidden pb-[4.25rem] md:pb-0">
             {children}
           </main>
-          <WhatsAppButton variant="quote-flow" />
         </div>
+        <FloatingReviewsBadge variant="quote-flow" />
+        <WhatsAppButton variant="quote-flow" />
         </SeoSettingsProvider>
       </WebsiteCmsProvider>
     </CoverageModalProvider>

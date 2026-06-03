@@ -9,7 +9,6 @@ import { useWebsiteCms } from '../../context/WebsiteCmsContext'
 const navItems = [
   { sectionId: 'home', label: 'Home' },
   { sectionId: 'services', label: 'Services' },
-  { sectionId: 'how-it-works', label: 'How it works' },
   { sectionId: 'about', label: 'About' },
   { sectionId: 'reviews', label: 'Reviews' },
   { sectionId: 'coverage', label: 'Coverage' },

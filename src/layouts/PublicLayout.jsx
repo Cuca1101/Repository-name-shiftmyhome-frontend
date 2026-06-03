@@ -2,6 +2,7 @@ import { useLocation } from 'react-router-dom'
 import Navbar from '../components/Navbar'
 import Footer from '../components/Footer'
 import WhatsAppButton from '../components/WhatsAppButton'
+import FloatingReviewsBadge from '../components/reviews/FloatingReviewsBadge'
 import HomeHashScroll from '../components/HomeHashScroll'
 import HomePageSeo from '../components/seo/HomePageSeo'
 import WebsiteAnnouncementBar from '../components/WebsiteAnnouncementBar'
@@ -33,8 +34,9 @@ export default function PublicLayout({ children }) {
             {children}
           </main>
           {!hideFooter && <Footer />}
-          <WhatsAppButton variant={quoteFlow ? 'quote-flow' : 'default'} />
         </div>
+        <FloatingReviewsBadge />
+        <WhatsAppButton variant={quoteFlow ? 'quote-flow' : 'default'} />
         </SeoSettingsProvider>
       </WebsiteCmsProvider>
     </CoverageModalProvider>

@@ -24,11 +24,28 @@ export async function fetchPublishedReviews() {
       .select('*')
       .eq('is_published', true)
       .order('sort_order', { ascending: true })
+      .order('created_at', { ascending: false })
     if (error) throw error
     return data ?? []
   }
   const all = readLs()
   return all.filter((r) => r.is_published).sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
+}
+
+/**
+ * Normalised rows for public homepage / reviews modal.
+ * @returns {Promise<Array<{ id: string, author_name: string, body: string, stars: number, avatar_url: string|null, created_at: string|null }>>}
+ */
+export async function fetchPublicDisplayReviews() {
+  const rows = await fetchPublishedReviews()
+  return (rows ?? []).map((r) => ({
+    id: String(r.id),
+    author_name: r.author_name,
+    body: r.body,
+    stars: r.rating ?? 5,
+    avatar_url: r.avatar_url ?? null,
+    created_at: r.created_at ?? null,
+  }))
 }
 
 export async function fetchAllReviewsForAdmin() {
