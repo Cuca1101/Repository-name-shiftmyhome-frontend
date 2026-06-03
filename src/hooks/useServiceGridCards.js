@@ -1,13 +1,33 @@
 import { useEffect, useMemo, useState } from 'react'
 import { SERVICE_PAGES, getServicePageByPath } from '../constants/servicePages'
-
-function serviceTypeForPath(path) {
-  return getServicePageByPath(path)?.serviceType ?? ''
-}
 import { HOME_SERVICE_CARD_IMAGES } from '../constants/homeServiceCardImages'
 import { fetchPricingSettings } from '../lib/data/pricingSettingsRepository'
 import { buildServiceCardPriceBySlug } from '../lib/serviceCardDisplayPrice'
 import { useWebsiteCms } from '../context/WebsiteCmsContext'
+
+function serviceTypeForPath(path) {
+  return getServicePageByPath(path)?.serviceType ?? ''
+}
+
+/** @type {Record<string, string>} */
+export const SERVICE_TYPE_TO_SLUG = {
+  'House Removals': 'house-removals',
+  'Man with Van': 'man-with-van',
+  'Furniture Delivery': 'furniture-delivery',
+  'Office Moves': 'office-moves',
+  'Student Moves': 'student-moves',
+  Clearance: 'clearance',
+}
+
+/** @param {string} serviceType */
+export function serviceTypeToSlug(serviceType) {
+  return SERVICE_TYPE_TO_SLUG[String(serviceType || '').trim()] ?? 'house-removals'
+}
+
+/** @param {string} slug */
+export function fallbackServiceCardImage(slug) {
+  return HOME_SERVICE_CARD_IMAGES[slug] ?? HOME_SERVICE_CARD_IMAGES['house-removals']
+}
 
 /** Shared service card data for homepage desktop + mobile grids. */
 export function useServiceGridCards() {
@@ -73,4 +93,23 @@ export function useServiceGridCards() {
   }, [hasCmsServiceCards, serviceCards, priceBySlug])
 
   return cards
+}
+
+/**
+ * Resolve service card images from CMS (admin) with static fallbacks.
+ * Same source as homepage — SEO pages stay in sync when admin images change.
+ */
+export function useServiceCardImageBySlug() {
+  const cards = useServiceGridCards()
+
+  return useMemo(() => {
+    /** @type {Record<string, string>} */
+    const bySlug = {}
+    for (const card of cards) {
+      if (card.slug && card.imageSrc) bySlug[card.slug] = card.imageSrc
+    }
+
+    /** @param {string} slug */
+    return (slug) => bySlug[slug] ?? fallbackServiceCardImage(slug)
+  }, [cards])
 }

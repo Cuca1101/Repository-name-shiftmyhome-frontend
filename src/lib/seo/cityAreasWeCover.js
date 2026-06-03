@@ -22,6 +22,49 @@ export const SECONDARY_SCOTLAND_CITY_NAMES = [
   'Kirkcaldy',
 ]
 
+/** Priority city removal hubs — linked from service pages as main cities. */
+export const PRIMARY_SCOTLAND_CITY_NAMES = [
+  'Glasgow',
+  'Edinburgh',
+  'Aberdeen',
+  'Dundee',
+  'Inverness',
+  'Paisley',
+]
+
+const PRIMARY_CITY_REMOVAL_PATHS = new Set(
+  PRIMARY_SCOTLAND_CITY_NAMES.map((name) => `/${cityToSlug(name)}-removals`),
+)
+
+const SECONDARY_CITY_REMOVAL_PATHS = new Set(
+  SECONDARY_SCOTLAND_CITY_NAMES.map((name) => `/${cityToSlug(name)}-removals`),
+)
+
+/**
+ * Split service-page location links into main cities, more areas, and specialty routes.
+ * @param {{ href: string, label: string }[]} links
+ */
+export function groupServicePageCityLinks(links) {
+  /** @type {{ href: string, label: string }[]} */
+  const mainCities = []
+  /** @type {{ href: string, label: string }[]} */
+  const moreAreas = []
+  /** @type {{ href: string, label: string }[]} */
+  const localServices = []
+
+  for (const link of links) {
+    if (PRIMARY_CITY_REMOVAL_PATHS.has(link.href)) {
+      mainCities.push(link)
+    } else if (SECONDARY_CITY_REMOVAL_PATHS.has(link.href)) {
+      moreAreas.push(link)
+    } else {
+      localServices.push(link)
+    }
+  }
+
+  return { mainCities, moreAreas, localServices }
+}
+
 /** @returns {SeoRelatedLink[]} */
 export function buildSecondaryCityRemovalLinks() {
   return SECONDARY_SCOTLAND_CITY_NAMES.map((name) => ({

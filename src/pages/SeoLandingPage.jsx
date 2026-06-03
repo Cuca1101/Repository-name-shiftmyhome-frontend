@@ -4,21 +4,19 @@ import QuoteWizard from '../components/quote-wizard/QuoteWizard'
 import SeoHead from '../components/seo/SeoHead'
 import SeoFaqAccordion from '../components/seo/SeoFaqAccordion'
 import SeoInternalLinks from '../components/seo/SeoInternalLinks'
+import SeoLinkCardGrid from '../components/seo/SeoLinkCardGrid'
+import SeoCityContentSections from '../components/seo/SeoCityContentSections'
+import SeoLandingServiceGrid from '../components/seo/SeoLandingServiceGrid'
+import SeoQuickBookSteps from '../components/seo/SeoQuickBookSteps'
+import SeoQuoteSectionHeader from '../components/seo/SeoQuoteSectionHeader'
+import { getQuoteSectionTitle } from '../lib/seo/seoLandingCopy'
+import { serviceTypeToSlug, useServiceCardImageBySlug } from '../hooks/useServiceGridCards'
 import { getSeoPageByPath } from '../data/seoPages'
 import { normalizePublicPath } from '../lib/normalizePublicPath'
 import { useSeoSettings } from '../context/SeoSettingsContext'
 import { mergeSeoLandingPageConfig } from '../lib/seoSettingsMerge'
 import { normalizeSeoFaqs } from '../lib/seoStructuredData'
 import { CONTACT, WHATSAPP_URL } from '../config'
-
-const SERVICE_HERO_IMAGE = {
-  'House Removals': '/assets/services/house-removals.jpg',
-  'Man with Van': '/assets/services/man-with-van.jpg',
-  'Furniture Delivery': '/assets/services/furniture-delivery.jpg',
-  'Office Moves': '/assets/services/office-moves.jpg',
-  'Student Moves': '/assets/services/student-moves.jpg',
-  Clearance: '/assets/services/clearance.jpg',
-}
 
 const TRUST_ITEMS = [
   {
@@ -41,15 +39,6 @@ const TRUST_ITEMS = [
     text: 'Short-notice slots depend on crew schedules — quote with your date for an honest answer.',
     icon: 'clock',
   },
-]
-
-const SERVICE_LINKS = [
-  { to: '/house-removals', label: 'House removals' },
-  { to: '/man-with-van', label: 'Man with van' },
-  { to: '/furniture-delivery', label: 'Furniture delivery' },
-  { to: '/office-moves', label: 'Office moves' },
-  { to: '/student-moves', label: 'Student moves' },
-  { to: '/clearance', label: 'Clearance' },
 ]
 
 const HERO_TRUST = [
@@ -103,6 +92,7 @@ export default function SeoLandingPage() {
   const { pathname } = useLocation()
   const routePath = normalizePublicPath(pathname)
   const { getForPath } = useSeoSettings()
+  const getImageForSlug = useServiceCardImageBySlug()
   const basePage = getSeoPageByPath(routePath)
   const page = mergeSeoLandingPageConfig(basePage, getForPath(routePath))
 
@@ -110,11 +100,9 @@ export default function SeoLandingPage() {
     return <NotFoundPage />
   }
 
-  const servicesHeading =
-    page.cityName === 'Scotland' ? 'Moving services across Scotland' : `Services in ${page.cityName}`
   const areasWeCover = page.areasWeCover ?? []
   const nearby = page.nearbyLocations ?? []
-  const heroImage = SERVICE_HERO_IMAGE[page.serviceType] || SERVICE_HERO_IMAGE['House Removals']
+  const heroImage = getImageForSlug(serviceTypeToSlug(page.serviceType))
   const faqs = normalizeSeoFaqs(page.faqs)
 
   return (
@@ -179,7 +167,7 @@ export default function SeoLandingPage() {
           </ul>
           <div className="mt-5 flex flex-col gap-2.5 xs:flex-row xs:flex-wrap xs:gap-3 sm:mt-7">
             <a href="#seo-quote" className="seo-cta-btn-primary max-w-md xs:max-w-none">
-              Get instant quote
+              Get a Quote
             </a>
             <Link
               to="/coverage"
@@ -191,35 +179,22 @@ export default function SeoLandingPage() {
         </div>
       </header>
 
-      <section
-        className="seo-section seo-section--white"
-        aria-labelledby="seo-intro-heading"
-      >
-        <div className="seo-section-inner">
-          <div className="seo-prose">
-            <h2 id="seo-intro-heading">
-              {page.cityName === 'Scotland'
-                ? 'Professional moves across Scotland'
-                : `Local movers in ${page.cityName}`}
-            </h2>
-            <p>{page.intro}</p>
-            <p className="text-muted">{page.introSecondary}</p>
-            {(page.bodySections ?? []).map((section) => (
-              <div key={section.heading} className="mt-6">
-                <h3 className="text-base font-semibold text-slate-900 sm:text-lg">{section.heading}</h3>
-                {section.paragraphs.map((para) => (
-                  <p key={para.slice(0, 48)} className="mt-2 text-slate-700">
-                    {para}
-                  </p>
-                ))}
-              </div>
-            ))}
-            {page.keywordSentence ? (
-              <p className="mt-6 text-sm leading-relaxed text-slate-600">{page.keywordSentence}</p>
-            ) : null}
-          </div>
-        </div>
+      <SeoQuickBookSteps cityName={page.cityName} />
+
+      <section id="seo-quote" className="seo-quote-wrap" aria-label="Instant quote">
+        <SeoQuoteSectionHeader
+          title={getQuoteSectionTitle(page)}
+          subtitle="Enter pickup and delivery addresses, add your items, and see a live price — no phone call needed."
+        />
+        <QuoteWizard serviceType={page.serviceType} compact />
       </section>
+
+      <SeoCityContentSections
+        page={page}
+        heroImage={heroImage}
+        quoteAnchor="#seo-quote"
+        pagePath={routePath}
+      />
 
       {areasWeCover.length > 0 ? (
         <section
@@ -234,15 +209,9 @@ export default function SeoLandingPage() {
               We provide removals and man with van services across {page.cityName} and surrounding areas — select a
               town for local pricing.
             </p>
-            <ul className="seo-chip-list mt-4 flex flex-wrap gap-2 sm:mt-5">
-              {areasWeCover.map(({ href, name }) => (
-                <li key={href} className="min-w-0 max-w-full">
-                  <Link to={href} className="seo-chip">
-                    {name}
-                  </Link>
-                </li>
-              ))}
-            </ul>
+            <SeoLinkCardGrid
+              links={areasWeCover.map(({ href, name }) => ({ href, label: `${name} removals` }))}
+            />
           </div>
         </section>
       ) : null}
@@ -259,15 +228,7 @@ export default function SeoLandingPage() {
             <p className="mt-2 max-w-2xl text-sm leading-relaxed text-slate-600">
               We also quote removals and van jobs in surrounding towns — select an area for local pricing.
             </p>
-            <ul className="seo-chip-list mt-4 flex flex-wrap gap-2 sm:mt-5">
-              {nearby.map(({ href, label }) => (
-                <li key={href} className="min-w-0 max-w-full">
-                  <Link to={href} className="seo-chip">
-                    {label}
-                  </Link>
-                </li>
-              ))}
-            </ul>
+            <SeoLinkCardGrid links={nearby} />
           </div>
         </section>
       ) : null}
@@ -284,15 +245,7 @@ export default function SeoLandingPage() {
             <p className="mt-2 max-w-2xl text-sm leading-relaxed text-slate-600">
               Explore related removals services, nearby areas, and popular guides.
             </p>
-            <ul className="seo-chip-list mt-4 flex flex-wrap gap-2 sm:mt-5">
-              {page.relatedLinks.map(({ href, label }) => (
-                <li key={href} className="min-w-0 max-w-full">
-                  <Link to={href} className="seo-chip">
-                    {label}
-                  </Link>
-                </li>
-              ))}
-            </ul>
+            <SeoLinkCardGrid links={page.relatedLinks} />
           </div>
         </section>
       ) : null}
@@ -303,35 +256,14 @@ export default function SeoLandingPage() {
       >
         <div className="seo-section-inner">
           <h2 id="seo-services-heading" className="text-xl font-bold tracking-tight text-slate-900 sm:text-2xl">
-            {servicesHeading}
+            All ShiftMyHome services
           </h2>
           <p className="mt-2 max-w-2xl text-sm leading-relaxed text-slate-600 sm:text-base">
-            Choose the service that matches your move — each option opens our quote wizard with the right defaults.
+            {page.cityName === 'Scotland'
+              ? 'Explore every service we offer — tap a card to open the quote wizard with the right defaults.'
+              : `Explore every service we offer in ${page.cityName} — tap a card to open the quote wizard with the right defaults.`}
           </p>
-          <ul className="mt-5 space-y-2.5 text-sm text-slate-700 sm:mt-6 sm:space-y-3 sm:text-base">
-            {page.serviceBullets.map((item) => (
-              <li key={item} className="flex gap-2.5 leading-relaxed">
-                <span
-                  className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-gradient-to-br from-brand-500 to-emerald-500"
-                  aria-hidden
-                />
-                {item}
-              </li>
-            ))}
-          </ul>
-          <h3 className="mt-8 text-base font-semibold text-slate-900 sm:mt-10">All ShiftMyHome services</h3>
-          <ul className="mt-4 grid gap-2.5 sm:grid-cols-2 sm:gap-3 lg:grid-cols-3">
-            {SERVICE_LINKS.map(({ to, label }) => (
-              <li key={to}>
-                <Link to={to} className="seo-service-card">
-                  <span className="min-w-0 truncate">{label}</span>
-                  <span className="shrink-0 text-brand-500" aria-hidden>
-                    →
-                  </span>
-                </Link>
-              </li>
-            ))}
-          </ul>
+          <SeoLandingServiceGrid quoteAnchor="#seo-quote" pagePath={routePath} />
         </div>
       </section>
 
@@ -409,11 +341,6 @@ export default function SeoLandingPage() {
         cityName={page.cityName}
         regionKey={page.regionKey}
       />
-
-      <section id="seo-quote" className="seo-quote-wrap" aria-label="Instant quote">
-        <h2 className="sr-only">Get your instant quote</h2>
-        <QuoteWizard serviceType={page.serviceType} compact />
-      </section>
     </article>
   )
 }

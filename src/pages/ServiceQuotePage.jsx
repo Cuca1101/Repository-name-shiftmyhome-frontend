@@ -5,11 +5,17 @@ import { mergeServicePageConfig } from '../lib/seoSettingsMerge'
 import SeoHead from '../components/seo/SeoHead'
 import SeoServiceJsonLd from '../components/seo/SeoServiceJsonLd'
 import ServicePageSeoSections from '../components/seo/ServicePageSeoSections'
+import SeoQuickBookSteps from '../components/seo/SeoQuickBookSteps'
+import SeoQuoteSectionHeader from '../components/seo/SeoQuoteSectionHeader'
 import QuoteWizard from '../components/quote-wizard/QuoteWizard'
+import { normalizePublicPath } from '../lib/normalizePublicPath'
 import { normalizeSeoFaqs } from '../lib/seoStructuredData'
+import { useServiceCardImageBySlug } from '../hooks/useServiceGridCards'
 
 export default function ServiceQuotePage() {
   const { pathname } = useLocation()
+  const routePath = normalizePublicPath(pathname)
+  const getImageForSlug = useServiceCardImageBySlug()
   const { getForPath } = useSeoSettings()
   const basePage = getServicePageByPath(pathname)
   const page = mergeServicePageConfig(basePage, getForPath(pathname))
@@ -18,6 +24,7 @@ export default function ServiceQuotePage() {
   }
 
   const seoContent = page.seoContent ?? null
+  const cardHeroImage = getImageForSlug(page.slug)
   const faqs =
     Array.isArray(page.faqs) && page.faqs.length
       ? normalizeSeoFaqs(page.faqs)
@@ -28,22 +35,22 @@ export default function ServiceQuotePage() {
       <SeoHead
         title={page.seoTitle || page.title}
         description={page.metaDescription || page.shortDescription}
-        path={pathname}
+        path={routePath}
         ogTitle={page.ogTitle || page.seoTitle || page.title}
         ogDescription={page.ogDescription || page.metaDescription || page.shortDescription}
-        ogImage={page.heroImage}
+        ogImage={cardHeroImage}
         ogType="website"
         includeSocial
         faqs={faqs.length ? faqs : undefined}
         breadcrumbItems={[
           { name: 'Home', path: '/' },
-          { name: page.title, path: pathname },
+          { name: page.title, path: routePath },
         ]}
       />
       <SeoServiceJsonLd
         name={page.title}
         description={page.shortDescription}
-        path={pathname}
+        path={routePath}
         serviceType={page.serviceType}
       />
       <section
@@ -52,7 +59,7 @@ export default function ServiceQuotePage() {
       >
         <div
           className="absolute inset-0 bg-cover bg-center opacity-90"
-          style={{ backgroundImage: `url(${page.heroImage})` }}
+          style={{ backgroundImage: `url(${cardHeroImage})` }}
           aria-hidden
         />
         <div className="absolute inset-0 bg-gradient-to-r from-brand-950/95 via-brand-900/88 to-brand-800/80" aria-hidden />
@@ -72,12 +79,23 @@ export default function ServiceQuotePage() {
         </div>
       </section>
 
-      <section id="service-quote" className="scroll-mt-[76px]" aria-label="Instant quote">
+      <SeoQuickBookSteps cityName="Scotland" />
+
+      <section id="service-quote" className="seo-quote-wrap scroll-mt-[76px]" aria-label="Instant quote">
+        <SeoQuoteSectionHeader
+          title={`Get your instant ${page.title.toLowerCase()} quote`}
+          subtitle="Enter pickup and delivery addresses, add your items, and see a live price — no phone call needed."
+        />
         <QuoteWizard serviceType={page.serviceType} compact />
       </section>
 
       {seoContent ? (
-        <ServicePageSeoSections content={seoContent} quoteAnchor="#service-quote" />
+        <ServicePageSeoSections
+          content={seoContent}
+          quoteAnchor="#service-quote"
+          heroImage={cardHeroImage}
+          pagePath={routePath}
+        />
       ) : null}
     </div>
   )
