@@ -3,6 +3,23 @@
  * Meta titles/descriptions, body copy, FAQs, and city internal links.
  */
 
+import {
+  buildSecondaryCityRemovalLinks,
+  buildSecondaryManWithVanLinks,
+} from './cityAreasWeCover.js'
+
+const PRIMARY_CITY_REMOVAL_LINKS = [
+  { href: '/glasgow-removals', label: 'Glasgow removals' },
+  { href: '/edinburgh-removals', label: 'Edinburgh removals' },
+  { href: '/aberdeen-removals', label: 'Aberdeen removals' },
+  { href: '/dundee-removals', label: 'Dundee removals' },
+  { href: '/inverness-removals', label: 'Inverness removals' },
+  { href: '/paisley-removals', label: 'Paisley removals' },
+]
+
+const SECONDARY_CITY_REMOVAL_LINKS = buildSecondaryCityRemovalLinks()
+const SECONDARY_MWV_LINKS = buildSecondaryManWithVanLinks()
+
 /** @typedef {{ q: string, a: string }} ServiceFaqItem */
 
 /** @typedef {{ heading: string, paragraphs: string[] }} ServiceBodySection */
@@ -77,14 +94,7 @@ export const SERVICE_PAGE_SEO_CONTENT = {
         a: 'Yes. Smaller loads often suit a man-with-van crew. Select the service in the quote wizard or mention it in your notes — we recommend the right option from your inventory.',
       },
     ],
-    cityLinks: [
-      { href: '/glasgow-removals', label: 'Glasgow removals' },
-      { href: '/edinburgh-removals', label: 'Edinburgh removals' },
-      { href: '/aberdeen-removals', label: 'Aberdeen removals' },
-      { href: '/dundee-removals', label: 'Dundee removals' },
-      { href: '/inverness-removals', label: 'Inverness removals' },
-      { href: '/paisley-removals', label: 'Paisley removals' },
-    ],
+    cityLinks: [...PRIMARY_CITY_REMOVAL_LINKS, ...SECONDARY_CITY_REMOVAL_LINKS],
     ctaHeading: 'Ready to book your house removal?',
     ctaText: 'Get a clear price in minutes — start the quote wizard above with your addresses and inventory.',
   },
@@ -149,6 +159,8 @@ export const SERVICE_PAGE_SEO_CONTENT = {
       { href: '/man-with-van-dundee', label: 'Man with van Dundee' },
       { href: '/man-with-van-inverness', label: 'Man with van Inverness' },
       { href: '/man-with-van-paisley', label: 'Man with van Paisley' },
+      ...SECONDARY_MWV_LINKS,
+      ...SECONDARY_CITY_REMOVAL_LINKS,
     ],
     ctaHeading: 'Need a van and crew today?',
     ctaText: 'Start the quote wizard above — enter your items and addresses for an instant man-with-van price.',
@@ -211,8 +223,8 @@ export const SERVICE_PAGE_SEO_CONTENT = {
       { href: '/furniture-delivery-glasgow', label: 'Furniture delivery Glasgow' },
       { href: '/furniture-delivery-edinburgh', label: 'Furniture delivery Edinburgh' },
       { href: '/furniture-delivery-scotland', label: 'Furniture delivery Scotland' },
-      { href: '/glasgow-removals', label: 'Glasgow removals' },
-      { href: '/edinburgh-removals', label: 'Edinburgh removals' },
+      ...PRIMARY_CITY_REMOVAL_LINKS.slice(0, 2),
+      ...SECONDARY_CITY_REMOVAL_LINKS,
     ],
     ctaHeading: 'Need furniture moved?',
     ctaText: 'Quote above with item details and both addresses — get an instant furniture delivery price.',
@@ -275,8 +287,11 @@ export const SERVICE_PAGE_SEO_CONTENT = {
       { href: '/office-removals-glasgow', label: 'Office removals Glasgow' },
       { href: '/office-removals-edinburgh', label: 'Office removals Edinburgh' },
       { href: '/business-relocation-edinburgh', label: 'Business relocation Edinburgh' },
-      { href: '/glasgow-removals', label: 'Glasgow removals' },
-      { href: '/edinburgh-removals', label: 'Edinburgh removals' },
+      ...PRIMARY_CITY_REMOVAL_LINKS.slice(0, 2),
+      { href: '/falkirk-removals', label: 'Falkirk removals' },
+      { href: '/stirling-removals', label: 'Stirling removals' },
+      { href: '/dunfermline-removals', label: 'Dunfermline removals' },
+      { href: '/motherwell-removals', label: 'Motherwell removals' },
     ],
     ctaHeading: 'Planning an office relocation?',
     ctaText: 'Start the quote wizard above with your office inventory and both addresses.',
@@ -340,8 +355,10 @@ export const SERVICE_PAGE_SEO_CONTENT = {
       { href: '/student-moves-edinburgh', label: 'Student moves Edinburgh' },
       { href: '/student-removals-glasgow', label: 'Student removals Glasgow' },
       { href: '/cheap-student-moves-edinburgh', label: 'Cheap student moves Edinburgh' },
-      { href: '/glasgow-removals', label: 'Glasgow removals' },
-      { href: '/edinburgh-removals', label: 'Edinburgh removals' },
+      ...PRIMARY_CITY_REMOVAL_LINKS.slice(0, 2),
+      { href: '/stirling-removals', label: 'Stirling removals' },
+      { href: '/dunfermline-removals', label: 'Dunfermline removals' },
+      { href: '/ayr-removals', label: 'Ayr removals' },
     ],
     ctaHeading: 'Moving for the new term?',
     ctaText: 'Get your student move price above — enter both addresses and what you are taking with you.',
@@ -401,10 +418,8 @@ export const SERVICE_PAGE_SEO_CONTENT = {
       },
     ],
     cityLinks: [
-      { href: '/glasgow-removals', label: 'Glasgow removals' },
-      { href: '/edinburgh-removals', label: 'Edinburgh removals' },
-      { href: '/aberdeen-removals', label: 'Aberdeen removals' },
-      { href: '/dundee-removals', label: 'Dundee removals' },
+      ...PRIMARY_CITY_REMOVAL_LINKS,
+      ...SECONDARY_CITY_REMOVAL_LINKS,
       { href: '/house-removals', label: 'House removals' },
       { href: '/coverage', label: 'Coverage map' },
     ],

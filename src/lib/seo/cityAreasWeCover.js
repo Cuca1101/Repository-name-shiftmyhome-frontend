@@ -7,6 +7,40 @@ import { cityToSlug } from '../citySlug.js'
 
 /** @typedef {{ name: string, href: string }} CityAreaLink */
 
+/** @typedef {{ href: string, label: string }} SeoRelatedLink */
+
+/** Important secondary cities with existing /{city}-removals pages. */
+export const SECONDARY_SCOTLAND_CITY_NAMES = [
+  'Ayr',
+  'Falkirk',
+  'Stirling',
+  'Greenock',
+  'Motherwell',
+  'Airdrie',
+  'Bathgate',
+  'Dunfermline',
+  'Kirkcaldy',
+]
+
+/** @returns {SeoRelatedLink[]} */
+export function buildSecondaryCityRemovalLinks() {
+  return SECONDARY_SCOTLAND_CITY_NAMES.map((name) => ({
+    href: `/${cityToSlug(name)}-removals`,
+    label: `${name} removals`,
+  }))
+}
+
+/** Cities with dedicated /man-with-van-{city} routes among the secondary set. */
+const SECONDARY_MAN_WITH_VAN_CITIES = ['Falkirk', 'Stirling']
+
+/** @returns {SeoRelatedLink[]} */
+export function buildSecondaryManWithVanLinks() {
+  return SECONDARY_MAN_WITH_VAN_CITIES.map((name) => ({
+    href: `/man-with-van-${cityToSlug(name)}`,
+    label: `Man with van ${name}`,
+  }))
+}
+
 /** @type {Record<string, string[]>} */
 export const CITY_AREAS_WE_COVER = {
   Glasgow: [
@@ -30,8 +64,12 @@ export const CITY_AREAS_WE_COVER = {
     'Hamilton',
     'Motherwell',
     'Coatbridge',
-  ],
-  Edinburgh: [
+    'Airdrie',
+    'Falkirk',
+    'Stirling',
+    'Greenock',
+    'Ayr',
+  ],  Edinburgh: [
     'Leith',
     'Musselburgh',
     'Dalkeith',
@@ -106,6 +144,99 @@ export const CITY_AREAS_WE_COVER = {
     'Port Glasgow',
     'Kilwinning',
     'Irvine',
+  ],
+  Ayr: [
+    'Kilmarnock',
+    'Irvine',
+    'Troon',
+    'Prestwick',
+    'Kilwinning',
+    'Saltcoats',
+    'Ardrossan',
+    'Girvan',
+    'Maybole',
+    'Stewarton',
+    'Glasgow',
+  ],
+  Falkirk: [
+    'Stirling',
+    'Alloa',
+    'Denny',
+    'Bo\'ness',
+    'Livingston',
+    'Cumbernauld',
+    'Linlithgow',
+    'Glasgow',
+    'Edinburgh',
+  ],
+  Stirling: [
+    'Falkirk',
+    'Alloa',
+    'Denny',
+    'Callander',
+    'Dollar',
+    'Cumbernauld',
+    'Glasgow',
+    'Perth',
+  ],
+  Greenock: [
+    'Gourock',
+    'Port Glasgow',
+    'Paisley',
+    'Glasgow',
+    'Wemyss Bay',
+    'Johnstone',
+    'Renfrew',
+  ],
+  Motherwell: [
+    'Hamilton',
+    'Wishaw',
+    'Coatbridge',
+    'Airdrie',
+    'Bellshill',
+    'Blantyre',
+    'Lanark',
+    'Glasgow',
+    'East Kilbride',
+  ],
+  Airdrie: [
+    'Coatbridge',
+    'Motherwell',
+    'Bellshill',
+    'Hamilton',
+    'Glasgow',
+    'Cumbernauld',
+    'Bathgate',
+    'Wishaw',
+  ],
+  Bathgate: [
+    'Livingston',
+    'Linlithgow',
+    'Broxburn',
+    'Armadale',
+    'Whitburn',
+    'Edinburgh',
+    'Falkirk',
+    'Glasgow',
+  ],
+  Dunfermline: [
+    'Kirkcaldy',
+    'Glenrothes',
+    'Cowdenbeath',
+    'Lochgelly',
+    'Kinross',
+    'Cupar',
+    'Edinburgh',
+    'St Andrews',
+  ],
+  Kirkcaldy: [
+    'Dunfermline',
+    'Glenrothes',
+    'Cowdenbeath',
+    'Leven',
+    'Burntisland',
+    'Edinburgh',
+    'Cupar',
   ],
 }
 
