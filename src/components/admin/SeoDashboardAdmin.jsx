@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import SeoGooglePreview from './SeoGooglePreview'
 import {
-  SEO_DASHBOARD_CITIES,
   SEO_DASHBOARD_HOMEPAGE,
-  SEO_DASHBOARD_SERVICES,
+  SEO_DASHBOARD_ALL_PAGES,
+  SEO_DASHBOARD_CATEGORIES,
   SEO_SITE_ORIGIN_DEFAULT,
   buildSeoSettingsFallback,
   formStateToSeoRow,
-  mergeSeoSettingsWithFallback,
+  mergeSeoSettingsForDef,
   seoRowToFormState,
   validateSeoForm,
 } from '../../lib/seoSettingsDefaults'
@@ -21,8 +21,7 @@ import { buildSitemapXml } from '../../lib/generateSitemapXml'
 
 const TABS = [
   { id: 'homepage', label: 'Homepage' },
-  { id: 'services', label: 'Services' },
-  { id: 'cities', label: 'Cities' },
+  { id: 'pages', label: 'All SEO pages' },
   { id: 'sitemap', label: 'Sitemap' },
   { id: 'search-console', label: 'Search Console' },
   { id: 'structured-data', label: 'Structured Data' },
@@ -115,7 +114,7 @@ function FaqEditor({ faqs, onChange }) {
 }
 
 function PageEditorForm({ def, form, setForm, issues }) {
-  const previewUrl = form.canonicalUrl || `${SEO_SITE_ORIGIN_DEFAULT}${def.path === '/' ? '/' : def.path}`
+  const previewUrl = form.canonicalUrl || `${SEO_SITE_ORIGIN_DEFAULT}${def.path === '/' ? '/' : `${def.path}/`}`
 
   return (
     <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
@@ -123,6 +122,7 @@ function PageEditorForm({ def, form, setForm, issues }) {
         <div className="rounded-xl bg-gradient-to-r from-brand-600 to-cyan-600 px-4 py-3 text-white">
           <h3 className="text-lg font-semibold">{def.label}</h3>
           <p className="text-sm text-white/85">{def.path}</p>
+          {def.category ? <p className="mt-1 text-xs text-white/70">{def.category}</p> : null}
         </div>
 
         {issues.length > 0 ? (
@@ -190,7 +190,7 @@ function PageEditorForm({ def, form, setForm, issues }) {
               <input className={inputClass} value={form.ctaText} onChange={(e) => setForm({ ...form, ctaText: e.target.value })} />
             </Field>
             {def.pageType === 'city' ? (
-              <Field label="Nearby service areas" hint="Comma-separated labels shown in admin reference.">
+              <Field label="Nearby service areas" hint="Comma-separated labels (reference for editors).">
                 <textarea className={`${inputClass} min-h-[72px]`} value={form.nearbyAreas} onChange={(e) => setForm({ ...form, nearbyAreas: e.target.value })} />
               </Field>
             ) : null}
@@ -204,7 +204,91 @@ function PageEditorForm({ def, form, setForm, issues }) {
 
       <div className="space-y-4 lg:sticky lg:top-24 lg:self-start">
         <SeoGooglePreview title={form.seoTitle} url={previewUrl} description={form.metaDescription} />
+        {def.path !== '/' ? (
+          <a
+            href={`${SEO_SITE_ORIGIN_DEFAULT}${def.path}/`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="block rounded-xl border border-slate-200 bg-white px-4 py-3 text-center text-sm font-semibold text-brand-700 shadow-sm hover:bg-brand-50"
+          >
+            View live page ↗
+          </a>
+        ) : (
+          <a
+            href={SEO_SITE_ORIGIN_DEFAULT}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="block rounded-xl border border-slate-200 bg-white px-4 py-3 text-center text-sm font-semibold text-brand-700 shadow-sm hover:bg-brand-50"
+          >
+            View live homepage ↗
+          </a>
+        )}
       </div>
+    </div>
+  )
+}
+
+function SeoPagePicker({ pages, selectedSlug, onSelect, category, onCategoryChange, search, onSearchChange }) {
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase()
+    return pages.filter((p) => {
+      if (p.pageSlug === 'home') return false
+      if (category && category !== 'all' && p.category !== category) return false
+      if (!q) return true
+      return (
+        p.label.toLowerCase().includes(q) ||
+        p.path.toLowerCase().includes(q) ||
+        p.pageSlug.toLowerCase().includes(q)
+      )
+    })
+  }, [pages, category, search])
+
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-card">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+        <Field label="Search pages" hint={`${filtered.length} of ${pages.length - 1} SEO URLs`}>
+          <input
+            className={inputClass}
+            placeholder="Search by title, path, or slug…"
+            value={search}
+            onChange={(e) => onSearchChange(e.target.value)}
+          />
+        </Field>
+        <Field label="Category">
+          <select className={inputClass} value={category} onChange={(e) => onCategoryChange(e.target.value)}>
+            <option value="all">All categories</option>
+            {SEO_DASHBOARD_CATEGORIES.filter((c) => c !== 'Homepage').map((c) => (
+              <option key={c} value={c}>
+                {c}
+              </option>
+            ))}
+          </select>
+        </Field>
+      </div>
+      <ul className="mt-4 max-h-64 space-y-1 overflow-y-auto rounded-xl border border-slate-100 bg-slate-50/50 p-2">
+        {filtered.length === 0 ? (
+          <li className="px-3 py-6 text-center text-sm text-slate-500">No pages match your search.</li>
+        ) : (
+          filtered.map((p) => (
+            <li key={p.pageSlug}>
+              <button
+                type="button"
+                onClick={() => onSelect(p.pageSlug)}
+                className={`w-full rounded-lg px-3 py-2 text-left text-sm transition ${
+                  selectedSlug === p.pageSlug
+                    ? 'bg-brand-600 font-semibold text-white shadow-sm'
+                    : 'text-slate-700 hover:bg-white hover:shadow-sm'
+                }`}
+              >
+                <span className="block font-medium">{p.label}</span>
+                <span className={`block truncate text-xs ${selectedSlug === p.pageSlug ? 'text-white/80' : 'text-slate-500'}`}>
+                  {p.path}
+                </span>
+              </button>
+            </li>
+          ))
+        )}
+      </ul>
     </div>
   )
 }
@@ -215,29 +299,31 @@ export default function SeoDashboardAdmin() {
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState(null)
   const [showPreviewModal, setShowPreviewModal] = useState(false)
-  const [selectedService, setSelectedService] = useState(SEO_DASHBOARD_SERVICES[0].pageSlug)
-  const [selectedCity, setSelectedCity] = useState(SEO_DASHBOARD_CITIES[0].pageSlug)
+  const [settingsMap, setSettingsMap] = useState(() => new Map())
   const [homepageForm, setHomepageForm] = useState(() => seoRowToFormState(buildSeoSettingsFallback(SEO_DASHBOARD_HOMEPAGE)))
-  const [serviceForms, setServiceForms] = useState({})
-  const [cityForms, setCityForms] = useState({})
+  const [selectedPageSlug, setSelectedPageSlug] = useState(SEO_DASHBOARD_ALL_PAGES.find((p) => p.pageSlug !== 'home')?.pageSlug || 'glasgow-removals')
+  const [pageForm, setPageForm] = useState(null)
+  const [pageSearch, setPageSearch] = useState('')
+  const [pageCategory, setPageCategory] = useState('all')
   const [sitemapInfo, setSitemapInfo] = useState({ lastGenerated: null, urlCount: 0 })
+
+  const editablePages = useMemo(
+    () => SEO_DASHBOARD_ALL_PAGES.filter((p) => p.pageSlug !== 'home'),
+    [],
+  )
+
+  const activePageDef = useMemo(
+    () => SEO_DASHBOARD_ALL_PAGES.find((p) => p.pageSlug === selectedPageSlug) || editablePages[0],
+    [selectedPageSlug, editablePages],
+  )
 
   const load = useCallback(async () => {
     setLoading(true)
     try {
       const map = await fetchSeoSettingsAdminMap()
-      const homeRow = mergeSeoSettingsWithFallback(map.get('home'), SEO_DASHBOARD_HOMEPAGE)
+      setSettingsMap(map)
+      const homeRow = mergeSeoSettingsForDef(map, SEO_DASHBOARD_HOMEPAGE)
       setHomepageForm(seoRowToFormState(homeRow))
-      const svc = {}
-      for (const def of SEO_DASHBOARD_SERVICES) {
-        svc[def.pageSlug] = seoRowToFormState(mergeSeoSettingsWithFallback(map.get(def.pageSlug), def))
-      }
-      setServiceForms(svc)
-      const cities = {}
-      for (const def of SEO_DASHBOARD_CITIES) {
-        cities[def.pageSlug] = seoRowToFormState(mergeSeoSettingsWithFallback(map.get(def.pageSlug), def))
-      }
-      setCityForms(cities)
       const { urlCount } = buildSitemapXml()
       setSitemapInfo({ lastGenerated: getSitemapLastGenerated(map), urlCount })
     } catch (err) {
@@ -251,14 +337,14 @@ export default function SeoDashboardAdmin() {
     load()
   }, [load])
 
-  const activeServiceDef = SEO_DASHBOARD_SERVICES.find((s) => s.pageSlug === selectedService) || SEO_DASHBOARD_SERVICES[0]
-  const activeCityDef = SEO_DASHBOARD_CITIES.find((c) => c.pageSlug === selectedCity) || SEO_DASHBOARD_CITIES[0]
-  const activeServiceForm = serviceForms[activeServiceDef.pageSlug] || seoRowToFormState(buildSeoSettingsFallback(activeServiceDef))
-  const activeCityForm = cityForms[activeCityDef.pageSlug] || seoRowToFormState(buildSeoSettingsFallback(activeCityDef))
+  useEffect(() => {
+    if (!activePageDef) return
+    const row = mergeSeoSettingsForDef(settingsMap, activePageDef)
+    setPageForm(seoRowToFormState(row))
+  }, [activePageDef, settingsMap])
 
   const homepageIssues = useMemo(() => validateSeoForm(homepageForm), [homepageForm])
-  const serviceIssues = useMemo(() => validateSeoForm(activeServiceForm), [activeServiceForm])
-  const cityIssues = useMemo(() => validateSeoForm(activeCityForm), [activeCityForm])
+  const pageIssues = useMemo(() => (pageForm ? validateSeoForm(pageForm) : []), [pageForm])
 
   async function saveDef(def, form) {
     const issues = validateSeoForm(form)
@@ -271,7 +357,7 @@ export default function SeoDashboardAdmin() {
       const row = formStateToSeoRow(form, def)
       await upsertSeoSettingsRow(row)
       window.dispatchEvent(new Event('seo-settings-updated'))
-      setMessage({ type: 'success', text: 'Saved successfully.' })
+      setMessage({ type: 'success', text: `Saved ${def.label}.` })
       await load()
     } catch (err) {
       setMessage({ type: 'error', text: err?.message || 'Save failed.' })
@@ -303,12 +389,16 @@ export default function SeoDashboardAdmin() {
     return <p className="text-sm text-slate-600">Loading SEO dashboard…</p>
   }
 
+  const previewForm =
+    tab === 'homepage' ? homepageForm : tab === 'pages' && pageForm ? pageForm : homepageForm
+
   return (
     <div className="space-y-6">
       <div className="rounded-2xl bg-gradient-to-br from-brand-700 via-brand-600 to-cyan-600 p-6 text-white shadow-lg">
         <h1 className="text-2xl font-bold tracking-tight">SEO Dashboard</h1>
         <p className="mt-1 max-w-2xl text-sm text-white/90">
-          Manage safe SEO and content settings only. Payments, quotes, pricing, auth, and routes are not editable here.
+          Edit SEO titles, descriptions, H1, intro, FAQs, and canonicals for all {editablePages.length} public SEO URLs.
+          Payments, quotes, pricing, and routes are not editable here.
         </p>
       </div>
 
@@ -348,28 +438,18 @@ export default function SeoDashboardAdmin() {
         </>
       ) : null}
 
-      {tab === 'services' ? (
+      {tab === 'pages' && activePageDef && pageForm ? (
         <>
-          <div className="flex flex-wrap gap-2">
-            {SEO_DASHBOARD_SERVICES.map((s) => (
-              <button
-                key={s.pageSlug}
-                type="button"
-                onClick={() => setSelectedService(s.pageSlug)}
-                className={`rounded-lg px-3 py-1.5 text-xs font-semibold ${
-                  selectedService === s.pageSlug ? 'bg-brand-600 text-white' : 'bg-slate-100 text-slate-700'
-                }`}
-              >
-                {s.label}
-              </button>
-            ))}
-          </div>
-          <PageEditorForm
-            def={activeServiceDef}
-            form={activeServiceForm}
-            setForm={(form) => setServiceForms((prev) => ({ ...prev, [activeServiceDef.pageSlug]: form }))}
-            issues={serviceIssues}
+          <SeoPagePicker
+            pages={SEO_DASHBOARD_ALL_PAGES}
+            selectedSlug={selectedPageSlug}
+            onSelect={setSelectedPageSlug}
+            category={pageCategory}
+            onCategoryChange={setPageCategory}
+            search={pageSearch}
+            onSearchChange={setPageSearch}
           />
+          <PageEditorForm def={activePageDef} form={pageForm} setForm={setPageForm} issues={pageIssues} />
           <div className="flex flex-wrap gap-3">
             <button type="button" className="rounded-xl bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-700" onClick={() => setShowPreviewModal(true)}>
               Preview before save
@@ -378,47 +458,9 @@ export default function SeoDashboardAdmin() {
               type="button"
               disabled={saving}
               className="rounded-xl bg-brand-600 px-5 py-2 text-sm font-semibold text-white shadow-md hover:bg-brand-700 disabled:opacity-60"
-              onClick={() => saveDef(activeServiceDef, activeServiceForm)}
+              onClick={() => saveDef(activePageDef, pageForm)}
             >
-              {saving ? 'Saving…' : `Save ${activeServiceDef.label}`}
-            </button>
-          </div>
-        </>
-      ) : null}
-
-      {tab === 'cities' ? (
-        <>
-          <div className="flex flex-wrap gap-2">
-            {SEO_DASHBOARD_CITIES.map((c) => (
-              <button
-                key={c.pageSlug}
-                type="button"
-                onClick={() => setSelectedCity(c.pageSlug)}
-                className={`rounded-lg px-3 py-1.5 text-xs font-semibold ${
-                  selectedCity === c.pageSlug ? 'bg-brand-600 text-white' : 'bg-slate-100 text-slate-700'
-                }`}
-              >
-                {c.label}
-              </button>
-            ))}
-          </div>
-          <PageEditorForm
-            def={activeCityDef}
-            form={activeCityForm}
-            setForm={(form) => setCityForms((prev) => ({ ...prev, [activeCityDef.pageSlug]: form }))}
-            issues={cityIssues}
-          />
-          <div className="flex flex-wrap gap-3">
-            <button type="button" className="rounded-xl bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-700" onClick={() => setShowPreviewModal(true)}>
-              Preview before save
-            </button>
-            <button
-              type="button"
-              disabled={saving}
-              className="rounded-xl bg-brand-600 px-5 py-2 text-sm font-semibold text-white shadow-md hover:bg-brand-700 disabled:opacity-60"
-              onClick={() => saveDef(activeCityDef, activeCityForm)}
-            >
-              {saving ? 'Saving…' : `Save ${activeCityDef.label}`}
+              {saving ? 'Saving…' : `Save ${activePageDef.label}`}
             </button>
           </div>
         </>
@@ -502,27 +544,9 @@ export default function SeoDashboardAdmin() {
             <h3 className="text-lg font-semibold text-slate-900">Preview before save</h3>
             <div className="mt-4">
               <SeoGooglePreview
-                title={
-                  tab === 'homepage'
-                    ? homepageForm.seoTitle
-                    : tab === 'services'
-                      ? activeServiceForm.seoTitle
-                      : activeCityForm.seoTitle
-                }
-                url={
-                  tab === 'homepage'
-                    ? homepageForm.canonicalUrl
-                    : tab === 'services'
-                      ? activeServiceForm.canonicalUrl
-                      : activeCityForm.canonicalUrl
-                }
-                description={
-                  tab === 'homepage'
-                    ? homepageForm.metaDescription
-                    : tab === 'services'
-                      ? activeServiceForm.metaDescription
-                      : activeCityForm.metaDescription
-                }
+                title={previewForm.seoTitle}
+                url={previewForm.canonicalUrl}
+                description={previewForm.metaDescription}
               />
             </div>
             <div className="mt-5 flex justify-end gap-2">

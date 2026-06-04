@@ -1,9 +1,5 @@
 import { supabase, isSupabaseConfigured } from '../supabaseClient'
-import {
-  SEO_DASHBOARD_ALL_PAGES,
-  buildSeoSettingsFallback,
-  mergeSeoSettingsWithFallback,
-} from '../seoSettingsDefaults'
+import { buildSeoSettingsFallback, SEO_DASHBOARD_HOMEPAGE } from '../seoSettingsDefaults'
 
 function isMissingTableError(err) {
   const msg = `${err?.message || ''} ${err?.code || ''}`.toLowerCase()
@@ -41,22 +37,12 @@ export async function fetchSeoSettingsAdminMap() {
   }
   const { data, error } = await supabase.from('seo_settings').select('*')
   if (error) {
-    if (isMissingTableError(error)) {
-      const map = new Map()
-      for (const def of SEO_DASHBOARD_ALL_PAGES) {
-        map.set(def.pageSlug, buildSeoSettingsFallback(def))
-      }
-      return map
-    }
+    if (isMissingTableError(error)) return new Map()
     throw error
   }
   const map = new Map()
   for (const row of data || []) {
-    if (row?.page_slug === '__sitemap__') map.set('__sitemap__', row)
-  }
-  for (const def of SEO_DASHBOARD_ALL_PAGES) {
-    const saved = (data || []).find((r) => r.page_slug === def.pageSlug)
-    map.set(def.pageSlug, mergeSeoSettingsWithFallback(saved, def))
+    if (row?.page_slug) map.set(row.page_slug, row)
   }
   return map
 }
@@ -135,4 +121,9 @@ export function getSitemapLastGenerated(map) {
   const row = map.get('__sitemap__')
   const iso = row?.extra_json?.lastGeneratedAt
   return typeof iso === 'string' && iso ? iso : null
+}
+
+/** Default homepage row when table is missing (dev). */
+export function buildDefaultHomepageSeoRow() {
+  return buildSeoSettingsFallback(SEO_DASHBOARD_HOMEPAGE)
 }

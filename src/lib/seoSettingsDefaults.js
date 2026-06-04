@@ -1,9 +1,27 @@
 import { DEFAULT_HOMEPAGE } from './websiteCmsDefaults'
-import { SERVICE_PAGES } from '../constants/servicePages'
 import { getSeoPageByPath, SEO_SITE_ORIGIN } from '../data/seoPages'
 import { getServicePageSeoContent } from './seo/servicePageContent.js'
+import { SERVICE_PAGES } from '../constants/servicePages'
+import {
+  SEO_DASHBOARD_HOMEPAGE,
+  SEO_DASHBOARD_ALL_PAGES,
+  SEO_DASHBOARD_SERVICES,
+  SEO_DASHBOARD_CITIES,
+  SEO_DASHBOARD_CATEGORIES,
+  getSeoDashboardPageDef,
+  getSavedSeoRowForDef,
+} from './seoDashboardPages.js'
 
-/** @typedef {'homepage'|'service'|'city'|'system'} SeoPageType */
+export {
+  SEO_DASHBOARD_HOMEPAGE,
+  SEO_DASHBOARD_ALL_PAGES,
+  SEO_DASHBOARD_SERVICES,
+  SEO_DASHBOARD_CITIES,
+  SEO_DASHBOARD_CATEGORIES,
+  getSeoDashboardPageDef,
+}
+
+/** @typedef {'homepage'|'service'|'city'|'seo'|'system'} SeoPageType */
 
 /**
  * @typedef {object} SeoDashboardPageDef
@@ -11,50 +29,11 @@ import { getServicePageSeoContent } from './seo/servicePageContent.js'
  * @property {SeoPageType} pageType
  * @property {string} label
  * @property {string} path
+ * @property {string} [category]
+ * @property {string} [kind]
  */
 
 export const SEO_SITE_ORIGIN_DEFAULT = SEO_SITE_ORIGIN
-
-export const SEO_DASHBOARD_HOMEPAGE = {
-  pageSlug: 'home',
-  pageType: 'homepage',
-  label: 'Homepage',
-  path: '/',
-}
-
-/** @type {SeoDashboardPageDef[]} */
-export const SEO_DASHBOARD_SERVICES = [
-  { pageSlug: 'house-removals', pageType: 'service', label: 'House Removals', path: '/house-removals' },
-  { pageSlug: 'furniture-delivery', pageType: 'service', label: 'Furniture Removals', path: '/furniture-delivery' },
-  { pageSlug: 'man-with-van', pageType: 'service', label: 'Man With Van', path: '/man-with-van' },
-  { pageSlug: 'office-moves', pageType: 'service', label: 'Office Relocations', path: '/office-moves' },
-  { pageSlug: 'student-moves', pageType: 'service', label: 'Student Moves', path: '/student-moves' },
-  { pageSlug: 'clearance', pageType: 'service', label: 'Clearance', path: '/clearance' },
-  { pageSlug: 'urgent-removals', pageType: 'service', label: 'Urgent Removals', path: '/emergency-man-with-van-glasgow' },
-  { pageSlug: 'same-day-delivery', pageType: 'service', label: 'Same Day Delivery', path: '/same-day-removals-glasgow' },
-]
-
-/** @type {SeoDashboardPageDef[]} */
-export const SEO_DASHBOARD_CITIES = [
-  { pageSlug: 'glasgow', pageType: 'city', label: 'Glasgow', path: '/glasgow-removals' },
-  { pageSlug: 'edinburgh', pageType: 'city', label: 'Edinburgh', path: '/edinburgh-removals' },
-  { pageSlug: 'aberdeen', pageType: 'city', label: 'Aberdeen', path: '/aberdeen-removals' },
-  { pageSlug: 'dundee', pageType: 'city', label: 'Dundee', path: '/dundee-removals' },
-  { pageSlug: 'inverness', pageType: 'city', label: 'Inverness', path: '/inverness-removals' },
-  { pageSlug: 'stirling', pageType: 'city', label: 'Stirling', path: '/stirling-removals' },
-  { pageSlug: 'perth', pageType: 'city', label: 'Perth', path: '/perth-removals' },
-]
-
-export const SEO_DASHBOARD_ALL_PAGES = [
-  SEO_DASHBOARD_HOMEPAGE,
-  ...SEO_DASHBOARD_SERVICES,
-  ...SEO_DASHBOARD_CITIES,
-]
-
-/** @param {string} pageSlug */
-export function getSeoDashboardPageDef(pageSlug) {
-  return SEO_DASHBOARD_ALL_PAGES.find((p) => p.pageSlug === pageSlug) ?? null
-}
 
 /**
  * @typedef {object} SeoSettingsRow
@@ -168,6 +147,11 @@ export function mergeSeoSettingsWithFallback(saved, def) {
     faq_json: faq,
     extra_json: { ...(fallback.extra_json || {}), ...(saved.extra_json || {}) },
   }
+}
+
+/** @param {Map<string, SeoSettingsRow>|null|undefined} map @param {SeoDashboardPageDef} def */
+export function mergeSeoSettingsForDef(map, def) {
+  return mergeSeoSettingsWithFallback(getSavedSeoRowForDef(map, def), def)
 }
 
 /** @param {SeoSettingsRow} row */
