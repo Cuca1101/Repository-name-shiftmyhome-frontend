@@ -7,12 +7,22 @@ const QUOTES_TABLE = 'quotes'
 export const HOME_PAGE_QUOTE_SOURCE = 'home_page_quote_form'
 
 /** Admin → New phone booking (staff-created while customer is on the phone). */
-export const ADMIN_PHONE_BOOKING_SOURCE = 'admin_phone_booking'
+export const ADMIN_PHONE_BOOKING_SOURCE = 'phone_booking'
 
-/** Sources shown in Admin → Quote Requests (public + admin phone leads). */
+/** Legacy rows created before source rename. */
+export const LEGACY_ADMIN_PHONE_BOOKING_SOURCE = 'admin_phone_booking'
+
+/** Staging flag — job stays on New phone booking until admin releases it. */
+export const PHONE_BOOKING_PENDING_OPERATIONAL_STATUS = 'phone_booking_pending'
+
+export const ADMIN_PHONE_BOOKING_SOURCES = [
+  ADMIN_PHONE_BOOKING_SOURCE,
+  LEGACY_ADMIN_PHONE_BOOKING_SOURCE,
+]
+
+/** Sources shown in Admin → Quote Requests (public leads only — not staff phone bookings). */
 export const PUBLIC_QUOTE_REQUEST_SOURCES = [
   HOME_PAGE_QUOTE_SOURCE,
-  ADMIN_PHONE_BOOKING_SOURCE,
   'website',
   'public_quote_request',
   'quote_request',

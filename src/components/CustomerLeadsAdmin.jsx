@@ -1,7 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import AdminRecordsSearchRow from './admin/AdminRecordsSearchRow'
-import { fetchCustomerLeadsForAdmin } from '../lib/data/customerLeadsRepository'
+import {
+  deleteCustomerLeadById,
+  fetchCustomerLeadsForAdmin,
+} from '../lib/data/customerLeadsRepository'
 import { CUSTOMER_LEAD_STATUS_LABELS } from '../lib/customerLeadStatus'
 import { formatDateTimeUK } from '../lib/formatDateDisplay'
 
@@ -64,6 +67,7 @@ export default function CustomerLeadsAdmin() {
   const [rows, setRows] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [deletingId, setDeletingId] = useState('')
 
   useEffect(() => {
     const t = setTimeout(() => setActiveSearch(searchInput.trim()), 300)
@@ -90,6 +94,30 @@ export default function CustomerLeadsAdmin() {
   const runSearchNow = useCallback(() => {
     setActiveSearch(searchInput.trim())
   }, [searchInput])
+
+  const handleDeleteLead = useCallback(
+    async (row) => {
+      const ref = row.lead_ref || 'this lead'
+      const eff = row.effective_status || row.status
+      const isConverted = eff === 'converted_to_booking'
+      const msg = isConverted
+        ? `Delete lead ${ref}? The booking/quote (${row.quote_ref || 'linked record'}) stays in the system — only this lead row is removed.`
+        : `Delete lead ${ref}? This cannot be undone.`
+      if (!window.confirm(msg)) return
+
+      setDeletingId(String(row.id))
+      setError('')
+      try {
+        await deleteCustomerLeadById(String(row.id))
+        setRows((prev) => prev.filter((r) => String(r.id) !== String(row.id)))
+      } catch (e) {
+        setError(e?.message || 'Failed to delete lead.')
+      } finally {
+        setDeletingId('')
+      }
+    },
+    [],
+  )
 
   const emptyMessage = useMemo(() => {
     if (loading) return ''
@@ -237,6 +265,14 @@ export default function CustomerLeadsAdmin() {
                               Convert
                             </Link>
                           ) : null}
+                          <button
+                            type="button"
+                            disabled={deletingId === String(row.id)}
+                            onClick={() => handleDeleteLead(row)}
+                            className="rounded-lg border border-red-200 bg-red-50 px-2 py-1 text-[11px] font-semibold text-red-800 hover:bg-red-100 disabled:opacity-50"
+                          >
+                            {deletingId === String(row.id) ? 'Deleting…' : 'Delete'}
+                          </button>
                         </div>
                       </td>
                     </tr>

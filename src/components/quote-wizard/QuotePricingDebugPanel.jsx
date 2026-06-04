@@ -199,12 +199,20 @@ function formatAmount(amount, isDiscount) {
  *   pricingBreakdown: import('../../lib/pricingCalculator.js').PriceBreakdown | null,
  *   estimatedTotal?: number | null,
  *   className?: string,
+ *   forceVisible?: boolean,
+ *   defaultOpen?: boolean,
  * }} props
  */
-export default function QuotePricingDebugPanel({ pricingBreakdown, estimatedTotal, className = '' }) {
-  const [open, setOpen] = useState(false)
+export default function QuotePricingDebugPanel({
+  pricingBreakdown,
+  estimatedTotal,
+  className = '',
+  forceVisible = false,
+  defaultOpen = false,
+}) {
+  const [open, setOpen] = useState(defaultOpen)
 
-  if (!SHOW_PRICE_DEBUG) return null
+  if (!forceVisible && !SHOW_PRICE_DEBUG) return null
   if (!pricingBreakdown) return null
 
   const rows = collectMobilePriceDebugRows(pricingBreakdown)
@@ -217,29 +225,37 @@ export default function QuotePricingDebugPanel({ pricingBreakdown, estimatedTota
       ? estimatedTotal
       : totalRow?.amount
 
+  const collapsible = !forceVisible
+
   return (
     <div className={`border-t border-slate-200 bg-slate-50/80 px-3 py-2 ${className}`.trim()}>
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        className="flex min-h-[40px] w-full min-w-0 items-center justify-between gap-2 text-left"
-        aria-expanded={open}
-      >
-        <span className="text-xs font-medium text-slate-700">
-          {open ? 'Hide debug pricing breakdown' : 'Debug pricing breakdown'}
-        </span>
-        <ChevronDown
-          className={`h-4 w-4 shrink-0 text-slate-500 transition-transform duration-200 ${
-            open ? 'rotate-180' : ''
-          }`}
-          aria-hidden
-        />
-      </button>
+      {collapsible ? (
+        <button
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          className="flex min-h-[40px] w-full min-w-0 items-center justify-between gap-2 text-left"
+          aria-expanded={open}
+        >
+          <span className="text-xs font-medium text-slate-700">
+            {open ? 'Hide debug pricing breakdown' : 'Debug pricing breakdown'}
+          </span>
+          <ChevronDown
+            className={`h-4 w-4 shrink-0 text-slate-500 transition-transform duration-200 ${
+              open ? 'rotate-180' : ''
+            }`}
+            aria-hidden
+          />
+        </button>
+      ) : null}
 
       <div
-        className={`grid transition-[grid-template-rows] duration-200 ease-out ${
-          open ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'
-        }`}
+        className={
+          collapsible
+            ? `grid transition-[grid-template-rows] duration-200 ease-out ${
+                open ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'
+              }`
+            : ''
+        }
       >
         <div className="min-h-0 overflow-hidden">
           <p className="mb-1 text-[10px] font-medium uppercase tracking-wide text-amber-700/90">

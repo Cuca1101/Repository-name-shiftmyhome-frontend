@@ -1,5 +1,10 @@
 import { mergedAdminWorkflowForQuote } from './quoteAdminWorkflowMerge'
 import { quoteVisibleInAdminLists } from './adminProductionFilters'
+import {
+  ADMIN_PHONE_BOOKING_SOURCE,
+  LEGACY_ADMIN_PHONE_BOOKING_SOURCE,
+  PHONE_BOOKING_PENDING_OPERATIONAL_STATUS,
+} from './data/quotesRepository'
 
 /**
  * Admin job inbox rules (quotes row + merged session when DB columns absent).
@@ -30,6 +35,45 @@ export function quoteHasAssignedPartner(q) {
 export function quoteIsCardPaid(q) {
   const ps = String(q.payment_status ?? '').trim().toLowerCase()
   return ps === 'paid' || ps === 'deposit_paid'
+}
+
+/** Staff phone booking (any stage). */
+export function quoteIsAdminPhoneBooking(q) {
+  const src = String(q?.source ?? '').trim()
+  return src === ADMIN_PHONE_BOOKING_SOURCE || src === LEGACY_ADMIN_PHONE_BOOKING_SOURCE
+}
+
+/** Still on New phone booking — not yet sent to Available Jobs. */
+export function quoteIsAdminPhoneBookingPending(q) {
+  if (!quoteIsAdminPhoneBooking(q)) return false
+  const op = String(q?.operational_status ?? '')
+    .trim()
+    .toLowerCase()
+  return op === PHONE_BOOKING_PENDING_OPERATIONAL_STATUS
+}
+
+/** Released to Available Jobs (legacy rows without pending flag count as released). */
+export function quoteIsAdminPhoneBookingReleased(q) {
+  return quoteIsAdminPhoneBooking(q) && !quoteIsAdminPhoneBookingPending(q)
+}
+
+/**
+ * Shown on Admin → New phone booking (staging inbox).
+ * Includes explicit pending flag and legacy phone bookings not yet in Available Jobs.
+ * @param {Record<string, unknown>} q
+ */
+export function quoteShowsOnNewPhoneBookingInbox(q) {
+  if (!quoteIsAdminPhoneBooking(q)) return false
+  if (quoteIsAdminPhoneBookingPending(q)) return true
+  if (quotePassesAvailableJobsStrict(q)) return false
+  const op = String(q?.operational_status ?? '').trim().toLowerCase()
+  if (op && op !== '') return false
+  return true
+}
+
+/** @param {Record<string, unknown>} q */
+export function quoteIsAvailableJobsPayment(q) {
+  return quoteIsCardPaid(q) || quoteIsAdminPhoneBookingReleased(q)
 }
 
 /**
@@ -84,7 +128,7 @@ export function quoteHasInProgressWorkflowStatus(q) {
 export function quotePassesAvailableJobsStrict(q) {
   if (!quoteVisibleInAdminLists(q)) return false
   if (q?.bundled_journey_id != null && String(q.bundled_journey_id).trim() !== '') return false
-  if (!quoteIsCardPaid(q)) return false
+  if (!quoteIsAvailableJobsPayment(q)) return false
   const st = String(q.status ?? '').trim()
   if (st === 'Completed' || st === 'Cancelled') return false
   if (q.completed_at) return false

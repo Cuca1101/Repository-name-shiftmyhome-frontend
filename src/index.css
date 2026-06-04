@@ -581,7 +581,30 @@
   }
 
   .seo-quote-wrap {
-    @apply scroll-mt-[76px] border-t border-slate-200/80 bg-gradient-to-b from-brand-50/30 via-slate-50 to-slate-100/80;
+    @apply scroll-mt-[76px] overflow-visible border-t border-slate-200/80 bg-gradient-to-b from-brand-50/30 via-slate-50 to-slate-100/80;
+  }
+
+  /* Quote wizard inside SEO pages — do not clip fixed arrival sheet or native selects */
+  .seo-quote-wrap .quote-flow-scope,
+  .seo-quote-wrap .quote-wizard-section {
+    overflow: visible;
+  }
+
+  .seo-quote-wrap [data-quote-field='arrival'] {
+    position: relative;
+    z-index: 20;
+  }
+
+  .seo-quote-wrap [data-quote-field='arrival'] select {
+    position: relative;
+    z-index: 21;
+    pointer-events: auto;
+    touch-action: manipulation;
+  }
+
+  .quote-wizard-section--embedded .quote-wizard-mobile-stack > div {
+    overflow: visible;
+    overflow-x: visible;
   }
 
   /* Embedded quote wizard (SEO + service quote pages) — visual only */

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { createPortal } from 'react-dom'
 import {
   HALF_HOUR_SLOTS_TO_20,
   halfHourSlotsAfter,
@@ -201,8 +202,9 @@ export default function MobileStep1ArrivalWindow({ data, onChange, error = '' })
         </p>
       ) : null}
 
-      {open ? (
-        <div className="fixed inset-0 z-[60] flex flex-col justify-end" role="presentation">
+      {open && typeof document !== 'undefined'
+        ? createPortal(
+            <div className="fixed inset-0 z-[200] flex flex-col justify-end" role="presentation">
           <button
             type="button"
             className="absolute inset-0 bg-slate-900/50"
@@ -266,6 +268,7 @@ export default function MobileStep1ArrivalWindow({ data, onChange, error = '' })
                               value={draft.flexibleArrivalFrom}
                               onChange={(e) => onFlexibleFromChange(e.target.value)}
                               className={selectClass}
+                              style={{ touchAction: 'manipulation' }}
                             >
                               <option value="">Select time</option>
                               {HALF_HOUR_SLOTS_TO_20.map((t) => (
@@ -283,6 +286,7 @@ export default function MobileStep1ArrivalWindow({ data, onChange, error = '' })
                                 setDraft((d) => ({ ...d, flexibleArrivalUntil: e.target.value }))
                               }
                               className={selectClass}
+                              style={{ touchAction: 'manipulation' }}
                               disabled={!draft.flexibleArrivalFrom}
                             >
                               <option value="">Select time</option>
@@ -306,6 +310,7 @@ export default function MobileStep1ArrivalWindow({ data, onChange, error = '' })
                                 setDraft((d) => ({ ...d, exactArrivalTime: e.target.value }))
                               }
                               className={selectClass}
+                              style={{ touchAction: 'manipulation' }}
                             >
                               <option value="">Select time</option>
                               {HALF_HOUR_SLOTS_TO_20.map((t) => (
@@ -350,8 +355,10 @@ export default function MobileStep1ArrivalWindow({ data, onChange, error = '' })
               </button>
             </div>
           </div>
-        </div>
-      ) : null}
+        </div>,
+            document.body,
+          )
+        : null}
     </div>
   )
 }

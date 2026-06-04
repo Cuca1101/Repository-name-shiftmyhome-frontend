@@ -1,6 +1,19 @@
 import { sanitizeAdminIlikeTerm } from '../adminSearch'
 import { isSupabaseConfigured, supabase } from '../supabase'
-import { HOME_PAGE_QUOTE_SOURCE, PUBLIC_QUOTE_REQUEST_SOURCES } from './quotesRepository'
+import {
+  quoteIsAdminPhoneBooking,
+  quoteIsAdminPhoneBookingPending,
+  quoteShowsOnNewPhoneBookingInbox,
+} from '../adminJobListRules'
+import { filterProductionAdminQuotes } from '../adminProductionFilters'
+import {
+  ADMIN_PHONE_BOOKING_SOURCE,
+  ADMIN_PHONE_BOOKING_SOURCES,
+  HOME_PAGE_QUOTE_SOURCE,
+  LEGACY_ADMIN_PHONE_BOOKING_SOURCE,
+  PHONE_BOOKING_PENDING_OPERATIONAL_STATUS,
+  PUBLIC_QUOTE_REQUEST_SOURCES,
+} from './quotesRepository'
 
 const QUOTES_TABLE = 'quotes'
 
@@ -62,7 +75,9 @@ export async function fetchQuotesForAdmin(filterKey = 'all', searchTerm = '') {
   let q = supabase.from(QUOTES_TABLE).select('*').order('created_at', { ascending: false })
 
   if (filterKey === 'all_paid') {
-    q = q.in('payment_status', ['paid', 'deposit_paid'])
+    q = q.or(
+      `payment_status.in.(paid,deposit_paid),and(payment_status.eq.unpaid,source.in.(${ADMIN_PHONE_BOOKING_SOURCE},${LEGACY_ADMIN_PHONE_BOOKING_SOURCE}),operational_status.neq.${PHONE_BOOKING_PENDING_OPERATIONAL_STATUS})`,
+    )
   } else if (filterKey === 'unpaid') {
     q = q.eq('payment_status', 'unpaid')
   } else if (filterKey === 'deposit_paid') {
@@ -368,4 +383,116 @@ export async function updateQuoteWorkflowAssignmentSilent(quoteId, patch) {
 
   const { error: err2 } = await supabase.from(QUOTES_TABLE).update(minimal).eq('id', id)
   return { savedRemote: !err2 }
+}
+
+/**
+ * Phone bookings waiting on Admin → New phone booking (not yet in Available Jobs).
+ *
+ * @param {string} [searchTerm]
+ * @returns {Promise<Record<string, unknown>[]>}
+ */
+export async function fetchPendingAdminPhoneBookings(searchTerm = '') {
+  if (!isSupabaseConfigured || !supabase) {
+    return []
+  }
+
+  let q = supabase
+    .from(QUOTES_TABLE)
+    .select('*')
+    .in('source', ADMIN_PHONE_BOOKING_SOURCES)
+    .order('created_at', { ascending: false })
+
+  const safe = sanitizeAdminIlikeTerm(searchTerm)
+  if (safe.length > 0) {
+    const p = `%${safe}%`
+    q = q.or(
+      `quote_ref.ilike.${p},full_name.ilike.${p},phone.ilike.${p},email.ilike.${p},pickup_address.ilike.${p},delivery_address.ilike.${p}`,
+    )
+  }
+
+  const { data, error } = await q
+  if (error) throw error
+  return filterProductionAdminQuotes(data ?? []).filter(quoteShowsOnNewPhoneBookingInbox)
+}
+
+/**
+ * Phone bookings already sent from New phone booking → Available Jobs.
+ *
+ * @param {string} [searchTerm]
+ * @returns {Promise<Record<string, unknown>[]>}
+ */
+export async function fetchSentAdminPhoneBookings(searchTerm = '') {
+  if (!isSupabaseConfigured || !supabase) {
+    return []
+  }
+
+  let q = supabase
+    .from(QUOTES_TABLE)
+    .select('*')
+    .in('source', ADMIN_PHONE_BOOKING_SOURCES)
+    .order('created_at', { ascending: false })
+
+  const safe = sanitizeAdminIlikeTerm(searchTerm)
+  if (safe.length > 0) {
+    const p = `%${safe}%`
+    q = q.or(
+      `quote_ref.ilike.${p},full_name.ilike.${p},phone.ilike.${p},email.ilike.${p},pickup_address.ilike.${p},delivery_address.ilike.${p}`,
+    )
+  }
+
+  const { data, error } = await q
+  if (error) throw error
+  return filterProductionAdminQuotes(data ?? []).filter(
+    (row) => quoteIsAdminPhoneBooking(row) && !quoteShowsOnNewPhoneBookingInbox(row),
+  )
+}
+
+/**
+ * Send a staged phone booking to Available Jobs.
+ *
+ * @param {string} id quote UUID
+ */
+export async function releaseAdminPhoneBookingToAvailableJobs(id) {
+  if (!isSupabaseConfigured || !supabase) {
+    throw new Error('Supabase is not configured.')
+  }
+  const quoteId = String(id || '').trim()
+  if (!quoteId) throw new Error('Missing quote id.')
+
+  const row = await fetchQuoteByIdForAdmin(quoteId)
+  if (!row) throw new Error('Booking not found.')
+  if (!quoteIsAdminPhoneBookingPending(row)) {
+    throw new Error('This booking is already in Available Jobs or is not a phone booking.')
+  }
+
+  await updateQuoteWorkflowAssignment(quoteId, {
+    operational_status: null,
+    marketplace_visibility: 'hidden_from_partners',
+  })
+}
+
+/**
+ * Delete a staged phone booking (only while still on New phone booking).
+ *
+ * @param {string} id quote UUID
+ */
+export async function deletePendingAdminPhoneBooking(id) {
+  if (!isSupabaseConfigured || !supabase) {
+    throw new Error('Supabase is not configured.')
+  }
+  const quoteId = String(id || '').trim()
+  if (!quoteId) throw new Error('Missing quote id.')
+
+  const { error } = await supabase
+    .from(QUOTES_TABLE)
+    .delete()
+    .eq('id', quoteId)
+    .in('source', ADMIN_PHONE_BOOKING_SOURCES)
+    .eq('operational_status', PHONE_BOOKING_PENDING_OPERATIONAL_STATUS)
+    .eq('payment_status', 'unpaid')
+    .is('stripe_session_id', null)
+    .is('stripe_payment_intent_id', null)
+    .is('paid_at', null)
+
+  if (error) throw error
 }

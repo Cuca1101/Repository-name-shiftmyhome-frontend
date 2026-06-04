@@ -69,6 +69,7 @@ export default function MoveSummaryBody({
   crewSettings,
   compact = false,
   mapVariant = 'default',
+  hideEstimatedTotalCard = false,
 }) {
   const lineRowCount = inventoryLines.length
   const totalItemUnits = inventoryLines.reduce(
@@ -309,7 +310,7 @@ export default function MoveSummaryBody({
         />
       ) : null}
 
-      {showPricing && breakdown && step !== 2 && (
+      {showPricing && breakdown && step !== 2 && !hideEstimatedTotalCard && (
         <div className="min-w-0 rounded-xl border border-emerald-100 bg-gradient-to-br from-emerald-50/90 to-white p-3 ring-1 ring-emerald-100/80 sm:p-5">
           <h3 className="text-sm font-bold text-slate-900">Estimated total</h3>
           <p className="mt-1 text-xl font-bold tracking-tight text-emerald-700 sm:text-2xl">

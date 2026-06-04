@@ -71,7 +71,7 @@ export default function HomePageQuoteRequestsAdmin() {
           <p className="mt-1 text-sm text-slate-600">
             Public enquiries and phone bookings not yet paid — sources{' '}
             <code className="rounded bg-slate-100 px-1">home_page_quote_form</code>,{' '}
-            <code className="rounded bg-slate-100 px-1">admin_phone_booking</code>, etc.
+            <code className="rounded bg-slate-100 px-1">phone_booking</code>, etc.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">

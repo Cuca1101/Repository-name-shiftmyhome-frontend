@@ -144,6 +144,20 @@ export async function updateCustomerLeadById(id, patch) {
 }
 
 /**
+ * Remove a customer lead record from admin. Does not delete the linked quote/booking.
+ * @param {string} id
+ */
+export async function deleteCustomerLeadById(id) {
+  if (!isSupabaseConfigured || !supabase || !id) {
+    throw new Error('Supabase is not configured.')
+  }
+  const { error } = await supabase.from(TABLE).delete().eq('id', id)
+  if (error) {
+    throw new Error(error.message || 'Failed to delete lead.')
+  }
+}
+
+/**
  * Link lead to paid booking by quote reference (admin or post-payment page).
  * @param {{ quoteRef: string, quoteId?: string | null }} params
  */

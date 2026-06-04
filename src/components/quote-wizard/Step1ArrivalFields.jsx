@@ -116,13 +116,14 @@ export default function Step1ArrivalFields({ data, onChange, error = '' }) {
               </button>
 
               {selected && opt.value === FLEX_VALUE ? (
-                <div className="grid gap-3 border-t border-brand-100/80 px-3 pb-3 pt-2 sm:grid-cols-2">
+                <div className="relative z-10 grid gap-3 border-t border-brand-100/80 px-3 pb-3 pt-2 sm:grid-cols-2">
                   <label className="block min-w-0">
                     <span className={labelClass}>Flexible from</span>
                     <select
                       value={data.flexibleArrivalFrom || ''}
                       onChange={(e) => onFlexibleFromChange(e.target.value)}
                       className={selectClass}
+                      style={{ touchAction: 'manipulation' }}
                     >
                       <option value="">Select time</option>
                       {HALF_HOUR_SLOTS_TO_20.map((t) => (
@@ -140,6 +141,7 @@ export default function Step1ArrivalFields({ data, onChange, error = '' }) {
                         onChange({ ...data, flexibleArrivalUntil: e.target.value })
                       }
                       className={selectClass}
+                      style={{ touchAction: 'manipulation' }}
                       disabled={!data.flexibleArrivalFrom}
                     >
                       <option value="">Select time</option>
@@ -154,13 +156,14 @@ export default function Step1ArrivalFields({ data, onChange, error = '' }) {
               ) : null}
 
               {selected && opt.value === 'exact' ? (
-                <div className="space-y-2 border-t border-brand-100/80 px-3 pb-3 pt-2">
+                <div className="relative z-10 space-y-2 border-t border-brand-100/80 px-3 pb-3 pt-2">
                   <label className="block min-w-0 sm:max-w-xs">
                     <span className={labelClass}>Exact arrival time</span>
                     <select
                       value={data.exactArrivalTime || ''}
                       onChange={(e) => onChange({ ...data, exactArrivalTime: e.target.value })}
                       className={selectClass}
+                      style={{ touchAction: 'manipulation' }}
                     >
                       <option value="">Select time</option>
                       {HALF_HOUR_SLOTS_TO_20.map((t) => (

@@ -44,6 +44,8 @@ export default function MobileStep2Inventory({
   removeAll,
   bump,
   renderCatalogRow,
+  catalogItemsListClassName = 'mt-1.5 space-y-1',
+  searchResultsCompact = true,
   resultsPanelRef,
   categoriesRef,
   inputClass,
@@ -120,7 +122,7 @@ export default function MobileStep2Inventory({
             <InventorySearchDropdownEmpty />
           ) : (
             <ul className="min-w-0 py-0.5">
-              {searchResults.map((e) => renderSearchResultRow(e, true))}
+              {searchResults.map((e) => renderSearchResultRow(e, searchResultsCompact))}
             </ul>
           )}
         </InventorySearchDropdown>
@@ -131,7 +133,9 @@ export default function MobileStep2Inventory({
           ) : cat ? (
             <div>
               <h3 className="text-xs font-bold uppercase tracking-wide text-slate-500">{cat.label}</h3>
-              <ul className="mt-1.5 space-y-1">{cat.items.map((item) => renderCatalogRow(item, '', false))}</ul>
+              <ul className={catalogItemsListClassName}>
+                {cat.items.map((item) => renderCatalogRow(item, '', false))}
+              </ul>
             </div>
           ) : (
             <p className="text-sm text-slate-600">No items in this category.</p>

@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
-import { fetchCustomerLeadById } from '../lib/data/customerLeadsRepository'
+import { Link, useNavigate, useParams } from 'react-router-dom'
+import {
+  deleteCustomerLeadById,
+  fetchCustomerLeadById,
+} from '../lib/data/customerLeadsRepository'
 import { CUSTOMER_LEAD_STATUS_LABELS } from '../lib/customerLeadStatus'
 import { formatDateTimeUK, formatDateUK } from '../lib/formatDateDisplay'
 
@@ -35,9 +38,11 @@ function mailHref(email) {
 
 export default function CustomerLeadDetailAdmin() {
   const { id } = useParams()
+  const navigate = useNavigate()
   const [lead, setLead] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [deleting, setDeleting] = useState(false)
 
   const load = useCallback(async () => {
     if (!id) return
@@ -61,6 +66,26 @@ export default function CustomerLeadDetailAdmin() {
   useEffect(() => {
     load()
   }, [load])
+
+  async function handleDelete() {
+    if (!lead?.id) return
+    const status = lead.effective_status || lead.status
+    const isConverted = status === 'converted_to_booking'
+    const msg = isConverted
+      ? `Delete lead ${lead.lead_ref}? The booking/quote (${lead.quote_ref || 'linked record'}) stays in the system — only this lead row is removed.`
+      : `Delete lead ${lead.lead_ref}? This cannot be undone.`
+    if (!window.confirm(msg)) return
+
+    setDeleting(true)
+    setError('')
+    try {
+      await deleteCustomerLeadById(String(lead.id))
+      navigate('/admin/customer-leads', { replace: true })
+    } catch (e) {
+      setError(e?.message || 'Failed to delete lead.')
+      setDeleting(false)
+    }
+  }
 
   if (loading) {
     return <p className="p-8 text-center text-slate-500">Loading…</p>
@@ -141,6 +166,14 @@ export default function CustomerLeadDetailAdmin() {
               View booking / quote
             </Link>
           )}
+          <button
+            type="button"
+            disabled={deleting}
+            onClick={() => void handleDelete()}
+            className="inline-flex min-h-[44px] items-center rounded-xl border border-red-200 bg-red-50 px-4 text-sm font-semibold text-red-800 hover:bg-red-100 disabled:opacity-50"
+          >
+            {deleting ? 'Deleting…' : 'Delete lead'}
+          </button>
         </div>
       </div>
 

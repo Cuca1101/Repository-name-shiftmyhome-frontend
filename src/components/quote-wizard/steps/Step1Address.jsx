@@ -387,11 +387,11 @@ export default function Step1Address({
           </div>
         </div>
 
-        <div className={`${field} hidden sm:col-span-2 md:block`} data-quote-field="arrival">
+        <div className={`${field} col-span-2 hidden sm:block`} data-quote-field="arrival">
           <Step1ArrivalFields data={data} onChange={onChange} error={arrivalError} />
         </div>
 
-        <div className={`${field} col-span-2 md:hidden`} data-quote-field="arrival">
+        <div className={`${field} col-span-2 sm:hidden`} data-quote-field="arrival">
           <MobileStep1ArrivalWindow data={data} onChange={onChange} error={arrivalError} />
         </div>
 

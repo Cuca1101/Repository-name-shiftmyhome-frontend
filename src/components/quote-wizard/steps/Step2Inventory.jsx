@@ -25,6 +25,16 @@ function newLineId() {
   return `L-${Date.now()}-${Math.random().toString(16).slice(2)}`
 }
 
+/** Admin phone booking — icon | name + volume | controls (no overlap). */
+const ADMIN_INVENTORY_CARD =
+  'flex min-h-[5.75rem] min-w-0 items-center gap-3 rounded-xl border px-3 py-3 sm:gap-4 sm:px-4'
+const ADMIN_INVENTORY_CARD_ICON =
+  'flex h-11 w-11 shrink-0 items-center justify-center self-center rounded-xl bg-white text-brand-700 shadow-sm ring-1 ring-slate-200/80'
+const ADMIN_INVENTORY_CARD_TEXT = 'min-w-0 flex-1 py-0.5'
+const ADMIN_INVENTORY_CARD_CONTROLS =
+  'flex shrink-0 items-center justify-end self-center pl-1'
+const ADMIN_INVENTORY_GRID = 'mt-3 grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3'
+
 export default function Step2Inventory({
   lines,
   onLinesChange,
@@ -38,7 +48,10 @@ export default function Step2Inventory({
   onChange,
   contactValidationMessage = '',
   validationMessage = '',
+  /** @type {'quote' | 'admin'} */
+  layoutVariant = 'quote',
 }) {
+  const isAdminLayout = layoutVariant === 'admin'
   const searchId = useId()
   const crewFieldId = useId()
   const crewHintId = useId()
@@ -190,6 +203,47 @@ export default function Step2Inventory({
       ? 'bg-amber-50/50 ring-1 ring-amber-200/70'
       : 'bg-slate-50/80'
 
+    const nameEl = highlightQuery ? (
+      <HighlightedInventoryName name={item.name} query={highlightQuery} />
+    ) : (
+      item.name
+    )
+    const volumeEl = (
+      <p className="mt-0.5 text-xs leading-snug text-slate-500 sm:text-sm">
+        {perUnitVol.toFixed(2)} m³ per unit
+        {volumeHint ? <span className="text-slate-600"> · {volumeHint}</span> : null}
+      </p>
+    )
+    const qtyControl = (
+      <InlineInventoryQtyControl
+        catalog={isAdminLayout ? false : isSelected}
+        quantity={qty}
+        onAdd={() => addFromCatalog(item.id)}
+        onDecrement={() => line && bump(line.lineId, -1)}
+        onIncrement={() => (line ? bump(line.lineId, 1) : addFromCatalog(item.id))}
+      />
+    )
+
+    if (isAdminLayout) {
+      const selectedTone = isSelected
+        ? 'border-brand-200 bg-brand-50/50 ring-1 ring-brand-500/20'
+        : 'border-slate-100 bg-slate-50/80'
+      return (
+        <li key={item.id} className={`${ADMIN_INVENTORY_CARD} ${selectedTone}`}>
+          <div className={ADMIN_INVENTORY_CARD_ICON} aria-hidden>
+            <CatalogItemLucideIcon itemId={item.id} className="h-5 w-5" />
+          </div>
+          <div className={ADMIN_INVENTORY_CARD_TEXT}>
+            <p className="text-sm font-semibold leading-snug text-slate-900 break-words sm:text-base">
+              {nameEl}
+            </p>
+            {volumeEl}
+          </div>
+          <div className={ADMIN_INVENTORY_CARD_CONTROLS}>{qtyControl}</div>
+        </li>
+      )
+    }
+
     return (
       <li
         key={item.id}
@@ -203,27 +257,12 @@ export default function Step2Inventory({
             <CatalogItemLucideIcon itemId={item.id} className="h-5 w-5" />
           </div>
           <div className="min-w-0 flex-1 overflow-hidden">
-            <p className="text-sm font-semibold leading-snug text-slate-900 break-normal">
-              {highlightQuery ? (
-                <HighlightedInventoryName name={item.name} query={highlightQuery} />
-              ) : (
-                item.name
-              )}
-            </p>
-            <p className="mt-0.5 text-xs text-slate-500">
-              {perUnitVol.toFixed(2)} m³ per unit
-              {volumeHint ? <span className="text-slate-600"> · {volumeHint}</span> : null}
-            </p>
+            <p className="break-normal text-sm font-semibold leading-snug text-slate-900">{nameEl}</p>
+            {volumeEl}
           </div>
         </div>
         <div className="flex h-11 w-[5.5rem] shrink-0 items-center justify-end sm:w-[5.75rem]">
-          <InlineInventoryQtyControl
-            catalog={isSelected}
-            quantity={qty}
-            onAdd={() => addFromCatalog(item.id)}
-            onDecrement={() => line && bump(line.lineId, -1)}
-            onIncrement={() => (line ? bump(line.lineId, 1) : addFromCatalog(item.id))}
-          />
+          {qtyControl}
         </div>
       </li>
     )
@@ -264,9 +303,9 @@ export default function Step2Inventory({
             {perUnitVol.toFixed(2)} m³
           </p>
         </div>
-        <div className="shrink-0" onMouseDown={keepSearchDropdownFocus}>
+        <div className={ADMIN_INVENTORY_CARD_CONTROLS} onMouseDown={keepSearchDropdownFocus}>
           <InlineInventoryQtyControl
-            compact
+            compact={compact && !isAdminLayout}
             quantity={qty}
             onAdd={() => addFromCatalog(item.id)}
             onDecrement={() => line && bump(line.lineId, -1)}
@@ -350,28 +389,38 @@ export default function Step2Inventory({
         addCustom={addCustom}
         removeAll={removeAll}
         bump={bump}
-        renderCatalogRow={renderMobileCatalogRow}
+        renderCatalogRow={isAdminLayout ? renderCatalogRow : renderMobileCatalogRow}
+        catalogItemsListClassName={isAdminLayout ? 'mt-3 space-y-3' : 'mt-1.5 space-y-1'}
+        searchResultsCompact={!isAdminLayout}
         resultsPanelRef={resultsPanelRef}
         categoriesRef={categoriesRef}
         inputClass={input}
       />
 
-    <div className="hidden space-y-8 md:block">
-      <div>
-        <h2 className="text-lg font-bold text-slate-900 sm:text-2xl">Inventory</h2>
-        <p className="mt-1 text-sm text-slate-600">
-          Choose your crew size first — it affects loading time and pricing. Then tap{' '}
-          <strong className="font-semibold text-slate-800">Add</strong> or use{' '}
-          <strong className="font-semibold text-slate-800">−</strong> /{' '}
-          <strong className="font-semibold text-slate-800">+</strong> on each item. Your total volume
-          and estimate update live in the summary.
+    <div
+      className={`hidden min-w-0 w-full max-w-full overflow-x-hidden md:block ${isAdminLayout ? 'space-y-5' : 'space-y-8'}`}
+    >
+      {!isAdminLayout ? (
+        <div>
+          <h2 className="text-lg font-bold text-slate-900 sm:text-2xl">Inventory</h2>
+          <p className="mt-1 text-sm text-slate-600">
+            Choose your crew size first — it affects loading time and pricing. Then tap{' '}
+            <strong className="font-semibold text-slate-800">Add</strong> or use{' '}
+            <strong className="font-semibold text-slate-800">−</strong> /{' '}
+            <strong className="font-semibold text-slate-800">+</strong> on each item. Your total volume
+            and estimate update live in the summary.
+          </p>
+          {catalogLoading ? (
+            <p className="mt-2 text-xs text-slate-500">Loading item catalogue…</p>
+          ) : catalogSource === 'library' ? (
+            <p className="mt-2 text-xs text-slate-500">Using your Items Library catalogue.</p>
+          ) : null}
+        </div>
+      ) : (
+        <p className="text-sm text-slate-600">
+          Choose crew size, then add items. Search and categories use the full width below.
         </p>
-        {catalogLoading ? (
-          <p className="mt-2 text-xs text-slate-500">Loading item catalogue…</p>
-        ) : catalogSource === 'library' ? (
-          <p className="mt-2 text-xs text-slate-500">Using your Items Library catalogue.</p>
-        ) : null}
-      </div>
+      )}
 
       <CrewSizeField
         id={crewFieldId}
@@ -425,26 +474,34 @@ export default function Step2Inventory({
         onChange={setSearchQuery}
         catalogLoading={catalogLoading}
         open={searchDropdownOpen}
-        className="relative z-30 mt-4"
+        className="relative z-30 mt-4 w-full min-w-0 max-w-full"
       >
         {searchResults.length === 0 ? (
           <InventorySearchDropdownEmpty />
         ) : (
-          <ul className="min-w-0 py-0.5">{searchResults.map((e) => renderSearchResultRow(e, false))}</ul>
+          <ul className="min-w-0 py-0.5">
+            {searchResults.map((e) => renderSearchResultRow(e, !isAdminLayout))}
+          </ul>
         )}
       </InventorySearchDropdown>
 
       <div
         ref={resultsPanelRef}
         data-quote-field="inventory"
-        className="relative z-0 mt-4 min-w-0 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:p-6"
+        className={`relative z-0 mt-4 min-w-0 w-full max-w-full rounded-2xl border border-slate-200 bg-white shadow-sm ${
+          isAdminLayout ? 'p-4 sm:p-5' : 'p-3 sm:p-6'
+        }`}
       >
         {catalogLoading ? (
           <p className="text-sm text-slate-600">Loading items…</p>
         ) : cat ? (
-          <div>
+          <div className="min-w-0">
             <h3 className="text-sm font-bold text-slate-900">{cat.label}</h3>
-            <ul className="mt-4 grid grid-cols-2 gap-2 xxs:gap-2.5 sm:gap-3">
+            <ul
+              className={
+                isAdminLayout ? ADMIN_INVENTORY_GRID : 'mt-4 grid grid-cols-2 gap-2 xxs:gap-2.5 sm:gap-3'
+              }
+            >
               {cat.items.map((item) => renderCatalogRow(item, '', false))}
             </ul>
           </div>
@@ -453,7 +510,9 @@ export default function Step2Inventory({
         )}
       </div>
 
-      <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50/50 p-4 sm:p-5">
+      <div
+        className={`rounded-2xl border border-dashed border-slate-300 bg-slate-50/50 ${isAdminLayout ? 'p-3 sm:p-4' : 'p-4 sm:p-5'}`}
+      >
         <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Custom item</p>
         <div className="mt-3 grid gap-3 sm:grid-cols-12 sm:items-end">
           <label className="block sm:col-span-6">
@@ -492,33 +551,60 @@ export default function Step2Inventory({
 
         {customLines.length > 0 && (
           <ul className="mt-5 space-y-3 border-t border-slate-200/80 pt-5">
-            {customLines.map((row) => (
-              <li
-                key={row.lineId}
-                className="flex min-h-[64px] items-stretch gap-3 rounded-xl border border-slate-200 bg-white px-3 py-3 sm:gap-4 sm:px-4"
-              >
-                <div className="flex min-w-0 flex-1 items-center gap-3">
+            {customLines.map((row) =>
+              isAdminLayout ? (
+                <li key={row.lineId} className={`${ADMIN_INVENTORY_CARD} border-slate-200 bg-white`}>
                   <div
-                    className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-slate-50 text-slate-700 ring-1 ring-slate-200/80"
+                    className={`${ADMIN_INVENTORY_CARD_ICON} bg-slate-50 text-slate-700`}
                     aria-hidden
                   >
                     <PackagePlus className="h-5 w-5" />
                   </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-semibold text-slate-900">{row.name}</p>
-                    <p className="mt-0.5 text-xs text-slate-500">Custom · {row.m3.toFixed(2)} m³ each</p>
+                  <div className={ADMIN_INVENTORY_CARD_TEXT}>
+                    <p className="text-sm font-semibold leading-snug text-slate-900 break-words sm:text-base">
+                      {row.name}
+                    </p>
+                    <p className="mt-0.5 text-xs leading-snug text-slate-500 sm:text-sm">
+                      Custom · {row.m3.toFixed(2)} m³ each
+                    </p>
                   </div>
-                </div>
-                <div className="flex shrink-0 items-center self-center">
-                  <InlineInventoryQtyControl
-                    quantity={row.quantity}
-                    onAdd={() => bump(row.lineId, 1)}
-                    onDecrement={() => bump(row.lineId, -1)}
-                    onIncrement={() => bump(row.lineId, 1)}
-                  />
-                </div>
-              </li>
-            ))}
+                  <div className={ADMIN_INVENTORY_CARD_CONTROLS}>
+                    <InlineInventoryQtyControl
+                      quantity={row.quantity}
+                      onAdd={() => bump(row.lineId, 1)}
+                      onDecrement={() => bump(row.lineId, -1)}
+                      onIncrement={() => bump(row.lineId, 1)}
+                    />
+                  </div>
+                </li>
+              ) : (
+                <li
+                  key={row.lineId}
+                  className="flex min-h-[64px] items-stretch gap-3 rounded-xl border border-slate-200 bg-white px-3 py-3 sm:gap-4 sm:px-4"
+                >
+                  <div className="flex min-w-0 flex-1 items-center gap-3">
+                    <div
+                      className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-slate-50 text-slate-700 ring-1 ring-slate-200/80"
+                      aria-hidden
+                    >
+                      <PackagePlus className="h-5 w-5" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-semibold text-slate-900">{row.name}</p>
+                      <p className="mt-0.5 text-xs text-slate-500">Custom · {row.m3.toFixed(2)} m³ each</p>
+                    </div>
+                  </div>
+                  <div className="flex shrink-0 items-center self-center">
+                    <InlineInventoryQtyControl
+                      quantity={row.quantity}
+                      onAdd={() => bump(row.lineId, 1)}
+                      onDecrement={() => bump(row.lineId, -1)}
+                      onIncrement={() => bump(row.lineId, 1)}
+                    />
+                  </div>
+                </li>
+              ),
+            )}
           </ul>
         )}
       </div>
