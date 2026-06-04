@@ -1,15 +1,15 @@
 const STEPS = [
   { n: 1, label: 'Address & access' },
-  { n: 2, label: 'Inventory' },
-  { n: 3, label: 'Details' },
-  { n: 4, label: 'Review & price' },
+  { n: 2, label: 'Items & contact' },
+  { n: 3, label: 'Review' },
+  { n: 4, label: 'Pay' },
 ]
 
 const SHORT_LABELS = {
   1: 'Address',
   2: 'Items',
-  3: 'Details',
-  4: 'Review',
+  3: 'Review',
+  4: 'Pay',
 }
 
 export default function WizardProgress({ step }) {

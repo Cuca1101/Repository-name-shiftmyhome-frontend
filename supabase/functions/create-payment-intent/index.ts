@@ -3,7 +3,6 @@ import Stripe from 'npm:stripe@14.21.0'
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import { guardStripeSecretKey, respondStripeConfigFailure } from '../_shared/stripeSecretGuard.ts'
 import { formatGbpLabel, validateDepositAmountGbp } from '../_shared/stripeDepositAmount.ts'
-
 /**
  * ShiftMyHome — creates a Stripe PaymentIntent for embedded Payment Element.
  *
@@ -527,7 +526,7 @@ Deno.serve(async (req) => {
       metadata,
       description:
         resolvedPaymentType === 'deposit'
-          ? `${formatGbpLabel(gbp)} deposit — quote ${quote_ref}`
+          ? `${formatGbpLabel(gbp)} reservation fee — quote ${quote_ref}`
           : `Full payment — quote ${quote_ref}`,
     })
 

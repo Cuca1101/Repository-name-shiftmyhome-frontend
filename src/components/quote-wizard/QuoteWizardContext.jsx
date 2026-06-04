@@ -43,7 +43,6 @@ import {
   isWizardArrivalValid,
   wizardArrivalErrorMessage,
 } from '../../lib/arrivalWizardValidation'
-import { getLocalDateYYYYMMDD } from '../../lib/moveDateLocal'
 import {
   persistPhotoUploadNotice,
   uploadCustomerQuotePhotos,
@@ -60,14 +59,25 @@ import {
   resolveDepositAmountGbp,
 } from '../../lib/pricingCalculator'
 import {
+  getLocalDateYYYYMMDD,
   isMoveDateOnOrAfterToday,
   moveDatePastErrorMessage,
 } from '../../lib/moveDateLocal'
+import { formatReservationFeeGbp } from '../../lib/quoteReservationFee'
+import { QUOTE_STEP2_TRANSITION_DURATION_MS } from '../../lib/quoteStep2Transition'
 import { clearQuoteDraft, saveQuoteDraft } from '../../lib/quoteDraftStorage'
 import { resolveWizardBootstrap } from '../../lib/quoteWizardBootstrap'
-import { initialWizardState, makeQuoteRef } from '../../lib/quoteWizardDefaults'
+import {
+  initialWizardState,
+  makeQuoteRef,
+  QUOTE_WIZARD_MAX_STEP,
+} from '../../lib/quoteWizardDefaults'
 import { clearResumeSavedQuote } from '../../lib/quoteSessionMode'
 import { trackQuoteWizardSnapshot, trackWebsiteLeadEvent } from '../../lib/websiteLeadTracker'
+import {
+  markCustomerLeadPaymentStarted,
+  syncCustomerLeadFromWizard,
+} from '../../lib/customerLeadTracker'
 import { trackMarketingQuoteSubmit } from '../../lib/marketingPixels'
 import { useLocation } from 'react-router-dom'
 
@@ -83,13 +93,19 @@ export function useQuoteWizard() {
 
 export { makeQuoteRef, initialWizardState } from '../../lib/quoteWizardDefaults'
 
-/** Scroll quote wizard to top after step change (mobile: user is often mid-form inside #quote). */
-function scrollQuoteWizardIntoView() {
+/**
+ * Scroll quote wizard into view (mobile: user often taps Continue at bottom of a long step).
+ * @param {{ behavior?: ScrollBehavior }} [opts]
+ */
+function scrollQuoteWizardIntoView(opts = {}) {
+  const behavior = opts.behavior ?? 'smooth'
   requestAnimationFrame(() => {
     requestAnimationFrame(() => {
-      document.querySelector('#quote')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-      document.querySelector('#quote-wizard-top')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-      window.scrollTo({ top: 0, behavior: 'smooth' })
+      const scrollOpts = { behavior, block: 'start' }
+      document.getElementById('quote-step2-transition')?.scrollIntoView(scrollOpts)
+      document.querySelector('#quote')?.scrollIntoView(scrollOpts)
+      document.querySelector('#quote-wizard-top')?.scrollIntoView(scrollOpts)
+      window.scrollTo({ top: 0, behavior })
     })
   })
 }
@@ -116,6 +132,7 @@ export function QuoteWizardProvider({ children, serviceType: serviceTypeProp, al
   )
   const funnelTrackedRef = useRef(false)
   const savedDraftTrackedRef = useRef(false)
+  const customerLeadStatusRef = useRef('new_lead')
 
   const [step, setStep] = useState(bootstrap.step)
   const [quoteRef, setQuoteRef] = useState(bootstrap.quoteRef)
@@ -131,13 +148,24 @@ export function QuoteWizardProvider({ children, serviceType: serviceTypeProp, al
   const [lastQuoteData, setLastQuoteData] = useState(null)
   const [quotePhotoFiles, setQuotePhotoFiles] = useState([])
   const pendingStepScrollRef = useRef(false)
+  const stepTransitionTimerRef = useRef(null)
+  const [quoteStepTransitionLoading, setQuoteStepTransitionLoading] = useState(false)
+
+  const clearStepTransitionTimer = useCallback(() => {
+    if (stepTransitionTimerRef.current != null) {
+      window.clearTimeout(stepTransitionTimerRef.current)
+      stepTransitionTimerRef.current = null
+    }
+  }, [])
+
+  useEffect(() => () => clearStepTransitionTimer(), [clearStepTransitionTimer])
 
   useEffect(() => {
     preloadStripeJs()
   }, [])
 
   useEffect(() => {
-    if (step >= 3) preloadStripeJs()
+    if (step >= 4) preloadStripeJs()
   }, [step])
 
   useEffect(() => {
@@ -191,6 +219,17 @@ export function QuoteWizardProvider({ children, serviceType: serviceTypeProp, al
       step,
       returnPath: location.pathname,
     })
+    void syncCustomerLeadFromWizard({
+      step,
+      quoteRef,
+      serviceType: bootstrap.serviceType,
+      wizard,
+      landingPath: location.pathname || '/quote',
+      currentStatus: customerLeadStatusRef.current,
+      totalM3: 0,
+    }).then((res) => {
+      if (res?.status) customerLeadStatusRef.current = String(res.status)
+    })
   }, [bootstrap.serviceType, location.pathname, quoteRef, step])
 
   useEffect(() => {
@@ -241,6 +280,11 @@ export function QuoteWizardProvider({ children, serviceType: serviceTypeProp, al
     pendingStepScrollRef.current = false
     scrollQuoteWizardIntoView()
   }, [step])
+
+  useEffect(() => {
+    if (!quoteStepTransitionLoading) return
+    scrollQuoteWizardIntoView({ behavior: 'auto' })
+  }, [quoteStepTransitionLoading])
 
   useEffect(() => {
     let cancelled = false
@@ -408,9 +452,21 @@ export function QuoteWizardProvider({ children, serviceType: serviceTypeProp, al
         status: step > 1 ? 'step_completed' : 'quote_started',
         allowContactInLead: false,
       })
+      void syncCustomerLeadFromWizard({
+        step,
+        quoteRef,
+        serviceType,
+        wizard,
+        estimatedTotal: estimatedTotalForDraft,
+        totalM3,
+        landingPath: returnPath,
+        currentStatus: customerLeadStatusRef.current,
+      }).then((res) => {
+        if (res?.status) customerLeadStatusRef.current = String(res.status)
+      })
     }, 500)
     return () => window.clearTimeout(timer)
-  }, [step, quoteRef, serviceType, wizard, location.pathname, estimatedTotalForDraft])
+  }, [step, quoteRef, serviceType, wizard, location.pathname, estimatedTotalForDraft, totalM3])
 
   useEffect(() => {
     if (step <= 1) return
@@ -427,6 +483,18 @@ export function QuoteWizardProvider({ children, serviceType: serviceTypeProp, al
       step,
       estimatedTotal: estimatedTotalForDraft,
       returnPath: location.pathname,
+    })
+    void syncCustomerLeadFromWizard({
+      step,
+      quoteRef,
+      serviceType,
+      wizard,
+      estimatedTotal: estimatedTotalForDraft,
+      totalM3,
+      landingPath: location.pathname || '/quote',
+      currentStatus: customerLeadStatusRef.current,
+    }).then((res) => {
+      if (res?.status) customerLeadStatusRef.current = String(res.status)
     })
   }, [step])
 
@@ -475,15 +543,13 @@ export function QuoteWizardProvider({ children, serviceType: serviceTypeProp, al
     }
     if (step === 2) {
       const crewOk = Number(wizard.crewSize) >= 1 && Number(wizard.crewSize) <= 4
-      return wizard.inventoryLines.length > 0 && crewOk
-    }
-    if (step === 3) {
-      return step3ContactDetailsValid(wizard)
+      return wizard.inventoryLines.length > 0 && crewOk && step3ContactDetailsValid(wizard)
     }
     return true
   }, [step, wizard])
 
   const next = useCallback(() => {
+    if (quoteStepTransitionLoading) return
     setFeedback({ type: null, text: '' })
     if (
       step === 1 &&
@@ -515,7 +581,7 @@ export function QuoteWizardProvider({ children, serviceType: serviceTypeProp, al
       return
     }
     if (
-      step === 3 &&
+      step === 2 &&
       wizard.moveDate &&
       !isMoveDateOnOrAfterToday(wizard.moveDate)
     ) {
@@ -539,14 +605,14 @@ export function QuoteWizardProvider({ children, serviceType: serviceTypeProp, al
         } else if (wizard.inventoryLines.length === 0) {
           setFeedback({ type: 'error', text: 'Add at least one item to your inventory.' })
           scheduleQuoteValidationScroll({ hint: QUOTE_ERROR_SCROLL_HINTS.inventory })
+        } else if (!step3ContactDetailsValid(wizard)) {
+          const { message, field } = step3ContactDetailsError(wizard)
+          setFeedback({ type: 'error', text: message })
+          scrollToStep3ContactField(field)
         } else {
           setFeedback({ type: 'error', text: 'Please complete the required fields.' })
           scheduleQuoteValidationScroll({ hint: resolveStep2ScrollHint(wizard) })
         }
-      } else if (step === 3) {
-        const { message, field } = step3ContactDetailsError(wizard)
-        setFeedback({ type: 'error', text: message })
-        scrollToStep3ContactField(field)
       } else if (step === 1) {
         setFeedback({ type: 'error', text: 'Please complete the required fields.' })
         scheduleQuoteValidationScroll({ hint: resolveStep1ScrollHint(wizard) })
@@ -556,21 +622,51 @@ export function QuoteWizardProvider({ children, serviceType: serviceTypeProp, al
       }
       return
     }
+    if (step === 2) {
+      setQuoteStepTransitionLoading(true)
+      scrollQuoteWizardIntoView({ behavior: 'auto' })
+      clearStepTransitionTimer()
+      stepTransitionTimerRef.current = window.setTimeout(() => {
+        stepTransitionTimerRef.current = null
+        setQuoteStepTransitionLoading(false)
+        pendingStepScrollRef.current = true
+        setStep(3)
+      }, QUOTE_STEP2_TRANSITION_DURATION_MS)
+      return
+    }
     pendingStepScrollRef.current = true
-    setStep((s) => Math.min(4, s + 1))
-  }, [step, wizard, canGoNext])
+    setStep((s) => Math.min(QUOTE_WIZARD_MAX_STEP, s + 1))
+  }, [step, wizard, canGoNext, quoteStepTransitionLoading, clearStepTransitionTimer])
 
   const back = useCallback(() => {
+    if (quoteStepTransitionLoading) {
+      clearStepTransitionTimer()
+      setQuoteStepTransitionLoading(false)
+      return
+    }
     pendingStepScrollRef.current = true
     setStep((s) => Math.max(1, s - 1))
-  }, [])
+  }, [quoteStepTransitionLoading, clearStepTransitionTimer])
 
   const goToStep = useCallback((targetStep) => {
-    const n = Math.min(4, Math.max(1, Number(targetStep) || 1))
-    setFeedback({ type: null, text: '' })
+    if (quoteStepTransitionLoading) {
+      clearStepTransitionTimer()
+      setQuoteStepTransitionLoading(false)
+    }
+    let n = Math.min(QUOTE_WIZARD_MAX_STEP, Math.max(1, Number(targetStep) || 1))
+    if (n >= 3 && !step3ContactDetailsValid(wizard)) {
+      n = 2
+      setFeedback({
+        type: 'error',
+        text: 'Please complete your contact details on step 2 before reviewing your quote.',
+      })
+      scrollToStep3ContactField('fullName')
+    } else {
+      setFeedback({ type: null, text: '' })
+    }
     pendingStepScrollRef.current = true
     setStep(n)
-  }, [])
+  }, [wizard, quoteStepTransitionLoading, clearStepTransitionTimer])
 
   const buildQuotePayloadForSave = useCallback(() => {
     if (!breakdown) return null
@@ -662,6 +758,11 @@ export function QuoteWizardProvider({ children, serviceType: serviceTypeProp, al
 
   const handlePay = useCallback(
     async (paymentType) => {
+      if (paymentType !== 'reservation' && paymentType !== 'full') {
+        setPayError('Please select a payment option.')
+        scheduleQuoteValidationScroll({ hint: QUOTE_ERROR_SCROLL_HINTS.payment })
+        return
+      }
       if (paymentType === 'full' && !breakdown) {
         setPayError('Your quote total is still calculating. Please wait a moment and try again.')
         scheduleQuoteValidationScroll({ hint: QUOTE_ERROR_SCROLL_HINTS.payment })
@@ -673,12 +774,12 @@ export function QuoteWizardProvider({ children, serviceType: serviceTypeProp, al
         return
       }
       if (wizard.phone.trim().length <= 5) {
-        setPayError('Please add your phone number on step 3 before paying.')
+        setPayError('Please add your phone number on step 2 before paying.')
         scheduleQuoteValidationScroll({ hint: QUOTE_ERROR_SCROLL_HINTS.payment })
         return
       }
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(wizard.email.trim())) {
-        setPayError('Please add a valid email on step 3 before paying.')
+        setPayError('Please add a valid email on step 2 before paying.')
         scheduleQuoteValidationScroll({ hint: QUOTE_ERROR_SCROLL_HINTS.payment })
         return
       }
@@ -703,21 +804,22 @@ export function QuoteWizardProvider({ children, serviceType: serviceTypeProp, al
       preloadStripeJs()
       try {
         const quote_lead = buildQuoteRowFromTemplateParams(payload.templateParams, payload.extras)
-        const depositGbp = resolveDepositAmountGbp(settings)
+        const isReservation = paymentType === 'reservation'
+        const reservationGbp = resolveDepositAmountGbp(settings)
+        const chargeGbp = isReservation ? reservationGbp : breakdown.estimatedTotal
         const { clientSecret, paymentIntentId } = await createPaymentIntent({
           quote_ref: quoteRef,
           customer_email: wizard.email.trim(),
           customer_name: wizard.fullName.trim(),
           service_type: serviceType,
-          amount: paymentType === 'deposit' ? depositGbp : breakdown.estimatedTotal,
-          amount_gbp: paymentType === 'deposit' ? depositGbp : breakdown.estimatedTotal,
-          payment_type: paymentType,
+          amount: chargeGbp,
+          amount_gbp: chargeGbp,
+          payment_type: isReservation ? 'deposit' : 'full',
           quote_lead,
         })
-        const amountLabel =
-          paymentType === 'deposit'
-            ? `£${depositGbp.toFixed(2)} deposit`
-            : `£${breakdown.estimatedTotal.toFixed(2)} (estimated total)`
+        const amountLabel = isReservation
+          ? `${formatReservationFeeGbp(reservationGbp)} reservation fee`
+          : `£${breakdown.estimatedTotal.toFixed(2)} (estimated total)`
         setCardPayment({
           clientSecret,
           paymentIntentId,
@@ -734,6 +836,15 @@ export function QuoteWizardProvider({ children, serviceType: serviceTypeProp, al
           customerPhone: wizard.phone,
           pickupAddress: wizard.pickupAddress,
           deliveryAddress: wizard.deliveryAddress,
+        })
+        void markCustomerLeadPaymentStarted({
+          quoteRef,
+          serviceType,
+          step,
+          wizard,
+          estimatedTotal: breakdown?.estimatedTotal,
+        }).then((res) => {
+          if (res?.status) customerLeadStatusRef.current = String(res.status)
         })
       } catch (e) {
         setPayError(e?.message ?? 'Payment could not start.')
@@ -931,10 +1042,12 @@ export function QuoteWizardProvider({ children, serviceType: serviceTypeProp, al
     setCardPayment(null)
     setPayError('')
     setQuotePhotoFiles([])
+    clearStepTransitionTimer()
+    setQuoteStepTransitionLoading(false)
     window.setTimeout(() => {
       skipAutosaveRef.current = false
     }, 600)
-  }, [serviceTypeProp])
+  }, [serviceTypeProp, clearStepTransitionTimer])
 
   const value = {
     step,
@@ -969,6 +1082,7 @@ export function QuoteWizardProvider({ children, serviceType: serviceTypeProp, al
     customSizeM3,
     handleDistanceFromRoute,
     canGoNext,
+    quoteStepTransitionLoading,
     next,
     back,
     goToStep,

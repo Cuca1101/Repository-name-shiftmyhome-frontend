@@ -13,6 +13,9 @@ const MSG_ROUTE_TIMEOUT = 'Route is taking longer than expected. Check your conn
 const DEFAULT_MAP_SHELL =
   'relative h-[100px] min-h-[100px] xxs:h-[110px] xxs:min-h-[110px] xs:h-[130px] xs:min-h-[130px] mb:h-[160px] mb:min-h-[160px] sm:h-[200px] sm:min-h-[200px] lg:h-[260px] lg:min-h-[260px] w-full min-w-0 overflow-hidden rounded-2xl'
 const COMPACT_MAP_SHELL = 'relative h-24 min-h-[6rem] w-full min-w-0 overflow-hidden rounded-lg md:rounded-2xl'
+/** Step 3 review — compact route preview (logic unchanged). */
+const REVIEW_MAP_SHELL =
+  'relative h-[168px] min-h-[168px] sm:h-[180px] sm:min-h-[180px] md:h-[200px] md:min-h-[200px] w-full min-w-0 overflow-hidden rounded-xl'
 /** Admin dispatch board — tall route visibility (Available / Job Accepted detail). */
 const DISPATCH_MAP_SHELL =
   'relative h-[220px] min-h-[220px] sm:h-[260px] sm:min-h-[260px] md:h-[280px] md:min-h-[280px] lg:h-[300px] lg:min-h-[300px] xl:h-[320px] xl:min-h-[320px] w-full min-w-0 overflow-hidden'
@@ -22,18 +25,21 @@ const OUTER_DEFAULT =
 const OUTER_DISPATCH = 'quote-route-map quote-route-map--dispatch w-full min-w-0 overflow-hidden bg-slate-100'
 
 function resolveMapVariant({ compact, variant }) {
+  if (variant === 'review') return 'review'
   if (variant === 'dispatch') return 'dispatch'
   if (variant === 'compact' || compact) return 'compact'
   return 'default'
 }
 
 function mapVariantShellClass(variant) {
+  if (variant === 'review') return REVIEW_MAP_SHELL
   if (variant === 'dispatch') return DISPATCH_MAP_SHELL
   if (variant === 'compact') return COMPACT_MAP_SHELL
   return DEFAULT_MAP_SHELL
 }
 
 function mapVariantBoundsPadding(variant) {
+  if (variant === 'review') return 32
   if (variant === 'compact') return 28
   if (variant === 'dispatch') return 36
   return 48

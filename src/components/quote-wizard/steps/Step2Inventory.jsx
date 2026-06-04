@@ -13,6 +13,7 @@ import { resolveDefaultM3PerUnit } from '../inventoryLineDefaults'
 import { applyInventoryLineQuantityDelta, catalogLineForItem } from '../../../lib/inventoryLineQuantity'
 import CrewSizeField from '../CrewSizeField'
 import MobileStep2Inventory from '../MobileStep2Inventory'
+import JobDetailsContactSection from '../JobDetailsContactSection'
 import {
   CatalogItemLucideIcon,
   CategoryLucideIcon,
@@ -33,6 +34,9 @@ export default function Step2Inventory({
   crewSettings,
   crewRestrictions,
   quoteRef,
+  data,
+  onChange,
+  contactValidationMessage = '',
   validationMessage = '',
 }) {
   const searchId = useId()
@@ -551,7 +555,16 @@ export default function Step2Inventory({
           </ul>
         )}
       </div>
+
     </div>
+
+      {data && onChange ? (
+        <JobDetailsContactSection
+          data={data}
+          onChange={onChange}
+          validationMessage={contactValidationMessage}
+        />
+      ) : null}
     </>
   )
 }

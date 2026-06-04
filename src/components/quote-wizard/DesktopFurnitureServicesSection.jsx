@@ -1,4 +1,4 @@
-import { Minus, Plus } from 'lucide-react'
+import { Minus, Plus, Wrench } from 'lucide-react'
 import { reassemblySameAsDismantlingPatch } from '../../lib/quoteWizardReassembly'
 
 const optionBtn =
@@ -110,8 +110,18 @@ export default function DesktopFurnitureServicesSection({ data, onChange, input,
   return (
     <>
       <div className="rounded-xl border border-slate-100 bg-slate-50/80 p-4">
-        <p className="text-sm font-bold text-slate-900">Do you need help dismantling furniture?</p>
-        <YesNoChoice value={Boolean(data.dismantling)} onChange={setDismantlingYes} />
+        <div className="flex items-start gap-3">
+          <div
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-brand-50 text-brand-600"
+            aria-hidden
+          >
+            <Wrench className="h-5 w-5" strokeWidth={2} />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-bold text-slate-900">Do you need help dismantling furniture?</p>
+            <YesNoChoice value={Boolean(data.dismantling)} onChange={setDismantlingYes} />
+          </div>
+        </div>
         {data.dismantling ? (
           <div className={subPanel}>
             <div>

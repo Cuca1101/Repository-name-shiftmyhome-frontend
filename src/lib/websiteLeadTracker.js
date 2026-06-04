@@ -57,7 +57,7 @@ function canonicalFunnelEventName(event, step) {
   const e = String(event || '')
   if (e === 'step_completed' && step != null) {
     const n = Number(step)
-    if (n >= 1 && n <= 4) return `quote_step_${n}`
+    if (n >= 1 && n <= 3) return `quote_step_${n}`
   }
   if (e === 'payment_completed') return 'booking_completed'
   return e
@@ -351,7 +351,7 @@ export function trackQuoteWizardSnapshot(opts) {
   const step = opts.step
 
   void recordWebsiteEvent(
-    step >= 1 && step <= 4 ? `quote_step_${step}` : 'step_completed',
+    step >= 1 && step <= 3 ? `quote_step_${step}` : 'step_completed',
     landingPath,
     { service_type: opts.serviceType },
     { quote_ref: opts.quoteRef, funnel_step: step }
@@ -363,7 +363,7 @@ export function trackQuoteWizardSnapshot(opts) {
     service_type: opts.serviceType,
     current_step: opts.step,
     landing_path: landingPath,
-    funnel_event: step >= 1 && step <= 4 ? `quote_step_${step}` : 'step_completed',
+    funnel_event: step >= 1 && step <= 3 ? `quote_step_${step}` : 'step_completed',
     ...(allowContact
       ? {
           customer_name: String(w.fullName || '').trim() || null,

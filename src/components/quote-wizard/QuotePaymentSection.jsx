@@ -1,11 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Check, ShieldCheck } from 'lucide-react'
-import {
-  isDepositPaymentAllowedForMoveDate,
-  isMoveDateOnOrAfterToday,
-  moveDatePastErrorMessage,
-} from '../../lib/moveDateLocal'
+import { isMoveDateOnOrAfterToday, moveDatePastErrorMessage } from '../../lib/moveDateLocal'
+import { formatReservationFeeGbp } from '../../lib/quoteReservationFee'
 import { trackWebsiteLeadEvent } from '../../lib/websiteLeadTracker'
 import QuoteStripePayment from './QuoteStripePayment'
 import { shouldShowStripeTestModeWarning, stripeTestModeWarningMessage } from '../../lib/stripeConfig'
@@ -43,31 +40,16 @@ function usePanelVisible(rootRef) {
   return visible
 }
 
-/**
- * @param {{ paymentChoice: string|null, stripeReady: boolean, termsReady: boolean }} props
- */
 function PaymentStepIndicator({ paymentChoice, stripeReady, termsReady }) {
   const step2Active = Boolean(paymentChoice && (stripeReady || termsReady))
   const step1Active = termsReady || Boolean(paymentChoice)
 
   return (
     <ol className="mt-3 hidden list-none flex-col gap-1.5 text-xs md:flex md:flex-row md:gap-6">
-      <li
-        className={
-          step1Active
-            ? 'font-semibold text-brand-800'
-            : 'text-slate-500'
-        }
-      >
+      <li className={step1Active ? 'font-semibold text-brand-800' : 'text-slate-500'}>
         <span className="font-bold">Step 1</span> — Choose payment option
       </li>
-      <li
-        className={
-          step2Active
-            ? 'font-semibold text-brand-800'
-            : 'text-slate-500'
-        }
-      >
+      <li className={step2Active ? 'font-semibold text-brand-800' : 'text-slate-500'}>
         <span className="font-bold">Step 2</span> — Enter card details securely
       </li>
     </ol>
@@ -75,12 +57,12 @@ function PaymentStepIndicator({ paymentChoice, stripeReady, termsReady }) {
 }
 
 /**
- * Shared deposit/full payment UI for Step 4 (mobile + desktop).
+ * Step 4 — £1 reservation fee or full payment (Stripe required for all bookings).
  */
 export default function QuotePaymentSection({
   wizard,
   breakdown,
-  depositAmountGbp = 50,
+  reservationFeeGbp = 50,
   payLoading,
   payError,
   cardPayment,
@@ -93,10 +75,15 @@ export default function QuotePaymentSection({
   const [agreedToTerms, setAgreedToTerms] = useState(true)
   const rootRef = useRef(null)
   const stripeSectionRef = useRef(null)
+  const autoFullPayRequestedRef = useRef(false)
   const panelVisible = usePanelVisible(rootRef)
 
-  const depositAllowed = isDepositPaymentAllowedForMoveDate(wizard?.moveDate)
   const moveDatePayReady = isMoveDateOnOrAfterToday(wizard?.moveDate)
+  const reservationGbp =
+    Number.isFinite(Number(reservationFeeGbp)) && Number(reservationFeeGbp) > 0
+      ? Number(reservationFeeGbp)
+      : 50
+  const reservationFormatted = formatReservationFeeGbp(reservationGbp)
 
   const card =
     'min-w-0 max-md:overflow-visible overflow-hidden rounded-2xl border border-slate-200/90 bg-white p-4 shadow-sm md:border-slate-200 md:p-6 md:shadow-card'
@@ -109,16 +96,11 @@ export default function QuotePaymentSection({
     estimatedTotal != null && Number.isFinite(estimatedTotal)
       ? `£${estimatedTotal.toFixed(2)}`
       : '—'
-  const depositGbp =
-    Number.isFinite(Number(depositAmountGbp)) && Number(depositAmountGbp) > 0
-      ? Number(depositAmountGbp)
-      : 50
-  const depositFormatted = `£${depositGbp.toFixed(2)}`
   const remainingBalanceGbp =
     estimatedTotal != null &&
     Number.isFinite(estimatedTotal) &&
-    estimatedTotal > depositGbp
-      ? estimatedTotal - depositGbp
+    estimatedTotal > reservationGbp
+      ? estimatedTotal - reservationGbp
       : null
   const remainingBalanceFormatted =
     remainingBalanceGbp != null ? `£${remainingBalanceGbp.toFixed(2)}` : null
@@ -126,10 +108,10 @@ export default function QuotePaymentSection({
   const termsReady = confirmed && agreedToTerms
 
   const submitLabel =
-    paymentChoice === 'full'
-      ? `Pay ${totalFormatted} securely`
-      : paymentChoice === 'deposit'
-        ? `Pay ${depositFormatted} securely`
+    paymentChoice === 'reservation'
+      ? `Pay ${reservationFormatted} securely`
+      : paymentChoice === 'full'
+        ? `Pay ${totalFormatted} securely`
         : 'Pay securely'
 
   const submitDisabled = !(paymentChoice && confirmed && agreedToTerms)
@@ -144,22 +126,40 @@ export default function QuotePaymentSection({
   useEffect(() => {
     const type = cardPayment?.paymentType
     if (!type) return
-    if (type === 'deposit' && !depositAllowed) return
-    setPaymentChoice(type)
-  }, [cardPayment?.paymentType, depositAllowed])
-
-  // Auto-trigger payment intent creation when panel becomes visible with a choice pre-selected
-  const autoTriggeredRef = useRef(false)
-  useEffect(() => {
-    if (autoTriggeredRef.current) return
-    if (!panelVisible || !paymentChoice) return
-    if (cardFormOpen) return
-    if (!moveDatePayReady) return
-    autoTriggeredRef.current = true
-    if (typeof onPay === 'function') {
-      onPay(paymentChoice)
+    if (type === 'reservation' || type === 'full') {
+      setPaymentChoice(type)
     }
-  }, [panelVisible, paymentChoice, cardFormOpen, onPay, moveDatePayReady])
+  }, [cardPayment?.paymentType])
+
+  useEffect(() => {
+    if (paymentChoice !== 'full') {
+      autoFullPayRequestedRef.current = false
+    }
+  }, [paymentChoice])
+
+  /** Step 4 — default to full pay and load Stripe so card fields are visible immediately. */
+  useEffect(() => {
+    if (!panelVisible || !termsReady || !moveDatePayReady) return
+    if (paymentChoice !== 'full') return
+    if (estimatedTotal == null || !Number.isFinite(estimatedTotal)) return
+    const intentReady = cardPayment?.paymentType === 'full' && cardFormOpen
+    if (intentReady || busy) return
+    if (autoFullPayRequestedRef.current) return
+    autoFullPayRequestedRef.current = true
+    if (typeof onPay === 'function') {
+      onPay('full')
+    }
+  }, [
+    panelVisible,
+    termsReady,
+    moveDatePayReady,
+    paymentChoice,
+    estimatedTotal,
+    cardPayment?.paymentType,
+    cardFormOpen,
+    busy,
+    onPay,
+  ])
 
   function selectChoice(kind) {
     setPaymentChoice(kind)
@@ -174,14 +174,6 @@ export default function QuotePaymentSection({
   }
 
   useEffect(() => {
-    if (depositAllowed || paymentChoice !== 'deposit') return
-    setPaymentChoice(null)
-    if (typeof onClearCardPayment === 'function') {
-      onClearCardPayment()
-    }
-  }, [depositAllowed, paymentChoice, onClearCardPayment])
-
-  useEffect(() => {
     if (!panelVisible || !paymentChoice) return
     const el = stripeSectionRef.current
     if (!el) return
@@ -192,7 +184,7 @@ export default function QuotePaymentSection({
   }, [panelVisible, paymentChoice, stripeReady])
 
   const optionShell =
-    'relative w-full touch-manipulation rounded-xl border p-3 pr-10 text-left transition-[border-color,background-color,box-shadow,ring-color] duration-200 active:scale-[0.99] md:p-4 md:pr-11'
+    'relative w-full min-h-[52px] touch-manipulation rounded-xl border p-3 pr-10 text-left transition-[border-color,background-color,box-shadow,ring-color] duration-200 active:scale-[0.99] max-md:min-h-[3.5rem] md:min-h-0 md:p-4 md:pr-11'
 
   const optionClass = (selected, lockedIn) => {
     if (!selected) {
@@ -214,7 +206,6 @@ export default function QuotePaymentSection({
       selected ? (lockedIn ? 'text-emerald-950/85' : 'text-emerald-900/85') : 'text-slate-600'
     }`
 
-  /** @param {boolean} lockedIn selected + terms accepted */
   function SelectedCheckBadge({ lockedIn }) {
     return (
       <span
@@ -231,10 +222,9 @@ export default function QuotePaymentSection({
   }
 
   const email = (wizard?.email || '').trim()
-  const amountLabel = cardPayment?.amountLabel || ''
 
   return (
-    <div ref={rootRef} data-quote-field="payment" className="min-w-0 space-y-3 md:space-y-4">
+    <div ref={rootRef} data-quote-field="payment" className="min-w-0 max-w-full space-y-3 md:space-y-4">
       <div className={card}>
         <h3 className="text-sm font-bold text-slate-900 md:text-base">
           Choose how you&apos;d like to pay
@@ -286,59 +276,16 @@ export default function QuotePaymentSection({
           </label>
         </div>
 
-        <div
-          className={`mt-3 rounded-lg border px-3 py-2.5 md:mt-4 ${
-            termsReady
-              ? 'border-sky-200/80 bg-sky-50/60'
-              : 'border-slate-200 bg-slate-50/80'
-          }`}
-        >
-          <p className="text-sm font-medium text-slate-800">
-            Choose a payment option below to continue securely to card payment.
-          </p>
-          <p className="mt-1 text-xs leading-relaxed text-slate-600">
-            {termsReady
-              ? 'After selecting an option, the secure card payment form will appear automatically.'
-              : 'Please confirm your details and accept the terms above first.'}
-          </p>
-        </div>
-
         {estimatedTotal != null && Number.isFinite(estimatedTotal) ? (
           <dl className="mt-3 space-y-1.5 rounded-lg border border-emerald-100/90 bg-emerald-50/50 px-3 py-2.5 text-sm md:mt-4">
             <div className="flex items-baseline justify-between gap-3">
               <dt className="font-medium text-slate-800">Estimated total</dt>
               <dd className="font-bold tabular-nums text-emerald-700">{totalFormatted}</dd>
             </div>
-            {paymentChoice === 'deposit' && depositAllowed ? (
-              <>
-                <div className="flex items-baseline justify-between gap-3 text-xs md:text-sm">
-                  <dt className="text-slate-700">Pay today (deposit)</dt>
-                  <dd className="font-semibold tabular-nums text-slate-900">{depositFormatted}</dd>
-                </div>
-                {remainingBalanceFormatted ? (
-                  <div className="flex items-baseline justify-between gap-3 text-xs md:text-sm">
-                    <dt className="text-slate-700">Remaining balance</dt>
-                    <dd className="font-semibold tabular-nums text-slate-900">
-                      {remainingBalanceFormatted}
-                    </dd>
-                  </div>
-                ) : null}
-              </>
-            ) : null}
           </dl>
         ) : null}
 
-        {!depositAllowed ? (
-          <p className="mt-3 text-xs leading-relaxed text-slate-600 md:mt-4 md:text-sm">
-            Deposit payment is only available for moves booked more than 48 hours in advance.
-          </p>
-        ) : null}
-
-        <div
-          className={`mt-3 space-y-2 md:mt-4 ${
-            depositAllowed ? 'md:grid md:grid-cols-2 md:gap-4 md:space-y-0' : ''
-          }`}
-        >
+        <div className="mt-3 grid grid-cols-1 gap-2 md:mt-4 md:grid-cols-2 md:gap-4">
           <button
             type="button"
             onClick={() => selectChoice('full')}
@@ -349,54 +296,65 @@ export default function QuotePaymentSection({
             {paymentChoice === 'full' ? (
               <SelectedCheckBadge lockedIn={termsReady} />
             ) : null}
-            <p className={optionTitleClass(paymentChoice === 'full', paymentChoice === 'full' && termsReady)}>
-              Pay full estimated total ({totalFormatted})
+            <p
+              className={optionTitleClass(
+                paymentChoice === 'full',
+                paymentChoice === 'full' && termsReady,
+              )}
+            >
+              Pay full amount now
             </p>
-            <p className={optionDescClass(paymentChoice === 'full', paymentChoice === 'full' && termsReady)}>
-              Pay the current estimate securely today.
+            <p
+              className={optionDescClass(
+                paymentChoice === 'full',
+                paymentChoice === 'full' && termsReady,
+              )}
+            >
+              Pay the full quoted amount ({totalFormatted}) today. No further payment required.
             </p>
           </button>
 
-          {depositAllowed ? (
-            <button
-              type="button"
-              onClick={() => selectChoice('deposit')}
-              disabled={!termsReady || !moveDatePayReady}
-              aria-pressed={paymentChoice === 'deposit'}
-              className={`${optionClass(paymentChoice === 'deposit', paymentChoice === 'deposit' && termsReady)} disabled:cursor-not-allowed disabled:opacity-50`}
+          <button
+            type="button"
+            onClick={() => selectChoice('reservation')}
+            disabled={!termsReady || !moveDatePayReady}
+            aria-pressed={paymentChoice === 'reservation'}
+            className={`${optionClass(paymentChoice === 'reservation', paymentChoice === 'reservation' && termsReady)} disabled:cursor-not-allowed disabled:opacity-50`}
+          >
+            {paymentChoice === 'reservation' ? (
+              <SelectedCheckBadge lockedIn={termsReady} />
+            ) : null}
+            <p
+              className={optionTitleClass(
+                paymentChoice === 'reservation',
+                paymentChoice === 'reservation' && termsReady,
+              )}
             >
-              {paymentChoice === 'deposit' ? (
-                <SelectedCheckBadge lockedIn={termsReady} />
-              ) : null}
-              <p
-                className={optionTitleClass(
-                  paymentChoice === 'deposit',
-                  paymentChoice === 'deposit' && termsReady,
-                )}
-              >
-                Pay {depositFormatted} now, remaining balance later
+              Reserve your move for {reservationFormatted} today
+            </p>
+            <p
+              className={optionDescClass(
+                paymentChoice === 'reservation',
+                paymentChoice === 'reservation' && termsReady,
+              )}
+            >
+              Secure your booking with a {reservationFormatted} reservation fee. Remaining balance
+              payable before your move.
+            </p>
+            {paymentChoice === 'reservation' && remainingBalanceFormatted ? (
+              <p className="mt-2 text-[11px] font-semibold tabular-nums text-slate-700">
+                Pay today: {reservationFormatted} · Remaining: {remainingBalanceFormatted}
               </p>
-              <p
-                className={optionDescClass(
-                  paymentChoice === 'deposit',
-                  paymentChoice === 'deposit' && termsReady,
-                )}
-              >
-                The remaining balance will be due within 48 hours before your move. We&apos;ll send you a
-                secure payment link before your moving date.
-              </p>
-            </button>
-          ) : null}
+            ) : null}
+          </button>
         </div>
 
-        {!paymentChoice ? (
+        {!termsReady ? (
           <p
             className="mt-3 rounded-lg border border-amber-100 bg-amber-50/80 px-3 py-2 text-center text-sm text-amber-950"
             role="status"
           >
-            {termsReady
-              ? 'Please select a payment option to continue.'
-              : 'Please confirm your details and accept the terms to choose a payment option.'}
+            Please confirm your details and accept the terms to continue to secure card payment.
           </p>
         ) : null}
 
@@ -431,23 +389,20 @@ export default function QuotePaymentSection({
 
         <div
           ref={stripeSectionRef}
-          className={`mt-3 min-w-0 max-md:overflow-visible rounded-xl border bg-slate-50/60 p-2 transition-all duration-300 md:mt-5 md:p-4 ${
-            paymentChoice
-              ? 'border-brand-200/80 ring-1 ring-brand-500/10'
-              : 'border-slate-100'
-          }`}
+          className="mt-3 min-w-0 max-md:overflow-visible rounded-xl border border-brand-200/80 bg-slate-50/60 p-2 ring-1 ring-brand-500/10 transition-all duration-300 md:mt-5 md:p-4"
         >
-          <p className="mb-2 hidden text-[10px] font-semibold uppercase tracking-wide text-slate-500 md:block">
-            Step 2 — Secure card payment
+          <p className="mb-1 hidden text-[10px] font-semibold uppercase tracking-wide text-brand-700 md:block">
+            Step 2 — Enter your card details
           </p>
-          <p className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-slate-500 md:hidden">
-            Secure card payment
+          <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-brand-700 md:hidden">
+            Enter your card details
           </p>
-          {!paymentChoice ? (
-            <p className="text-center text-sm text-slate-500">
-              Select a payment option above to load secure payment.
-            </p>
-          ) : busy && !stripeReady ? (
+          <p className="mb-3 text-xs leading-snug text-slate-600 md:text-sm">
+            {paymentChoice === 'reservation'
+              ? `Pay ${reservationFormatted} now with your card. Remaining balance is due before your move.`
+              : `Pay ${totalFormatted} now with your card below.`}
+          </p>
+          {busy && !stripeReady ? (
             <div className="flex flex-col items-center gap-2 py-4" role="status" aria-live="polite">
               <span
                 className="h-8 w-8 animate-spin rounded-full border-2 border-brand-200 border-t-brand-600"
@@ -460,7 +415,7 @@ export default function QuotePaymentSection({
               key={`${intentType || paymentChoice}-${clientSecret}`}
               clientSecret={clientSecret}
               customerEmail={email}
-              amountLabel={amountLabel}
+              amountLabel={cardPayment.amountLabel}
               onCancel={onClearCardPayment}
               mobileReview
               submitLabel={submitLabel}

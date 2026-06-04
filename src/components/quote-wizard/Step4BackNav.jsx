@@ -1,5 +1,5 @@
 /**
- * Step 4 secondary back control — returns to Step 3 without clearing wizard state.
+ * Review step secondary back control — returns to Step 2 without clearing wizard state.
  * @param {{ onBack: () => void, className?: string }} props
  */
 export default function Step4BackNav({ onBack, className = '' }) {

@@ -8,22 +8,41 @@ export default function Step4Review({
   serviceType,
   quoteRef,
   wizard,
+  onWizardChange,
   breakdown,
   totalM3,
   crewSettings,
+  pricingSettings,
+  lineItems,
+  heavyItemCount,
   onDistanceFromRoute,
   payLoading,
   payError,
   cardPayment,
   onClearCardPayment,
   onPay,
+  reservationFeeGbp = 50,
   onPaymentSucceeded,
   onGoToStep,
   onBack,
-  depositAmountGbp = 50,
 }) {
+  const settings = pricingSettings ?? crewSettings
+  const calendarProps = settings
+    ? {
+        wizard,
+        onWizardChange,
+        breakdown,
+        pricingSettings: settings,
+        serviceType,
+        lineItems,
+        heavyItemCount,
+        compact: true,
+        showSelectedTotal: true,
+      }
+    : null
+
   return (
-    <>
+    <div data-quote-step="4" className="min-w-0 space-y-3 md:space-y-6">
       <QuoteEstimatedTotalCard breakdown={breakdown} className="mb-3 md:hidden" />
 
       <MobileStep4Review
@@ -34,39 +53,44 @@ export default function Step4Review({
         totalM3={totalM3}
         crewSettings={crewSettings}
         onDistanceFromRoute={onDistanceFromRoute}
+        calendarProps={calendarProps}
       />
 
-      <div className="space-y-4 md:hidden">
+      <div className="min-w-0 max-w-full space-y-4 overflow-x-hidden md:hidden">
         <Step4BackNav onBack={onBack} className="border-t-0 pt-0" />
-        <QuotePaymentSection
-          wizard={wizard}
-          breakdown={breakdown}
-          depositAmountGbp={depositAmountGbp}
-          payLoading={payLoading}
-          payError={payError}
-          cardPayment={cardPayment}
-          onClearCardPayment={onClearCardPayment}
-          onPay={onPay}
-          onPaymentSucceeded={onPaymentSucceeded}
-        />
+        <div id="quote-wizard-payment" className="scroll-mt-20 pb-1">
+          <QuotePaymentSection
+            wizard={wizard}
+            breakdown={breakdown}
+            payLoading={payLoading}
+            payError={payError}
+            cardPayment={cardPayment}
+            onClearCardPayment={onClearCardPayment}
+            onPay={onPay}
+            reservationFeeGbp={reservationFeeGbp}
+            onPaymentSucceeded={onPaymentSucceeded}
+          />
+        </div>
       </div>
 
-      <DesktopStep4Review breakdown={breakdown} onGoToStep={onGoToStep} />
+      <DesktopStep4Review onGoToStep={onGoToStep} calendarProps={calendarProps} />
 
       <div className="hidden space-y-6 md:block">
         <Step4BackNav onBack={onBack} />
-        <QuotePaymentSection
-          wizard={wizard}
-          breakdown={breakdown}
-          depositAmountGbp={depositAmountGbp}
-          payLoading={payLoading}
-          payError={payError}
-          cardPayment={cardPayment}
-          onClearCardPayment={onClearCardPayment}
-          onPay={onPay}
-          onPaymentSucceeded={onPaymentSucceeded}
-        />
+        <div id="quote-wizard-payment" className="scroll-mt-24">
+          <QuotePaymentSection
+            wizard={wizard}
+            breakdown={breakdown}
+            reservationFeeGbp={reservationFeeGbp}
+            payLoading={payLoading}
+            payError={payError}
+            cardPayment={cardPayment}
+            onClearCardPayment={onClearCardPayment}
+            onPay={onPay}
+            onPaymentSucceeded={onPaymentSucceeded}
+          />
+        </div>
       </div>
-    </>
+    </div>
   )
 }

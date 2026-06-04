@@ -3,6 +3,7 @@ import emailjs from '@emailjs/browser'
 import { CONTACT, WHATSAPP_URL } from '../config'
 import { EMAILJS_CONFIG, EMAILJS_TEMPLATE_ID_GUIDE, isEmailJsReady } from '../emailjs.config'
 import { insertHomePageQuoteLead } from '../lib/data/quotesRepository'
+import { syncCustomerLeadFromHomePageForm } from '../lib/customerLeadTracker'
 import { MOVE_DATE_PAST_ERROR, getLocalDateYYYYMMDD, isMoveDateOnOrAfterToday } from '../lib/moveDateLocal'
 
 const inputClass =
@@ -64,6 +65,17 @@ export default function ContactSection() {
         quote_ref: quoteRefForEmail,
       })
       quoteRefForEmail = saved.quote_ref
+      void syncCustomerLeadFromHomePageForm({
+        name: form.name,
+        email: form.email,
+        phone: form.phone,
+        service: form.service,
+        pickup: form.pickup,
+        delivery: form.delivery,
+        move_date: form.move_date,
+        details: form.details,
+        quote_ref: quoteRefForEmail,
+      })
     } catch (err) {
       const msg = err?.message || 'Could not save your request.'
       setFeedback({ type: 'error', text: msg })

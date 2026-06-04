@@ -5,6 +5,7 @@
 
 import { isWizardArrivalValid } from './arrivalWizardValidation'
 import { isMoveDateOnOrAfterToday } from './moveDateLocal'
+import { step3ContactDetailsValid } from './quoteWizardStep3ContactScroll'
 
 const HAS_MAPBOX_TOKEN = Boolean(import.meta.env.VITE_MAPBOX_TOKEN)
 
@@ -68,6 +69,7 @@ export function resolveStep2ScrollHint(wizard) {
   const crewOk = Number(wizard.crewSize) >= 1 && Number(wizard.crewSize) <= 4
   if (!crewOk) return QUOTE_ERROR_SCROLL_HINTS.crewSize
   if (wizard.inventoryLines.length === 0) return QUOTE_ERROR_SCROLL_HINTS.inventory
+  if (!step3ContactDetailsValid(wizard)) return QUOTE_ERROR_SCROLL_HINTS.contactDetails
   return QUOTE_ERROR_SCROLL_HINTS.feedback
 }
 

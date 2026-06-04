@@ -5,6 +5,7 @@ import { verifyPaymentIntent, scheduleAdminAvailableJobNotification } from '../l
 import { clearQuoteDraft } from '../lib/quoteDraftStorage'
 import { consumePhotoUploadNotice } from '../lib/quotePhotoUpload'
 import { trackWebsiteLeadEvent } from '../lib/websiteLeadTracker'
+import { markCustomerLeadBookingComplete } from '../lib/customerLeadTracker'
 import {
   getGoogleAdsPurchaseSendTo,
   trackGoogleAdsConversion,
@@ -44,6 +45,10 @@ export default function PaymentSuccessPage() {
           trackWebsiteLeadEvent('payment_completed', {
             quoteRef: ref,
             recoveredBooking: true,
+          })
+          void markCustomerLeadBookingComplete({
+            quoteRef: ref,
+            quoteId: data?.quote_id != null ? String(data.quote_id) : null,
           })
           const amountGbp = Number(data.amount_gbp)
           const hasAmount = Number.isFinite(amountGbp) && amountGbp > 0

@@ -1,5 +1,6 @@
 import MobileQuoteMoveSummary from '../mobile/MobileQuoteMoveSummary'
 import MobileStepTitleWithRef from './MobileStepTitleWithRef'
+import QuoteReviewPriceCalendar from './QuoteReviewPriceCalendar'
 
 /**
  * Mobile-only Step 4 review & payment (&lt; md).
@@ -12,9 +13,10 @@ export default function MobileStep4Review({
   totalM3,
   crewSettings,
   onDistanceFromRoute,
+  calendarProps,
 }) {
   return (
-    <div data-quote-step="4" className="box-border min-w-0 w-full space-y-1.5 md:hidden">
+    <div data-quote-step="4" className="box-border min-w-0 w-full max-w-full space-y-1.5 overflow-x-hidden md:hidden">
       <div>
         <MobileStepTitleWithRef
           title="Review & payment"
@@ -22,9 +24,13 @@ export default function MobileStep4Review({
           titleClassName="md:text-lg"
         />
         <p className="mt-1 text-xs leading-snug text-slate-600 md:text-sm">
-          Check your move details, then pay securely to confirm your booking.
+          Choose your move slot, then pay securely to confirm your booking.
         </p>
       </div>
+
+      {calendarProps ? (
+        <QuoteReviewPriceCalendar {...calendarProps} className="!mt-2" />
+      ) : null}
 
       <div className="rounded-lg border border-sky-200/80 bg-gradient-to-br from-sky-50/90 to-white px-3 py-2.5 text-xs leading-snug text-sky-950 shadow-sm md:rounded-2xl md:px-4 md:py-3 md:text-sm">
         <p className="font-semibold text-sky-900">Need to change something?</p>

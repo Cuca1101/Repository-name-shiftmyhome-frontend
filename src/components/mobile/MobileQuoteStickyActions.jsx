@@ -1,10 +1,16 @@
 /**
  * In-flow Back / Continue bar for mobile quote steps (&lt; md) — follows Move Summary.
  */
-export default function MobileQuoteStickyActions({ step, onBack, onNext }) {
+export default function MobileQuoteStickyActions({
+  step,
+  onBack,
+  onNext,
+  nextDisabled = false,
+  nextLoading = false,
+}) {
   if (step > 4) return null
 
-  if (step === 4) {
+  if (step === 3 || step === 4) {
     return (
       <div
         className="mt-2 border-t border-slate-200 pt-2 md:hidden"
@@ -40,9 +46,16 @@ export default function MobileQuoteStickyActions({ step, onBack, onNext }) {
       <button
         type="button"
         onClick={onNext}
-        className="min-h-[44px] flex-[1.2] rounded-lg bg-gradient-to-r from-brand-600 to-emerald-600 px-3 text-sm font-bold text-white shadow-md"
+        disabled={nextDisabled}
+        className="min-h-[48px] flex-[1.2] touch-manipulation rounded-lg bg-gradient-to-r from-brand-600 to-emerald-600 px-3 text-sm font-bold text-white shadow-md disabled:cursor-not-allowed disabled:opacity-60"
       >
-        Continue →
+        {nextLoading
+          ? 'Finding your price…'
+          : step === 2
+            ? 'Get a quote'
+            : step === 3
+              ? 'Continue to payment →'
+              : 'Continue →'}
       </button>
     </div>
   )

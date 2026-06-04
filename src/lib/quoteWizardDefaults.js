@@ -1,3 +1,6 @@
+/** Customer quote wizard: Address → Items & contact → Review → Pay */
+export const QUOTE_WIZARD_MAX_STEP = 4
+
 export function makeQuoteRef() {
   const y = new Date().getFullYear()
   const n = Math.floor(100000 + Math.random() * 900000)

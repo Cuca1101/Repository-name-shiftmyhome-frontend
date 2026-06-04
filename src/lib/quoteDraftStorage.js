@@ -1,5 +1,6 @@
 import { SERVICE_PAGES } from '../constants/servicePages'
-import { initialWizardState } from './quoteWizardDefaults'
+import { initialWizardState, QUOTE_WIZARD_MAX_STEP } from './quoteWizardDefaults'
+import { step3ContactDetailsValid } from './quoteWizardStep3ContactScroll'
 import { sanitizeDraftMoveDate } from './moveDateLocal'
 
 export const QUOTE_DRAFT_STORAGE_KEY = 'shiftmyhome_quote_draft_v1'
@@ -68,8 +69,19 @@ export function loadQuoteDraft() {
       return null
     }
     if (!data.wizard || typeof data.quoteRef !== 'string') return null
-    let step = Math.min(4, Math.max(1, Number(data.step) || 1))
+    const rawStep = Math.max(1, Number(data.step) || 1)
     let wizard = hydrateWizardFromDraft(data.wizard)
+    let step = Math.min(QUOTE_WIZARD_MAX_STEP, rawStep)
+    if (rawStep === 4) {
+      const inventoryReady =
+        Array.isArray(wizard.inventoryLines) && wizard.inventoryLines.length > 0
+      step =
+        inventoryReady && step3ContactDetailsValid(wizard) ? 4 : 2
+    } else if (rawStep === 3) {
+      const inventoryReady =
+        Array.isArray(wizard.inventoryLines) && wizard.inventoryLines.length > 0
+      step = inventoryReady && step3ContactDetailsValid(wizard) ? 3 : 2
+    }
     const serviceType = typeof data.serviceType === 'string' ? data.serviceType : ''
     const returnPath = typeof data.returnPath === 'string' ? data.returnPath : '/quote'
     const estimatedTotal =

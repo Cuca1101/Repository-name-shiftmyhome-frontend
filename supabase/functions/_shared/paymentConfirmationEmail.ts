@@ -309,7 +309,12 @@ async function buildBookingConfirmationPdf(params: {
     },
     { label: 'Photos optional if uploaded', value: findDetail(/Photos \(optional\):\s*(.+)/i) },
   ].filter((r) => isMeaningful(r.value))
-  const paidBadge = paymentType === 'deposit' ? 'DEPOSIT PAID' : 'PAID'
+  const amountPaidGbpEarly =
+    quote.amount_paid != null && Number.isFinite(Number(quote.amount_paid))
+      ? Number(quote.amount_paid)
+      : null
+  const isReservationFee = paymentType === 'deposit'
+  const paidBadge = isReservationFee ? 'RESERVATION PAID' : 'PAID'
   const isDeposit = paymentType === 'deposit'
 
   console.log('[payment-email] pdf-lib render started', { mode: 'pdf-lib-text' })
@@ -549,7 +554,10 @@ async function buildBookingConfirmationPdf(params: {
     const rightX = margin + contentW / 2 + 12
     page.drawText(`Estimated total: ${pounds(pricedTotal)}`, { x: rightX, y: y - 33, size: 9.5, font: fontRegular, color: C.text })
     page.drawText(`Remaining balance: ${pounds(pricedRemaining)}`, { x: rightX, y: y - 47, size: 9.5, font: fontRegular, color: C.text })
-    page.drawText(`Payment type: ${paymentType === 'deposit' ? 'Deposit payment' : 'Full payment'}`, { x: rightX, y: y - 61, size: 9.5, font: fontRegular, color: C.text })
+    page.drawText(
+      `Payment type: ${isReservationFee ? 'Reservation fee' : paymentType === 'deposit' ? 'Deposit payment' : 'Full payment'}`,
+      { x: rightX, y: y - 61, size: 9.5, font: fontRegular, color: C.text },
+    )
     page.drawText(`Status: ${paymentStatusLabel}`, { x: rightX, y: y - 75, size: 9.5, font: fontRegular, color: C.text })
     page.drawText(`Date paid: ${safePaidDate}`, { x: rightX, y: y - 89, size: 9.5, font: fontRegular, color: C.text })
     if (specialRequirements) {
@@ -716,7 +724,7 @@ export async function sendPaymentConfirmationWithPdfIfNeeded(params: {
   const quoteRef = pickQuoteRef(paymentIntent, quote.quote_ref)
   const amountPaidGbp = Math.max(0, (paymentIntent.amount_received ?? paymentIntent.amount ?? 0) / 100)
   const paymentType = asText(quote.payment_type) || asText(paymentIntent.metadata?.payment_type) || 'full'
-  const paymentStatusLabel = paymentType === 'deposit' ? 'Deposit paid' : 'Paid'
+  const paymentStatusLabel = paymentType === 'deposit' ? 'Reservation paid' : 'Paid'
 
   const pricingText = asText(quote.pricing)
   const estimatedTotalGbp =

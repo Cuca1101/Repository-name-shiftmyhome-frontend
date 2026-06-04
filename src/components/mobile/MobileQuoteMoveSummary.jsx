@@ -116,9 +116,9 @@ export default function MobileQuoteMoveSummary({
   breakdown,
   crewSettings,
   showOnDesktop = false,
+  mapVariant = 'default',
 }) {
-  const itemsEditable =
-    (step === 2 || step === 3) && typeof onInventoryLinesChange === 'function'
+  const itemsEditable = step === 2 && typeof onInventoryLinesChange === 'function'
   const [itemsOpen, setItemsOpen] = useState(false)
 
   const selectedLines = (inventoryLines || []).filter((l) => l.quantity > 0)
@@ -153,7 +153,7 @@ export default function MobileQuoteMoveSummary({
   const showDeliveryAccess = deliveryAddr || propertyTypeDelivery || deliveryFloorLabel
 
   return (
-    <div className={`${card} overflow-hidden ${showOnDesktop ? '' : 'md:hidden'}`}>
+    <div className={`${card} max-w-full overflow-hidden ${showOnDesktop ? '' : 'md:hidden'}`}>
       <div className="border-b border-slate-100 bg-gradient-to-br from-slate-50/90 to-white px-2.5 py-2 md:px-3 md:py-2.5">
         <div className="flex items-center gap-2">
           <ClipboardList className="h-3.5 w-3.5 shrink-0 text-brand-600 md:h-4 md:w-4" aria-hidden />
@@ -165,10 +165,11 @@ export default function MobileQuoteMoveSummary({
       </div>
 
       {showRoute ? (
-        <div className="px-3 pt-3">
-          <div className="quote-route-map-compact overflow-hidden rounded-lg border border-slate-100 bg-slate-50/80 md:rounded-xl [&_.quote-route-map]:rounded-lg [&_.quote-route-map]:border-0 [&_.quote-route-map]:shadow-none [&_.quote-route-map]:ring-0 md:[&_.quote-route-map]:rounded-xl">
+        <div className="min-w-0 px-3 pt-3">
+          <div className="quote-route-map-compact min-w-0 max-w-full overflow-hidden rounded-lg border border-slate-100 bg-slate-50/80 md:rounded-xl [&_.quote-route-map]:rounded-lg [&_.quote-route-map]:border-0 [&_.quote-route-map]:shadow-none [&_.quote-route-map]:ring-0 md:[&_.quote-route-map]:rounded-xl">
             <QuoteRouteMap
-              compact
+              variant={mapVariant === 'review' ? 'review' : undefined}
+              compact={mapVariant !== 'review'}
               pickupLng={pickupLng}
               pickupLat={pickupLat}
               deliveryLng={deliveryLng}
@@ -316,7 +317,7 @@ export default function MobileQuoteMoveSummary({
         </div>
       ) : null}
 
-      {step === 3 && showPricing && breakdown ? (
+      {step === 4 && showPricing && breakdown ? (
         <QuotePricingDebugPanel
           pricingBreakdown={breakdown}
           estimatedTotal={breakdown.estimatedTotal}

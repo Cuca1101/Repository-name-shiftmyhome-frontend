@@ -68,15 +68,16 @@ export default function MoveSummaryBody({
   serviceType,
   crewSettings,
   compact = false,
+  mapVariant = 'default',
 }) {
   const lineRowCount = inventoryLines.length
   const totalItemUnits = inventoryLines.reduce(
     (s, l) => s + Math.max(0, Number(l.quantity) || 0),
     0,
   )
-  /** Desktop sidebar only — Step 2 & 3 quantity controls (mobile uses MobileQuoteMoveSummary). */
+  /** Desktop sidebar only — Step 2 quantity controls (mobile uses MobileQuoteMoveSummary). */
   const sidebarInventoryEditable =
-    (step === 2 || step === 3) && typeof onInventoryLinesChange === 'function'
+    step === 2 && typeof onInventoryLinesChange === 'function'
 
   function bumpLine(lineId, delta) {
     if (!onInventoryLinesChange) return
@@ -92,7 +93,7 @@ export default function MoveSummaryBody({
 
   return (
     <>
-      {step === 3 && showPricing && breakdown ? (
+      {step === 4 && showPricing && breakdown ? (
         <QuoteEstimatedTotalStrip breakdown={breakdown} className={cardRound} />
       ) : null}
 
@@ -103,6 +104,7 @@ export default function MoveSummaryBody({
       </div>
 
       <QuoteRouteMap
+        variant={mapVariant === 'review' ? 'review' : undefined}
         pickupLng={pickupLng}
         pickupLat={pickupLat}
         deliveryLng={deliveryLng}
@@ -299,7 +301,7 @@ export default function MoveSummaryBody({
         </dl>
       </div>
 
-      {showPricing && breakdown && step === 3 ? (
+      {showPricing && breakdown && step === 4 ? (
         <QuotePricingDebugPanel
           pricingBreakdown={breakdown}
           estimatedTotal={breakdown.estimatedTotal}

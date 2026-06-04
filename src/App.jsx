@@ -40,6 +40,8 @@ import HomePageQuoteRequestsAdmin from './components/HomePageQuoteRequestsAdmin'
 import AllQuotesAdmin from './components/AllQuotesAdmin'
 import QuoteRequestLeadDetails from './components/QuoteRequestLeadDetails'
 import WebsiteLeadsAdmin from './components/WebsiteLeadsAdmin'
+import CustomerLeadsAdmin from './components/CustomerLeadsAdmin'
+import CustomerLeadDetailAdmin from './components/CustomerLeadDetailAdmin'
 import AdminAnalyticsPage from './pages/AdminAnalyticsPage'
 import ExtraChargesAdmin from './components/ExtraChargesAdmin'
 import AvailableJobDetails from './components/AvailableJobDetails'
@@ -187,6 +189,8 @@ export default function App() {
         <Route path="quote-requests" element={<HomePageQuoteRequestsAdmin />} />
         <Route path="quote-requests/:id" element={<QuoteRequestLeadDetails />} />
         <Route path="website-leads" element={<WebsiteLeadsAdmin />} />
+        <Route path="customer-leads" element={<CustomerLeadsAdmin />} />
+        <Route path="customer-leads/:id" element={<CustomerLeadDetailAdmin />} />
         <Route path="quotes/:id" element={<RedirectLegacyQuoteDetail />} />
         <Route path="quotes" element={<Navigate to="/admin/all-quotes" replace />} />
         <Route path="jobs" element={<JobCardsAdmin />} />

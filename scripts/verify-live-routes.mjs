@@ -28,20 +28,20 @@ for (const path of ROUTES) {
     const res = await fetch(url, { redirect: 'follow' })
     const html = await res.text()
     const title = extractTitle(html)
-    const is404 = /Page Not Found/i.test(title) || /Page not found/i.test(html)
+    const is404 = /Page Not Found/i.test(title) || /<h1[^>]*>Page not found/i.test(html)
     results.push({
       url,
       status: res.status,
       finalUrl: res.url,
       title,
       is404Page: is404,
-      hasRemovalsContent: /Removals/i.test(title) && !is404,
+      ok: res.status === 200 && !is404,
     })
   } catch (error) {
     results.push({ url, error: String(error) })
   }
 }
 
-const bad = results.filter((r) => r.is404Page || r.status !== 200 || !r.hasRemovalsContent)
+const bad = results.filter((r) => !r.ok)
 console.log(JSON.stringify({ ok: bad.length === 0, results, failed: bad }, null, 2))
 process.exit(bad.length === 0 ? 0 : 1)

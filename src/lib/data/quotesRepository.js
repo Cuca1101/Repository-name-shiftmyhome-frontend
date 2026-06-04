@@ -145,10 +145,10 @@ function resolveIsoMoveDateFromParams(p) {
   return normalizeMoveDate(fallback)
 }
 
-export function buildQuoteRowFromTemplateParams(templateParams, extras = {}) {
+export function buildQuoteRowFromTemplateParams(templateParams, extras = {}, rowOverrides = {}) {
   const p = templateParams || {}
   const inv = p.inventory != null && String(p.inventory).trim() !== '' ? String(p.inventory) : null
-  return {
+  const base = {
     quote_ref: p.quote_ref?.trim() || null,
     full_name: (p.name || '').trim(),
     email: (p.email || '').trim(),
@@ -179,7 +179,14 @@ export function buildQuoteRowFromTemplateParams(templateParams, extras = {}) {
     inventory: inv ? [{ summary: inv }] : [],
     message: null,
     status: 'New',
+    payment_status: 'unpaid',
+    payment_type: null,
+    amount_paid: null,
+    paid_at: null,
+    estimated_total: null,
+    remaining_balance: null,
   }
+  return { ...base, ...rowOverrides }
 }
 
 /**
@@ -309,13 +316,13 @@ export async function insertAdminPhoneBooking(form) {
   throw new Error('Could not allocate a unique quote reference. Try again.')
 }
 
-export async function insertQuoteFromTemplateParams(templateParams, extras) {
+export async function insertQuoteFromTemplateParams(templateParams, extras, rowOverrides = {}) {
   if (!isSupabaseConfigured || !supabase) {
     const msg = 'Supabase is not configured (set VITE_SUPABASE_URL and key in .env).'
     throw new Error(msg)
   }
 
-  const row = buildQuoteRowFromTemplateParams(templateParams, extras)
+  const row = buildQuoteRowFromTemplateParams(templateParams, extras, rowOverrides)
   const { data, error } = await supabase.from(QUOTES_TABLE).insert(row).select('id').single()
 
   if (import.meta.env.DEV && error) {

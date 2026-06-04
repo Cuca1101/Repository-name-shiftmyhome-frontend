@@ -90,6 +90,21 @@
       outline-color: rgb(248 113 113 / 0.7);
     }
   }
+
+  @keyframes quote-step2-progress {
+    from {
+      width: 0%;
+    }
+    to {
+      width: 100%;
+    }
+  }
+
+  .quote-step2-progress-bar {
+    animation-name: quote-step2-progress;
+    animation-timing-function: linear;
+    animation-fill-mode: forwards;
+  }
   .home-container {
     @apply mx-auto w-full min-w-0 max-w-site px-4 sm:px-6 lg:px-8;
   }
@@ -870,6 +885,28 @@
   #quote .quote-route-map {
     height: 104px !important;
     min-height: 104px !important;
+  }
+
+  .quote-flow-scope .quote-review-calendar-compact {
+    -webkit-overflow-scrolling: touch;
+    max-width: 100%;
+  }
+
+  .quote-flow-scope #quote-wizard-payment {
+    scroll-margin-top: 4.5rem;
+  }
+
+  .quote-flow-scope [data-quote-step='4'] #quote-wizard-payment form button[type='submit'] {
+    min-height: 48px;
+  }
+
+  .quote-flow-scope .quote-wizard-mobile-stack {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  #quote-step2-transition .quote-step2-progress-bar {
+    max-width: 100%;
   }
 
   #contact.public-quote-section {

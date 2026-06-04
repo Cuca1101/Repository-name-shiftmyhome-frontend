@@ -51,7 +51,7 @@ export default function MobileStep2Inventory({
   const catalogSectionRef = categoriesRef || useRef(null)
 
   return (
-    <div data-quote-step="2" className="box-border min-w-0 w-full space-y-1.5 md:hidden">
+    <div data-quote-step="2" className="box-border min-w-0 w-full max-w-full space-y-1.5 overflow-x-hidden md:hidden">
       <div className="px-0.5">
         <MobileStepTitleWithRef title="Items" quoteRef={quoteRef} titleClassName="md:text-lg" />
         <p className={`mt-0.5 ${quoteMobileHelper}`}>
@@ -153,11 +153,11 @@ export default function MobileStep2Inventory({
               placeholder="Item name, e.g. Piano, aquarium"
             />
           </label>
-          <div className="flex gap-2">
+          <div className="flex min-w-0 flex-col gap-2 xxs:flex-row">
             <select
               value={customSize}
               onChange={(e) => setCustomSize(e.target.value)}
-              className={inputClass}
+              className={`${inputClass} min-w-0 flex-1`}
               aria-label="Item size"
             >
               <option value="small">Small</option>
@@ -169,7 +169,7 @@ export default function MobileStep2Inventory({
               type="button"
               onClick={addCustom}
               disabled={!customName.trim()}
-              className="shrink-0 rounded-xl bg-slate-900 px-4 text-sm font-semibold text-white disabled:opacity-50"
+              className="inline-flex min-h-[44px] w-full shrink-0 items-center justify-center rounded-xl bg-slate-900 px-4 text-sm font-semibold text-white disabled:opacity-50 active:scale-[0.99] xxs:w-auto"
             >
               Add custom item
             </button>

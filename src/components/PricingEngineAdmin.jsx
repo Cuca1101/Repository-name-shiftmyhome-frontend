@@ -603,9 +603,9 @@ export default function PricingEngineAdmin() {
         </div>
 
         <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-card">
-          <h3 className="text-lg font-semibold text-slate-900">Deposit & promo codes</h3>
+          <h3 className="text-lg font-semibold text-slate-900">Reservation fee & promo codes</h3>
           <div className="mt-4 grid gap-4 sm:grid-cols-2">
-            <Field label="Deposit amount (£)">
+            <Field label="Reservation fee (£)">
               <input
                 type="number"
                 step="0.01"
@@ -614,6 +614,10 @@ export default function PricingEngineAdmin() {
                 value={settings.depositAmount}
                 onChange={(e) => setNum('depositAmount', e.target.value)}
               />
+              <p className="mt-1 text-xs text-slate-500">
+                Amount charged when customers choose &quot;Reserve your move&quot; on the online quote
+                (Step 4). Stripe minimum is about £0.30.
+              </p>
             </Field>
           </div>
           <div className="mt-6 border-t border-slate-100 pt-6">

@@ -330,6 +330,7 @@ export function deriveCardStatusBadge(q) {
   const st = String(q.status ?? '').trim()
   if (st === 'Cancelled') return { label: 'Cancelled', tone: 'slate' }
   if (String(q.payment_status) === 'paid') return { label: 'Paid', tone: 'emerald' }
+  if (String(q.payment_status) === 'pending_payment') return { label: 'Pending payment', tone: 'amber' }
   if (st === 'Booked' || st === 'Completed') return { label: 'Booked', tone: 'sky' }
   return { label: 'Available', tone: 'amber' }
 }

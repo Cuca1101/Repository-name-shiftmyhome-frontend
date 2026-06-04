@@ -1,11 +1,10 @@
-﻿import { Minus, Plus } from 'lucide-react'
+﻿import { Minus, Plus, Wrench } from 'lucide-react'
 import MobileStepTitleWithRef from './MobileStepTitleWithRef'
 import PackageSelector from './PackageSelector'
 import { reassemblySameAsDismantlingPatch } from '../../lib/quoteWizardReassembly'
 import AddressConfirmationSection from './AddressConfirmationSection'
 import PickupDeliveryContactsSection from './PickupDeliveryContactsSection'
 import PackingMaterialsSection from './PackingMaterialsSection'
-import QuoteWizardPhotosField from './QuoteWizardPhotosField'
 import QuotePromoCodeField from './QuotePromoCodeField'
 import { quoteMobileInput, quoteMobileLabel } from '../../lib/quoteMobileUiClasses'
 
@@ -19,7 +18,7 @@ function QtyStepper({ value, onChange, disabled }) {
         type="button"
         disabled={disabled || n <= 0}
         onClick={() => onChange(n - 1)}
-        className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-800 disabled:opacity-40 active:scale-95"
+        className="inline-flex h-9 w-9 min-h-[44px] min-w-[44px] items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-800 disabled:opacity-40 active:scale-95 md:h-8 md:w-8 md:min-h-0 md:min-w-0"
         aria-label="Decrease"
       >
         <Minus className="h-3.5 w-3.5" strokeWidth={2.5} />
@@ -29,7 +28,7 @@ function QtyStepper({ value, onChange, disabled }) {
         type="button"
         disabled={disabled}
         onClick={() => onChange(n + 1)}
-        className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-800 active:scale-95"
+        className="inline-flex h-9 w-9 min-h-[44px] min-w-[44px] items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-800 active:scale-95 md:h-8 md:w-8 md:min-h-0 md:min-w-0"
         aria-label="Increase"
       >
         <Plus className="h-3.5 w-3.5" strokeWidth={2.5} />
@@ -51,7 +50,7 @@ function YesNoChoice({ value, onChange }) {
           role="radio"
           aria-checked={value === opt.v}
           onClick={() => onChange(opt.v)}
-          className={`min-h-[36px] flex-1 rounded-lg border px-2.5 text-xs font-semibold transition active:scale-[0.98] md:min-h-[44px] md:rounded-xl md:px-3 md:text-sm ${
+          className={`min-h-[44px] flex-1 rounded-lg border px-2.5 text-xs font-semibold transition active:scale-[0.98] md:min-h-[44px] md:rounded-xl md:px-3 md:text-sm ${
             value === opt.v
               ? 'border-brand-500 bg-brand-50 text-brand-900 ring-1 ring-brand-500/20'
               : 'border-slate-200 bg-white text-slate-700'
@@ -75,10 +74,7 @@ export default function MobileStep3Details({
   pricingSettings = null,
   onGoToStep,
   validationMessage,
-  quotePhotoFiles = [],
-  onQuotePhotosAdd,
-  onQuotePhotoRemove,
-  onQuotePhotosClear,
+  hideContactSection = false,
 }) {
   const input = quoteMobileInput
   const label = quoteMobileLabel
@@ -125,13 +121,25 @@ export default function MobileStep3Details({
   }
 
   return (
-    <div data-quote-step="3" className="box-border min-w-0 w-full space-y-1.5 md:hidden">
-      <div className="px-0.5">
-        <MobileStepTitleWithRef title="Details" quoteRef={quoteRef} titleClassName="md:text-lg" />
-        <p className="mt-0.5 text-[10px] leading-snug text-slate-600 md:text-xs">
-          Extras, access notes, and how we reach you.
-        </p>
-      </div>
+    <div
+      data-quote-step="3"
+      className={`box-border min-w-0 w-full max-w-full space-y-1.5 overflow-x-hidden md:hidden${hideContactSection ? ' mt-2 border-t border-slate-200 pt-3' : ''}`}
+    >
+      {hideContactSection ? (
+        <div className="px-0.5">
+          <h2 className="text-sm font-bold text-slate-900">Additional details</h2>
+          <p className="mt-0.5 text-[10px] leading-snug text-slate-600">
+            Optional contacts, access notes, and extras.
+          </p>
+        </div>
+      ) : (
+        <div className="px-0.5">
+          <MobileStepTitleWithRef title="Details" quoteRef={quoteRef} titleClassName="md:text-lg" />
+          <p className="mt-0.5 text-[10px] leading-snug text-slate-600 md:text-xs">
+            Extras, access notes, and how we reach you.
+          </p>
+        </div>
+      )}
 
       {/* PackageSelector temporarily hidden — re-enable when ready
       <div className={`${card} p-2.5 md:p-3`}>
@@ -142,50 +150,52 @@ export default function MobileStep3Details({
       </div>
       */}
 
-      <div
-        id="quote-wizard-contact-details-mobile"
-        data-quote-field="contact-details"
-        className={`${card} scroll-mt-24 p-2.5 md:p-3`}
-      >
-        <h3 className="text-xs font-bold text-slate-900 md:text-sm">Your details</h3>
-        <div className="mt-2 space-y-2 md:mt-3 md:space-y-3">
-          <label className="block">
-            <span className={label}>Full name</span>
-            <input
-              id="quote-wizard-fullName-mobile"
-              required
-              autoComplete="name"
-              value={data.fullName}
-              onChange={(e) => set({ fullName: e.target.value })}
-              className={input}
-            />
-          </label>
-          <label className="block">
-            <span className={label}>Phone number</span>
-            <input
-              id="quote-wizard-phone-mobile"
-              required
-              type="tel"
-              autoComplete="tel"
-              value={data.phone}
-              onChange={(e) => set({ phone: e.target.value })}
-              className={input}
-            />
-          </label>
-          <label className="block">
-            <span className={label}>Email address</span>
-            <input
-              id="quote-wizard-email-mobile"
-              required
-              type="email"
-              autoComplete="email"
-              value={data.email}
-              onChange={(e) => set({ email: e.target.value })}
-              className={input}
-            />
-          </label>
+      {!hideContactSection ? (
+        <div
+          id="quote-wizard-contact-details-mobile"
+          data-quote-field="contact-details"
+          className={`${card} scroll-mt-24 p-2.5 md:p-3`}
+        >
+          <h3 className="text-xs font-bold text-slate-900 md:text-sm">Your details</h3>
+          <div className="mt-2 space-y-2 md:mt-3 md:space-y-3">
+            <label className="block">
+              <span className={label}>Full name</span>
+              <input
+                id="quote-wizard-fullName-mobile"
+                required
+                autoComplete="name"
+                value={data.fullName}
+                onChange={(e) => set({ fullName: e.target.value })}
+                className={input}
+              />
+            </label>
+            <label className="block">
+              <span className={label}>Phone</span>
+              <input
+                id="quote-wizard-phone-mobile"
+                required
+                type="tel"
+                autoComplete="tel"
+                value={data.phone}
+                onChange={(e) => set({ phone: e.target.value })}
+                className={input}
+              />
+            </label>
+            <label className="block">
+              <span className={label}>Email</span>
+              <input
+                id="quote-wizard-email-mobile"
+                required
+                type="email"
+                autoComplete="email"
+                value={data.email}
+                onChange={(e) => set({ email: e.target.value })}
+                className={input}
+              />
+            </label>
+          </div>
         </div>
-      </div>
+      ) : null}
 
       <PickupDeliveryContactsSection data={data} onChange={onChange} variant="mobile" />
 
@@ -221,8 +231,20 @@ export default function MobileStep3Details({
       </div>
 
       <div className={`${card} p-2.5 md:p-3`}>
-        <p className="text-xs font-bold text-slate-900 md:text-sm">Do you need help dismantling furniture?</p>
-        <YesNoChoice value={Boolean(data.dismantling)} onChange={setDismantlingYes} />
+        <div className="flex items-start gap-2.5">
+          <div
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-brand-50 text-brand-600"
+            aria-hidden
+          >
+            <Wrench className="h-4 w-4" strokeWidth={2} />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-xs font-bold text-slate-900 md:text-sm">
+              Do you need help dismantling furniture?
+            </p>
+            <YesNoChoice value={Boolean(data.dismantling)} onChange={setDismantlingYes} />
+          </div>
+        </div>
         {data.dismantling ? (
           <div className="mt-3 space-y-3 border-t border-slate-100 pt-3">
             <div>
@@ -342,15 +364,6 @@ export default function MobileStep3Details({
           />
         </label>
       </div>
-
-      <QuoteWizardPhotosField
-        variant="mobile"
-        inputId="quote-wizard-photos-mobile"
-        files={quotePhotoFiles}
-        onAddFiles={onQuotePhotosAdd}
-        onRemoveAt={onQuotePhotoRemove}
-        onClearAll={onQuotePhotosClear}
-      />
 
     </div>
   )

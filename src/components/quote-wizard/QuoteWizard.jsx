@@ -5,9 +5,10 @@ import WizardProgress from './WizardProgress'
 import MoveSummary from './MoveSummary'
 import Step1Address from './steps/Step1Address'
 import Step2Inventory from './steps/Step2Inventory'
-import Step3Details from './steps/Step3Details'
+import Step3ReviewLayout from './Step3ReviewLayout'
 import Step4Review from './steps/Step4Review'
 import MobileQuoteStickyActions from '../mobile/MobileQuoteStickyActions'
+import QuoteStep2TransitionLoading from './QuoteStep2TransitionLoading'
 
 function step1ArrivalErrorMessage(feedback) {
   if (feedback.type !== 'error' || !feedback.text) return ''
@@ -35,16 +36,15 @@ function QuoteWizardInner({ compact = false, servicePreSelected = false }) {
     feedback,
     lastQuoteData,
     setFeedback,
-    quotePhotoFiles,
-    addQuotePhotos,
-    removeQuotePhotoAt,
-    clearQuotePhotos,
     totalM3,
     breakdown,
+    lineItems,
+    heavyItemCount,
     crewRestrictions,
     depositAmountGbp,
     customSizeM3,
     handleDistanceFromRoute,
+    quoteStepTransitionLoading,
     back,
     next,
     goToStep,
@@ -85,6 +85,19 @@ function QuoteWizardInner({ compact = false, servicePreSelected = false }) {
     serviceType,
     crewSettings: settings,
     crewRestrictions,
+    reviewSticky:
+      step === 3
+        ? {
+            wizard,
+            breakdown,
+            pricingSettings: settings,
+            serviceType,
+            lineItems,
+            heavyItemCount,
+            onContinueToPayment: next,
+            placement: 'aboveReference',
+          }
+        : null,
   }
 
   const stepNavButtons =
@@ -112,14 +125,21 @@ function QuoteWizardInner({ compact = false, servicePreSelected = false }) {
         <button
           type="button"
           onClick={next}
-          className="min-h-[52px] rounded-xl bg-gradient-to-r from-brand-600 to-emerald-600 px-8 py-3 text-sm font-bold text-white shadow-md transition hover:from-brand-700 hover:to-emerald-700"
+          disabled={quoteStepTransitionLoading}
+          className="min-h-[52px] rounded-xl bg-gradient-to-r from-brand-600 to-emerald-600 px-8 py-3 text-sm font-bold text-white shadow-md transition hover:from-brand-700 hover:to-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
         >
-          Continue →
+          {quoteStepTransitionLoading && step === 2
+            ? 'Finding your price…'
+            : step === 2
+              ? 'Get a quote'
+              : step === 3
+                ? 'Continue to payment →'
+                : 'Continue →'}
         </button>
       </div>
     ) : null
 
-  const stepPanel = (
+  const stepPanelBody = (
     <>
       {step === 1 && (
         <Step1Address
@@ -134,35 +154,48 @@ function QuoteWizardInner({ compact = false, servicePreSelected = false }) {
         />
       )}
       {step === 2 && (
-        <Step2Inventory
-          lines={wizard.inventoryLines}
-          onLinesChange={(inventoryLines) => setWizard((w) => ({ ...w, inventoryLines }))}
-          customSizeM3={customSizeM3}
-          crewSize={wizard.crewSize}
-          onCrewSizeChange={(crewSize) => setWizard((w) => ({ ...w, crewSize }))}
-          crewSettings={settings}
-          crewRestrictions={crewRestrictions}
-          quoteRef={quoteRef}
-          onGoToStep={goToStep}
-          validationMessage={
-            step === 2 && feedback.type === 'error' && feedback.text ? feedback.text : ''
-          }
-        />
+        <>
+          <Step2Inventory
+            lines={wizard.inventoryLines}
+            onLinesChange={(inventoryLines) => setWizard((w) => ({ ...w, inventoryLines }))}
+            customSizeM3={customSizeM3}
+            crewSize={wizard.crewSize}
+            onCrewSizeChange={(crewSize) => setWizard((w) => ({ ...w, crewSize }))}
+            crewSettings={settings}
+            crewRestrictions={crewRestrictions}
+            quoteRef={quoteRef}
+            data={wizard}
+            onChange={setWizard}
+            contactValidationMessage={
+              step === 2 &&
+              feedback.type === 'error' &&
+              feedback.text &&
+              /full name|phone|email|contact detail/i.test(feedback.text)
+                ? feedback.text
+                : ''
+            }
+            validationMessage={
+              step === 2 &&
+              feedback.type === 'error' &&
+              feedback.text &&
+              !/full name|phone|email|contact detail/i.test(feedback.text)
+                ? feedback.text
+                : ''
+            }
+          />
+        </>
       )}
       {step === 3 && (
-        <Step3Details
-          data={wizard}
-          onChange={setWizard}
-          pricingSettings={settings}
-          onGoToStep={goToStep}
-          quotePhotoFiles={quotePhotoFiles}
-          onQuotePhotosAdd={addQuotePhotos}
-          onQuotePhotoRemove={removeQuotePhotoAt}
-          onQuotePhotosClear={clearQuotePhotos}
+        <Step3ReviewLayout
           quoteRef={quoteRef}
-          validationMessage={
-            step === 3 && feedback.type === 'error' && feedback.text ? feedback.text : ''
-          }
+          wizard={wizard}
+          onWizardChange={setWizard}
+          breakdown={breakdown}
+          serviceType={serviceType}
+          settings={settings}
+          lineItems={lineItems}
+          heavyItemCount={heavyItemCount}
+          onGoToStep={goToStep}
         />
       )}
       {step === 4 && (
@@ -170,22 +203,31 @@ function QuoteWizardInner({ compact = false, servicePreSelected = false }) {
           serviceType={serviceType}
           quoteRef={quoteRef}
           wizard={wizard}
+          onWizardChange={setWizard}
           breakdown={breakdown}
           totalM3={totalM3}
           crewSettings={settings}
+          pricingSettings={settings}
+          lineItems={lineItems}
+          heavyItemCount={heavyItemCount}
+          onGoToStep={goToStep}
           onDistanceFromRoute={handleDistanceFromRoute}
-          submitting={submitting}
           payLoading={payLoading}
           payError={payError}
           cardPayment={cardPayment}
           onClearCardPayment={clearCardPayment}
           onPay={handlePay}
+          reservationFeeGbp={depositAmountGbp}
           onPaymentSucceeded={uploadCustomerPhotosAfterPayment}
-          onGoToStep={goToStep}
           onBack={back}
-          depositAmountGbp={depositAmountGbp}
         />
       )}
+    </>
+  )
+
+  const stepPanel = (
+    <>
+      <div className="relative min-w-0">{stepPanelBody}</div>
       {stepNavButtons}
     </>
   )
@@ -199,6 +241,7 @@ function QuoteWizardInner({ compact = false, servicePreSelected = false }) {
           : 'quote-flow-scope quote-wizard-section scroll-mt-24 border-t border-slate-200 bg-slate-50 py-1.5 md:border-t md:py-14'
       }
     >
+      {quoteStepTransitionLoading && step === 2 ? <QuoteStep2TransitionLoading /> : null}
       <div className="mx-auto box-border min-w-0 w-full max-w-6xl px-2 md:px-6 lg:px-8">
         <div id="quote-wizard-top">
           <WizardProgress step={step} />
@@ -248,23 +291,29 @@ function QuoteWizardInner({ compact = false, servicePreSelected = false }) {
         ) : (
           <>
             {/* Mobile: steps → open summary (map + details) → in-flow nav */}
-            <div className="block space-y-1.5 md:hidden">
+            <div className="quote-wizard-mobile-stack block min-w-0 max-w-full space-y-1.5 md:hidden">
               <div
-                className={`box-border min-w-0 w-full rounded-xl border border-slate-200 bg-white p-2 shadow-card${compact ? ' quote-wizard-card' : ''}`}
+                className={`box-border min-w-0 w-full max-w-full overflow-x-hidden rounded-xl border border-slate-200 bg-white p-2 shadow-card${compact ? ' quote-wizard-card' : ''}`}
               >
                 {stepPanel}
               </div>
-              {step !== 4 ? <MoveSummary {...summaryProps} /> : null}
-              <MobileQuoteStickyActions step={step} onBack={back} onNext={next} />
+              <MoveSummary {...summaryProps} />
+              <MobileQuoteStickyActions
+                step={step}
+                onBack={back}
+                onNext={next}
+                nextDisabled={quoteStepTransitionLoading}
+                nextLoading={quoteStepTransitionLoading && step === 2}
+              />
             </div>
 
-            {/* Desktop: two-column layout (main + move summary sidebar), all steps */}
+            {/* Desktop: main + sidebar (Mapbox & move summary), same grid on all steps */}
             <div className="hidden items-start gap-4 md:grid md:grid-cols-[minmax(0,1fr)_minmax(200px,34%)] lg:grid-cols-[minmax(0,1fr)_minmax(260px,min(100%,360px))] lg:gap-10">
               <div className="min-w-0">
                 <div
-                  className={`min-w-0 rounded-2xl border border-slate-200 bg-white p-8 shadow-card ${
-                    compact ? 'quote-wizard-card ' : ''
-                  }`}
+                  className={`min-w-0 rounded-2xl border border-slate-200 bg-white shadow-card ${
+                    step === 3 || step === 4 ? 'p-4 lg:p-6' : 'p-8'
+                  } ${compact ? 'quote-wizard-card ' : ''}`}
                 >
                   {stepPanel}
                 </div>

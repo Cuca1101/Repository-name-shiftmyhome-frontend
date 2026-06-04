@@ -4,7 +4,6 @@ import AddressConfirmationSection from '../AddressConfirmationSection'
 import PickupDeliveryContactsSection from '../PickupDeliveryContactsSection'
 import PackingMaterialsSection from '../PackingMaterialsSection'
 import DesktopFurnitureServicesSection from '../DesktopFurnitureServicesSection'
-import QuoteWizardPhotosField from '../QuoteWizardPhotosField'
 import QuotePromoCodeField from '../QuotePromoCodeField'
 
 export default function Step3Details({
@@ -12,12 +11,10 @@ export default function Step3Details({
   onChange,
   pricingSettings = null,
   onGoToStep,
-  quotePhotoFiles,
-  onQuotePhotosAdd,
-  onQuotePhotoRemove,
-  onQuotePhotosClear,
   quoteRef,
   validationMessage = '',
+  /** When true, contact fields live on Step 2 — only extras/access sections render here. */
+  hideContactSection = false,
 }) {
   const input =
     'w-full max-w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-base text-slate-900 shadow-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/25 sm:px-4 sm:py-3'
@@ -36,13 +33,12 @@ export default function Step3Details({
         pricingSettings={pricingSettings}
         onGoToStep={onGoToStep}
         validationMessage={validationMessage}
-        quotePhotoFiles={quotePhotoFiles}
-        onQuotePhotosAdd={onQuotePhotosAdd}
-        onQuotePhotoRemove={onQuotePhotoRemove}
-        onQuotePhotosClear={onQuotePhotosClear}
+        hideContactSection={hideContactSection}
       />
 
-      <div className="hidden space-y-10 md:block">
+      <div
+        className={`hidden md:block${hideContactSection ? ' mt-2 space-y-4 border-t border-slate-200 pt-4' : ' mt-6 space-y-10 border-t border-slate-200 pt-6'}`}
+      >
       {/* PackageSelector temporarily hidden — re-enable when ready
       <PackageSelector
         value={data.packageTier || 'standard'}
@@ -50,66 +46,79 @@ export default function Step3Details({
       />
       */}
 
-      <div>
-        <h2 className="text-lg font-bold text-slate-900 sm:text-2xl">Job details & contact</h2>
-        <p className="mt-1 text-sm text-slate-600">
-          Extras, access notes, and how we reach you — we'll only use your details for this quote.
-        </p>
-      </div>
-
-      <div
-        id="quote-wizard-contact-details-desktop"
-        data-quote-field="contact-details"
-        className="scroll-mt-24 rounded-2xl border border-brand-100 bg-gradient-to-br from-brand-50/40 to-white p-5 sm:p-6"
-      >
-        <h3 className="text-sm font-bold text-slate-900">Your details</h3>
-        <div className="mt-4 grid grid-cols-2 gap-3 xxs:gap-4">
-          <label className="block sm:col-span-2">
-            <span className={label}>Full name</span>
-            <input
-              id="quote-wizard-fullName-desktop"
-              required
-              autoComplete="name"
-              value={data.fullName}
-              onChange={(e) => set('fullName', e.target.value)}
-              className={input}
-            />
-          </label>
-          <label className="block">
-            <span className={label}>Phone</span>
-            <input
-              id="quote-wizard-phone-desktop"
-              required
-              type="tel"
-              autoComplete="tel"
-              value={data.phone}
-              onChange={(e) => set('phone', e.target.value)}
-              className={input}
-            />
-          </label>
-          <label className="block">
-            <span className={label}>Email</span>
-            <input
-              id="quote-wizard-email-desktop"
-              required
-              type="email"
-              autoComplete="email"
-              value={data.email}
-              onChange={(e) => set('email', e.target.value)}
-              className={input}
-            />
-          </label>
+      {hideContactSection ? (
+        <div>
+          <h2 className="text-sm font-bold text-slate-900 md:text-base">Additional details</h2>
+          <p className="mt-0.5 text-xs text-slate-600">
+            Optional — add contacts, access notes, or extras before you pay.
+          </p>
         </div>
-      </div>
+      ) : null}
 
-      {validationMessage ? (
-        <p
-          className="quote-error rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-800"
-          role="alert"
-          data-quote-error="true"
-        >
-          {validationMessage}
-        </p>
+      {!hideContactSection ? (
+        <>
+          <div>
+            <h2 className="text-lg font-bold text-slate-900 sm:text-2xl">Job details & contact</h2>
+            <p className="mt-1 text-sm text-slate-600">
+              Extras, access notes, and how we reach you — we'll only use your details for this quote.
+            </p>
+          </div>
+
+          <div
+            id="quote-wizard-contact-details-desktop"
+            data-quote-field="contact-details"
+            className="scroll-mt-24 rounded-2xl border border-brand-100 bg-gradient-to-br from-brand-50/40 to-white p-5 sm:p-6"
+          >
+            <h3 className="text-sm font-bold text-slate-900">Your details</h3>
+            <div className="mt-4 grid grid-cols-2 gap-3 xxs:gap-4">
+              <label className="block sm:col-span-2">
+                <span className={label}>Full name</span>
+                <input
+                  id="quote-wizard-fullName-desktop"
+                  required
+                  autoComplete="name"
+                  value={data.fullName}
+                  onChange={(e) => set('fullName', e.target.value)}
+                  className={input}
+                />
+              </label>
+              <label className="block">
+                <span className={label}>Phone</span>
+                <input
+                  id="quote-wizard-phone-desktop"
+                  required
+                  type="tel"
+                  autoComplete="tel"
+                  value={data.phone}
+                  onChange={(e) => set('phone', e.target.value)}
+                  className={input}
+                />
+              </label>
+              <label className="block">
+                <span className={label}>Email</span>
+                <input
+                  id="quote-wizard-email-desktop"
+                  required
+                  type="email"
+                  autoComplete="email"
+                  value={data.email}
+                  onChange={(e) => set('email', e.target.value)}
+                  className={input}
+                />
+              </label>
+            </div>
+          </div>
+
+          {validationMessage ? (
+            <p
+              className="quote-error rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-800"
+              role="alert"
+              data-quote-error="true"
+            >
+              {validationMessage}
+            </p>
+          ) : null}
+        </>
       ) : null}
 
       <PickupDeliveryContactsSection data={data} onChange={onChange} variant="desktop" />
@@ -175,15 +184,6 @@ export default function Step3Details({
           />
         </label>
       </div>
-
-      <QuoteWizardPhotosField
-        variant="desktop"
-        inputId="quote-wizard-photos-desktop"
-        files={quotePhotoFiles}
-        onAddFiles={onQuotePhotosAdd}
-        onRemoveAt={onQuotePhotoRemove}
-        onClearAll={onQuotePhotosClear}
-      />
     </div>
     </>
   )
