@@ -27,6 +27,13 @@
     @apply min-w-0 antialiased text-slate-800 bg-white;
   }
 
+  /* Build-time SEO prerender fragments — hidden for users, kept in HTML for crawlers. */
+  #seo-prerender-content,
+  #seo-prerender-nav,
+  #coverage-prerender-nav {
+    display: none !important;
+  }
+
   #root {
     @apply min-h-screen min-w-0;
   }
