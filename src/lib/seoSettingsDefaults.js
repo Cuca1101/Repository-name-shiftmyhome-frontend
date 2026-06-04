@@ -133,6 +133,12 @@ export function buildSeoSettingsFallback(def) {
   return row
 }
 
+/** @param {string|undefined|null} saved @param {string|undefined|null} fallback */
+function pickSavedText(saved, fallback) {
+  const value = String(saved ?? '').trim()
+  return value || String(fallback ?? '').trim()
+}
+
 /** @param {SeoSettingsRow|null|undefined} saved @param {SeoDashboardPageDef} def */
 export function mergeSeoSettingsWithFallback(saved, def) {
   const fallback = buildSeoSettingsFallback(def)
@@ -144,6 +150,14 @@ export function mergeSeoSettingsWithFallback(saved, def) {
   return {
     ...fallback,
     ...saved,
+    seo_title: pickSavedText(saved.seo_title, fallback.seo_title),
+    meta_description: pickSavedText(saved.meta_description, fallback.meta_description),
+    og_title: pickSavedText(saved.og_title, fallback.og_title),
+    og_description: pickSavedText(saved.og_description, fallback.og_description),
+    canonical_url: pickSavedText(saved.canonical_url, fallback.canonical_url),
+    h1: pickSavedText(saved.h1, fallback.h1),
+    intro_text: pickSavedText(saved.intro_text, fallback.intro_text),
+    cta_text: pickSavedText(saved.cta_text, fallback.cta_text),
     faq_json: faq,
     extra_json: { ...(fallback.extra_json || {}), ...(saved.extra_json || {}) },
   }

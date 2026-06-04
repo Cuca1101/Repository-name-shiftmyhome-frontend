@@ -3,6 +3,7 @@ import SeoGooglePreview from './SeoGooglePreview'
 import {
   SEO_DASHBOARD_HOMEPAGE,
   SEO_DASHBOARD_ALL_PAGES,
+  SEO_DASHBOARD_CITIES,
   SEO_DASHBOARD_CATEGORIES,
   SEO_SITE_ORIGIN_DEFAULT,
   buildSeoSettingsFallback,
@@ -21,6 +22,7 @@ import { buildSitemapXml } from '../../lib/generateSitemapXml'
 
 const TABS = [
   { id: 'homepage', label: 'Homepage' },
+  { id: 'cities', label: 'Cities' },
   { id: 'pages', label: 'All SEO pages' },
   { id: 'sitemap', label: 'Sitemap' },
   { id: 'search-console', label: 'Search Console' },
@@ -113,8 +115,28 @@ function FaqEditor({ faqs, onChange }) {
   )
 }
 
-function PageEditorForm({ def, form, setForm, issues }) {
+function PageEditorForm({ def, form, setForm, issues, highlightTitles = false }) {
   const previewUrl = form.canonicalUrl || `${SEO_SITE_ORIGIN_DEFAULT}${def.path === '/' ? '/' : `${def.path}/`}`
+
+  const titleFields = (
+    <>
+      <Field label="SEO title" count={form.seoTitle.length} max={60} hint="Shown in Google search results (browser tab title).">
+        <input className={inputClass} value={form.seoTitle} onChange={(e) => setForm({ ...form, seoTitle: e.target.value })} />
+      </Field>
+      <Field label="OG title" count={form.ogTitle.length} max={60} hint="Shown when the page is shared on Facebook, WhatsApp, etc. Can differ from SEO title.">
+        <input className={inputClass} value={form.ogTitle} onChange={(e) => setForm({ ...form, ogTitle: e.target.value })} />
+      </Field>
+      {highlightTitles ? (
+        <button
+          type="button"
+          className="rounded-lg border border-brand-200 bg-white px-3 py-1.5 text-xs font-semibold text-brand-700 hover:bg-brand-50"
+          onClick={() => setForm({ ...form, ogTitle: form.seoTitle, ogDescription: form.metaDescription })}
+        >
+          Copy SEO title & description → OG fields
+        </button>
+      ) : null}
+    </>
+  )
 
   return (
     <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
@@ -136,9 +158,15 @@ function PageEditorForm({ def, form, setForm, issues }) {
           </ul>
         ) : null}
 
-        <Field label="SEO title" count={form.seoTitle.length} max={60}>
-          <input className={inputClass} value={form.seoTitle} onChange={(e) => setForm({ ...form, seoTitle: e.target.value })} />
-        </Field>
+        {highlightTitles ? (
+          <div className="space-y-4 rounded-xl border-2 border-brand-200 bg-brand-50/50 p-4">
+            <p className="text-sm font-semibold text-brand-900">Titles for Google & social sharing</p>
+            {titleFields}
+          </div>
+        ) : (
+          titleFields
+        )}
+
         <Field label="Meta description" count={form.metaDescription.length} max={160}>
           <textarea
             className={`${inputClass} min-h-[88px]`}
@@ -146,9 +174,11 @@ function PageEditorForm({ def, form, setForm, issues }) {
             onChange={(e) => setForm({ ...form, metaDescription: e.target.value })}
           />
         </Field>
-        <Field label="OG title">
-          <input className={inputClass} value={form.ogTitle} onChange={(e) => setForm({ ...form, ogTitle: e.target.value })} />
-        </Field>
+        {!highlightTitles ? (
+          <Field label="OG title">
+            <input className={inputClass} value={form.ogTitle} onChange={(e) => setForm({ ...form, ogTitle: e.target.value })} />
+          </Field>
+        ) : null}
         <Field label="OG description">
           <textarea
             className={`${inputClass} min-h-[72px]`}
@@ -228,12 +258,12 @@ function PageEditorForm({ def, form, setForm, issues }) {
   )
 }
 
-function SeoPagePicker({ pages, selectedSlug, onSelect, category, onCategoryChange, search, onSearchChange }) {
+function SeoPagePicker({ pages, selectedSlug, onSelect, category, onCategoryChange, search, onSearchChange, hideCategory = false }) {
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
     return pages.filter((p) => {
       if (p.pageSlug === 'home') return false
-      if (category && category !== 'all' && p.category !== category) return false
+      if (!hideCategory && category && category !== 'all' && p.category !== category) return false
       if (!q) return true
       return (
         p.label.toLowerCase().includes(q) ||
@@ -241,29 +271,31 @@ function SeoPagePicker({ pages, selectedSlug, onSelect, category, onCategoryChan
         p.pageSlug.toLowerCase().includes(q)
       )
     })
-  }, [pages, category, search])
+  }, [pages, category, search, hideCategory])
 
   return (
     <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-card">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
-        <Field label="Search pages" hint={`${filtered.length} of ${pages.length - 1} SEO URLs`}>
+      <div className={`flex flex-col gap-3 ${hideCategory ? '' : 'sm:flex-row sm:items-end'}`}>
+        <Field label="Search pages" hint={`${filtered.length} of ${pages.length} pages`}>
           <input
             className={inputClass}
-            placeholder="Search by title, path, or slug…"
+            placeholder="Search by city, path, or slug…"
             value={search}
             onChange={(e) => onSearchChange(e.target.value)}
           />
         </Field>
-        <Field label="Category">
-          <select className={inputClass} value={category} onChange={(e) => onCategoryChange(e.target.value)}>
-            <option value="all">All categories</option>
-            {SEO_DASHBOARD_CATEGORIES.filter((c) => c !== 'Homepage').map((c) => (
-              <option key={c} value={c}>
-                {c}
-              </option>
-            ))}
-          </select>
-        </Field>
+        {!hideCategory ? (
+          <Field label="Category">
+            <select className={inputClass} value={category} onChange={(e) => onCategoryChange(e.target.value)}>
+              <option value="all">All categories</option>
+              {SEO_DASHBOARD_CATEGORIES.filter((c) => c !== 'Homepage').map((c) => (
+                <option key={c} value={c}>
+                  {c}
+                </option>
+              ))}
+            </select>
+          </Field>
+        ) : null}
       </div>
       <ul className="mt-4 max-h-64 space-y-1 overflow-y-auto rounded-xl border border-slate-100 bg-slate-50/50 p-2">
         {filtered.length === 0 ? (
@@ -302,8 +334,11 @@ export default function SeoDashboardAdmin() {
   const [settingsMap, setSettingsMap] = useState(() => new Map())
   const [homepageForm, setHomepageForm] = useState(() => seoRowToFormState(buildSeoSettingsFallback(SEO_DASHBOARD_HOMEPAGE)))
   const [selectedPageSlug, setSelectedPageSlug] = useState(SEO_DASHBOARD_ALL_PAGES.find((p) => p.pageSlug !== 'home')?.pageSlug || 'glasgow-removals')
+  const [selectedCitySlug, setSelectedCitySlug] = useState(SEO_DASHBOARD_CITIES[0]?.pageSlug || 'glasgow-removals')
   const [pageForm, setPageForm] = useState(null)
+  const [cityForm, setCityForm] = useState(null)
   const [pageSearch, setPageSearch] = useState('')
+  const [citySearch, setCitySearch] = useState('')
   const [pageCategory, setPageCategory] = useState('all')
   const [sitemapInfo, setSitemapInfo] = useState({ lastGenerated: null, urlCount: 0 })
 
@@ -315,6 +350,11 @@ export default function SeoDashboardAdmin() {
   const activePageDef = useMemo(
     () => SEO_DASHBOARD_ALL_PAGES.find((p) => p.pageSlug === selectedPageSlug) || editablePages[0],
     [selectedPageSlug, editablePages],
+  )
+
+  const activeCityDef = useMemo(
+    () => SEO_DASHBOARD_CITIES.find((p) => p.pageSlug === selectedCitySlug) || SEO_DASHBOARD_CITIES[0],
+    [selectedCitySlug],
   )
 
   const load = useCallback(async () => {
@@ -343,8 +383,15 @@ export default function SeoDashboardAdmin() {
     setPageForm(seoRowToFormState(row))
   }, [activePageDef, settingsMap])
 
+  useEffect(() => {
+    if (!activeCityDef) return
+    const row = mergeSeoSettingsForDef(settingsMap, activeCityDef)
+    setCityForm(seoRowToFormState(row))
+  }, [activeCityDef, settingsMap])
+
   const homepageIssues = useMemo(() => validateSeoForm(homepageForm), [homepageForm])
   const pageIssues = useMemo(() => (pageForm ? validateSeoForm(pageForm) : []), [pageForm])
+  const cityIssues = useMemo(() => (cityForm ? validateSeoForm(cityForm) : []), [cityForm])
 
   async function saveDef(def, form) {
     const issues = validateSeoForm(form)
@@ -390,7 +437,13 @@ export default function SeoDashboardAdmin() {
   }
 
   const previewForm =
-    tab === 'homepage' ? homepageForm : tab === 'pages' && pageForm ? pageForm : homepageForm
+    tab === 'homepage'
+      ? homepageForm
+      : tab === 'cities' && cityForm
+        ? cityForm
+        : tab === 'pages' && pageForm
+          ? pageForm
+          : homepageForm
 
   return (
     <div className="space-y-6">
@@ -433,6 +486,44 @@ export default function SeoDashboardAdmin() {
               onClick={() => saveDef(SEO_DASHBOARD_HOMEPAGE, homepageForm)}
             >
               {saving ? 'Saving…' : 'Save homepage SEO'}
+            </button>
+          </div>
+        </>
+      ) : null}
+
+      {tab === 'cities' && activeCityDef && cityForm ? (
+        <>
+          <p className="text-sm text-slate-600">
+            Edit <strong>SEO title</strong> and <strong>OG title</strong> for each city removals page ({SEO_DASHBOARD_CITIES.length} cities).
+          </p>
+          <SeoPagePicker
+            pages={SEO_DASHBOARD_CITIES}
+            selectedSlug={selectedCitySlug}
+            onSelect={setSelectedCitySlug}
+            category="all"
+            onCategoryChange={() => {}}
+            search={citySearch}
+            onSearchChange={setCitySearch}
+            hideCategory
+          />
+          <PageEditorForm
+            def={activeCityDef}
+            form={cityForm}
+            setForm={setCityForm}
+            issues={cityIssues}
+            highlightTitles
+          />
+          <div className="flex flex-wrap gap-3">
+            <button type="button" className="rounded-xl bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-700" onClick={() => setShowPreviewModal(true)}>
+              Preview before save
+            </button>
+            <button
+              type="button"
+              disabled={saving}
+              className="rounded-xl bg-brand-600 px-5 py-2 text-sm font-semibold text-white shadow-md hover:bg-brand-700 disabled:opacity-60"
+              onClick={() => saveDef(activeCityDef, cityForm)}
+            >
+              {saving ? 'Saving…' : `Save ${activeCityDef.label}`}
             </button>
           </div>
         </>
