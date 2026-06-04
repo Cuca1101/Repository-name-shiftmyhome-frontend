@@ -213,9 +213,13 @@ function calculateOperationalCharges(
 
   const lift = String(op.lift_available || 'na').toLowerCase()
   const noLift = Number(settings.noLiftCharge) || 0
-  if (lift === 'no' && noLift > 0) {
-    const amt = money(noLift)
-    lines.push({ label: 'No lift supplement', amount: amt, amount_label: formatGbp(amt) })
+  if (lift === 'no' && floors > 0 && noLift > 0) {
+    const amt = money(floors * noLift)
+    lines.push({
+      label: `No lift supplement: £${noLift.toFixed(2)} × ${floors} floor${floors === 1 ? '' : 's'} = £${amt.toFixed(2)}`,
+      amount: amt,
+      amount_label: formatGbp(amt),
+    })
   }
   const yesLift = Number(settings.yesLiftChargePerEnd) || 0
   if (lift === 'yes' && floors > 0 && yesLift > 0) {

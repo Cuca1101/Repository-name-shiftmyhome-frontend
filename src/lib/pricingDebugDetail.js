@@ -130,10 +130,20 @@ export function buildPricingDebugDetail(breakdown, ctx) {
   const deliveryLift = deliveryLiftExplicit ? Boolean(access.deliveryLift) : Boolean(access.hasLift)
 
   if (pickupFloor > 0 && pickupLiftExplicit && !pickupLift && noLiftFlat > 0) {
-    pushAccess('no_lift', 'pickup', 'Above ground + lift = No (flat supplement per job)', noLiftFlat)
+    pushAccess(
+      'no_lift',
+      'pickup',
+      `£${noLiftFlat.toFixed(2)} × ${pickupFloor} floor${pickupFloor === 1 ? '' : 's'} (per job, not × crew)`,
+      pickupFloor * noLiftFlat,
+    )
   }
   if (deliveryFloor > 0 && deliveryLiftExplicit && !deliveryLift && noLiftFlat > 0) {
-    pushAccess('no_lift', 'delivery', 'Above ground + lift = No (flat supplement per job)', noLiftFlat)
+    pushAccess(
+      'no_lift',
+      'delivery',
+      `£${noLiftFlat.toFixed(2)} × ${deliveryFloor} floor${deliveryFloor === 1 ? '' : 's'} (per job, not × crew)`,
+      deliveryFloor * noLiftFlat,
+    )
   }
   if (yesLiftPerEnd > 0) {
     if (pickupFloor > 0 && pickupLiftExplicit && pickupLift) {

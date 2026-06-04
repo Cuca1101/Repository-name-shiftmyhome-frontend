@@ -279,6 +279,97 @@ if (quote2ManAccess.pricingDebugDetail?.accessCharges?.crewMultiplierApplied) {
 }
 console.log('Access charges unchanged when crew increases: OK')
 
+// --- No-lift supplement: per floor × rate (not flat per end) ---
+function noLiftTotal(b) {
+  return sumAccessByPrefix(b, /^No lift supplement/i)
+}
+
+const noLiftGround = calculateQuote(settings, {
+  serviceType: 'Man with Van',
+  distanceMiles: 1.3,
+  lineItems: SOFA_LINE,
+  access: { ...baseAccess, pickupFloor: 0, pickupLift: false, deliveryLift: false },
+  extras: {},
+  crewSize: 1,
+})
+const noLiftDelivery3 = calculateQuote(settings, {
+  serviceType: 'Man with Van',
+  distanceMiles: 1.3,
+  lineItems: SOFA_LINE,
+  access: {
+    ...baseAccess,
+    pickupFloor: 0,
+    deliveryFloor: 3,
+    pickupLift: false,
+    deliveryLift: false,
+  },
+  extras: {},
+  crewSize: 1,
+})
+const noLiftBoth = calculateQuote(settings, {
+  serviceType: 'Man with Van',
+  distanceMiles: 1.3,
+  lineItems: SOFA_LINE,
+  access: {
+    ...baseAccess,
+    pickupFloor: 2,
+    deliveryFloor: 3,
+    pickupLift: false,
+    deliveryLift: false,
+  },
+  extras: {},
+  crewSize: 1,
+})
+const noLiftWithLift = calculateQuote(settings, {
+  serviceType: 'Man with Van',
+  distanceMiles: 1.3,
+  lineItems: SOFA_LINE,
+  access: {
+    ...baseAccess,
+    pickupFloor: 3,
+    deliveryFloor: 3,
+    pickupLift: true,
+    deliveryLift: true,
+  },
+  extras: {},
+  crewSize: 1,
+})
+
+const nlGround = noLiftTotal(noLiftGround)
+const nlDel3 = noLiftTotal(noLiftDelivery3)
+const nlBoth = noLiftTotal(noLiftBoth)
+const nlLift = noLiftTotal(noLiftWithLift)
+const delLine = (noLiftDelivery3.accessLines || []).find((l) =>
+  /^No lift supplement \(delivery\)/i.test(l.label),
+)
+const pickLine = (noLiftBoth.accessLines || []).find((l) =>
+  /^No lift supplement \(pickup\)/i.test(l.label),
+)
+const delLineBoth = (noLiftBoth.accessLines || []).find((l) =>
+  /^No lift supplement \(delivery\)/i.test(l.label),
+)
+
+console.log('\n=== No-lift supplement (per floor) ===')
+console.log(`ground floor: £${nlGround.toFixed(2)} (expected £0)`)
+console.log(`delivery floor 3: £${nlDel3.toFixed(2)} (expected £90)`)
+console.log(`pickup 2 + delivery 3: £${nlBoth.toFixed(2)} (expected £150)`)
+console.log(`lift available: £${nlLift.toFixed(2)} (expected £0)`)
+if (delLine) console.log(`breakdown line: ${delLine.label}`)
+
+let noLiftFailed = 0
+if (Math.abs(nlGround) > 0.01) noLiftFailed++
+if (Math.abs(nlDel3 - 90) > 0.01) noLiftFailed++
+if (Math.abs(nlBoth - 150) > 0.01) noLiftFailed++
+if (Math.abs(nlLift) > 0.01) noLiftFailed++
+if (!delLine?.label.includes('× 3 floors')) noLiftFailed++
+if (!pickLine?.label.includes('× 2 floors') || Math.abs(pickLine.amount - 60) > 0.01) noLiftFailed++
+if (!delLineBoth?.label.includes('× 3 floors') || Math.abs(delLineBoth.amount - 90) > 0.01) noLiftFailed++
+if (noLiftFailed > 0) {
+  console.error('FAILED: no-lift per-floor supplement')
+  process.exit(1)
+}
+console.log('No-lift per-floor supplement: OK')
+
 // --- Crew base fees separate from hourly labour ---
 const base1 = calculateQuote(settings, {
   serviceType: 'Man with Van',

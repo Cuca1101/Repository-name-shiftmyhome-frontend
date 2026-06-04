@@ -383,21 +383,21 @@ export function calculateQuote(settings, input) {
     }
   }
 
-  // No-lift supplement: above ground + customer chose lift No (per job — not × crew).
+  // No-lift supplement: rate × floor level when above ground + lift No (per job — not × crew).
   if (pickupFloor > 0 && pickupLiftExplicit && !pickupLift && noLiftFlat > 0) {
-    const amt = money(noLiftFlat)
+    const amt = money(pickupFloor * noLiftFlat)
     if (amt > 0) {
       accessLines.push({
-        label: 'No lift supplement (collection)',
+        label: `No lift supplement (pickup): £${noLiftFlat.toFixed(2)} × ${pickupFloor} floor${pickupFloor === 1 ? '' : 's'} = £${amt.toFixed(2)}`,
         amount: amt,
       })
     }
   }
   if (deliveryFloor > 0 && deliveryLiftExplicit && !deliveryLift && noLiftFlat > 0) {
-    const amt = money(noLiftFlat)
+    const amt = money(deliveryFloor * noLiftFlat)
     if (amt > 0) {
       accessLines.push({
-        label: 'No lift supplement (delivery)',
+        label: `No lift supplement (delivery): £${noLiftFlat.toFixed(2)} × ${deliveryFloor} floor${deliveryFloor === 1 ? '' : 's'} = £${amt.toFixed(2)}`,
         amount: amt,
       })
     }
