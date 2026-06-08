@@ -16,8 +16,17 @@ export async function detailFromFunctionsInvokeError(error, fallback = 'Request 
     detail = fallback
   }
 
+  if (error?.name === 'FunctionsRelayError') {
+    return finish('Could not reach the Edge Function (relay error). Retry in a moment or check Supabase status.')
+  }
+
   const ctx = error?.context
   if (!ctx) {
+    if (error?.name === 'FunctionsFetchError') {
+      return finish(
+        'Network error reaching the Edge Function. Check your connection, disable ad blockers for this site, and confirm VITE_SUPABASE_URL in .env matches your Supabase project.',
+      )
+    }
     if (error?.message && error.message !== generic) return finish(error.message)
     return finish(detail || fallback)
   }
@@ -28,6 +37,9 @@ export async function detailFromFunctionsInvokeError(error, fallback = 'Request 
       if (j?.message != null) return finish(String(j.message))
       if (j?.error != null) {
         if (j.diagnostics) console.error('[edge-function]', j.code || 'error', j.error, j.diagnostics)
+        const code = String(j.error)
+        if (code === 'unauthorized') return finish(j.message || 'Admin sign-in required or session expired.')
+        if (code === 'forbidden') return finish(j.message || 'You do not have permission for this action.')
         return finish(String(j.error))
       }
       if (j?.ok === false && j?.message) return finish(String(j.message))
@@ -43,6 +55,9 @@ export async function detailFromFunctionsInvokeError(error, fallback = 'Request 
       if (j?.message != null) return finish(String(j.message))
       if (j?.error != null) {
         if (j.diagnostics) console.error('[edge-function]', j.code || 'error', j.error, j.diagnostics)
+        const code = String(j.error)
+        if (code === 'unauthorized') return finish(j.message || 'Admin sign-in required or session expired.')
+        if (code === 'forbidden') return finish(j.message || 'You do not have permission for this action.')
         return finish(String(j.error))
       }
       if (status === 404) {

@@ -27,6 +27,7 @@ import ItemsLibraryAdmin from './components/ItemsLibraryAdmin'
 import ReviewsAdmin from './components/ReviewsAdmin'
 import WebsiteCmsAdmin from './components/admin/WebsiteCmsAdmin'
 import PhoneBookingAdmin from './components/PhoneBookingAdmin'
+import AuthAccessAdmin from './pages/AuthAccessAdmin'
 import SeoDashboardAdmin from './components/admin/SeoDashboardAdmin'
 import AvailableJobsAdmin from './components/AvailableJobsAdmin'
 import MarketplaceJobsAdmin from './components/MarketplaceJobsAdmin'
@@ -181,6 +182,7 @@ export default function App() {
         <Route path="active-jobs" element={<ActiveJobsAdmin />} />
         <Route path="completed-jobs" element={<CompletedJobsAdmin />} />
         <Route path="cancelled-jobs" element={<CancelledJobsAdmin />} />
+        <Route path="access-control" element={<AuthAccessAdmin />} />
         <Route path="drivers" element={<DriversAdmin />} />
         <Route path="driver-payments" element={<DriverPaymentsAdmin />} />
         <Route path="partners" element={<PartnersAdmin />} />
