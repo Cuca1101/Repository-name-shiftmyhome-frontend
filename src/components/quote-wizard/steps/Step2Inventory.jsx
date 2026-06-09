@@ -1,5 +1,5 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
-import { PackagePlus } from 'lucide-react'
+import { ChevronDown, PackagePlus } from 'lucide-react'
 import { useQuoteInventoryCatalog } from '../useQuoteInventoryCatalog'
 import InlineInventoryQtyControl from '../InlineInventoryQtyControl'
 import HighlightedInventoryName from '../HighlightedInventoryName'
@@ -35,6 +35,12 @@ const ADMIN_INVENTORY_CARD_CONTROLS =
   'flex shrink-0 items-center justify-end self-center pl-1'
 const ADMIN_INVENTORY_GRID = 'mt-3 grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3'
 
+/** Mobile / admin compact grids — unchanged on mobile. */
+const QUOTE_INVENTORY_GRID = 'grid grid-cols-2 gap-2 xxs:gap-2.5 sm:gap-3'
+const INVENTORY_ITEMS_SCROLL = 'quote-inventory-items-scroll'
+const MOBILE_INVENTORY_LIST = `mt-1.5 space-y-1 ${INVENTORY_ITEMS_SCROLL}`
+const DESKTOP_INVENTORY_LIST = `mt-4 ${QUOTE_INVENTORY_GRID} ${INVENTORY_ITEMS_SCROLL}`
+
 export default function Step2Inventory({
   lines,
   onLinesChange,
@@ -46,6 +52,9 @@ export default function Step2Inventory({
   quoteRef,
   data,
   onChange,
+  pricingSettings = null,
+  breakdown = null,
+  priceWithoutPromo = null,
   contactValidationMessage = '',
   validationMessage = '',
   /** @type {'quote' | 'admin'} */
@@ -54,7 +63,6 @@ export default function Step2Inventory({
   const isAdminLayout = layoutVariant === 'admin'
   const searchId = useId()
   const crewFieldId = useId()
-  const crewHintId = useId()
   const resultsPanelRef = useRef(null)
   const categoriesRef = useRef(null)
   const {
@@ -73,10 +81,12 @@ export default function Step2Inventory({
 
   useEffect(() => {
     if (!categoryOrder.length) return
-    setActiveCategory((prev) =>
-      prev && categoryOrder.includes(prev) ? prev : categoryOrder[0],
-    )
+    setActiveCategory((prev) => (prev && categoryOrder.includes(prev) ? prev : ''))
   }, [categoryOrder])
+
+  function toggleCategory(key) {
+    setActiveCategory((prev) => (prev === key ? '' : key))
+  }
 
   const flatCatalogEntries = useMemo(
     () => getFlattenedCatalogEntries(),
@@ -193,6 +203,57 @@ export default function Step2Inventory({
   const input =
     'box-border min-h-[36px] w-full min-w-0 max-w-full rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-sm leading-snug text-slate-900 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/25 md:min-h-[48px] md:rounded-xl md:px-3 md:py-2.5'
 
+  /** 2-column grid card — same layout as public /quote (icon, name, m³, Add). */
+  function renderQuoteInventoryGridCard(item, highlightQuery, emphasizeMatch) {
+    const line = catalogLineForItem(lines, item.id, item.name)
+    const qty = line?.quantity ?? 0
+    const isSelected = qty > 0
+    const volumeHint = ITEM_VOLUME_HINT[item.id]
+    const perUnitVol = Number(item.m3) || 0
+    const cardTone = emphasizeMatch
+      ? 'border-amber-200 bg-amber-50/60 ring-1 ring-amber-200/80'
+      : 'border-slate-200/90 bg-white shadow-sm'
+
+    const nameEl = highlightQuery ? (
+      <HighlightedInventoryName name={item.name} query={highlightQuery} />
+    ) : (
+      item.name
+    )
+
+    return (
+      <li
+        key={item.id}
+        className={`flex min-w-0 flex-col rounded-xl border p-3 ${cardTone}`}
+      >
+        <div className="flex min-w-0 items-start gap-2.5">
+          <div
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-brand-50 text-brand-700 ring-1 ring-brand-100"
+            aria-hidden
+          >
+            <CatalogItemLucideIcon itemId={item.id} className="h-5 w-5" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-semibold leading-snug text-slate-900 break-words">{nameEl}</p>
+            <p className="mt-1 text-xs leading-snug text-slate-500">
+              {perUnitVol.toFixed(2)} m³ per unit
+              {volumeHint ? <span className="text-slate-600"> · {volumeHint}</span> : null}
+            </p>
+          </div>
+        </div>
+        <div className="mt-3 flex w-full justify-center">
+          <InlineInventoryQtyControl
+            compact
+            catalog={isSelected}
+            quantity={qty}
+            onAdd={() => addFromCatalog(item.id)}
+            onDecrement={() => line && bump(line.lineId, -1)}
+            onIncrement={() => (line ? bump(line.lineId, 1) : addFromCatalog(item.id))}
+          />
+        </div>
+      </li>
+    )
+  }
+
   function renderCatalogRow(item, highlightQuery, emphasizeMatch) {
     const line = catalogLineForItem(lines, item.id, item.name)
     const qty = line?.quantity ?? 0
@@ -303,9 +364,10 @@ export default function Step2Inventory({
             {perUnitVol.toFixed(2)} m³
           </p>
         </div>
-        <div className={ADMIN_INVENTORY_CARD_CONTROLS} onMouseDown={keepSearchDropdownFocus}>
+        <div className="flex shrink-0 items-center justify-end" onMouseDown={keepSearchDropdownFocus}>
           <InlineInventoryQtyControl
-            compact={compact && !isAdminLayout}
+            compact={compact}
+            catalog={Boolean(line?.quantity)}
             quantity={qty}
             onAdd={() => addFromCatalog(item.id)}
             onDecrement={() => line && bump(line.lineId, -1)}
@@ -341,6 +403,9 @@ export default function Step2Inventory({
               item.name
             )}
           </p>
+          <p className="mt-0.5 text-xs text-slate-500">
+            {(Number(item.m3) || 0).toFixed(2)} m³ per unit
+          </p>
         </div>
         <div className="flex h-9 w-16 shrink-0 items-center justify-end">
           <InlineInventoryQtyControl
@@ -371,7 +436,6 @@ export default function Step2Inventory({
         crewSettings={crewSettings}
         crewRestrictions={crewRestrictions}
         crewFieldId={crewFieldId}
-        crewHintId={crewHintId}
         validationMessage={validationMessage}
         searchId={searchId}
         searchQuery={searchQuery}
@@ -380,7 +444,7 @@ export default function Step2Inventory({
         searchResults={searchResults}
         renderSearchResultRow={renderSearchResultRow}
         activeCategory={activeCategory}
-        setActiveCategory={setActiveCategory}
+        onCategoryToggle={toggleCategory}
         cat={cat}
         customName={customName}
         setCustomName={setCustomName}
@@ -389,8 +453,8 @@ export default function Step2Inventory({
         addCustom={addCustom}
         removeAll={removeAll}
         bump={bump}
-        renderCatalogRow={isAdminLayout ? renderCatalogRow : renderMobileCatalogRow}
-        catalogItemsListClassName={isAdminLayout ? 'mt-3 space-y-3' : 'mt-1.5 space-y-1'}
+        renderCatalogRow={isAdminLayout ? renderQuoteInventoryGridCard : renderMobileCatalogRow}
+        catalogItemsListClassName={isAdminLayout ? DESKTOP_INVENTORY_LIST : MOBILE_INVENTORY_LIST}
         searchResultsCompact={!isAdminLayout}
         resultsPanelRef={resultsPanelRef}
         categoriesRef={categoriesRef}
@@ -398,7 +462,7 @@ export default function Step2Inventory({
       />
 
     <div
-      className={`hidden min-w-0 w-full max-w-full overflow-x-hidden md:block ${isAdminLayout ? 'space-y-5' : 'space-y-8'}`}
+      className={`hidden min-w-0 w-full max-w-full md:block ${isAdminLayout ? 'space-y-4' : 'space-y-8'}`}
     >
       {!isAdminLayout ? (
         <div>
@@ -424,12 +488,9 @@ export default function Step2Inventory({
 
       <CrewSizeField
         id={crewFieldId}
-        descriptionId={crewHintId}
         value={crewSize}
         onChange={onCrewSizeChange}
         crewSettings={crewSettings}
-        oneManAllowed={crewRestrictions?.oneManAllowed !== false}
-        oneManDisabledReason={crewRestrictions?.message || ''}
         invalid={Boolean(validationMessage && /crew size/i.test(validationMessage))}
       />
 
@@ -443,26 +504,32 @@ export default function Step2Inventory({
         </p>
       ) : null}
 
-      <div className="flex min-w-0 snap-x snap-mandatory gap-2 overflow-x-auto pb-1 sm:flex-wrap sm:overflow-visible sm:pb-0">
+      <div className="grid grid-cols-2 gap-2 sm:gap-3">
         {categoryOrder.map((key) => {
           const c = inventoryByCategory[key]
           if (!c) return null
+          const isOpen = activeCategory === key
           return (
             <button
               key={key}
               type="button"
-              onClick={() => setActiveCategory(key)}
-              className={`shrink-0 snap-start inline-flex min-h-[44px] items-center gap-2 rounded-xl border px-3 py-2 text-sm font-semibold transition sm:px-4 ${
-                activeCategory === key
+              aria-expanded={isOpen}
+              onClick={() => toggleCategory(key)}
+              className={`flex min-h-[48px] w-full items-center gap-2 rounded-xl border px-3 py-2.5 text-left text-sm font-semibold shadow-sm transition ${
+                isOpen
                   ? 'border-brand-500 bg-brand-50 text-brand-900 ring-2 ring-brand-500/20'
                   : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'
               }`}
             >
               <CategoryLucideIcon
                 categoryKey={key}
-                className={`h-4 w-4 shrink-0 ${activeCategory === key ? 'text-brand-700' : 'text-slate-500'}`}
+                className={`h-4 w-4 shrink-0 ${isOpen ? 'text-brand-700' : 'text-slate-500'}`}
               />
-              {c.label}
+              <span className="min-w-0 flex-1 leading-snug">{c.label}</span>
+              <ChevronDown
+                className={`h-4 w-4 shrink-0 text-slate-400 transition-transform ${isOpen ? 'rotate-180 text-brand-600' : ''}`}
+                aria-hidden
+              />
             </button>
           )
         })}
@@ -480,38 +547,42 @@ export default function Step2Inventory({
           <InventorySearchDropdownEmpty />
         ) : (
           <ul className="min-w-0 py-0.5">
-            {searchResults.map((e) => renderSearchResultRow(e, !isAdminLayout))}
+            {searchResults.map((e) => renderSearchResultRow(e, false))}
           </ul>
         )}
       </InventorySearchDropdown>
 
-      <div
-        ref={resultsPanelRef}
-        data-quote-field="inventory"
-        className={`relative z-0 mt-4 min-w-0 w-full max-w-full rounded-2xl border border-slate-200 bg-white shadow-sm ${
-          isAdminLayout ? 'p-4 sm:p-5' : 'p-3 sm:p-6'
-        }`}
-      >
-        {catalogLoading ? (
-          <p className="text-sm text-slate-600">Loading items…</p>
-        ) : cat ? (
-          <div className="min-w-0">
-            <h3 className="text-sm font-bold text-slate-900">{cat.label}</h3>
-            <ul
-              className={
-                isAdminLayout ? ADMIN_INVENTORY_GRID : 'mt-4 grid grid-cols-2 gap-2 xxs:gap-2.5 sm:gap-3'
-              }
-            >
-              {cat.items.map((item) => renderCatalogRow(item, '', false))}
-            </ul>
-          </div>
-        ) : (
-          <p className="text-sm text-slate-600">No items in this category.</p>
-        )}
-      </div>
+      {activeCategory ? (
+        <div
+          ref={resultsPanelRef}
+          data-quote-field="inventory"
+          className={`relative z-0 mt-4 min-w-0 w-full max-w-full rounded-2xl border border-slate-200 bg-white shadow-sm ${
+            isAdminLayout ? 'p-4 sm:p-5' : 'p-3 sm:p-6'
+          }`}
+        >
+          {catalogLoading ? (
+            <p className="text-sm text-slate-600">Loading items…</p>
+          ) : cat ? (
+            <div className="min-w-0">
+              <h3 className="text-sm font-bold text-slate-900">{cat.label}</h3>
+              <ul
+                className={
+                  isAdminLayout
+                    ? ADMIN_INVENTORY_GRID
+                    : 'mt-4 grid grid-cols-2 gap-2 xxs:gap-2.5 sm:gap-3'
+                }
+              >
+                {cat.items.map((item) => renderCatalogRow(item, '', false))}
+              </ul>
+            </div>
+          ) : (
+            <p className="text-sm text-slate-600">No items in this category.</p>
+          )}
+        </div>
+      ) : null}
 
       <div
-        className={`rounded-2xl border border-dashed border-slate-300 bg-slate-50/50 ${isAdminLayout ? 'p-3 sm:p-4' : 'p-4 sm:p-5'}`}
+        className="rounded-2xl border border-dashed border-slate-300 bg-slate-50/50 p-4 sm:p-5"
       >
         <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Custom item</p>
         <div className="mt-3 grid gap-3 sm:grid-cols-12 sm:items-end">
@@ -648,6 +719,9 @@ export default function Step2Inventory({
         <JobDetailsContactSection
           data={data}
           onChange={onChange}
+          pricingSettings={pricingSettings}
+          breakdown={breakdown}
+          priceWithoutPromo={priceWithoutPromo}
           validationMessage={contactValidationMessage}
         />
       ) : null}

@@ -18,9 +18,9 @@ const DESKTOP_CREW_META = {
 
 function buildCrewOptions(crewSettings) {
   return [
-    { value: 1, label: '1 Man', enabled: Boolean(crewSettings?.crewSizeOneEnabled ?? true) },
-    { value: 2, label: '2 Men', enabled: Boolean(crewSettings?.crewSizeTwoEnabled ?? true) },
-    { value: 3, label: '3 Men', enabled: Boolean(crewSettings?.crewSizeThreeEnabled ?? true) },
+    { value: 1, label: '1 Man', enabled: true },
+    { value: 2, label: '2 Men', enabled: crewSettings?.crewSizeTwoEnabled !== false },
+    { value: 3, label: '3 Men', enabled: crewSettings?.crewSizeThreeEnabled !== false },
     { value: 4, label: '4 Men', enabled: Boolean(crewSettings?.crewSizeFourEnabled) },
   ].filter((o) => o.enabled)
 }
@@ -131,15 +131,9 @@ export default function CrewSizeField({
   value,
   onChange,
   crewSettings,
-  descriptionId,
   invalid = false,
-  oneManAllowed = true,
-  oneManDisabledReason = '',
 }) {
-  const crewOptions = buildCrewOptions(crewSettings).map((o) =>
-    o.value === 1 && !oneManAllowed ? { ...o, enabled: false } : o,
-  )
-  const finalCrewOptions = crewOptions.filter((o) => o.enabled)
+  const finalCrewOptions = buildCrewOptions(crewSettings)
   const fallbackOptions = [{ value: 2, label: '2 Men', enabled: true }]
   const displayOptions = finalCrewOptions.length > 0 ? finalCrewOptions : fallbackOptions
   const mobileCrewOptions = displayOptions.filter((o) => o.value >= 1 && o.value <= 3)
@@ -166,12 +160,7 @@ export default function CrewSizeField({
         Crew size (required for pricing)
       </span>
 
-      <div
-        className="md:hidden"
-        role="radiogroup"
-        aria-labelledby={labelId}
-        aria-describedby={descriptionId}
-      >
+      <div className="md:hidden" role="radiogroup" aria-labelledby={labelId}>
         <div className="grid grid-cols-3 gap-2">
           {mobileCrewOptions.map((o) => (
             <CrewOptionCard
@@ -185,12 +174,7 @@ export default function CrewSizeField({
         </div>
       </div>
 
-      <div
-        className="hidden md:block"
-        role="radiogroup"
-        aria-labelledby={labelId}
-        aria-describedby={descriptionId}
-      >
+      <div className="hidden md:block" role="radiogroup" aria-labelledby={labelId}>
         <div className={`mt-1 grid gap-3 ${desktopGridCols}`}>
           {displayOptions.map((o) => (
             <CrewOptionCard
@@ -204,17 +188,6 @@ export default function CrewSizeField({
         </div>
       </div>
 
-      {!oneManAllowed && oneManDisabledReason ? (
-        <p className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-2 text-[11px] leading-snug text-amber-900 md:text-xs">
-          {oneManDisabledReason} 1 Man is not available for this move — please choose 2 Men or more.
-        </p>
-      ) : null}
-
-      <p id={descriptionId} className="mt-1.5 text-[11px] leading-snug text-slate-600 md:mt-2 md:text-xs">
-        Crew size updates your quote instantly. 1 Man is the budget option where allowed. 2 Men adds second-crew
-        labour; 3 Men adds third-crew labour (based on distance and travel time). House removals and heavy items require
-        at least 2 men.
-      </p>
     </div>
   )
 }

@@ -5,7 +5,7 @@ import { reassemblySameAsDismantlingPatch } from '../../lib/quoteWizardReassembl
 import AddressConfirmationSection from './AddressConfirmationSection'
 import PickupDeliveryContactsSection from './PickupDeliveryContactsSection'
 import PackingMaterialsSection from './PackingMaterialsSection'
-import QuotePromoCodeField from './QuotePromoCodeField'
+import { applyWizardPatch } from '../../lib/wizardStateUpdate'
 import { quoteMobileInput, quoteMobileLabel } from '../../lib/quoteMobileUiClasses'
 
 const card = 'box-border min-w-0 w-full rounded-lg border border-slate-200 bg-white shadow-sm md:rounded-xl'
@@ -75,6 +75,7 @@ export default function MobileStep3Details({
   onGoToStep,
   validationMessage,
   hideContactSection = false,
+  fieldErrors = {},
 }) {
   const input = quoteMobileInput
   const label = quoteMobileLabel
@@ -82,7 +83,7 @@ export default function MobileStep3Details({
   const assemblyMode = !data.reassembly ? 'none' : data.reassemblySameAsDismantling ? 'same' : 'different'
 
   function set(patch) {
-    onChange({ ...data, ...patch })
+    applyWizardPatch(onChange, patch)
   }
 
   function setAssemblyMode(mode) {
@@ -123,7 +124,7 @@ export default function MobileStep3Details({
   return (
     <div
       data-quote-step="3"
-      className={`box-border min-w-0 w-full max-w-full space-y-1.5 overflow-x-hidden md:hidden${hideContactSection ? ' mt-2 border-t border-slate-200 pt-3' : ''}`}
+      className={`box-border min-w-0 w-full max-w-full space-y-1.5 md:hidden${hideContactSection ? ' mt-2 border-t border-slate-200 pt-3' : ''}`}
     >
       {hideContactSection ? (
         <div className="px-0.5">
@@ -204,6 +205,7 @@ export default function MobileStep3Details({
         onChange={onChange}
         onGoToStep={onGoToStep}
         variant="mobile"
+        fieldErrors={fieldErrors}
       />
 
 
@@ -343,13 +345,7 @@ export default function MobileStep3Details({
         onChange={onChange}
         pricingSettings={pricingSettings}
         variant="mobile"
-      />
-
-      <QuotePromoCodeField
-        data={data}
-        onChange={onChange}
-        pricingSettings={pricingSettings}
-        variant="mobile"
+        defaultExpanded={hideContactSection}
       />
 
       <div className={`${card} p-3`}>

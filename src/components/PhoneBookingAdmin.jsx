@@ -1,15 +1,19 @@
 import { useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import AdminPhoneBookingForm from './admin/AdminPhoneBookingForm'
 import AdminPhoneBookingPendingList from './admin/AdminPhoneBookingPendingList'
 
 export default function PhoneBookingAdmin() {
+  const [searchParams] = useSearchParams()
+  const editQuoteId = searchParams.get('edit')
   const [pendingRefreshKey, setPendingRefreshKey] = useState(0)
   const [createdBanner, setCreatedBanner] = useState('')
 
-  function handleBookingCreated(saved) {
+  function handleBookingSaved(saved, { updated = false } = {}) {
     setCreatedBanner(
-      `Booking ${saved.quote_ref} saved under My jobs created (Waiting to send).`,
+      updated
+        ? `Booking ${saved.quote_ref} updated. It remains under My jobs created until you send it to Available Jobs.`
+        : `Booking ${saved.quote_ref} saved under My jobs created (Waiting to send).`,
     )
     setPendingRefreshKey((k) => k + 1)
   }
@@ -46,7 +50,12 @@ export default function PhoneBookingAdmin() {
         />
       </div>
 
-      <AdminPhoneBookingForm onBookingCreated={handleBookingCreated} />
+      <AdminPhoneBookingForm
+        key={editQuoteId || 'new'}
+        editQuoteId={editQuoteId}
+        onBookingCreated={(saved) => handleBookingSaved(saved, { updated: false })}
+        onBookingUpdated={(saved) => handleBookingSaved(saved, { updated: true })}
+      />
     </div>
   )
 }

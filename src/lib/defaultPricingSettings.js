@@ -36,6 +36,9 @@ export function getDefaultPricingSettings() {
     waitingTimePricePerHour: 40,
     sameDaySurchargePercent: 12,
     weekendSurchargePercent: 15,
+    saturdaySurchargePercent: 15,
+    sundaySurchargePercent: 15,
+    bankHolidaySurchargePercent: 20,
     extraHelperPrice: 40,
     crewSurchargePerExtraMember: 40,
     /** Used only when live Mapbox route duration is unavailable (legacy key: averageSpeedMph). */

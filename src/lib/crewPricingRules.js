@@ -10,9 +10,7 @@ export const HOUSE_REMOVALS_SERVICE = 'House Removals'
  * @param {number} [heavyItemCount]
  * @returns {number}
  */
-export function getMinimumCrewForQuote(serviceType, heavyItemCount = 0) {
-  const heavy = Math.max(0, Number(heavyItemCount) || 0)
-  if (serviceType === HOUSE_REMOVALS_SERVICE || heavy > 0) return 2
+export function getMinimumCrewForQuote(_serviceType, _heavyItemCount = 0) {
   return 1
 }
 
@@ -21,21 +19,11 @@ export function getMinimumCrewForQuote(serviceType, heavyItemCount = 0) {
  * @param {{ serviceType?: string, heavyItemCount?: number }} input
  * @returns {CrewRestrictions}
  */
-export function getQuoteCrewRestrictions({ serviceType, heavyItemCount = 0 } = {}) {
-  const reasons = []
-  if (serviceType === HOUSE_REMOVALS_SERVICE) {
-    reasons.push('House removals require at least 2 crew members.')
-  }
-  const heavy = Math.max(0, Number(heavyItemCount) || 0)
-  if (heavy > 0) {
-    reasons.push('Heavy items require at least 2 crew members.')
-  }
-  /** Student moves allow 1 man only when inventory has no heavy items (see heavy count above). */
-  const minimumCrew = getMinimumCrewForQuote(serviceType, heavy)
+export function getQuoteCrewRestrictions(_input = {}) {
   return {
-    oneManAllowed: reasons.length === 0,
-    minimumCrew,
-    message: reasons.join(' '),
+    oneManAllowed: true,
+    minimumCrew: 1,
+    message: '',
   }
 }
 

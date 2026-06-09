@@ -48,6 +48,9 @@ function testSettings(overrides = {}) {
     waitingTimePricePerHour: 40,
     sameDaySurchargePercent: 12,
     weekendSurchargePercent: 15,
+    saturdaySurchargePercent: 15,
+    sundaySurchargePercent: 15,
+    bankHolidaySurchargePercent: 20,
     packingPricePerBoxOrItem: 5,
     dismantlingPricePerItem: 42,
     reassemblyPricePerItem: 42,
@@ -146,6 +149,16 @@ const scenarios = [
       access: baseAccess,
       extras: { weekend: true },
       moveDate: '2026-05-16',
+    },
+  ],
+  [
+    'K2',
+    {
+      crewSize: 2,
+      distanceMiles: 1.3,
+      access: baseAccess,
+      extras: { bankHoliday: true },
+      moveDate: '2026-05-04',
     },
   ],
   ['L', { crewSize: 2, distanceMiles: 1.3, access: baseAccess, extras: { sameDay: true } }],
@@ -536,5 +549,109 @@ if (SHOW_PRICE_DEBUG !== false) {
   process.exit(1)
 }
 console.log('SHOW_PRICE_DEBUG=false: OK')
+
+const { isBankHolidayDate, getBankHolidayName } = await loadSrc('lib/ukBankHolidays.js')
+
+console.log('\n=== Scottish bank holidays ===')
+if (!isBankHolidayDate('2026-05-04')) {
+  console.error('FAILED: 2026-05-04 should be Early May bank holiday')
+  process.exit(1)
+}
+if (getBankHolidayName('2026-05-04') !== 'Early May bank holiday') {
+  console.error('FAILED: unexpected bank holiday name for 2026-05-04')
+  process.exit(1)
+}
+if (isBankHolidayDate('2026-05-05')) {
+  console.error('FAILED: 2026-05-05 should not be a bank holiday')
+  process.exit(1)
+}
+
+const weekdayQuote = calculateQuote(settings, {
+  serviceType: 'Man with Van',
+  distanceMiles: 1.3,
+  lineItems: SOFA_LINE,
+  access: baseAccess,
+  extras: {},
+  crewSize: 2,
+  moveDate: '2026-05-05',
+})
+const bankHolidayQuote = calculateQuote(settings, {
+  serviceType: 'Man with Van',
+  distanceMiles: 1.3,
+  lineItems: SOFA_LINE,
+  access: baseAccess,
+  extras: { bankHoliday: true },
+  crewSize: 2,
+  moveDate: '2026-05-04',
+})
+const bankHolidaySurcharge = (bankHolidayQuote.surchargeLines || []).find((l) =>
+  /bank holiday/i.test(l.label),
+)
+if (!bankHolidaySurcharge || bankHolidaySurcharge.amount <= 0) {
+  console.error('FAILED: bank holiday surcharge line missing')
+  process.exit(1)
+}
+if (bankHolidayQuote.scaledSubtotal <= weekdayQuote.scaledSubtotal) {
+  console.error('FAILED: bank holiday scaled subtotal should exceed weekday quote')
+  process.exit(1)
+}
+
+const weekendBankHolidaySat = calculateQuote(settings, {
+  serviceType: 'Man with Van',
+  distanceMiles: 1.3,
+  lineItems: SOFA_LINE,
+  access: baseAccess,
+  extras: { bankHoliday: true, weekend: true },
+  crewSize: 2,
+  moveDate: '2026-05-04',
+})
+const weekendLineOnHoliday = (weekendBankHolidaySat.surchargeLines || []).find((l) =>
+  /weekend/i.test(l.label),
+)
+if (weekendLineOnHoliday) {
+  console.error('FAILED: weekend surcharge should not stack on bank holiday')
+  process.exit(1)
+}
+console.log('Scottish bank holiday pricing: OK')
+
+console.log('\n=== Saturday / Sunday surcharges ===')
+const splitSettings = {
+  ...settings,
+  saturdaySurchargePercent: 20,
+  sundaySurchargePercent: 10,
+}
+const saturdayQuote = calculateQuote(splitSettings, {
+  serviceType: 'Man with Van',
+  distanceMiles: 1.3,
+  lineItems: SOFA_LINE,
+  access: baseAccess,
+  extras: {},
+  crewSize: 2,
+  moveDate: '2026-06-06',
+})
+const sundayQuote = calculateQuote(splitSettings, {
+  serviceType: 'Man with Van',
+  distanceMiles: 1.3,
+  lineItems: SOFA_LINE,
+  access: baseAccess,
+  extras: {},
+  crewSize: 2,
+  moveDate: '2026-06-07',
+})
+const saturdayLine = (saturdayQuote.surchargeLines || []).find((l) => /saturday/i.test(l.label))
+const sundayLine = (sundayQuote.surchargeLines || []).find((l) => /sunday/i.test(l.label))
+if (!saturdayLine || !/20/.test(saturdayLine.label)) {
+  console.error('FAILED: Saturday surcharge line missing or wrong percent')
+  process.exit(1)
+}
+if (!sundayLine || !/10/.test(sundayLine.label)) {
+  console.error('FAILED: Sunday surcharge line missing or wrong percent')
+  process.exit(1)
+}
+if (saturdayLine.amount <= sundayLine.amount) {
+  console.error('FAILED: Saturday surcharge should exceed Sunday at 20% vs 10%')
+  process.exit(1)
+}
+console.log('Saturday / Sunday surcharges: OK')
 
 console.log(`\nAll ${results.length} pricing scenarios passed.`)

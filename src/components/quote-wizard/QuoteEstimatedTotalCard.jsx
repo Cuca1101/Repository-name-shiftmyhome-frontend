@@ -1,9 +1,23 @@
+import QuotePromoPriceReduction from './QuotePromoPriceReduction'
+
 /**
  * Step 4 estimated total reassurance card (shared mobile + desktop).
  * Do not calculate pricing in UI components. Use shared pricing engine only.
- * @param {{ breakdown: { estimatedTotal?: number } | null, className?: string }} props
+ * @param {{
+ *   breakdown: { estimatedTotal?: number } | null,
+ *   pricingSettings?: import('../../lib/pricingCalculator.js').PricingSettings | null,
+ *   promoCode?: string | null,
+ *   priceWithoutPromo?: number | null,
+ *   className?: string,
+ * }} props
  */
-export default function QuoteEstimatedTotalCard({ breakdown, className = '' }) {
+export default function QuoteEstimatedTotalCard({
+  breakdown,
+  pricingSettings = null,
+  promoCode = '',
+  priceWithoutPromo = null,
+  className = '',
+}) {
   const estimatedTotal = breakdown?.estimatedTotal
   const totalFormatted =
     estimatedTotal != null && Number.isFinite(estimatedTotal)
@@ -27,6 +41,14 @@ export default function QuoteEstimatedTotalCard({ breakdown, className = '' }) {
       <p className="mt-0.5 text-2xl font-bold tabular-nums text-emerald-700 md:text-3xl">
         {breakdown ? totalFormatted : 'Calculating…'}
       </p>
+      <QuotePromoPriceReduction
+        promoCode={promoCode}
+        pricingSettings={pricingSettings}
+        priceWithPromo={estimatedTotal}
+        priceWithoutPromo={priceWithoutPromo}
+        className="mt-3"
+        showPromoCode
+      />
       <p className="mt-3 text-xs leading-relaxed text-slate-700 md:text-sm">
         Your estimate is based on the details provided. If anything doesn&apos;t look right, or
         you&apos;d like to discuss the move before booking, please call us and we&apos;ll be happy

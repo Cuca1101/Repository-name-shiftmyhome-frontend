@@ -6,7 +6,7 @@ import QuoteReviewStickyPanel, {
 } from './QuoteReviewStickyPanel'
 
 export default function MoveSummary(props) {
-  const { reviewSticky, ...bodyProps } = props
+  const { reviewSticky, afterSummary, ...bodyProps } = props
   const mapVariant = bodyProps.step === 4 ? 'review' : 'default'
   const step3Sidebar =
     reviewSticky?.placement === 'aboveReference' && typeof reviewSticky?.onContinueToPayment === 'function'
@@ -18,7 +18,7 @@ export default function MoveSummary(props) {
         {step3Sidebar ? (
           <QuoteReviewSelectedSlot {...stickyPanelProps} className="!shadow-card" />
         ) : null}
-        <MoveSummaryBody {...bodyProps} mapVariant={mapVariant} />
+        <MoveSummaryBody {...bodyProps} mapVariant={mapVariant} afterSummary={afterSummary} />
         {step3Sidebar ? (
           <QuoteReviewPayCta
             onContinueToPayment={stickyPanelProps.onContinueToPayment}
@@ -33,11 +33,11 @@ export default function MoveSummary(props) {
       {step3Sidebar ? (
         <div className="space-y-1.5 md:hidden">
           <QuoteReviewSelectedSlot {...stickyPanelProps} />
-          <MobileMoveSummary {...bodyProps} mapVariant={mapVariant} />
+          <MobileMoveSummary {...bodyProps} mapVariant={mapVariant} afterSummary={afterSummary} />
           <QuoteReviewPayCta onContinueToPayment={stickyPanelProps.onContinueToPayment} />
         </div>
       ) : bodyProps.step === 4 ? null : (
-        <MobileMoveSummary {...bodyProps} mapVariant={mapVariant} />
+        <MobileMoveSummary {...bodyProps} mapVariant={mapVariant} afterSummary={afterSummary} />
       )}
     </>
   )

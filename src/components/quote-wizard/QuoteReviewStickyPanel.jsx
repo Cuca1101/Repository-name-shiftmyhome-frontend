@@ -15,6 +15,7 @@ import {
   getQuoteReviewSelectedOptionId,
 
 } from '../../lib/quoteReviewPriceOptions'
+import QuotePromoPriceReduction from './QuotePromoPriceReduction'
 const panel =
 
   'rounded-xl border border-slate-200 bg-white p-3 shadow-sm ring-1 ring-slate-100/80 md:rounded-2xl md:p-4'
@@ -45,7 +46,15 @@ function handlePayCta(onContinueToPayment) {
 
 
 
-function useSelectedSlot({ wizard, breakdown, pricingSettings, serviceType, lineItems, heavyItemCount }) {
+function useSelectedSlot({
+  wizard,
+  breakdown,
+  pricingSettings,
+  serviceType,
+  lineItems,
+  heavyItemCount,
+  priceWithoutPromo = null,
+}) {
 
   const options = useMemo(
 
@@ -97,8 +106,16 @@ function useSelectedSlot({ wizard, breakdown, pricingSettings, serviceType, line
 
 
 
-  return { selected, moveDateLabel, dayNameLabel, timeLabel, totalFormatted, breakdownRows: collectBreakdownDisplayLines(breakdown).slice(0, 6) }
-
+  return {
+    selected,
+    moveDateLabel,
+    dayNameLabel,
+    timeLabel,
+    total,
+    totalFormatted,
+    breakdownRows: collectBreakdownDisplayLines(breakdown).slice(0, 6),
+    priceWithoutPromo,
+  }
 }
 
 
@@ -208,6 +225,8 @@ export default function QuoteReviewStickyPanel({
 
   heavyItemCount,
 
+  priceWithoutPromo = null,
+
   onContinueToPayment,
 
   className = '',
@@ -216,8 +235,8 @@ export default function QuoteReviewStickyPanel({
 
 }) {
 
-  const { moveDateLabel, dayNameLabel, timeLabel, totalFormatted, breakdownRows } = useSelectedSlot({
-
+  const { moveDateLabel, dayNameLabel, timeLabel, total, totalFormatted, breakdownRows } =
+    useSelectedSlot({
     wizard,
 
     breakdown,
@@ -229,6 +248,8 @@ export default function QuoteReviewStickyPanel({
     lineItems,
 
     heavyItemCount,
+
+    priceWithoutPromo,
 
   })
 
@@ -286,7 +307,7 @@ export default function QuoteReviewStickyPanel({
 
       {breakdownRows.length > 0 ? (
 
-        <ul className="mt-3 max-h-36 space-y-1.5 overflow-y-auto text-[11px] md:text-xs">
+        <ul className="mt-3 space-y-1.5 text-[11px] md:text-xs">
 
           {breakdownRows.map((row, i) => (
 
@@ -318,11 +339,25 @@ export default function QuoteReviewStickyPanel({
 
 
 
-      <div className="mt-3 flex items-end justify-between gap-2 border-t border-slate-100 pt-3">
+      <div className="mt-3 border-t border-slate-100 pt-3">
 
-        <span className="text-xs font-semibold text-slate-700">Total (estimate)</span>
+        <div className="flex items-end justify-between gap-2">
 
-        <span className="text-xl font-bold tabular-nums text-emerald-700 md:text-2xl">{totalFormatted}</span>
+          <span className="text-xs font-semibold text-slate-700">Total (estimate)</span>
+
+          <span className="text-xl font-bold tabular-nums text-emerald-700 md:text-2xl">{totalFormatted}</span>
+
+        </div>
+
+        <QuotePromoPriceReduction
+          promoCode={wizard?.promoCode}
+          pricingSettings={pricingSettings}
+          priceWithPromo={total}
+          priceWithoutPromo={priceWithoutPromo}
+          className="mt-2"
+          size="sm"
+          showPromoCode
+        />
 
       </div>
 

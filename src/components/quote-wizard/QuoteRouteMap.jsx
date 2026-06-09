@@ -2,8 +2,9 @@ import { Component, useEffect, useRef, useState } from 'react'
 import mapboxgl from 'mapbox-gl'
 import { fetchDrivingRoute, metersToMiles } from '../../lib/mapboxRouteApi'
 
-const UK_CENTER = { lng: -4.2, lat: 55.5 }
-const UK_ZOOM = 5.2
+/** Neutral Scotland overview — no city focus until addresses are chosen. */
+const SCOTLAND_CENTER = { lng: -4.0, lat: 56.35 }
+const SCOTLAND_ZOOM = 4.65
 const ROUTE_FETCH_TIMEOUT_MS = 12000
 
 const MSG_NO_TOKEN = 'Map unavailable - token missing'
@@ -12,7 +13,7 @@ const MSG_ROUTE_TIMEOUT = 'Route is taking longer than expected. Check your conn
 
 const DEFAULT_MAP_SHELL =
   'relative h-[100px] min-h-[100px] xxs:h-[110px] xxs:min-h-[110px] xs:h-[130px] xs:min-h-[130px] mb:h-[160px] mb:min-h-[160px] sm:h-[200px] sm:min-h-[200px] lg:h-[260px] lg:min-h-[260px] w-full min-w-0 overflow-hidden rounded-2xl'
-const COMPACT_MAP_SHELL = 'relative h-24 min-h-[6rem] w-full min-w-0 overflow-hidden rounded-lg md:rounded-2xl'
+const COMPACT_MAP_SHELL = 'relative h-32 min-h-[8rem] w-full min-w-0 overflow-hidden rounded-lg md:rounded-2xl'
 /** Step 3 review — compact route preview (logic unchanged). */
 const REVIEW_MAP_SHELL =
   'relative h-[168px] min-h-[168px] sm:h-[180px] sm:min-h-[180px] md:h-[200px] md:min-h-[200px] w-full min-w-0 overflow-hidden rounded-xl'
@@ -99,6 +100,42 @@ function clearRoute(map) {
   } catch {
     /* ignore */
   }
+}
+
+/** Strip city/POI labels from the Mapbox basemap for a clean quote preview. */
+function applyCleanQuoteBasemap(map) {
+  const style = map.getStyle()
+  if (!style?.layers) return
+
+  for (const layer of style.layers) {
+    const id = layer.id || ''
+    if (layer.type !== 'symbol') continue
+
+    const hideLabel =
+      id.startsWith('place-') ||
+      id.startsWith('poi-') ||
+      id.startsWith('airport-') ||
+      id.startsWith('transit-') ||
+      id.startsWith('road-label') ||
+      id.startsWith('road-number') ||
+      id.startsWith('waterway-label')
+
+    if (!hideLabel) continue
+
+    try {
+      map.setLayoutProperty(id, 'visibility', 'none')
+    } catch {
+      /* layer may not be ready */
+    }
+  }
+}
+
+function flyToNeutralScotland(map) {
+  map.flyTo({
+    center: [SCOTLAND_CENTER.lng, SCOTLAND_CENTER.lat],
+    zoom: SCOTLAND_ZOOM,
+    duration: 0,
+  })
 }
 
 function mkMarkerEl(label, bg) {
@@ -225,14 +262,15 @@ function QuoteRouteMapInner({
       const map = new mapboxgl.Map({
         container: el,
         style: 'mapbox://styles/mapbox/light-v11',
-        center: [UK_CENTER.lng, UK_CENTER.lat],
-        zoom: UK_ZOOM,
+        center: [SCOTLAND_CENTER.lng, SCOTLAND_CENTER.lat],
+        zoom: SCOTLAND_ZOOM,
         attributionControl: true,
       })
       map.addControl(new mapboxgl.NavigationControl({ visualizePitch: false }), 'top-right')
       mapRef.current = map
 
       map.on('load', () => {
+        applyCleanQuoteBasemap(map)
         resizeMap()
         setMapReadyTick((n) => n + 1)
       })
@@ -409,26 +447,7 @@ function QuoteRouteMapInner({
 
       onDistanceRef.current?.({ type: 'incomplete' })
       setOverlayIfCurrent(null)
-
-      if (pickupOk && !deliveryOk) {
-        const mA = new mapboxgl.Marker({ element: mkMarkerEl('A', '#2563eb'), anchor: 'bottom' })
-          .setLngLat([plng, plat])
-          .addTo(map)
-        markersRef.current = [mA]
-        map.flyTo({ center: [plng, plat], zoom: 11, duration: 0 })
-        return
-      }
-
-      if (deliveryOk && !pickupOk) {
-        const mB = new mapboxgl.Marker({ element: mkMarkerEl('B', '#059669'), anchor: 'bottom' })
-          .setLngLat([dlng, dlat])
-          .addTo(map)
-        markersRef.current = [mB]
-        map.flyTo({ center: [dlng, dlat], zoom: 11, duration: 0 })
-        return
-      }
-
-      map.flyTo({ center: [UK_CENTER.lng, UK_CENTER.lat], zoom: UK_ZOOM, duration: 0 })
+      flyToNeutralScotland(map)
     }
 
     const onMapLoad = () => {

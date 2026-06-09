@@ -289,6 +289,7 @@ export function buildPricingDebugDetail(breakdown, ctx) {
       serviceType: ctx.serviceType,
       sameDay: Boolean(extras.sameDay),
       weekend: extras.weekend,
+      bankHoliday: extras.bankHoliday,
     },
   }
 }

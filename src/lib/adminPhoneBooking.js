@@ -19,76 +19,145 @@ import {
   buildQuoteRowFromTemplateParams,
   generateQuoteRef,
 } from './data/quotesRepository'
+import { fetchQuoteByIdForAdmin } from './data/quotesAdminRepository'
+import { quoteIsAdminPhoneBooking } from './adminJobListRules'
+import {
+  appendWizardSnapshotToDetails,
+  extractWizardSnapshotFromDetails,
+} from './adminPhoneBookingWizardSnapshot'
+import { SERVICE_TYPES } from '../constants/serviceTypes'
+import { initialWizardState } from './quoteWizardDefaults'
+import { hydrateWizardFromDraft } from './quoteDraftStorage'
 
 const QUOTES_TABLE = 'quotes'
 
 const HAS_MAPBOX_TOKEN = Boolean(import.meta.env.VITE_MAPBOX_TOKEN)
+
+/** @typedef {{ field: string, message: string, step: 1 | 2 | 3 }} AdminPhoneBookingFieldError */
+
+/**
+ * @param {Record<string, unknown>} wizard
+ * @param {{ requireAddressConfirmation?: boolean }} [opts]
+ * @returns {AdminPhoneBookingFieldError[]}
+ */
+export function collectAdminPhoneBookingFieldErrors(wizard, opts = {}) {
+  const requireAddressConfirmation = opts.requireAddressConfirmation !== false
+  /** @type {AdminPhoneBookingFieldError[]} */
+  const errors = []
+
+  const name = String(wizard.fullName || '').trim()
+  const phone = String(wizard.phone || '').trim()
+  const email = String(wizard.email || '').trim()
+  if (!name) errors.push({ field: 'fullName', message: 'Customer full name is required.', step: 2 })
+  if (!phone) errors.push({ field: 'phone', message: 'Customer phone is required.', step: 2 })
+  if (!email) errors.push({ field: 'email', message: 'Customer email is required.', step: 2 })
+
+  const pickup = String(wizard.pickupAddress || '').trim()
+  const delivery = String(wizard.deliveryAddress || '').trim()
+  if (pickup.length <= 2) {
+    errors.push({ field: 'pickupAddress', message: 'Pickup address is required.', step: 1 })
+  }
+  if (delivery.length <= 2) {
+    errors.push({ field: 'deliveryAddress', message: 'Delivery address is required.', step: 1 })
+  }
+
+  if (HAS_MAPBOX_TOKEN) {
+    if (wizard.pickupLng == null || wizard.pickupLat == null) {
+      errors.push({
+        field: 'pickupAddress',
+        message: 'Select pickup address from Mapbox suggestions.',
+        step: 1,
+      })
+    }
+    if (wizard.deliveryLng == null || wizard.deliveryLat == null) {
+      errors.push({
+        field: 'deliveryAddress',
+        message: 'Select delivery address from Mapbox suggestions.',
+        step: 1,
+      })
+    }
+  }
+
+  if (wizard.pickupFloor == null) {
+    errors.push({ field: 'pickupFloor', message: 'Pickup floor is required.', step: 1 })
+  }
+  if (wizard.deliveryFloor == null) {
+    errors.push({ field: 'deliveryFloor', message: 'Delivery floor is required.', step: 1 })
+  }
+
+  if (!wizard.moveDate) {
+    errors.push({ field: 'moveDate', message: 'Move date is required.', step: 1 })
+  } else if (!isMoveDateOnOrAfterToday(wizard.moveDate)) {
+    errors.push({
+      field: 'moveDate',
+      message: moveDatePastErrorMessage(wizard.moveDate),
+      step: 1,
+    })
+  }
+
+  if (!isWizardArrivalValid(wizard)) {
+    errors.push({
+      field: 'arrivalWindow',
+      message: wizardArrivalErrorMessage(wizard),
+      step: 1,
+    })
+  }
+
+  if (!(Number(wizard.distanceMiles) > 0)) {
+    errors.push({
+      field: 'distanceMiles',
+      message: 'Route distance is required — confirm both addresses on the map.',
+      step: 1,
+    })
+  }
+
+  if (!(Number(wizard.crewSize) >= 1 && Number(wizard.crewSize) <= 4)) {
+    errors.push({ field: 'crewSize', message: 'Select a crew size.', step: 2 })
+  }
+
+  if (!Array.isArray(wizard.inventoryLines) || wizard.inventoryLines.length === 0) {
+    errors.push({
+      field: 'inventoryLines',
+      message: 'Add at least one inventory item.',
+      step: 2,
+    })
+  }
+
+  if (!step3ContactDetailsValid(wizard)) {
+    const contactErr = step3ContactDetailsError(wizard)
+    errors.push({
+      field: contactErr.field || 'contact',
+      message: contactErr.message,
+      step: 2,
+    })
+  }
+
+  if (requireAddressConfirmation) {
+    if (!wizard.pickupAddressConfirmed) {
+      errors.push({
+        field: 'pickupAddressConfirmed',
+        message: 'Confirm the pickup address below.',
+        step: 3,
+      })
+    }
+    if (!wizard.deliveryAddressConfirmed) {
+      errors.push({
+        field: 'deliveryAddressConfirmed',
+        message: 'Confirm the delivery address below.',
+        step: 3,
+      })
+    }
+  }
+
+  return errors
+}
 
 /**
  * @param {Record<string, unknown>} wizard
  * @param {{ requireAddressConfirmation?: boolean }} [opts]
  */
 export function validateAdminPhoneBooking(wizard, opts = {}) {
-  const requireAddressConfirmation = opts.requireAddressConfirmation !== false
-  const errors = []
-
-  const name = String(wizard.fullName || '').trim()
-  const phone = String(wizard.phone || '').trim()
-  const email = String(wizard.email || '').trim()
-  if (!name) errors.push('Customer full name is required.')
-  if (!phone) errors.push('Customer phone is required.')
-  if (!email) errors.push('Customer email is required.')
-
-  const pickup = String(wizard.pickupAddress || '').trim()
-  const delivery = String(wizard.deliveryAddress || '').trim()
-  if (pickup.length <= 2) errors.push('Pickup address is required.')
-  if (delivery.length <= 2) errors.push('Delivery address is required.')
-
-  if (HAS_MAPBOX_TOKEN) {
-    if (wizard.pickupLng == null || wizard.pickupLat == null) {
-      errors.push('Select pickup address from Mapbox suggestions.')
-    }
-    if (wizard.deliveryLng == null || wizard.deliveryLat == null) {
-      errors.push('Select delivery address from Mapbox suggestions.')
-    }
-  }
-
-  if (wizard.pickupFloor == null) errors.push('Pickup floor is required.')
-  if (wizard.deliveryFloor == null) errors.push('Delivery floor is required.')
-
-  if (!wizard.moveDate) {
-    errors.push('Move date is required.')
-  } else if (!isMoveDateOnOrAfterToday(wizard.moveDate)) {
-    errors.push(moveDatePastErrorMessage(wizard.moveDate))
-  }
-
-  if (!isWizardArrivalValid(wizard)) {
-    errors.push(wizardArrivalErrorMessage(wizard))
-  }
-
-  if (!(Number(wizard.distanceMiles) > 0)) {
-    errors.push('Route distance is required — confirm both addresses on the map.')
-  }
-
-  if (!(Number(wizard.crewSize) >= 1 && Number(wizard.crewSize) <= 4)) {
-    errors.push('Select a crew size.')
-  }
-
-  if (!Array.isArray(wizard.inventoryLines) || wizard.inventoryLines.length === 0) {
-    errors.push('Add at least one inventory item.')
-  }
-
-  if (!step3ContactDetailsValid(wizard)) {
-    errors.push(step3ContactDetailsError(wizard).message)
-  }
-
-  if (requireAddressConfirmation) {
-    if (!wizard.pickupAddressConfirmed || !wizard.deliveryAddressConfirmed) {
-      errors.push('Confirm pickup and delivery addresses in the Extras & notes section.')
-    }
-  }
-
-  return errors
+  return collectAdminPhoneBookingFieldErrors(wizard, opts).map((e) => e.message)
 }
 
 /**
@@ -97,63 +166,22 @@ export function validateAdminPhoneBooking(wizard, opts = {}) {
  * @param {1 | 2 | 3} step
  */
 export function validateAdminPhoneBookingStep(wizard, step) {
-  const errors = []
+  return collectAdminPhoneBookingFieldErrors(wizard)
+    .filter((e) => e.step === step)
+    .map((e) => e.message)
+}
 
-  if (step === 1) {
-    const pickup = String(wizard.pickupAddress || '').trim()
-    const delivery = String(wizard.deliveryAddress || '').trim()
-    if (pickup.length <= 2) errors.push('Pickup address is required.')
-    if (delivery.length <= 2) errors.push('Delivery address is required.')
-
-    if (HAS_MAPBOX_TOKEN) {
-      if (wizard.pickupLng == null || wizard.pickupLat == null) {
-        errors.push('Select pickup address from Mapbox suggestions.')
-      }
-      if (wizard.deliveryLng == null || wizard.deliveryLat == null) {
-        errors.push('Select delivery address from Mapbox suggestions.')
-      }
-    }
-
-    if (wizard.pickupFloor == null) errors.push('Pickup floor is required.')
-    if (wizard.deliveryFloor == null) errors.push('Delivery floor is required.')
-
-    if (!wizard.moveDate) {
-      errors.push('Move date is required.')
-    } else if (!isMoveDateOnOrAfterToday(wizard.moveDate)) {
-      errors.push(moveDatePastErrorMessage(wizard.moveDate))
-    }
-
-    if (!isWizardArrivalValid(wizard)) {
-      errors.push(wizardArrivalErrorMessage(wizard))
-    }
-
-    if (!(Number(wizard.distanceMiles) > 0)) {
-      errors.push('Route distance is required — confirm both addresses on the map.')
-    }
-
-    return errors
+/**
+ * @param {AdminPhoneBookingFieldError[]} errors
+ * @returns {Record<string, string>}
+ */
+export function adminPhoneBookingErrorsByField(errors) {
+  /** @type {Record<string, string>} */
+  const map = {}
+  for (const e of errors) {
+    if (!map[e.field]) map[e.field] = e.message
   }
-
-  if (step === 2) {
-    const name = String(wizard.fullName || '').trim()
-    const phone = String(wizard.phone || '').trim()
-    const email = String(wizard.email || '').trim()
-    if (!name) errors.push('Customer full name is required.')
-    if (!phone) errors.push('Customer phone is required.')
-    if (!email) errors.push('Customer email is required.')
-
-    if (!(Number(wizard.crewSize) >= 1 && Number(wizard.crewSize) <= 4)) {
-      errors.push('Select a crew size.')
-    }
-
-    if (!Array.isArray(wizard.inventoryLines) || wizard.inventoryLines.length === 0) {
-      errors.push('Add at least one inventory item.')
-    }
-
-    return errors
-  }
-
-  return validateAdminPhoneBooking(wizard)
+  return map
 }
 
 /**
@@ -199,6 +227,7 @@ export function buildAdminPhoneBookingQuoteRow({
   breakdown,
   useCalculatedPrice,
   finalPrice,
+  finalPriceOverride = '',
   overrideReason = '',
   adminNote = '',
   createdBy = '',
@@ -274,7 +303,15 @@ export function buildAdminPhoneBookingQuoteRow({
     )
   }
 
-  const details = [staffLines.join('\n'), fullSummaryText].filter(Boolean).join('\n\n')
+  const detailsBody = [staffLines.join('\n'), fullSummaryText].filter(Boolean).join('\n\n')
+  const details = appendWizardSnapshotToDetails(detailsBody, {
+    wizard,
+    serviceType,
+    useCalculatedPrice,
+    finalPriceOverride: String(finalPriceOverride ?? ''),
+    overrideReason,
+    adminNote,
+  })
 
   const inventoryJson = (wizard.inventoryLines || []).map((l) => ({
     name: l.name,
@@ -304,6 +341,142 @@ export function buildAdminPhoneBookingQuoteRow({
 }
 
 /**
+ * Map a saved quotes row (+ embedded wizard JSON) into admin form state.
+ * @param {Record<string, unknown>} row
+ */
+export function adminPhoneBookingFormStateFromQuoteRow(row) {
+  const { meta } = extractWizardSnapshotFromDetails(String(row.details || ''))
+  const base = initialWizardState()
+  let wizard = hydrateWizardFromDraft(meta?.wizard ?? {})
+  if (!meta) {
+    wizard = {
+      ...base,
+      fullName: String(row.full_name || ''),
+      phone: String(row.phone || ''),
+      email: String(row.email || ''),
+      pickupAddress: String(row.pickup_address || ''),
+      deliveryAddress: String(row.delivery_address || ''),
+      moveDate: String(row.move_date || ''),
+      distanceMiles: Number(row.distance_miles) || 0,
+      crewSize: row.crew_size != null ? Number(row.crew_size) : null,
+      inventoryLines: parseInventoryJsonFromQuoteRow(row.inventory),
+      pickupAddressConfirmed: true,
+      deliveryAddressConfirmed: true,
+    }
+  } else {
+    wizard = {
+      ...base,
+      ...wizard,
+      pickupAddressConfirmed: true,
+      deliveryAddressConfirmed: true,
+    }
+  }
+
+  const estimated = row.estimated_total != null ? Number(row.estimated_total) : null
+  const remaining = row.remaining_balance != null ? Number(row.remaining_balance) : null
+  let useCalculatedPrice = meta?.useCalculatedPrice !== false
+  let finalPriceOverride = meta?.finalPriceOverride ?? ''
+  if (!meta && estimated != null && remaining != null && Math.abs(estimated - remaining) > 0.009) {
+    useCalculatedPrice = false
+    finalPriceOverride = remaining.toFixed(2)
+  }
+
+  return {
+    wizard,
+    serviceType:
+      meta?.serviceType ||
+      String(row.service_type || row.service || '').trim() ||
+      SERVICE_TYPES[0],
+    quoteRef: String(row.quote_ref || ''),
+    customQuoteRef: '',
+    useCalculatedPrice,
+    finalPriceOverride,
+    overrideReason: meta?.overrideReason ?? '',
+    adminNote: meta?.adminNote ?? '',
+    step: 3,
+  }
+}
+
+/**
+ * @param {unknown} inv
+ */
+function parseInventoryJsonFromQuoteRow(inv) {
+  if (!Array.isArray(inv)) return []
+  return inv
+    .filter((line) => line && typeof line === 'object')
+    .map((line, i) => ({
+      lineId: `L-import-${i}-${Date.now()}`,
+      catalogId: null,
+      name: String(line.name || 'Item'),
+      categoryKey: null,
+      categoryLabel: String(line.category || 'Imported'),
+      quantity: Number(line.quantity) || 1,
+      m3: Number(line.m3) || 0.1,
+      defaultM3: Number(line.m3) || 0.1,
+      mult: Number(line.mult) ?? 1,
+      weightType: line.weight_type || 'medium',
+      isCustom: Boolean(line.is_custom),
+    }))
+}
+
+/**
+ * @param {string} quoteId
+ */
+export async function fetchAdminPhoneBookingForEdit(quoteId) {
+  const id = String(quoteId || '').trim()
+  if (!id) throw new Error('Missing booking id.')
+  const row = await fetchQuoteByIdForAdmin(id)
+  if (!row) throw new Error('Booking not found.')
+  if (!quoteIsAdminPhoneBooking(row)) {
+    throw new Error('This record is not a phone booking.')
+  }
+  return { id: String(row.id), quote_ref: String(row.quote_ref), ...adminPhoneBookingFormStateFromQuoteRow(row) }
+}
+
+/**
+ * @param {Parameters<typeof buildAdminPhoneBookingQuoteRow>[0] & { quoteId: string }} form
+ */
+export async function updateAdminPhoneBookingFromWizard(form) {
+  if (!isSupabaseConfigured || !supabase) {
+    throw new Error('Supabase is not configured.')
+  }
+  const quoteId = String(form.quoteId || '').trim()
+  if (!quoteId) throw new Error('Missing booking id.')
+
+  const existing = await fetchQuoteByIdForAdmin(quoteId)
+  if (!existing) throw new Error('Booking not found.')
+  if (!quoteIsAdminPhoneBooking(existing)) {
+    throw new Error('This record is not a phone booking.')
+  }
+
+  const row = buildAdminPhoneBookingQuoteRow({
+    ...form,
+    quoteRef: String(existing.quote_ref || form.quoteRef || ''),
+  })
+
+  const patch = {
+    ...row,
+    quote_ref: existing.quote_ref,
+    source: existing.source,
+    payment_status: existing.payment_status,
+    payment_type: existing.payment_type,
+    amount_paid: existing.amount_paid,
+    paid_at: existing.paid_at,
+    operational_status: existing.operational_status,
+  }
+
+  const { data, error } = await supabase
+    .from(QUOTES_TABLE)
+    .update(patch)
+    .eq('id', quoteId)
+    .select('id, quote_ref')
+    .single()
+
+  if (error) throw new Error(error.message || 'Could not update booking.')
+  return { id: String(data.id), quote_ref: String(data.quote_ref) }
+}
+
+/**
  * @param {Parameters<typeof buildAdminPhoneBookingQuoteRow>[0]} form
  */
 export async function insertAdminPhoneBookingFromWizard(form) {
@@ -313,7 +486,11 @@ export async function insertAdminPhoneBookingFromWizard(form) {
 
   const requestedRef = String(form.quoteRef || '').trim()
   if (requestedRef) {
-    const row = buildAdminPhoneBookingQuoteRow({ ...form, quoteRef: requestedRef })
+    const row = buildAdminPhoneBookingQuoteRow({
+      ...form,
+      quoteRef: requestedRef,
+      finalPriceOverride: form.finalPriceOverride,
+    })
     const { data, error } = await supabase.from(QUOTES_TABLE).insert(row).select('id, quote_ref').single()
     if (error) {
       if (error.code === '23505') {
@@ -325,7 +502,10 @@ export async function insertAdminPhoneBookingFromWizard(form) {
   }
 
   for (let attempt = 0; attempt < 8; attempt += 1) {
-    const row = buildAdminPhoneBookingQuoteRow(form)
+    const row = buildAdminPhoneBookingQuoteRow({
+      ...form,
+      finalPriceOverride: form.finalPriceOverride,
+    })
     const { data, error } = await supabase.from(QUOTES_TABLE).insert(row).select('id, quote_ref').single()
     if (!error && data?.id) {
       return { id: String(data.id), quote_ref: String(data.quote_ref) }

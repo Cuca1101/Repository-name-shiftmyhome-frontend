@@ -1,4 +1,5 @@
 import { resolveDeliveryContact, resolvePickupContact } from '../../lib/quoteWizardContactFields'
+import { applyWizardPatch } from '../../lib/wizardStateUpdate'
 import { quoteMobileInput, quoteMobileLabel } from '../../lib/quoteMobileUiClasses'
 
 /**
@@ -23,7 +24,7 @@ export default function PickupDeliveryContactsSection({ data, onChange, variant 
   const deliverySame = data.deliveryContactSameAsCustomer !== false
 
   function set(patch) {
-    onChange({ ...data, ...patch })
+    applyWizardPatch(onChange, patch)
   }
 
   const pickupResolved = resolvePickupContact(data)

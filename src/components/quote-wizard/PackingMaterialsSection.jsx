@@ -8,6 +8,7 @@ import {
   parsePackingMaterialQuantities,
   sumBoxQuantities,
 } from '../../lib/packingMaterialsCatalog'
+import { applyWizardPatch } from '../../lib/wizardStateUpdate'
 
 function QtyStepper({ value, onChange, disabled, size = 'default' }) {
   const n = Math.max(0, Number(value) || 0)
@@ -49,7 +50,8 @@ let _globalExpandedState = false
  *   data: Record<string, unknown>,
  *   onChange: (next: Record<string, unknown>) => void,
  *   pricingSettings?: import('../../lib/pricingCalculator.js').PricingSettings | null,
- *   variant?: 'mobile' | 'desktop'
+ *   variant?: 'mobile' | 'desktop',
+ *   defaultExpanded?: boolean,
  * }} props
  */
 export default function PackingMaterialsSection({
@@ -57,10 +59,11 @@ export default function PackingMaterialsSection({
   onChange,
   pricingSettings = null,
   variant = 'desktop',
+  defaultExpanded = false,
 }) {
   const isMobile = variant === 'mobile'
   const contentRef = useRef(null)
-  const [expanded, setExpanded] = useState(() => _globalExpandedState)
+  const [expanded, setExpanded] = useState(() => defaultExpanded || _globalExpandedState)
   const [contentHeight, setContentHeight] = useState(0)
 
   useEffect(() => {
@@ -89,7 +92,7 @@ export default function PackingMaterialsSection({
   )
 
   function set(patch) {
-    onChange({ ...data, ...patch })
+    applyWizardPatch(onChange, patch)
   }
 
   function setMaterialQty(id, qty) {

@@ -29,6 +29,9 @@ export const WHATSAPP_SUPPORT_URL = `https://wa.me/${COMPANY_PHONE_WHATSAPP}?tex
 /** Base WhatsApp link (no pre-filled message) — CMS footer default. */
 export const WHATSAPP_ME_URL = `https://wa.me/${COMPANY_PHONE_WHATSAPP}`
 
+/** Official Facebook page — footer & schema.org sameAs. */
+export const FACEBOOK_URL = 'https://www.facebook.com/profile.php?id=100087449468059'
+
 /**
  * @param {string} url
  * @returns {string | null}
@@ -75,7 +78,7 @@ export const COMPANY_AREA_SERVED = [
  * Official social profile URLs for schema.org sameAs (add URLs here when live).
  * @type {string[]}
  */
-export const COMPANY_SAME_AS_URLS = []
+export const COMPANY_SAME_AS_URLS = [FACEBOOK_URL]
 
 /**
  * @param {string[]} urls

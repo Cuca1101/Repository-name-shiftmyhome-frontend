@@ -1,10 +1,10 @@
-﻿import MobileStep3Details from '../MobileStep3Details'
+﻿import { applyWizardPatch } from '../../../lib/wizardStateUpdate'
+import MobileStep3Details from '../MobileStep3Details'
 import PackageSelector from '../PackageSelector'
 import AddressConfirmationSection from '../AddressConfirmationSection'
 import PickupDeliveryContactsSection from '../PickupDeliveryContactsSection'
 import PackingMaterialsSection from '../PackingMaterialsSection'
 import DesktopFurnitureServicesSection from '../DesktopFurnitureServicesSection'
-import QuotePromoCodeField from '../QuotePromoCodeField'
 
 export default function Step3Details({
   data,
@@ -15,13 +15,17 @@ export default function Step3Details({
   validationMessage = '',
   /** When true, contact fields live on Step 2 — only extras/access sections render here. */
   hideContactSection = false,
+  fieldErrors = {},
+  /** Admin phone booking — always show full extras form (not mobile-only / md:hidden split). */
+  layoutVariant = 'quote',
 }) {
+  const isAdminLayout = layoutVariant === 'admin'
   const input =
     'w-full max-w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-base text-slate-900 shadow-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/25 sm:px-4 sm:py-3'
   const label = 'mb-1.5 block text-sm font-medium text-slate-700'
 
   function set(k, v) {
-    onChange({ ...data, [k]: v })
+    applyWizardPatch(onChange, { [k]: v })
   }
 
   return (
@@ -34,6 +38,7 @@ export default function Step3Details({
         onGoToStep={onGoToStep}
         validationMessage={validationMessage}
         hideContactSection={hideContactSection}
+        fieldErrors={fieldErrors}
       />
 
       <div
@@ -128,6 +133,7 @@ export default function Step3Details({
         onChange={onChange}
         onGoToStep={onGoToStep}
         variant="desktop"
+        fieldErrors={fieldErrors}
       />
 
       <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
@@ -158,13 +164,7 @@ export default function Step3Details({
         onChange={onChange}
         pricingSettings={pricingSettings}
         variant="desktop"
-      />
-
-      <QuotePromoCodeField
-        data={data}
-        onChange={onChange}
-        pricingSettings={pricingSettings}
-        variant="desktop"
+        defaultExpanded={isAdminLayout}
       />
 
       <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">

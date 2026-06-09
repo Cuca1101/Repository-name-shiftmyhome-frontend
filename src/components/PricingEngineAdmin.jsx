@@ -1,9 +1,12 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { PACKING_MATERIALS_CATALOG } from '../lib/packingMaterialsCatalog'
 import { SERVICE_TYPES } from '../constants/serviceTypes'
 import { VOLUME_MULTIPLIER_BANDS } from '../lib/volumePricingMultiplier'
 import { fetchPricingSettings, savePricingSettings } from '../lib/data/pricingSettingsRepository'
 import { getDefaultPricingSettings } from '../lib/defaultPricingSettings'
+import { labelForPricingSettingKey } from '../lib/pricingEngineFieldLabels'
+import DriverAppExtraChargePricingPanel from './admin/DriverAppExtraChargePricingPanel'
+import { listUpcomingScottishBankHolidays } from '../lib/ukBankHolidays'
 
 /** Do not calculate pricing in UI components. Use shared pricing engine only. */
 
@@ -23,12 +26,20 @@ export default function PricingEngineAdmin() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState({ type: '', text: '' })
+  /** @type {[string[], (keys: string[]) => void]} */
+  const [missingDbKeys, setMissingDbKeys] = useState([])
 
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      const s = await fetchPricingSettings()
-      setSettings(s)
+      const result = await fetchPricingSettings({ includeMissingKeys: true })
+      if (result && typeof result === 'object' && 'settings' in result) {
+        setSettings(result.settings)
+        setMissingDbKeys(result.missingKeys || [])
+      } else {
+        setSettings(result)
+        setMissingDbKeys([])
+      }
     } catch (e) {
       setMessage({ type: 'error', text: e?.message || 'Failed to load settings.' })
     } finally {
@@ -105,6 +116,8 @@ export default function PricingEngineAdmin() {
 
   const promoDisplayRows = promoRowsFrom(settings)
 
+  const upcomingBankHolidays = useMemo(() => listUpcomingScottishBankHolidays(6), [])
+
   async function handleSave(e) {
     e.preventDefault()
     setSaving(true)
@@ -115,8 +128,14 @@ export default function PricingEngineAdmin() {
         promoCodes: (settings.promoCodes || []).filter((r) => String(r.code || '').trim().length > 0),
       }
       await savePricingSettings(toSave)
-      const reloaded = await fetchPricingSettings()
-      setSettings(reloaded)
+      const reloaded = await fetchPricingSettings({ includeMissingKeys: true })
+      if (reloaded && typeof reloaded === 'object' && 'settings' in reloaded) {
+        setSettings(reloaded.settings)
+        setMissingDbKeys(reloaded.missingKeys || [])
+      } else {
+        setSettings(reloaded)
+        setMissingDbKeys([])
+      }
       setMessage({ type: 'success', text: 'Your pricing engine was saved successfully.' })
     } catch (err) {
       setMessage({
@@ -158,6 +177,20 @@ export default function PricingEngineAdmin() {
           {message.text}
         </div>
       )}
+
+      {missingDbKeys.length > 0 ? (
+        <div
+          role="status"
+          className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950"
+        >
+          <p className="font-semibold">Some saved settings were missing — defaults are shown until you Save</p>
+          <p className="mt-1 text-xs leading-relaxed text-amber-900/90">
+            These fields were not in your database record and are using built-in fallbacks in quotes until you save
+            again:{' '}
+            {missingDbKeys.map((k) => labelForPricingSettingKey(k)).join(', ')}.
+          </p>
+        </div>
+      ) : null}
 
       <form onSubmit={handleSave} className="space-y-8">
         <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-card">
@@ -437,6 +470,73 @@ export default function PricingEngineAdmin() {
           </div>
         </div>
 
+        <div className="rounded-2xl border-2 border-brand-200 bg-gradient-to-br from-brand-50/60 to-white p-6 shadow-card">
+          <h3 className="text-lg font-semibold text-slate-900">Calendar peak dates (quote wizard)</h3>
+          <p className="mt-1 text-sm text-slate-600">
+            These percentages change the price shown on each date in the Step 3 calendar — like airline
+            peak-day pricing. Set to 0 to disable a rule.
+          </p>
+          <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <Field label="Same day booking surcharge (%)">
+              <input
+                type="number"
+                step="0.1"
+                min="0"
+                className={inputClass}
+                value={settings.sameDaySurchargePercent}
+                onChange={(e) => setNum('sameDaySurchargePercent', e.target.value)}
+              />
+            </Field>
+            <Field label="Saturday surcharge (%)">
+              <input
+                type="number"
+                step="0.1"
+                min="0"
+                className={inputClass}
+                value={settings.saturdaySurchargePercent ?? settings.weekendSurchargePercent ?? 0}
+                onChange={(e) => setNum('saturdaySurchargePercent', e.target.value)}
+              />
+            </Field>
+            <Field label="Sunday surcharge (%)">
+              <input
+                type="number"
+                step="0.1"
+                min="0"
+                className={inputClass}
+                value={settings.sundaySurchargePercent ?? settings.weekendSurchargePercent ?? 0}
+                onChange={(e) => setNum('sundaySurchargePercent', e.target.value)}
+              />
+            </Field>
+            <Field label="Bank holiday surcharge (%) — Scottish bank holidays">
+              <input
+                type="number"
+                step="0.1"
+                min="0"
+                className={inputClass}
+                value={settings.bankHolidaySurchargePercent ?? fallbackDefaults.bankHolidaySurchargePercent ?? 0}
+                onChange={(e) => setNum('bankHolidaySurchargePercent', e.target.value)}
+              />
+            </Field>
+          </div>
+          <div className="mt-4 rounded-xl border border-brand-100 bg-white/80 px-4 py-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+              Upcoming Scottish bank holidays
+            </p>
+            <ul className="mt-2 space-y-1 text-sm text-slate-700">
+              {upcomingBankHolidays.map((h) => (
+                <li key={h.date} className="flex flex-wrap gap-x-2 gap-y-0.5">
+                  <span className="font-medium tabular-nums text-slate-900">{h.date}</span>
+                  <span className="text-slate-600">{h.name}</span>
+                </li>
+              ))}
+            </ul>
+            <p className="mt-2 text-xs leading-relaxed text-slate-500">
+              Bank holiday surcharge replaces the Saturday/Sunday surcharge on the same day. Same-day
+              surcharge still applies when the customer books for today.
+            </p>
+          </div>
+        </div>
+
         <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-card">
           <h3 className="text-lg font-semibold text-slate-900">Extras & surcharges</h3>
           <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -448,26 +548,6 @@ export default function PricingEngineAdmin() {
                 className={inputClass}
                 value={settings.waitingTimePricePerHour}
                 onChange={(e) => setNum('waitingTimePricePerHour', e.target.value)}
-              />
-            </Field>
-            <Field label="Same day booking surcharge (%)">
-              <input
-                type="number"
-                step="0.1"
-                min="0"
-                className={inputClass}
-                value={settings.sameDaySurchargePercent}
-                onChange={(e) => setNum('sameDaySurchargePercent', e.target.value)}
-              />
-            </Field>
-            <Field label="Weekend surcharge (%)">
-              <input
-                type="number"
-                step="0.1"
-                min="0"
-                className={inputClass}
-                value={settings.weekendSurchargePercent}
-                onChange={(e) => setNum('weekendSurchargePercent', e.target.value)}
               />
             </Field>
             <Field label="Extra helper (£ each)">
@@ -799,6 +879,26 @@ export default function PricingEngineAdmin() {
                 onChange={(e) => setNum('thirdManHourlyRate', e.target.value)}
               />
             </Field>
+            <Field label="Fourth man — base fee (£)">
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                className={inputClass}
+                value={settings.fourthManBaseFee ?? settings.thirdManBaseFee ?? 0}
+                onChange={(e) => setNum('fourthManBaseFee', e.target.value)}
+              />
+            </Field>
+            <Field label="Fourth man — hourly rate (£/hr)">
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                className={inputClass}
+                value={settings.fourthManHourlyRate ?? settings.thirdManHourlyRate ?? 0}
+                onChange={(e) => setNum('fourthManHourlyRate', e.target.value)}
+              />
+            </Field>
             <Field label="Legacy flat 2nd man fee (£) — if hourly rates are 0">
               <input
                 type="number"
@@ -827,6 +927,19 @@ export default function PricingEngineAdmin() {
                 className={inputClass}
                 value={settings.fourthManLabourFee}
                 onChange={(e) => setNum('fourthManLabourFee', e.target.value)}
+              />
+            </Field>
+            <Field
+              label="Legacy crew surcharge per extra member (£)"
+              helper="Used only when all hourly crew rates are £0. Normally use Extra helper or hourly rates above."
+            >
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                className={inputClass}
+                value={settings.crewSurchargePerExtraMember ?? settings.extraHelperPrice ?? 0}
+                onChange={(e) => setNum('crewSurchargePerExtraMember', e.target.value)}
               />
             </Field>
             <Field label="One-man labour discount (%) — flat base mode">
@@ -903,6 +1016,11 @@ export default function PricingEngineAdmin() {
             ))}
           </div>
         </div>
+
+        <DriverAppExtraChargePricingPanel
+          websiteSettings={settings}
+          onMainFieldChange={(key, raw) => setNum(key, raw)}
+        />
 
         <button
           type="submit"

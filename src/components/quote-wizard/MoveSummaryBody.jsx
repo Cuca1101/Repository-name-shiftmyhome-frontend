@@ -12,6 +12,7 @@ import {
 import { formatDateUK } from '../../lib/formatDateDisplay'
 import QuotePricingDebugPanel from './QuotePricingDebugPanel'
 import QuoteEstimatedTotalStrip from './QuoteEstimatedTotalStrip'
+import QuotePromoPriceReduction from './QuotePromoPriceReduction'
 import {
   formatCompactArrivalLine,
   formatWizardServiceExtrasSummary,
@@ -67,9 +68,13 @@ export default function MoveSummaryBody({
   breakdown,
   serviceType,
   crewSettings,
+  pricingSettings = null,
+  promoCode = '',
+  priceWithoutPromo = null,
   compact = false,
   mapVariant = 'default',
   hideEstimatedTotalCard = false,
+  afterSummary = null,
 }) {
   const lineRowCount = inventoryLines.length
   const totalItemUnits = inventoryLines.reduce(
@@ -95,7 +100,13 @@ export default function MoveSummaryBody({
   return (
     <>
       {step === 4 && showPricing && breakdown ? (
-        <QuoteEstimatedTotalStrip breakdown={breakdown} className={cardRound} />
+        <QuoteEstimatedTotalStrip
+          breakdown={breakdown}
+          pricingSettings={pricingSettings ?? crewSettings}
+          promoCode={promoCode}
+          priceWithoutPromo={priceWithoutPromo}
+          className={cardRound}
+        />
       ) : null}
 
       <div className={`min-w-0 border border-slate-200 bg-white ${cardRound} ${cardPad} ${hideRefCardOnMobileStep1}`}>
@@ -104,15 +115,17 @@ export default function MoveSummaryBody({
         {!compact ? <p className="mt-2 text-xs text-slate-500">Keep this handy when you speak to us.</p> : null}
       </div>
 
-      <QuoteRouteMap
-        variant={mapVariant === 'review' ? 'review' : undefined}
-        pickupLng={pickupLng}
-        pickupLat={pickupLat}
-        deliveryLng={deliveryLng}
-        deliveryLat={deliveryLat}
-        distanceMiles={distanceMiles}
-        onDistanceFromRoute={onDistanceFromRoute}
-      />
+      <div className="quote-sidebar-route-map [&_.relative]:!h-[9.5rem] [&_.relative]:!min-h-[9.5rem] [&_.relative]:!max-h-[9.5rem] lg:[&_.relative]:!h-[10.5rem] lg:[&_.relative]:!min-h-[10.5rem] lg:[&_.relative]:!max-h-[10.5rem]">
+        <QuoteRouteMap
+          variant={mapVariant === 'review' ? 'review' : undefined}
+          pickupLng={pickupLng}
+          pickupLat={pickupLat}
+          deliveryLng={deliveryLng}
+          deliveryLat={deliveryLat}
+          distanceMiles={distanceMiles}
+          onDistanceFromRoute={onDistanceFromRoute}
+        />
+      </div>
 
       <div
         className={`min-w-0 border border-slate-200 bg-gradient-to-br from-slate-50 to-white ${cardRound} ${cardPad}`}
@@ -205,7 +218,9 @@ export default function MoveSummaryBody({
                   className={
                     sidebarInventoryEditable
                       ? 'mt-3 rounded-xl border border-slate-200 bg-white p-2.5 shadow-sm ring-1 ring-slate-100'
-                      : 'mt-2 max-h-28 overflow-auto rounded-lg border border-slate-200 bg-white p-2 sm:max-h-56'
+                      : step >= 3
+                        ? 'mt-2 rounded-lg border border-slate-200 bg-white p-2'
+                        : 'mt-2 rounded-lg border border-slate-200 bg-white p-2'
                   }
                 >
                   {sidebarInventoryEditable ? (
@@ -302,6 +317,8 @@ export default function MoveSummaryBody({
         </dl>
       </div>
 
+      {afterSummary ? <div className="mt-4 min-w-0">{afterSummary}</div> : null}
+
       {showPricing && breakdown && step === 4 ? (
         <QuotePricingDebugPanel
           pricingBreakdown={breakdown}
@@ -316,6 +333,14 @@ export default function MoveSummaryBody({
           <p className="mt-1 text-xl font-bold tracking-tight text-emerald-700 sm:text-2xl">
             £{breakdown.estimatedTotal.toFixed(2)}
           </p>
+          <QuotePromoPriceReduction
+            promoCode={promoCode}
+            pricingSettings={pricingSettings ?? crewSettings}
+            priceWithPromo={breakdown.estimatedTotal}
+            priceWithoutPromo={priceWithoutPromo}
+            className="mt-1.5"
+            messageStyle="savingsAmount"
+          />
           <p className="mt-2 text-[11px] leading-relaxed text-slate-600">
             Updates as you add details. Final price confirmed by ShiftMyHome.
           </p>

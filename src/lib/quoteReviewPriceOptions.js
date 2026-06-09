@@ -4,8 +4,8 @@
  */
 import { formatWizardArrivalSummary } from './emailQuotePayload'
 import { getLocalDateYYYYMMDD, isMoveDateOnOrAfterToday } from './moveDateLocal'
-import { parsePackingMaterialQuantities } from './packingMaterialsCatalog'
-import { calculateQuote, isWeekendDate } from './pricingCalculator'
+import { buildQuoteEngineInput } from './buildQuoteEngineInput'
+import { calculateQuote } from './pricingCalculator'
 
 const FLEX_WINDOW = 'flex_window'
 const FLEX_DEFAULT_FROM = '08:00'
@@ -62,15 +62,17 @@ export function formatReviewCalendarParts(isoDate) {
 }
 
 /** Short window label for compact calendar cards. */
-export function formatReviewShortTimeLabel(wizard) {
+export function formatReviewShortTimeLabel(wizard, { compact = false } = {}) {
   const w = wizard || {}
   if (w.arrivalWindow === 'exact' && w.exactArrivalTime) {
-    return `Exact ${w.exactArrivalTime}`
+    return compact ? w.exactArrivalTime : `Exact ${w.exactArrivalTime}`
   }
   if (w.arrivalWindow === 'flex_window' && w.flexibleArrivalFrom && w.flexibleArrivalUntil) {
-    return `${w.flexibleArrivalFrom} – ${w.flexibleArrivalUntil}`
+    return compact
+      ? `${w.flexibleArrivalFrom}–${w.flexibleArrivalUntil}`
+      : `${w.flexibleArrivalFrom} – ${w.flexibleArrivalUntil}`
   }
-  return 'Flexible window'
+  return compact ? 'Flexible' : 'Flexible window'
 }
 
 export function formatReviewCalendarDate(isoDate) {
@@ -128,6 +130,20 @@ export function listBookableIsoDatesInMonth(year, month) {
     const dd = String(day).padStart(2, '0')
     const iso = `${year}-${mm}-${dd}`
     if (iso >= today) dates.push(iso)
+  }
+  return dates
+}
+
+/** Rolling bookable days from today (for compact horizontal scroll). */
+export function listBookableIsoDatesAhead(maxDays = 42) {
+  const today = getLocalDateYYYYMMDD()
+  const dates = []
+  let cursor = today
+  for (let i = 0; i < maxDays; i += 1) {
+    dates.push(cursor)
+    const next = addDaysToIsoDate(cursor, 1)
+    if (!next) break
+    cursor = next
   }
   return dates
 }
@@ -224,59 +240,33 @@ function mergeWizardArrival(wizard, arrivalSlice) {
  * }} params
  */
 function priceForSlice({ settings, serviceType, wizard, lineItems, heavyItemCount, moveDate, arrivalSlice }) {
-  const today = getLocalDateYYYYMMDD()
-  const sameDay = moveDate === today
-  const weekend = isWeekendDate(moveDate)
-  const packingMaterialQuantities = parsePackingMaterialQuantities(wizard)
-  /** Step 3 calendar — surcharge only when customer chose Exact time on Step 1. */
-  const isExact = wizard.arrivalWindow === 'exact'
+  const sliceWizard = mergeWizardArrival(wizard, { ...arrivalSlice, moveDate })
+  const withPromoBreakdown = calculateQuote(
+    settings,
+    buildQuoteEngineInput({ serviceType, wizard: sliceWizard, lineItems, heavyItemCount }),
+  )
+  const estimatedTotal = Number.isFinite(withPromoBreakdown?.estimatedTotal)
+    ? withPromoBreakdown.estimatedTotal
+    : null
 
-  const breakdown = calculateQuote(settings, {
-    serviceType,
-    distanceMiles: Number(wizard.distanceMiles) || 0,
-    mapboxRouteDurationSeconds:
-      wizard.mapboxRouteDurationSeconds != null && wizard.mapboxRouteDurationSeconds !== ''
-        ? Number(wizard.mapboxRouteDurationSeconds)
-        : undefined,
-    lineItems,
-    access: {
-      pickupFloor: wizard.pickupFloor == null ? 0 : Number(wizard.pickupFloor),
-      deliveryFloor: wizard.deliveryFloor == null ? 0 : Number(wizard.deliveryFloor),
-      pickupLift: wizard.pickupLift == null ? undefined : Boolean(wizard.pickupLift),
-      deliveryLift: wizard.deliveryLift == null ? undefined : Boolean(wizard.deliveryLift),
-      longWalk: wizard.walkingDistance === 'long',
-      parking: wizard.parkingDistance === 'long',
-      stairsFlights: wizard.stairsFlights,
-      heavyItemCount,
-    },
-    extras: {
-      packing: wizard.packing,
-      packingApproxBoxes: wizard.packingApproxBoxes,
-      packingFragile: wizard.packingFragile,
-      packingMaterials: wizard.packingMaterials,
-      packingMaterialQuantities,
-      dismantling: wizard.dismantling,
-      dismantlingItemCount: wizard.dismantlingItemCount,
-      reassembly: wizard.reassembly,
-      reassemblyItemCount: wizard.reassemblyItemCount,
-      reassemblySameAsDismantling: wizard.reassemblySameAsDismantling,
-      waitingHours: 0,
-      extraHelpers: 0,
-      sameDay,
-      weekend,
-      exactArrivalPremium: isExact,
-      promoCode: wizard.promoCode,
-      packageTier: wizard.packageTier || 'standard',
-    },
-    crewSize:
-      wizard.crewSize != null && wizard.crewSize !== ''
-        ? Number(wizard.crewSize)
-        : undefined,
-    moveDate,
-  })
+  let estimatedTotalWithoutPromo = null
+  if (String(wizard.promoCode || '').trim()) {
+    const withoutPromoBreakdown = calculateQuote(
+      settings,
+      buildQuoteEngineInput({
+        serviceType,
+        wizard: sliceWizard,
+        lineItems,
+        heavyItemCount,
+        promoCode: '',
+      }),
+    )
+    estimatedTotalWithoutPromo = Number.isFinite(withoutPromoBreakdown?.estimatedTotal)
+      ? withoutPromoBreakdown.estimatedTotal
+      : null
+  }
 
-  const total = breakdown?.estimatedTotal
-  return Number.isFinite(total) ? total : null
+  return { estimatedTotal, estimatedTotalWithoutPromo }
 }
 
 /**
@@ -315,6 +305,7 @@ function currentArrivalSlice(wizard) {
  *   dateLabel: string,
  *   timeLabel: string,
  *   estimatedTotal: number | null,
+ *   estimatedTotalWithoutPromo: number | null,
  *   arrivalPatch: Record<string, unknown>,
  *   isSelected: boolean,
  * }>}
@@ -331,12 +322,11 @@ export function buildQuoteReviewPriceOptions({
   }
 
   const baseDate = String(wizard.moveDate).trim()
-  const dateOffsets = [-1, 0, 1, 2]
+  const parts = parseIsoDateParts(baseDate)
   const today = getLocalDateYYYYMMDD()
-  const dates = dateOffsets
-    .map((off) => addDaysToIsoDate(baseDate, off))
-    .filter((d) => d && d >= today)
-  const uniqueDates = [...new Set(dates)]
+  const dates = parts
+    ? listBookableIsoDatesInMonth(parts.year, parts.month)
+    : [baseDate].filter((d) => d >= today)
 
   return buildQuoteReviewPriceOptionsForDates({
     settings,
@@ -344,7 +334,7 @@ export function buildQuoteReviewPriceOptions({
     wizard,
     lineItems,
     heavyItemCount,
-    dates: uniqueDates,
+    dates,
   })
 }
 
@@ -375,21 +365,27 @@ export function buildQuoteReviewPriceOptionsForMonth({
   const monthDates = listBookableIsoDatesInMonth(year, month)
   if (monthDates.length === 0) return []
 
-  let anchor = String(wizard.moveDate || '').trim()
-  if (!monthDates.includes(anchor)) anchor = monthDates[0]
+  return buildQuoteReviewPriceOptionsForDates({
+    settings,
+    serviceType,
+    wizard,
+    lineItems,
+    heavyItemCount,
+    dates: monthDates,
+  })
+}
 
-  const today = getLocalDateYYYYMMDD()
-  const windowOffsets = [-1, 0, 1, 2, 3, 4, 5, 6]
-  let dates = [
-    ...new Set(
-      windowOffsets
-        .map((off) => addDaysToIsoDate(anchor, off))
-        .filter((d) => d && d >= today && monthDates.includes(d)),
-    ),
-  ]
-
-  if (dates.length === 0) {
-    dates = monthDates.slice(0, 7)
+/** Compact Step 3 — scrollable day strip without month paging. */
+export function buildQuoteReviewPriceOptionsForCompact({
+  settings,
+  serviceType,
+  wizard,
+  lineItems,
+  heavyItemCount,
+  daysAhead = 42,
+}) {
+  if (!settings || !wizard?.moveDate || !isMoveDateOnOrAfterToday(wizard.moveDate)) {
+    return []
   }
 
   return buildQuoteReviewPriceOptionsForDates({
@@ -398,7 +394,7 @@ export function buildQuoteReviewPriceOptionsForMonth({
     wizard,
     lineItems,
     heavyItemCount,
-    dates,
+    dates: listBookableIsoDatesAhead(daysAhead),
   })
 }
 
@@ -427,7 +423,7 @@ function buildQuoteReviewPriceOptionsForDates({
     try {
       const id = optionKey(moveDate, arrivalSlice)
       const sliceWizard = mergeWizardArrival(wizard, { ...arrivalSlice, moveDate })
-      const estimatedTotal = priceForSlice({
+      const { estimatedTotal, estimatedTotalWithoutPromo } = priceForSlice({
         settings,
         serviceType,
         wizard,
@@ -444,6 +440,7 @@ function buildQuoteReviewPriceOptionsForDates({
         dateLabel: formatReviewCalendarDate(moveDate),
         timeLabel: formatTimeLabel(sliceWizard),
         estimatedTotal,
+        estimatedTotalWithoutPromo,
         arrivalPatch: { moveDate },
       })
     } catch (err) {

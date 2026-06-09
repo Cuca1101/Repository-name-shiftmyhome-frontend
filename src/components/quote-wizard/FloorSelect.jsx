@@ -29,20 +29,44 @@ export function floorNeedsLiftQuestion(floor) {
 const labelClass =
   'mb-1 block text-xs font-medium leading-snug text-slate-700 sm:mb-1.5 sm:text-sm'
 
+const mobileLabelClass = 'mb-1 block text-xs font-medium leading-snug text-slate-700'
+
 const triggerBase =
-  'box-border flex h-10 w-full min-w-0 items-center justify-between gap-2 rounded-lg border border-slate-200 bg-white px-3 text-left text-sm shadow-sm outline-none transition sm:h-12 sm:rounded-xl sm:px-4 sm:text-base'
+  'box-border flex w-full min-w-0 items-center justify-between gap-2 rounded-lg border border-slate-200 bg-white px-3 text-left text-sm shadow-sm outline-none transition sm:rounded-xl sm:px-4 sm:text-base'
 
 const triggerInteractive =
   'hover:border-slate-300 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/25'
 
-export default function FloorSelect({ label: labelText, value, onChange }) {
-  const id = useId()
+export default function FloorSelect({
+  label: labelText,
+  value,
+  onChange,
+  id: idProp,
+  variant = 'default',
+  open: controlledOpen,
+  onOpenChange,
+}) {
+  const autoId = useId()
+  const id = idProp || autoId
   const listboxId = `${id}-listbox`
-  const [open, setOpen] = useState(false)
+  const [internalOpen, setInternalOpen] = useState(false)
   const rootRef = useRef(null)
+  const isControlled = controlledOpen !== undefined
+  const open = isControlled ? controlledOpen : internalOpen
+
+  const setOpen = (next) => {
+    if (isControlled) {
+      onOpenChange?.(next)
+    } else {
+      setInternalOpen(next)
+      onOpenChange?.(next)
+    }
+  }
 
   const selected = FLOOR_OPTIONS.find((o) => o.value === value)
   const display = selected ? selected.label : PLACEHOLDER
+  const isMobileCard = variant === 'mobile-card'
+  const triggerHeight = isMobileCard ? 'min-h-11' : 'h-10 sm:h-12'
 
   useEffect(() => {
     if (!open) return
@@ -52,10 +76,10 @@ export default function FloorSelect({ label: labelText, value, onChange }) {
     const onKey = (e) => {
       if (e.key === 'Escape') setOpen(false)
     }
-    document.addEventListener('mousedown', onDoc)
+    document.addEventListener('pointerdown', onDoc, true)
     document.addEventListener('keydown', onKey)
     return () => {
-      document.removeEventListener('mousedown', onDoc)
+      document.removeEventListener('pointerdown', onDoc, true)
       document.removeEventListener('keydown', onKey)
     }
   }, [open])
@@ -67,18 +91,18 @@ export default function FloorSelect({ label: labelText, value, onChange }) {
 
   return (
     <div ref={rootRef} className="relative box-border min-w-0 w-full">
-      <label className={labelClass} htmlFor={id} id={`${id}-label`}>
+      <label className={isMobileCard ? mobileLabelClass : labelClass} htmlFor={id} id={`${id}-label`}>
         {labelText}
       </label>
       <button
         type="button"
         id={id}
-        className={`${triggerBase} ${triggerInteractive} ${selected ? 'text-slate-900' : 'text-slate-500'}`}
+        className={`${triggerBase} ${triggerHeight} ${triggerInteractive} ${selected ? 'text-slate-900' : 'text-slate-500'}`}
         aria-haspopup="listbox"
         aria-expanded={open}
-          aria-controls={listboxId}
-          aria-labelledby={`${id}-label`}
-          onClick={() => setOpen((o) => !o)}
+        aria-controls={listboxId}
+        aria-labelledby={`${id}-label`}
+        onClick={() => setOpen(!open)}
       >
         <span className="min-w-0 truncate">{display}</span>
         <svg
@@ -108,10 +132,14 @@ export default function FloorSelect({ label: labelText, value, onChange }) {
                   type="button"
                   role="option"
                   aria-selected={isSelected}
-                  className={`flex w-full cursor-pointer items-center px-3 py-2 text-left text-sm text-slate-800 transition hover:bg-slate-50 sm:px-4 sm:py-2.5 ${
+                  className={`flex min-h-11 w-full cursor-pointer items-center px-3 py-2 text-left text-sm text-slate-800 transition hover:bg-slate-50 active:bg-brand-50 sm:min-h-0 sm:px-4 sm:py-2.5 ${
                     isSelected ? 'bg-brand-50 font-medium text-brand-900' : ''
                   }`}
-                  onClick={() => pick(o.value)}
+                  onPointerDown={(e) => {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    pick(o.value)
+                  }}
                 >
                   {o.label}
                 </button>

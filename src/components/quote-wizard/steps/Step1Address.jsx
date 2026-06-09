@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react'
+import { applyWizardPatch } from '../../../lib/wizardStateUpdate'
 import MapboxAddressField from '../MapboxAddressField'
 import FloorSelect, { floorNeedsLiftQuestion } from '../FloorSelect'
 import { getLocalDateYYYYMMDD } from '../../../lib/moveDateLocal'
 import MobileStepTitleWithRef from '../MobileStepTitleWithRef'
-import MobileStep1ArrivalWindow from '../MobileStep1ArrivalWindow'
+import MobileStep1AddressCards from '../MobileStep1AddressCards'
 import Step1ArrivalFields from '../Step1ArrivalFields'
 
 const PROPERTY_TYPES = ['House', 'Flat / apartment', 'Bungalow', 'Commercial', 'Other']
@@ -21,8 +22,6 @@ const liftLegend = 'mb-1 block text-xs font-medium leading-snug text-slate-700 s
 const liftOption =
   'flex min-h-[34px] flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-2 text-xs font-medium leading-snug text-slate-800 transition has-[:checked]:border-brand-500 has-[:checked]:bg-brand-50 has-[:checked]:text-brand-900 sm:min-h-[40px] sm:gap-2 sm:px-3 sm:text-sm'
 const liftRadio = 'h-3.5 w-3.5 shrink-0 border-slate-300 text-brand-600 focus:ring-brand-500 sm:h-4 sm:w-4'
-
-const MOBILE_LIFT_SLOT = 'min-h-[5.375rem] shrink-0 md:hidden'
 
 function LiftYesNoField({ legend, name, value, onSelect }) {
   return (
@@ -65,14 +64,17 @@ export default function Step1Address({
   arrivalError = '',
 }) {
   function set(k, v) {
-    onChange({ ...data, [k]: v })
+    const patch = { [k]: v }
+    if (k === 'pickupAddress') patch.pickupAddressConfirmed = false
+    if (k === 'deliveryAddress') patch.deliveryAddressConfirmed = false
+    applyWizardPatch(onChange, patch)
   }
 
   useEffect(() => {
     if (data.arrivalWindow === 'afternoon') {
-      onChange({ ...data, arrivalWindow: 'evening' })
+      applyWizardPatch(onChange, { arrivalWindow: 'evening' })
     }
-  }, [data.arrivalWindow])
+  }, [data.arrivalWindow, onChange])
 
   const [serviceExpanded, setServiceExpanded] = useState(false)
 
@@ -149,35 +151,49 @@ export default function Step1Address({
         </div>
       )}
 
-      <div className="grid grid-cols-2 gap-x-2 gap-y-2 xxs:gap-x-2.5 xs:gap-x-3 ph:gap-x-4 sm:gap-x-8 sm:gap-y-6 sm:items-start">
+      <div className="md:hidden overflow-visible">
+        <MobileStep1AddressCards
+          data={data}
+          onChange={onChange}
+          set={set}
+          hasMapbox={HAS_MAPBOX}
+          arrivalError={arrivalError}
+          showPickupLift={showPickupLift}
+          showDeliveryLift={showDeliveryLift}
+        />
+      </div>
+
+      <div className="hidden md:grid md:grid-cols-2 md:gap-x-8 md:gap-y-6 md:items-start">
         {HAS_MAPBOX ? (
           <>
             <MapboxAddressField
               label="Pickup address"
               markerLetter="A"
               markerClassName="bg-brand-600"
-              placeholder="e.g. EH1 1YZ, Glasgow, or street address"
+              placeholder="Postcode or street address"
               address={data.pickupAddress}
               lng={data.pickupLng}
               lat={data.pickupLat}
               addressKey="pickupAddress"
               lngKey="pickupLng"
               latKey="pickupLat"
-              data={data}
+              confirmedKey="pickupAddressConfirmed"
+              nextFocusId="deliveryAddress"
               onChange={onChange}
             />
             <MapboxAddressField
               label="Delivery address"
               markerLetter="B"
               markerClassName="bg-emerald-600"
-              placeholder="e.g. G1 1XX, Edinburgh, or street address"
+              placeholder="Postcode or street address"
               address={data.deliveryAddress}
               lng={data.deliveryLng}
               lat={data.deliveryLat}
               addressKey="deliveryAddress"
               lngKey="deliveryLng"
               latKey="deliveryLat"
-              data={data}
+              confirmedKey="deliveryAddressConfirmed"
+              nextFocusTarget="move-date"
               onChange={onChange}
             />
           </>
@@ -224,7 +240,7 @@ export default function Step1Address({
           </>
         )}
 
-        <label className={`${field} hidden md:block`}>
+        <label className={field}>
           <span className={label}>Pickup property type</span>
           <select
             value={data.pickupPropertyType}
@@ -238,7 +254,7 @@ export default function Step1Address({
             ))}
           </select>
         </label>
-        <label className={`${field} hidden md:block`}>
+        <label className={field}>
           <span className={label}>Delivery property type</span>
           <select
             value={data.deliveryPropertyType}
@@ -253,14 +269,14 @@ export default function Step1Address({
           </select>
         </label>
 
-        <div className={`${field} hidden md:block`} data-quote-field="pickup-access">
+        <div className={field} data-quote-field="pickup-access">
           <FloorSelect
             label="Pickup floor"
             value={data.pickupFloor}
             onChange={(v) => set('pickupFloor', v)}
           />
         </div>
-        <div className={`${field} hidden md:block`} data-quote-field="delivery-access">
+        <div className={field} data-quote-field="delivery-access">
           <FloorSelect
             label="Delivery floor"
             value={data.deliveryFloor}
@@ -269,7 +285,7 @@ export default function Step1Address({
         </div>
 
         {showPickupLift ? (
-          <div className={`${field} hidden md:block`} data-quote-field="pickup-lift">
+          <div className={field} data-quote-field="pickup-lift">
             <LiftYesNoField
               legend="Lift at pickup"
               name="pickupLift"
@@ -279,7 +295,7 @@ export default function Step1Address({
           </div>
         ) : null}
         {showDeliveryLift ? (
-          <div className={`${field} hidden md:block`} data-quote-field="delivery-lift">
+          <div className={field} data-quote-field="delivery-lift">
             <LiftYesNoField
               legend="Lift at delivery"
               name="deliveryLift"
@@ -289,7 +305,7 @@ export default function Step1Address({
           </div>
         ) : null}
 
-        <label className={`${field} hidden md:block`} data-quote-field="move-date">
+        <label className={field} data-quote-field="move-date">
           <span className={label}>Move date</span>
           <input
             type="date"
@@ -301,101 +317,11 @@ export default function Step1Address({
           />
         </label>
 
-        {/* Mobile: move date stays in left column under pickup access fields */}
-        <div className="col-span-2 grid grid-cols-2 gap-x-2 gap-y-2 md:hidden">
-          <div className="flex min-w-0 flex-col gap-2">
-            <label className={field}>
-              <span className={label}>Pickup property type</span>
-              <select
-                value={data.pickupPropertyType}
-                onChange={(e) => set('pickupPropertyType', e.target.value)}
-                className={input}
-              >
-                {PROPERTY_TYPES.map((p) => (
-                  <option key={p} value={p}>
-                    {p}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <div className={field} data-quote-field="pickup-access">
-              <FloorSelect
-                label="Pickup floor"
-                value={data.pickupFloor}
-                onChange={(v) => set('pickupFloor', v)}
-              />
-            </div>
-            {showPickupLift ? (
-              <div className={field} data-quote-field="pickup-lift">
-                <LiftYesNoField
-                  legend="Lift at pickup"
-                  name="pickupLift"
-                  value={data.pickupLift}
-                  onSelect={(v) => set('pickupLift', v)}
-                />
-              </div>
-            ) : (
-              <div className={MOBILE_LIFT_SLOT} aria-hidden />
-            )}
-            <label className={field} data-quote-field="move-date">
-              <span className={label}>Move date</span>
-              <input
-                type="date"
-                required
-                min={getLocalDateYYYYMMDD()}
-                value={data.moveDate}
-                onChange={(e) => set('moveDate', e.target.value)}
-                className={input}
-              />
-            </label>
-          </div>
-
-          <div className="flex min-w-0 flex-col gap-2">
-            <label className={field}>
-              <span className={label}>Delivery property type</span>
-              <select
-                value={data.deliveryPropertyType}
-                onChange={(e) => set('deliveryPropertyType', e.target.value)}
-                className={input}
-              >
-                {PROPERTY_TYPES.map((p) => (
-                  <option key={p} value={p}>
-                    {p}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <div className={field} data-quote-field="delivery-access">
-              <FloorSelect
-                label="Delivery floor"
-                value={data.deliveryFloor}
-                onChange={(v) => set('deliveryFloor', v)}
-              />
-            </div>
-            {showDeliveryLift ? (
-              <div className={field} data-quote-field="delivery-lift">
-                <LiftYesNoField
-                  legend="Lift at delivery"
-                  name="deliveryLift"
-                  value={data.deliveryLift}
-                  onSelect={(v) => set('deliveryLift', v)}
-                />
-              </div>
-            ) : (
-              <div className={MOBILE_LIFT_SLOT} aria-hidden />
-            )}
-          </div>
-        </div>
-
-        <div className={`${field} col-span-2 hidden sm:block`} data-quote-field="arrival">
+        <div className={`${field} col-span-2`} data-quote-field="arrival">
           <Step1ArrivalFields data={data} onChange={onChange} error={arrivalError} />
         </div>
 
-        <div className={`${field} col-span-2 sm:hidden`} data-quote-field="arrival">
-          <MobileStep1ArrivalWindow data={data} onChange={onChange} error={arrivalError} />
-        </div>
-
-        <label className={`${field} hidden sm:col-span-2 md:block`}>
+        <label className={`${field} col-span-2`}>
           <span className={label}>Distance (miles)</span>
           <input
             type="number"

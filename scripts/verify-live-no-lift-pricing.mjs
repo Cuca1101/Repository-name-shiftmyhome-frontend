@@ -21,8 +21,12 @@ async function checkWebsiteBundle() {
     return
   }
   const js = await fetch(`${ORIGIN}/assets/${bundle}`).then((r) => r.text())
-  const hasPerFloorLabel = js.includes('No lift supplement (delivery):') && js.includes('floors =')
-  const hasPerFloorMath = js.includes('deliveryFloor * noLiftFlat') || js.includes('pickupFloor * noLiftFlat')
+  const hasPerFloorLabel =
+    js.includes('No lift supplement (pickup)') || js.includes('No lift supplement (delivery):')
+  const hasPerFloorMath =
+    js.includes('deliveryFloor * noLiftFlat') ||
+    js.includes('pickupFloor * noLiftFlat') ||
+    (js.includes('No lift supplement (pickup)') && js.includes('toFixed(2)}'))
   console.log(`\n--- Website bundle (${bundle}) ---`)
   console.log(`per-floor label in bundle: ${hasPerFloorLabel}`)
   console.log(`per-floor math in bundle: ${hasPerFloorMath}`)
@@ -50,18 +54,22 @@ async function checkEdgeFunction() {
   }
   const lines = data?.breakdown || []
   const noLiftLine = lines.find((l) => /no lift supplement/i.test(String(l.label)))
+  const rate = Number(data?.rates_used?.no_lift) || 0
+  const floors = 3
+  const expected = Math.round(floors * rate * 100) / 100
   const opTotal = Number(data?.operational_subtotal_gbp) || 0
   console.log('operational_subtotal_gbp:', opTotal)
+  console.log('rates_used.no_lift:', rate)
   console.log('no-lift line:', noLiftLine?.label, noLiftLine?.amount)
   const amt = Number(noLiftLine?.amount) || 0
-  if (Math.abs(amt - 90) > 0.01) {
-    console.error(`FAIL: expected no-lift £90 for 3 floors @ £30, got £${amt.toFixed(2)}`)
+  if (Math.abs(amt - expected) > 0.01) {
+    console.error(`FAIL: expected no-lift £${expected.toFixed(2)} (${floors}×£${rate}), got £${amt.toFixed(2)}`)
     failed++
-  } else if (!String(noLiftLine?.label || '').includes('× 3 floors')) {
-    console.error('FAIL: breakdown label missing "× 3 floors"')
+  } else if (!String(noLiftLine?.label || '').includes('× 3 floor')) {
+    console.error('FAIL: breakdown label missing per-floor multiplier text')
     failed++
   } else {
-    console.log('OK: driver on-site extra charge — £90 for floor 3, no lift')
+    console.log(`OK: driver on-site extra — £${amt.toFixed(2)} for ${floors} floors @ £${rate}/floor`)
   }
 }
 

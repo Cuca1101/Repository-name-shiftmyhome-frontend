@@ -2,6 +2,7 @@ import {
   HALF_HOUR_SLOTS_TO_20,
   halfHourSlotsAfter,
 } from '../../lib/arrivalTimeSlots'
+import { applyWizardPatch } from '../../lib/wizardStateUpdate'
 
 const FLEX_VALUE = 'flex_window'
 
@@ -53,23 +54,21 @@ export default function Step1ArrivalFields({ data, onChange, error = '' }) {
 
   function selectMode(next) {
     if (next === 'exact') {
-      onChange({
-        ...data,
+      applyWizardPatch(onChange, {
         arrivalWindow: 'exact',
         flexibleArrivalFrom: '',
         flexibleArrivalUntil: '',
       })
       return
     }
-    onChange({
-      ...data,
+    applyWizardPatch(onChange, {
       arrivalWindow: FLEX_VALUE,
       exactArrivalTime: '',
     })
   }
 
   function onFlexibleFromChange(from) {
-    const patch = { ...data, flexibleArrivalFrom: from }
+    const patch = { flexibleArrivalFrom: from }
     if (
       data.flexibleArrivalUntil &&
       from &&
@@ -77,7 +76,7 @@ export default function Step1ArrivalFields({ data, onChange, error = '' }) {
     ) {
       patch.flexibleArrivalUntil = ''
     }
-    onChange(patch)
+    applyWizardPatch(onChange, patch)
   }
 
   return (
@@ -138,7 +137,7 @@ export default function Step1ArrivalFields({ data, onChange, error = '' }) {
                     <select
                       value={data.flexibleArrivalUntil || ''}
                       onChange={(e) =>
-                        onChange({ ...data, flexibleArrivalUntil: e.target.value })
+                        applyWizardPatch(onChange, { flexibleArrivalUntil: e.target.value })
                       }
                       className={selectClass}
                       style={{ touchAction: 'manipulation' }}
@@ -161,7 +160,7 @@ export default function Step1ArrivalFields({ data, onChange, error = '' }) {
                     <span className={labelClass}>Exact arrival time</span>
                     <select
                       value={data.exactArrivalTime || ''}
-                      onChange={(e) => onChange({ ...data, exactArrivalTime: e.target.value })}
+                      onChange={(e) => applyWizardPatch(onChange, { exactArrivalTime: e.target.value })}
                       className={selectClass}
                       style={{ touchAction: 'manipulation' }}
                     >

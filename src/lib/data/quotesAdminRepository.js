@@ -3,12 +3,15 @@ import { isSupabaseConfigured, supabase } from '../supabase'
 import {
   quoteIsAdminPhoneBooking,
   quoteIsAdminPhoneBookingPending,
+  quotePassesAvailableJobsStrict,
   quoteShowsOnNewPhoneBookingInbox,
 } from '../adminJobListRules'
+import { notifyAdminDataRefresh } from '../adminDataRefresh'
 import { filterProductionAdminQuotes } from '../adminProductionFilters'
 import {
   ADMIN_PHONE_BOOKING_SOURCE,
   ADMIN_PHONE_BOOKING_SOURCES,
+  adminPhoneBookingReleasedPostgrestFilter,
   HOME_PAGE_QUOTE_SOURCE,
   LEGACY_ADMIN_PHONE_BOOKING_SOURCE,
   PHONE_BOOKING_PENDING_OPERATIONAL_STATUS,
@@ -75,9 +78,7 @@ export async function fetchQuotesForAdmin(filterKey = 'all', searchTerm = '') {
   let q = supabase.from(QUOTES_TABLE).select('*').order('created_at', { ascending: false })
 
   if (filterKey === 'all_paid') {
-    q = q.or(
-      `payment_status.in.(paid,deposit_paid),and(payment_status.eq.unpaid,source.in.(${ADMIN_PHONE_BOOKING_SOURCE},${LEGACY_ADMIN_PHONE_BOOKING_SOURCE}),operational_status.neq.${PHONE_BOOKING_PENDING_OPERATIONAL_STATUS})`,
-    )
+    q = q.or(`payment_status.in.(paid,deposit_paid),${adminPhoneBookingReleasedPostgrestFilter()}`)
   } else if (filterKey === 'unpaid') {
     q = q.eq('payment_status', 'unpaid')
   } else if (filterKey === 'deposit_paid') {
@@ -443,7 +444,10 @@ export async function fetchSentAdminPhoneBookings(searchTerm = '') {
   const { data, error } = await q
   if (error) throw error
   return filterProductionAdminQuotes(data ?? []).filter(
-    (row) => quoteIsAdminPhoneBooking(row) && !quoteShowsOnNewPhoneBookingInbox(row),
+    (row) =>
+      quoteIsAdminPhoneBooking(row) &&
+      !quoteIsAdminPhoneBookingPending(row) &&
+      quotePassesAvailableJobsStrict(row),
   )
 }
 
@@ -469,6 +473,20 @@ export async function releaseAdminPhoneBookingToAvailableJobs(id) {
     operational_status: null,
     marketplace_visibility: 'hidden_from_partners',
   })
+
+  const updated = await fetchQuoteByIdForAdmin(quoteId)
+  if (!updated || quoteIsAdminPhoneBookingPending(updated)) {
+    throw new Error(
+      'Could not release booking to Available Jobs. Check database permissions or try again.',
+    )
+  }
+  if (!quotePassesAvailableJobsStrict(updated)) {
+    throw new Error(
+      'Booking was updated but does not appear in Available Jobs (assigned, cancelled, or hidden test row). Check the job in All quotes.',
+    )
+  }
+
+  notifyAdminDataRefresh({ source: 'phone_booking_release' })
 }
 
 /**

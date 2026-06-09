@@ -84,9 +84,18 @@ function readOfflinePricingCache() {
 }
 
 /**
- * @returns {Promise<import('../pricingCalculator.js').PricingSettings>}
+ * @param {{ includeMissingKeys?: boolean }} [opts]
+ * @returns {Promise<import('../pricingCalculator.js').PricingSettings | { settings: import('../pricingCalculator.js').PricingSettings, missingKeys: string[] }>}
  */
-export async function fetchPricingSettings() {
+export async function fetchPricingSettings(opts = {}) {
+  /** @param {import('../pricingCalculator.js').PricingSettings} merged @param {string[]} missingKeys */
+  function finish(merged, missingKeys = []) {
+    if (opts.includeMissingKeys) {
+      return { settings: merged, missingKeys }
+    }
+    return merged
+  }
+
   if (isSupabaseConfigured && supabase) {
     try {
       const { data: sessionData } = await supabase.auth.getSession()
@@ -102,7 +111,7 @@ export async function fetchPricingSettings() {
           }
           const merged = mergeWithDefaults(raw, { warnOnFallback: false, source: 'supabase' })
           writeLocalPricingCache(merged, row.updated_at, 'supabase')
-          return merged
+          return finish(merged, missingKeys)
         }
       }
 
@@ -114,14 +123,15 @@ export async function fetchPricingSettings() {
       if (error) throw error
       if (data?.data && typeof data.data === 'object') {
         const raw = /** @type {Record<string, unknown>} */ (data.data)
+        const missingKeys = detectMissingPricingSettingKeys(raw)
         const merged = mergeWithDefaults(raw, { warnOnFallback: false, source: 'supabase' })
         writeLocalPricingCache(merged, data.updated_at, 'supabase')
-        return merged
+        return finish(merged, missingKeys)
       }
 
       const defaults = mergeWithDefaults(null, { source: 'defaults', warnOnFallback: true })
       writeLocalPricingCache(defaults, data?.updated_at || null, 'defaults')
-      return defaults
+      return finish(defaults, detectMissingPricingSettingKeys(null))
     } catch (e) {
       const detail = e?.message || String(e)
       if (import.meta.env.DEV) {
@@ -132,7 +142,7 @@ export async function fetchPricingSettings() {
 
   const cached = readOfflinePricingCache()
   if (cached) {
-    return cached
+    return finish(cached, [])
   }
 
   console.warn('Pricing fallback used because admin settings were missing', detectMissingPricingSettingKeys(null), {
@@ -140,7 +150,7 @@ export async function fetchPricingSettings() {
   })
   const defaults = mergeWithDefaults(null, { source: 'defaults', warnOnFallback: true })
   writeLocalPricingCache(defaults, null, 'defaults')
-  return defaults
+  return finish(defaults, detectMissingPricingSettingKeys(null))
 }
 
 /**

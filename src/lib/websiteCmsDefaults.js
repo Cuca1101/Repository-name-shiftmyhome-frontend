@@ -1,4 +1,5 @@
 import { CONTACT, WHATSAPP_ME_URL } from '../config'
+import { FACEBOOK_URL } from '../constants/companyContact'
 import { SERVICE_PAGES } from '../constants/servicePages'
 import { HOME_SERVICE_CARD_IMAGES } from '../constants/homeServiceCardImages'
 
@@ -93,7 +94,7 @@ export const DEFAULT_FOOTER = {
   logoUrl: '/logo-footer.png',
   socialLinks: {
     whatsapp: WHATSAPP_ME_URL,
-    facebook: '',
+    facebook: FACEBOOK_URL,
     instagram: '',
   },
 }

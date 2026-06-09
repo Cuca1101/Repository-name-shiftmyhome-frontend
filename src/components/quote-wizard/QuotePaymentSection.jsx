@@ -5,6 +5,7 @@ import { isMoveDateOnOrAfterToday, moveDatePastErrorMessage } from '../../lib/mo
 import { formatReservationFeeGbp } from '../../lib/quoteReservationFee'
 import { trackWebsiteLeadEvent } from '../../lib/websiteLeadTracker'
 import QuoteStripePayment from './QuoteStripePayment'
+import QuotePromoPriceReduction from './QuotePromoPriceReduction'
 import { shouldShowStripeTestModeWarning, stripeTestModeWarningMessage } from '../../lib/stripeConfig'
 
 /** Step 4 mounts twice (mobile + desktop columns); detect visibility without document-wide MutationObserver. */
@@ -62,6 +63,8 @@ function PaymentStepIndicator({ paymentChoice, stripeReady, termsReady }) {
 export default function QuotePaymentSection({
   wizard,
   breakdown,
+  pricingSettings = null,
+  priceWithoutPromo = null,
   reservationFeeGbp = 50,
   payLoading,
   payError,
@@ -86,7 +89,7 @@ export default function QuotePaymentSection({
   const reservationFormatted = formatReservationFeeGbp(reservationGbp)
 
   const card =
-    'min-w-0 max-md:overflow-visible overflow-hidden rounded-2xl border border-slate-200/90 bg-white p-4 shadow-sm md:border-slate-200 md:p-6 md:shadow-card'
+    'min-w-0 rounded-2xl border border-slate-200/90 bg-white p-4 shadow-sm md:border-slate-200 md:p-6 md:shadow-card'
   const busy = payLoading
   const clientSecret =
     typeof cardPayment?.clientSecret === 'string' ? cardPayment.clientSecret : ''
@@ -277,12 +280,22 @@ export default function QuotePaymentSection({
         </div>
 
         {estimatedTotal != null && Number.isFinite(estimatedTotal) ? (
-          <dl className="mt-3 space-y-1.5 rounded-lg border border-emerald-100/90 bg-emerald-50/50 px-3 py-2.5 text-sm md:mt-4">
-            <div className="flex items-baseline justify-between gap-3">
-              <dt className="font-medium text-slate-800">Estimated total</dt>
-              <dd className="font-bold tabular-nums text-emerald-700">{totalFormatted}</dd>
-            </div>
-          </dl>
+          <div className="mt-3 space-y-2 md:mt-4">
+            <dl className="space-y-1.5 rounded-lg border border-emerald-100/90 bg-emerald-50/50 px-3 py-2.5 text-sm">
+              <div className="flex items-baseline justify-between gap-3">
+                <dt className="font-medium text-slate-800">Estimated total</dt>
+                <dd className="font-bold tabular-nums text-emerald-700">{totalFormatted}</dd>
+              </div>
+            </dl>
+            <QuotePromoPriceReduction
+              promoCode={wizard?.promoCode}
+              pricingSettings={pricingSettings}
+              priceWithPromo={estimatedTotal}
+              priceWithoutPromo={priceWithoutPromo}
+              size="sm"
+              showPromoCode
+            />
+          </div>
         ) : null}
 
         <div className="mt-3 grid grid-cols-1 gap-2 md:mt-4 md:grid-cols-2 md:gap-4">

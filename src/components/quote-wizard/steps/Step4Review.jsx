@@ -25,6 +25,7 @@ export default function Step4Review({
   onPaymentSucceeded,
   onGoToStep,
   onBack,
+  priceWithoutPromo = null,
 }) {
   const settings = pricingSettings ?? crewSettings
   const calendarProps = settings
@@ -36,6 +37,7 @@ export default function Step4Review({
         serviceType,
         lineItems,
         heavyItemCount,
+        priceWithoutPromo,
         compact: true,
         showSelectedTotal: true,
       }
@@ -43,7 +45,13 @@ export default function Step4Review({
 
   return (
     <div data-quote-step="4" className="min-w-0 space-y-3 md:space-y-6">
-      <QuoteEstimatedTotalCard breakdown={breakdown} className="mb-3 md:hidden" />
+      <QuoteEstimatedTotalCard
+        breakdown={breakdown}
+        pricingSettings={settings}
+        promoCode={wizard.promoCode}
+        priceWithoutPromo={priceWithoutPromo}
+        className="mb-3 md:hidden"
+      />
 
       <MobileStep4Review
         quoteRef={quoteRef}
@@ -56,12 +64,14 @@ export default function Step4Review({
         calendarProps={calendarProps}
       />
 
-      <div className="min-w-0 max-w-full space-y-4 overflow-x-hidden md:hidden">
+      <div className="min-w-0 max-w-full space-y-4 md:hidden">
         <Step4BackNav onBack={onBack} className="border-t-0 pt-0" />
         <div id="quote-wizard-payment" className="scroll-mt-20 pb-1">
           <QuotePaymentSection
             wizard={wizard}
             breakdown={breakdown}
+            pricingSettings={settings}
+            priceWithoutPromo={priceWithoutPromo}
             payLoading={payLoading}
             payError={payError}
             cardPayment={cardPayment}
@@ -81,6 +91,8 @@ export default function Step4Review({
           <QuotePaymentSection
             wizard={wizard}
             breakdown={breakdown}
+            pricingSettings={settings}
+            priceWithoutPromo={priceWithoutPromo}
             reservationFeeGbp={reservationFeeGbp}
             payLoading={payLoading}
             payError={payError}

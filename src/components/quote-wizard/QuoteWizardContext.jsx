@@ -50,19 +50,14 @@ import {
 import { customerJobPhotoDedupKey } from '../../lib/data/jobPhotosRepository'
 import { MAX_PHOTOS } from './QuoteWizardPhotosField'
 import { sendQuoteRequestEmailJs } from '../../utils/sendQuoteRequestEmailJs'
-import { parsePackingMaterialQuantities } from '../../lib/packingMaterialsCatalog'
+import { buildQuoteEngineInput } from '../../lib/buildQuoteEngineInput'
 import { getQuoteCrewRestrictions } from '../../lib/crewPricingRules'
 import {
   calculateQuote,
   breakdownToFlatRows,
-  isWeekendDate,
   resolveDepositAmountGbp,
 } from '../../lib/pricingCalculator'
-import {
-  getLocalDateYYYYMMDD,
-  isMoveDateOnOrAfterToday,
-  moveDatePastErrorMessage,
-} from '../../lib/moveDateLocal'
+import { isMoveDateOnOrAfterToday, moveDatePastErrorMessage } from '../../lib/moveDateLocal'
 import { formatReservationFeeGbp } from '../../lib/quoteReservationFee'
 import { QUOTE_STEP2_TRANSITION_DURATION_MS } from '../../lib/quoteStep2Transition'
 import { clearQuoteDraft, saveQuoteDraft } from '../../lib/quoteDraftStorage'
@@ -356,56 +351,25 @@ export function QuoteWizardProvider({ children, serviceType: serviceTypeProp, al
 
   const breakdown = useMemo(() => {
     if (step < 2 || !settings) return null
-    const moveDate = wizard.moveDate
-    const today = getLocalDateYYYYMMDD()
-    const sameDay = moveDate === today
-    const weekend = isWeekendDate(moveDate)
+    return calculateQuote(
+      settings,
+      buildQuoteEngineInput({ serviceType, wizard, lineItems, heavyItemCount }),
+    )
+  }, [step, settings, serviceType, wizard, lineItems, heavyItemCount])
 
-    const packingMaterialQuantities = parsePackingMaterialQuantities(wizard)
-
-    return calculateQuote(settings, {
-      serviceType,
-      distanceMiles: Number(wizard.distanceMiles) || 0,
-      mapboxRouteDurationSeconds:
-        wizard.mapboxRouteDurationSeconds != null && wizard.mapboxRouteDurationSeconds !== ''
-          ? Number(wizard.mapboxRouteDurationSeconds)
-          : undefined,
-      lineItems,
-      access: {
-        pickupFloor: wizard.pickupFloor == null ? 0 : Number(wizard.pickupFloor),
-        deliveryFloor: wizard.deliveryFloor == null ? 0 : Number(wizard.deliveryFloor),
-        pickupLift: wizard.pickupLift == null ? undefined : Boolean(wizard.pickupLift),
-        deliveryLift: wizard.deliveryLift == null ? undefined : Boolean(wizard.deliveryLift),
-        longWalk: wizard.walkingDistance === 'long',
-        parking: wizard.parkingDistance === 'long',
-        stairsFlights: wizard.stairsFlights,
+  const priceWithoutPromo = useMemo(() => {
+    if (step < 2 || !settings) return null
+    const result = calculateQuote(
+      settings,
+      buildQuoteEngineInput({
+        serviceType,
+        wizard,
+        lineItems,
         heavyItemCount,
-      },
-      extras: {
-        packing: wizard.packing,
-        packingApproxBoxes: wizard.packingApproxBoxes,
-        packingFragile: wizard.packingFragile,
-        packingMaterials: wizard.packingMaterials,
-        packingMaterialQuantities,
-        dismantling: wizard.dismantling,
-        dismantlingItemCount: wizard.dismantlingItemCount,
-        reassembly: wizard.reassembly,
-        reassemblyItemCount: wizard.reassemblyItemCount,
-        reassemblySameAsDismantling: wizard.reassemblySameAsDismantling,
-        waitingHours: 0,
-        extraHelpers: 0,
-        sameDay,
-        weekend,
-        exactArrivalPremium: wizard.arrivalWindow === 'exact',
-        promoCode: wizard.promoCode,
-        packageTier: wizard.packageTier || 'standard',
-      },
-      crewSize:
-        wizard.crewSize != null && wizard.crewSize !== ''
-          ? Number(wizard.crewSize)
-          : undefined,
-      moveDate,
-    })
+        promoCode: '',
+      }),
+    )
+    return result.estimatedTotal
   }, [step, settings, serviceType, wizard, lineItems, heavyItemCount])
 
   const estimatedTotalForDraft =
@@ -1078,6 +1042,7 @@ export function QuoteWizardProvider({ children, serviceType: serviceTypeProp, al
     totalM3,
     crewRestrictions,
     breakdown,
+    priceWithoutPromo,
     depositAmountGbp: settings ? resolveDepositAmountGbp(settings) : 50,
     customSizeM3,
     handleDistanceFromRoute,

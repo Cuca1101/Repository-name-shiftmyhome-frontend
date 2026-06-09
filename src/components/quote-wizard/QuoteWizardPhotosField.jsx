@@ -37,7 +37,7 @@ export default function QuoteWizardPhotosField({
 
   const fileList = count > 0 ? (
     <div className="mt-2 space-y-2">
-      <ul className="max-h-28 space-y-1 overflow-y-auto rounded-lg border border-slate-200/80 bg-white/80 px-2 py-1.5 text-xs text-slate-700">
+      <ul className="space-y-1 rounded-lg border border-slate-200/80 bg-white/80 px-2 py-1.5 text-xs text-slate-700">
         {files.map((file, index) => (
           <li key={`${file.name}-${file.size}-${file.lastModified}-${index}`} className="flex items-center gap-2">
             <span className="min-w-0 flex-1 truncate" title={file.name}>

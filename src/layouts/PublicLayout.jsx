@@ -27,8 +27,8 @@ export default function PublicLayout({ children }) {
           <WebsiteAnnouncementBar />
           <Navbar />
           <main
-            className={`box-border min-w-0 flex-1 w-full max-w-full overflow-x-hidden md:pb-0 ${
-              quoteFlow ? 'pb-[4.25rem]' : 'pb-24'
+            className={`box-border min-w-0 flex-1 w-full max-w-full md:pb-0 ${
+              quoteFlow ? 'quote-flow-main pb-[4.25rem]' : 'overflow-x-hidden pb-24'
             }`}
           >
             {children}

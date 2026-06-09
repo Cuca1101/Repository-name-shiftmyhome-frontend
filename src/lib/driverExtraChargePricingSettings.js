@@ -120,7 +120,8 @@ export function syncDriverPanelToMainPricingFields(prev, driverBlock) {
  */
 export function preparePricingSettingsForSave(settings) {
   const next = { ...settings }
-  // Mobile + payment links always follow main engine; keep snapshot aligned on every save.
+  // Driver app + payment links read top-level Pricing Engine fields only (see resolveDriverExtraChargePricing).
+  // Reset legacy custom mode so admin UI and DB stay aligned; snapshot is for audit/preview only.
   next.driverAppExtraChargeMode = 'website'
   next.driverAppExtraChargesCustomEnabled = false
   next.driverAppExtraCharges = copyWebsiteRatesToDriverAppExtraCharge(next)

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import Step1Address from '../quote-wizard/steps/Step1Address'
 import Step2Inventory from '../quote-wizard/steps/Step2Inventory'
 import Step3Details from '../quote-wizard/steps/Step3Details'
@@ -8,20 +8,25 @@ import AdminAccessDetailsSection from './AdminAccessDetailsSection'
 import AdminPhoneBookingProgress from './AdminPhoneBookingProgress'
 import { SERVICE_TYPES } from '../../constants/serviceTypes'
 import { fetchPricingSettings } from '../../lib/data/pricingSettingsRepository'
-import { calculateQuote, isWeekendDate } from '../../lib/pricingCalculator'
-import { parsePackingMaterialQuantities } from '../../lib/packingMaterialsCatalog'
+import { onPricingSettingsUpdated } from '../../lib/pricingSettingsEvents'
+import { calculateQuote } from '../../lib/pricingCalculator'
+import { buildQuoteEngineInput } from '../../lib/buildQuoteEngineInput'
 import { getQuoteCrewRestrictions } from '../../lib/crewPricingRules'
-import { getLocalDateYYYYMMDD } from '../../lib/moveDateLocal'
 import {
-  bootstrapAdminPhoneBookingFormState,
   clearAdminPhoneBookingDraft,
   freshAdminPhoneBookingFormState,
-  saveAdminPhoneBookingDraft,
 } from '../../lib/adminPhoneBookingDraftStorage'
 import {
+  applyAddressChangeConfirmationReset,
+  autoConfirmGeocodedAddresses,
+} from '../../lib/addressConfirmation'
+import {
+  adminPhoneBookingErrorsByField,
+  collectAdminPhoneBookingFieldErrors,
+  fetchAdminPhoneBookingForEdit,
   insertAdminPhoneBookingFromWizard,
   resolveAdminPhoneBookingFinalPrice,
-  validateAdminPhoneBooking,
+  updateAdminPhoneBookingFromWizard,
   validateAdminPhoneBookingStep,
 } from '../../lib/adminPhoneBooking'
 import { supabase } from '../../lib/supabase'
@@ -48,40 +53,89 @@ async function resolveAdminCreatorLabel(email) {
 }
 
 /**
- * @param {{ onBookingCreated?: (saved: { id: string, quote_ref: string }) => void }} props
+ * @param {{
+ *   editQuoteId?: string | null,
+ *   onBookingCreated?: (saved: { id: string, quote_ref: string }) => void,
+ *   onBookingUpdated?: (saved: { id: string, quote_ref: string }) => void,
+ * }} props
  */
-export default function AdminPhoneBookingForm({ onBookingCreated }) {
-  const skipAutosaveRef = useRef(true)
-  const [boot] = useState(() => bootstrapAdminPhoneBookingFormState())
-  const [wizard, setWizard] = useState(boot.wizard)
-  const [serviceType, setServiceType] = useState(boot.serviceType)
-  const [quoteRef, setQuoteRef] = useState(boot.quoteRef)
-  const [customQuoteRef, setCustomQuoteRef] = useState(boot.customQuoteRef)
+export default function AdminPhoneBookingForm({
+  editQuoteId = null,
+  onBookingCreated,
+  onBookingUpdated,
+}) {
+  const [wizard, setWizard] = useState(() => freshAdminPhoneBookingFormState().wizard)
+  const [serviceType, setServiceType] = useState(() => freshAdminPhoneBookingFormState().serviceType)
+  const [quoteRef, setQuoteRef] = useState(() => freshAdminPhoneBookingFormState().quoteRef)
+  const [customQuoteRef, setCustomQuoteRef] = useState('')
   const [settings, setSettings] = useState(null)
   const [loadingSettings, setLoadingSettings] = useState(true)
-  const [useCalculatedPrice, setUseCalculatedPrice] = useState(boot.useCalculatedPrice)
-  const [finalPriceOverride, setFinalPriceOverride] = useState(boot.finalPriceOverride)
-  const [overrideReason, setOverrideReason] = useState(boot.overrideReason)
-  const [adminNote, setAdminNote] = useState(boot.adminNote)
-  const [step, setStep] = useState(boot.step)
-  const [draftNotice, setDraftNotice] = useState(() => {
-    if (boot.draftRestored) {
-      return boot.dateWasReset
-        ? 'Draft restored. Move date was in the past — please pick a new date.'
-        : 'Draft restored — your progress is saved on this device.'
-    }
-    return ''
-  })
+  const [useCalculatedPrice, setUseCalculatedPrice] = useState(true)
+  const [finalPriceOverride, setFinalPriceOverride] = useState('')
+  const [overrideReason, setOverrideReason] = useState('')
+  const [adminNote, setAdminNote] = useState('')
+  const [step, setStep] = useState(1)
+  const [savedQuoteId, setSavedQuoteId] = useState(/** @type {string | null} */ (null))
+  const [savedNotice, setSavedNotice] = useState('')
+  const [loadingEdit, setLoadingEdit] = useState(Boolean(editQuoteId))
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
+  const [fieldErrors, setFieldErrors] = useState(/** @type {Record<string, string>} */ ({}))
+
+  const applyFormState = useCallback((state) => {
+    setWizard(state.wizard)
+    setServiceType(state.serviceType)
+    setQuoteRef(state.quoteRef)
+    setCustomQuoteRef(state.customQuoteRef || '')
+    setUseCalculatedPrice(state.useCalculatedPrice)
+    setFinalPriceOverride(state.finalPriceOverride || '')
+    setOverrideReason(state.overrideReason || '')
+    setAdminNote(state.adminNote || '')
+    setStep(state.step || 1)
+  }, [])
+
+  const startNewBooking = useCallback(() => {
+    clearAdminPhoneBookingDraft()
+    const fresh = freshAdminPhoneBookingFormState()
+    applyFormState(fresh)
+    setSavedQuoteId(null)
+    setSavedNotice('')
+    setError('')
+    setFieldErrors({})
+    setStep(1)
+  }, [applyFormState])
 
   useEffect(() => {
-    skipAutosaveRef.current = false
-  }, [])
+    if (!editQuoteId) {
+      setLoadingEdit(false)
+      return undefined
+    }
+    let cancelled = false
+    ;(async () => {
+      setLoadingEdit(true)
+      setError('')
+      try {
+        const loaded = await fetchAdminPhoneBookingForEdit(editQuoteId)
+        if (cancelled) return
+        applyFormState(loaded)
+        setSavedQuoteId(loaded.id)
+        setSavedNotice(`Editing booking ${loaded.quote_ref}. Change anything below, then click Save changes.`)
+        setStep(loaded.step || 3)
+      } catch (err) {
+        if (!cancelled) setError(err?.message || 'Could not load booking for edit.')
+      } finally {
+        if (!cancelled) setLoadingEdit(false)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [editQuoteId, applyFormState])
 
   useEffect(() => {
     let cancelled = false
-    ;(async () => {
+
+    async function loadSettings() {
       try {
         const s = await fetchPricingSettings()
         if (!cancelled) setSettings(s)
@@ -90,71 +144,19 @@ export default function AdminPhoneBookingForm({ onBookingCreated }) {
       } finally {
         if (!cancelled) setLoadingSettings(false)
       }
-    })()
+    }
+
+    void loadSettings()
+    const unsubscribe = onPricingSettingsUpdated(() => {
+      setLoadingSettings(true)
+      void loadSettings()
+    })
     return () => {
       cancelled = true
+      unsubscribe()
     }
   }, [])
 
-  useEffect(() => {
-    if (skipAutosaveRef.current) return undefined
-    const hasProgress =
-      step > 1 ||
-      wizard.pickupAddress.trim().length > 2 ||
-      wizard.deliveryAddress.trim().length > 2 ||
-      wizard.inventoryLines.length > 0 ||
-      wizard.fullName.trim().length > 0 ||
-      wizard.phone.trim().length > 0 ||
-      wizard.email.trim().length > 0 ||
-      customQuoteRef.trim().length > 0 ||
-      adminNote.trim().length > 0 ||
-      overrideReason.trim().length > 0 ||
-      finalPriceOverride.trim().length > 0 ||
-      !useCalculatedPrice
-    if (!hasProgress) return undefined
-
-    const timer = window.setTimeout(() => {
-      saveAdminPhoneBookingDraft({
-        step,
-        wizard,
-        serviceType,
-        quoteRef,
-        customQuoteRef,
-        useCalculatedPrice,
-        finalPriceOverride,
-        overrideReason,
-        adminNote,
-      })
-    }, 400)
-    return () => window.clearTimeout(timer)
-  }, [
-    step,
-    wizard,
-    serviceType,
-    quoteRef,
-    customQuoteRef,
-    useCalculatedPrice,
-    finalPriceOverride,
-    overrideReason,
-    adminNote,
-  ])
-
-  const handleDiscardDraft = useCallback(() => {
-    if (!window.confirm('Discard saved draft and start a new phone booking?')) return
-    clearAdminPhoneBookingDraft()
-    const fresh = freshAdminPhoneBookingFormState()
-    setWizard(fresh.wizard)
-    setServiceType(fresh.serviceType)
-    setQuoteRef(fresh.quoteRef)
-    setCustomQuoteRef(fresh.customQuoteRef)
-    setUseCalculatedPrice(fresh.useCalculatedPrice)
-    setFinalPriceOverride(fresh.finalPriceOverride)
-    setOverrideReason(fresh.overrideReason)
-    setAdminNote(fresh.adminNote)
-    setStep(fresh.step)
-    setDraftNotice('')
-    setError('')
-  }, [])
 
   const effectiveQuoteRef = customQuoteRef.trim() || quoteRef
 
@@ -200,53 +202,24 @@ export default function AdminPhoneBookingForm({ onBookingCreated }) {
 
   const breakdown = useMemo(() => {
     if (!settings) return null
-    const moveDate = wizard.moveDate
-    const today = getLocalDateYYYYMMDD()
-    const sameDay = moveDate === today
-    const weekend = isWeekendDate(moveDate)
-    const packingMaterialQuantities = parsePackingMaterialQuantities(wizard)
+    return calculateQuote(
+      settings,
+      buildQuoteEngineInput({ serviceType, wizard, lineItems, heavyItemCount }),
+    )
+  }, [settings, serviceType, wizard, lineItems, heavyItemCount])
 
-    return calculateQuote(settings, {
-      serviceType,
-      distanceMiles: Number(wizard.distanceMiles) || 0,
-      mapboxRouteDurationSeconds:
-        wizard.mapboxRouteDurationSeconds != null && wizard.mapboxRouteDurationSeconds !== ''
-          ? Number(wizard.mapboxRouteDurationSeconds)
-          : undefined,
-      lineItems,
-      access: {
-        pickupFloor: wizard.pickupFloor == null ? 0 : Number(wizard.pickupFloor),
-        deliveryFloor: wizard.deliveryFloor == null ? 0 : Number(wizard.deliveryFloor),
-        pickupLift: wizard.pickupLift == null ? undefined : Boolean(wizard.pickupLift),
-        deliveryLift: wizard.deliveryLift == null ? undefined : Boolean(wizard.deliveryLift),
-        longWalk: wizard.walkingDistance === 'long',
-        parking: wizard.parkingDistance === 'long',
-        stairsFlights: wizard.stairsFlights,
+  const priceWithoutPromo = useMemo(() => {
+    if (!settings) return null
+    return calculateQuote(
+      settings,
+      buildQuoteEngineInput({
+        serviceType,
+        wizard,
+        lineItems,
         heavyItemCount,
-      },
-      extras: {
-        packing: wizard.packing,
-        packingApproxBoxes: wizard.packingApproxBoxes,
-        packingFragile: wizard.packingFragile,
-        packingMaterials: wizard.packingMaterials,
-        packingMaterialQuantities,
-        dismantling: wizard.dismantling,
-        dismantlingItemCount: wizard.dismantlingItemCount,
-        reassembly: wizard.reassembly,
-        reassemblyItemCount: wizard.reassemblyItemCount,
-        reassemblySameAsDismantling: wizard.reassemblySameAsDismantling,
-        waitingHours: 0,
-        extraHelpers: 0,
-        sameDay,
-        weekend,
-        exactArrivalPremium: wizard.arrivalWindow === 'exact',
-        promoCode: wizard.promoCode,
-        packageTier: wizard.packageTier || 'standard',
-      },
-      crewSize:
-        wizard.crewSize != null && wizard.crewSize !== '' ? Number(wizard.crewSize) : undefined,
-      moveDate,
-    })
+        promoCode: '',
+      }),
+    ).estimatedTotal
   }, [settings, serviceType, wizard, lineItems, heavyItemCount])
 
   const priceResolution = useMemo(
@@ -272,22 +245,62 @@ export default function AdminPhoneBookingForm({ onBookingCreated }) {
     }
   }, [])
 
-  const goToStep = useCallback((n) => {
+  const handleWizardChange = useCallback((next) => {
+    setWizard((prev) => {
+      const merged =
+        typeof next === 'function'
+          ? next(prev)
+          : { ...prev, ...next }
+      return applyAddressChangeConfirmationReset(prev, merged)
+    })
+  }, [])
+
+  useEffect(() => {
+    if (step !== 3) return
+    setWizard((w) => autoConfirmGeocodedAddresses(w))
+  }, [
+    step,
+    wizard.pickupAddress,
+    wizard.deliveryAddress,
+    wizard.pickupLng,
+    wizard.pickupLat,
+    wizard.deliveryLng,
+    wizard.deliveryLat,
+  ])
+
+  const goToStep = useCallback((n, { preserveErrors = false } = {}) => {
     setStep(n)
-    setError('')
+    if (!preserveErrors) {
+      setError('')
+      setFieldErrors({})
+    }
     window.requestAnimationFrame(() => {
       document.getElementById('admin-phone-booking-top')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
     })
   }, [])
 
+  const applyValidationErrors = useCallback(
+    (errors) => {
+      if (!errors.length) {
+        setFieldErrors({})
+        setError('')
+        return true
+      }
+      const byField = adminPhoneBookingErrorsByField(errors)
+      setFieldErrors(byField)
+      setError(errors[0].message)
+      const firstStep = errors[0].step
+      if (firstStep < step) goToStep(firstStep, { preserveErrors: true })
+      return false
+    },
+    [step, goToStep],
+  )
+
   const handleNext = useCallback(() => {
-    const errors = validateAdminPhoneBookingStep(wizard, /** @type {1|2|3} */ (step))
-    if (errors.length) {
-      setError(errors[0])
-      return
-    }
+    const errors = collectAdminPhoneBookingFieldErrors(wizard).filter((e) => e.step === step)
+    if (!applyValidationErrors(errors)) return
     if (step < 3) goToStep(step + 1)
-  }, [wizard, step, goToStep])
+  }, [wizard, step, goToStep, applyValidationErrors])
 
   const handleBack = useCallback(() => {
     if (step > 1) goToStep(step - 1)
@@ -315,7 +328,8 @@ export default function AdminPhoneBookingForm({ onBookingCreated }) {
     arrivalWindow: wizard.arrivalWindow,
     exactArrivalTime: wizard.exactArrivalTime,
     inventoryLines: wizard.inventoryLines,
-    onInventoryLinesChange: (inventoryLines) => setWizard((w) => ({ ...w, inventoryLines })),
+    onInventoryLinesChange: (inventoryLines) =>
+      handleWizardChange((w) => ({ ...w, inventoryLines })),
     totalM3,
     showPricing: true,
     breakdown,
@@ -327,14 +341,34 @@ export default function AdminPhoneBookingForm({ onBookingCreated }) {
     hideEstimatedTotalCard: true,
   }
 
+  function handleFormKeyDown(e) {
+    if (e.key !== 'Enter' || step === 3) return
+    const el = e.target
+    if (el instanceof HTMLTextAreaElement || el instanceof HTMLButtonElement) return
+    if (el instanceof HTMLInputElement || el instanceof HTMLSelectElement) {
+      e.preventDefault()
+    }
+  }
+
   async function handleSubmit(e) {
     e.preventDefault()
+    if (step !== 3) {
+      setError('Use “Continue to review →” to reach step 3 before creating the booking.')
+      return
+    }
     if (submitting) return
     setError('')
 
-    const validationErrors = validateAdminPhoneBooking(wizard)
-    if (validationErrors.length) {
-      setError(validationErrors[0])
+    const validationErrorList = collectAdminPhoneBookingFieldErrors(wizard)
+    if (!applyValidationErrors(validationErrorList)) {
+      window.requestAnimationFrame(() => {
+        const anchor =
+          validationErrorList[0]?.field === 'pickupAddressConfirmed' ||
+          validationErrorList[0]?.field === 'deliveryAddressConfirmed'
+            ? document.getElementById('quote-wizard-address-confirmation')
+            : null
+        anchor?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      })
       return
     }
 
@@ -344,12 +378,16 @@ export default function AdminPhoneBookingForm({ onBookingCreated }) {
     }
 
     if (priceResolution.invalid) {
+      setFieldErrors({ finalPriceOverride: 'Enter a valid final price (0 or more).' })
       setError('Enter a valid final price override, or use the calculated price.')
+      if (step !== 3) goToStep(3, { preserveErrors: true })
       return
     }
 
     if (!useCalculatedPrice && priceResolution.final == null) {
+      setFieldErrors({ finalPriceOverride: 'Enter the final price to charge.' })
       setError('Enter the final price to charge.')
+      if (step !== 3) goToStep(3, { preserveErrors: true })
       return
     }
 
@@ -358,38 +396,38 @@ export default function AdminPhoneBookingForm({ onBookingCreated }) {
       const { data: sessionData } = await supabase.auth.getSession()
       const createdBy = await resolveAdminCreatorLabel(sessionData.session?.user?.email)
 
-      const saved = await insertAdminPhoneBookingFromWizard({
+      const payload = {
         wizard,
         serviceType,
         quoteRef: customQuoteRef.trim() || quoteRef,
         breakdown,
         useCalculatedPrice,
         finalPrice: priceResolution.final,
+        finalPriceOverride,
         overrideReason,
         adminNote,
         createdBy,
-      })
+      }
 
+      const isUpdate = Boolean(savedQuoteId)
+      const saved = isUpdate
+        ? await updateAdminPhoneBookingFromWizard({ ...payload, quoteId: savedQuoteId })
+        : await insertAdminPhoneBookingFromWizard(payload)
+
+      setSavedQuoteId(saved.id)
+      setQuoteRef(saved.quote_ref)
+      setCustomQuoteRef('')
+      setSavedNotice(
+        `Booking ${saved.quote_ref} saved. You can keep editing below and click Save changes again.`,
+      )
       clearAdminPhoneBookingDraft()
-      const fresh = freshAdminPhoneBookingFormState()
-      setWizard(fresh.wizard)
-      setServiceType(fresh.serviceType)
-      setQuoteRef(fresh.quoteRef)
-      setCustomQuoteRef(fresh.customQuoteRef)
-      setUseCalculatedPrice(fresh.useCalculatedPrice)
-      setFinalPriceOverride(fresh.finalPriceOverride)
-      setOverrideReason(fresh.overrideReason)
-      setAdminNote(fresh.adminNote)
-      setStep(fresh.step)
-      setDraftNotice('')
-      onBookingCreated?.(saved)
-      window.requestAnimationFrame(() => {
-        document.getElementById('admin-phone-booking-my-jobs')?.scrollIntoView({
-          behavior: 'smooth',
-          block: 'start',
-        })
-      })
+      if (isUpdate) {
+        onBookingUpdated?.(saved)
+      } else {
+        onBookingCreated?.(saved)
+      }
       setError('')
+      setFieldErrors({})
     } catch (err) {
       setError(err?.message || 'Could not save booking.')
     } finally {
@@ -402,65 +440,165 @@ export default function AdminPhoneBookingForm({ onBookingCreated }) {
   const finalDisplay =
     priceResolution.final != null ? `£${priceResolution.final.toFixed(2)}` : calculatedDisplay
 
-  const priceReviewPanel = (
-    <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
-      <h3 className="text-sm font-bold text-slate-900">Price review</h3>
-      <p className="mt-0.5 text-xs text-slate-600">Live breakdown from the quote pricing engine.</p>
-      {breakdown ? (
-        <div className="mt-3 flex min-w-0 flex-col gap-3 sm:flex-row sm:items-start">
-          <div className="flex w-full shrink-0 flex-row gap-2 sm:w-[8.75rem] sm:flex-col">
-            <div className="min-w-0 flex-1 rounded-xl border border-emerald-200 bg-gradient-to-br from-emerald-50/90 to-white p-3 ring-1 ring-emerald-100/80">
-              <p className="text-[10px] font-semibold uppercase tracking-wide text-emerald-800">
-                Estimated total
-              </p>
-              <p className="mt-1 font-mono text-xl font-bold tabular-nums tracking-tight text-emerald-700">
-                {calculatedDisplay}
-              </p>
-            </div>
-            {!useCalculatedPrice ? (
-              <div className="min-w-0 flex-1 rounded-xl border border-amber-200 bg-amber-50/90 p-3 ring-1 ring-amber-100/80">
-                <p className="text-[10px] font-semibold uppercase tracking-wide text-amber-900">
-                  Final (override)
+  const adminPriceOverridePanel = (
+    <AdminSection
+      title="Price & override"
+      description="Use the calculated total or set a custom final price for this booking."
+    >
+      <div className="space-y-4">
+        <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-slate-200 p-3 has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-brand-500/30">
+          <input
+            type="radio"
+            name="price_mode"
+            checked={useCalculatedPrice}
+            onChange={() => setUseCalculatedPrice(true)}
+            className="mt-1"
+          />
+          <span>
+            <span className="block text-sm font-semibold text-slate-900">Use calculated price</span>
+            <span className="block text-xs text-slate-600">{calculatedDisplay}</span>
+          </span>
+        </label>
+        <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-slate-200 p-3 has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-brand-500/30">
+          <input
+            type="radio"
+            name="price_mode"
+            checked={!useCalculatedPrice}
+            onChange={() => setUseCalculatedPrice(false)}
+            className="mt-1"
+          />
+          <span>
+            <span className="block text-sm font-semibold text-slate-900">Custom final price</span>
+            <span className="block text-xs text-slate-600">Original calculated: {calculatedDisplay}</span>
+          </span>
+        </label>
+        {!useCalculatedPrice ? (
+          <div>
+            <label className={labelClass} htmlFor="apb-final-price-sidebar">
+              Final price (£) <span className="text-red-600">*</span>
+            </label>
+            <input
+              id="apb-final-price-sidebar"
+              type="number"
+              min="0"
+              step="0.01"
+              className={inputClass}
+              value={finalPriceOverride}
+              onChange={(e) => setFinalPriceOverride(e.target.value)}
+              placeholder={
+                priceResolution.calculated != null
+                  ? priceResolution.calculated.toFixed(2)
+                  : '0.00'
+              }
+            />
+          </div>
+        ) : null}
+        {!useCalculatedPrice ? (
+          <div>
+            <label className={labelClass} htmlFor="apb-override-reason-sidebar">
+              Discount / override reason
+            </label>
+            <input
+              id="apb-override-reason-sidebar"
+              className={inputClass}
+              value={overrideReason}
+              onChange={(e) => setOverrideReason(e.target.value)}
+              placeholder="e.g. matched competitor, loyalty discount"
+            />
+          </div>
+        ) : null}
+        {fieldErrors.finalPriceOverride ? (
+          <p className="text-sm font-medium text-red-700" role="alert">
+            {fieldErrors.finalPriceOverride}
+          </p>
+        ) : null}
+      </div>
+    </AdminSection>
+  )
+
+  const priceBreakdownAfterSummary =
+    step >= 2 ? (
+      <section className="min-w-0 overflow-hidden rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+        <h3 className="text-sm font-bold text-slate-900">Price breakdown</h3>
+        <p className="mt-0.5 text-xs leading-relaxed text-slate-600">
+          Live breakdown from the quote pricing engine.
+        </p>
+        {breakdown ? (
+          <div className="mt-3 flex min-w-0 flex-col gap-3">
+            <div
+              className={`grid min-w-0 gap-2 ${!useCalculatedPrice ? 'grid-cols-2' : 'grid-cols-1'}`}
+            >
+              <div className="min-w-0 rounded-xl border border-emerald-200 bg-gradient-to-br from-emerald-50/90 to-white p-3 ring-1 ring-emerald-100/80">
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-emerald-800">
+                  Estimated total
                 </p>
-                <p className="mt-1 font-mono text-xl font-bold tabular-nums tracking-tight text-amber-900">
-                  {finalDisplay}
+                <p className="mt-1 break-words text-lg font-bold tabular-nums text-emerald-700 sm:text-xl">
+                  {calculatedDisplay}
                 </p>
               </div>
-            ) : null}
-          </div>
-          <div className="min-h-0 min-w-0 flex-1 sm:max-h-[min(70vh,720px)] sm:overflow-y-auto sm:pr-0.5">
+              {!useCalculatedPrice ? (
+                <div className="min-w-0 rounded-xl border border-amber-200 bg-amber-50/90 p-3 ring-1 ring-amber-100/80">
+                  <p className="text-[10px] font-semibold uppercase tracking-wide text-amber-900">
+                    Final (override)
+                  </p>
+                  <p className="mt-1 break-words text-lg font-bold tabular-nums text-amber-900 sm:text-xl">
+                    {finalDisplay}
+                  </p>
+                </div>
+              ) : null}
+            </div>
             <AdminQuotePriceBreakdown
               breakdown={breakdown}
               serviceType={serviceType}
               wizard={wizard}
               crewSettings={settings}
               compact
+              sidebar
             />
           </div>
-        </div>
-      ) : (
-        <p className="mt-3 text-sm text-slate-600">
-          Add inventory and confirm the route on the map to see the price breakdown.
-        </p>
-      )}
-    </section>
-  )
+        ) : (
+          <p className="mt-3 text-sm leading-relaxed text-slate-600">
+            Add inventory and confirm the route on the map to see the price breakdown.
+          </p>
+        )}
+      </section>
+    ) : null
 
   return (
     <form onSubmit={handleSubmit} className="mx-auto max-w-6xl space-y-6">
       <div id="admin-phone-booking-top">
-        <AdminPhoneBookingProgress step={step} />
+        <AdminPhoneBookingProgress
+          step={step}
+          onStepClick={(n) => {
+            if (n >= 1 && n <= 3 && n !== step) goToStep(n)
+          }}
+        />
+        <p className="mt-2 text-xs text-slate-500">
+          Step {step} of 3 — nothing is saved until you click{' '}
+          {savedQuoteId ? 'Save changes' : 'Save phone booking'} at the end of step 3.
+        </p>
       </div>
 
-      {draftNotice ? (
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-brand-200 bg-brand-50/80 px-4 py-3 text-sm text-brand-950">
-          <p>{draftNotice}</p>
+      {loadingEdit ? (
+        <p className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+          Loading booking for edit…
+        </p>
+      ) : null}
+
+      {savedNotice ? (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-emerald-200 bg-emerald-50/90 px-4 py-3 text-sm text-emerald-950">
+          <p>{savedNotice}</p>
           <button
             type="button"
-            onClick={handleDiscardDraft}
-            className="shrink-0 rounded-lg border border-brand-300 bg-white px-3 py-1.5 text-xs font-semibold text-brand-900 hover:bg-brand-50"
+            onClick={() => {
+              if (!window.confirm('Start a new empty phone booking form?')) {
+                return
+              }
+              startNewBooking()
+            }}
+            className="shrink-0 rounded-lg border border-emerald-300 bg-white px-3 py-1.5 text-xs font-semibold text-emerald-900 hover:bg-emerald-50"
           >
-            Discard draft
+            New booking
           </button>
         </div>
       ) : null}
@@ -484,18 +622,53 @@ export default function AdminPhoneBookingForm({ onBookingCreated }) {
               >
                 <Step1Address
                   data={wizard}
-                  onChange={setWizard}
+                  onChange={handleWizardChange}
                   quoteRef={effectiveQuoteRef}
                   serviceType={serviceType}
                   serviceTypeOptions={[...SERVICE_TYPES]}
                   onServiceTypeChange={setServiceType}
                 />
+                {fieldErrors.pickupAddress ? (
+                  <p className="mt-2 text-sm font-medium text-red-700" role="alert" data-quote-field="pickup-address">
+                    {fieldErrors.pickupAddress}
+                  </p>
+                ) : null}
+                {fieldErrors.deliveryAddress ? (
+                  <p className="mt-2 text-sm font-medium text-red-700" role="alert" data-quote-field="delivery-address">
+                    {fieldErrors.deliveryAddress}
+                  </p>
+                ) : null}
+                {fieldErrors.pickupFloor ? (
+                  <p className="mt-2 text-sm font-medium text-red-700" role="alert">
+                    {fieldErrors.pickupFloor}
+                  </p>
+                ) : null}
+                {fieldErrors.deliveryFloor ? (
+                  <p className="mt-2 text-sm font-medium text-red-700" role="alert">
+                    {fieldErrors.deliveryFloor}
+                  </p>
+                ) : null}
+                {fieldErrors.moveDate ? (
+                  <p className="mt-2 text-sm font-medium text-red-700" role="alert" data-quote-field="move-date">
+                    {fieldErrors.moveDate}
+                  </p>
+                ) : null}
+                {fieldErrors.arrivalWindow ? (
+                  <p className="mt-2 text-sm font-medium text-red-700" role="alert" data-quote-field="arrival">
+                    {fieldErrors.arrivalWindow}
+                  </p>
+                ) : null}
+                {fieldErrors.distanceMiles ? (
+                  <p className="mt-2 text-sm font-medium text-red-700" role="alert">
+                    {fieldErrors.distanceMiles}
+                  </p>
+                ) : null}
               </AdminSection>
               <AdminSection
                 title="Access details"
                 description="Parking, walking distance, stairs and access notes — affect pricing."
               >
-                <AdminAccessDetailsSection data={wizard} onChange={setWizard} />
+                <AdminAccessDetailsSection data={wizard} onChange={handleWizardChange} />
               </AdminSection>
             </>
           ) : null}
@@ -511,104 +684,90 @@ export default function AdminPhoneBookingForm({ onBookingCreated }) {
                 <Step2Inventory
                   layoutVariant="admin"
                   lines={wizard.inventoryLines}
-                  onLinesChange={(inventoryLines) => setWizard((w) => ({ ...w, inventoryLines }))}
+                  onLinesChange={(inventoryLines) =>
+                    handleWizardChange((w) => ({ ...w, inventoryLines }))
+                  }
                   customSizeM3={settings?.customSizeM3}
                   crewSize={wizard.crewSize}
-                  onCrewSizeChange={(crewSize) => setWizard((w) => ({ ...w, crewSize }))}
+                  onCrewSizeChange={(crewSize) => handleWizardChange((w) => ({ ...w, crewSize }))}
                   crewSettings={settings}
                   crewRestrictions={crewRestrictions}
+                  pricingSettings={settings}
+                  breakdown={breakdown}
+                  priceWithoutPromo={priceWithoutPromo}
                   quoteRef={effectiveQuoteRef}
                   data={wizard}
-                  onChange={setWizard}
+                  onChange={handleWizardChange}
                 />
               )}
+              {fieldErrors.fullName ? (
+                <p className="mt-3 text-sm font-medium text-red-700" role="alert">
+                  {fieldErrors.fullName}
+                </p>
+              ) : null}
+              {fieldErrors.phone ? (
+                <p className="mt-2 text-sm font-medium text-red-700" role="alert">
+                  {fieldErrors.phone}
+                </p>
+              ) : null}
+              {fieldErrors.email ? (
+                <p className="mt-2 text-sm font-medium text-red-700" role="alert">
+                  {fieldErrors.email}
+                </p>
+              ) : null}
+              {fieldErrors.crewSize ? (
+                <p className="mt-2 text-sm font-medium text-red-700" role="alert">
+                  {fieldErrors.crewSize}
+                </p>
+              ) : null}
+              {fieldErrors.inventoryLines ? (
+                <p className="mt-2 text-sm font-medium text-red-700" role="alert">
+                  {fieldErrors.inventoryLines}
+                </p>
+              ) : null}
             </AdminSection>
           ) : null}
 
           {step === 3 ? (
             <>
+              <div className="lg:hidden">{adminPriceOverridePanel}</div>
               <AdminSection
                 title="Step 3 — Contacts, extras & price"
                 description="Pickup/delivery contacts, packing, dismantling, address confirmation."
               >
+                <div className="mb-4 flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => goToStep(1)}
+                    className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-800 hover:bg-slate-50"
+                  >
+                    Edit move &amp; access
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => goToStep(2)}
+                    className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-800 hover:bg-slate-50"
+                  >
+                    Edit inventory &amp; customer
+                  </button>
+                </div>
                 <Step3Details
+                  layoutVariant="admin"
                   data={wizard}
-                  onChange={setWizard}
+                  onChange={handleWizardChange}
                   pricingSettings={settings}
                   onGoToStep={(n) => goToStep(Math.min(3, Math.max(1, Number(n) || 1)))}
                   quoteRef={effectiveQuoteRef}
                   hideContactSection
+                  fieldErrors={fieldErrors}
                 />
               </AdminSection>
 
-              <div className="lg:hidden">{priceReviewPanel}</div>
-
               <AdminSection
-                title="Admin override"
-                description="Optional manual final price. Customer pays later — no Stripe checkout."
+                title="Internal notes"
+                description="Optional quote reference and staff notes."
               >
                 <div className="space-y-4">
-                  <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-slate-200 p-3">
-                    <input
-                      type="radio"
-                      name="price_mode"
-                      checked={useCalculatedPrice}
-                      onChange={() => setUseCalculatedPrice(true)}
-                      className="mt-1"
-                    />
-                    <span>
-                      <span className="block text-sm font-semibold text-slate-900">Use calculated price</span>
-                      <span className="block text-xs text-slate-600">{calculatedDisplay}</span>
-                    </span>
-                  </label>
-                  <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-slate-200 p-3">
-                    <input
-                      type="radio"
-                      name="price_mode"
-                      checked={!useCalculatedPrice}
-                      onChange={() => setUseCalculatedPrice(false)}
-                      className="mt-1"
-                    />
-                    <span>
-                      <span className="block text-sm font-semibold text-slate-900">Custom final price</span>
-                      <span className="block text-xs text-slate-600">
-                        Original calculated: {calculatedDisplay}
-                      </span>
-                    </span>
-                  </label>
-                  {!useCalculatedPrice ? (
-                    <div>
-                      <label className={labelClass} htmlFor="apb-final-price">
-                        Final price (£) <span className="text-red-600">*</span>
-                      </label>
-                      <input
-                        id="apb-final-price"
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        className={inputClass}
-                        value={finalPriceOverride}
-                        onChange={(e) => setFinalPriceOverride(e.target.value)}
-                        placeholder={
-                          priceResolution.calculated != null
-                            ? priceResolution.calculated.toFixed(2)
-                            : '0.00'
-                        }
-                      />
-                    </div>
-                  ) : null}
-                  <div>
-                    <label className={labelClass} htmlFor="apb-override-reason">
-                      Discount / override reason
-                    </label>
-                    <input
-                      id="apb-override-reason"
-                      className={inputClass}
-                      value={overrideReason}
-                      onChange={(e) => setOverrideReason(e.target.value)}
-                      placeholder="e.g. matched competitor, loyalty discount"
-                    />
-                  </div>
                   <div>
                     <label className={labelClass} htmlFor="apb-admin-note">
                       Admin note (internal)
@@ -654,22 +813,11 @@ export default function AdminPhoneBookingForm({ onBookingCreated }) {
                 type="button"
                 className="inline-flex min-h-[48px] items-center rounded-xl border border-slate-200 bg-white px-5 py-2.5 text-sm font-semibold text-slate-800 hover:bg-slate-50"
                 onClick={() => {
-                  clearAdminPhoneBookingDraft()
-                  const fresh = freshAdminPhoneBookingFormState()
-                  setWizard(fresh.wizard)
-                  setServiceType(fresh.serviceType)
-                  setQuoteRef(fresh.quoteRef)
-                  setCustomQuoteRef(fresh.customQuoteRef)
-                  setUseCalculatedPrice(fresh.useCalculatedPrice)
-                  setFinalPriceOverride(fresh.finalPriceOverride)
-                  setOverrideReason(fresh.overrideReason)
-                  setAdminNote(fresh.adminNote)
-                  setStep(fresh.step)
-                  setDraftNotice('')
-                  setError('')
+                  if (!window.confirm('Clear the form and start a new phone booking?')) return
+                  startNewBooking()
                 }}
               >
-                Clear form
+                New booking
               </button>
               {step < 3 ? (
                 <button
@@ -682,29 +830,40 @@ export default function AdminPhoneBookingForm({ onBookingCreated }) {
                 </button>
               ) : (
                 <button
-                  type="submit"
+                  type="button"
                   disabled={submitting || loadingSettings}
+                  onClick={(e) => handleSubmit(e)}
                   className="inline-flex min-h-[48px] items-center rounded-xl bg-brand-600 px-6 py-2.5 text-sm font-bold text-white shadow-md hover:bg-brand-700 disabled:opacity-60"
                 >
-                  {submitting ? 'Creating…' : 'Create phone booking'}
+                  {submitting
+                    ? 'Saving…'
+                    : savedQuoteId
+                      ? 'Save changes'
+                      : 'Save phone booking'}
                 </button>
               )}
             </div>
           </div>
         </div>
 
-        <aside className="hidden w-full min-w-0 shrink-0 lg:block lg:w-[min(100%,340px)]">
-          <div className="sticky top-4 flex flex-col gap-4">
-            <MoveSummary {...summaryProps} />
-            {step === 3 ? priceReviewPanel : null}
+        <aside className="hidden w-full min-w-0 shrink-0 lg:block lg:w-[min(100%,22rem)] xl:w-[24rem]">
+          <div
+            className={
+              step === 3
+                ? 'sticky top-4 z-10 flex flex-col gap-4'
+                : 'sticky top-4 z-10 flex max-h-[calc(100vh-2rem)] flex-col gap-4 overflow-y-auto overflow-x-hidden overscroll-contain'
+            }
+          >
+            <MoveSummary {...summaryProps} afterSummary={priceBreakdownAfterSummary} />
+            {step >= 2 ? adminPriceOverridePanel : null}
           </div>
         </aside>
       </div>
 
       {step >= 2 ? (
         <div className="space-y-4 lg:hidden">
-          <MoveSummary {...summaryProps} />
-          {step === 3 ? priceReviewPanel : null}
+          <MoveSummary {...summaryProps} afterSummary={priceBreakdownAfterSummary} />
+          {step >= 2 ? adminPriceOverridePanel : null}
         </div>
       ) : null}
     </form>

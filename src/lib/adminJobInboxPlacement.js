@@ -5,6 +5,7 @@ import {
   quoteHasAssignedDriver,
   quoteHasAssignedPartner,
   quoteHasInProgressWorkflowStatus,
+  quoteIsAdminPhoneBookingReleased,
   quoteIsCardPaid,
   quoteMarketplaceJobAccepted,
   quotePassesActiveStrict,
@@ -48,7 +49,7 @@ export function quotePaidNotTerminal(q) {
  */
 export function getAdminJobInboxPlacement(q) {
   if (!quoteVisibleInAdminLists(q)) return 'hidden'
-  if (!quoteIsCardPaid(q)) return 'unpaid'
+  if (!quoteIsCardPaid(q) && !quoteIsAdminPhoneBookingReleased(q)) return 'unpaid'
   if (quoteIsTerminalForAdmin(q)) {
     const st = String(q?.status ?? '').trim()
     if (st === 'Cancelled' || q?.cancelled_at) return 'cancelled'

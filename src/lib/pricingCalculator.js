@@ -21,6 +21,7 @@ import {
   PACKING_MATERIALS_CATALOG,
   resolvePackingMaterialUnitPrices,
 } from './packingMaterialsCatalog'
+import { getBankHolidayName, isBankHolidayDate } from './ukBankHolidays'
 
 /**
  * @typedef {Object} CustomSizeM3
@@ -61,7 +62,10 @@ import {
  * @property {number} parkingCharge
  * @property {number} waitingTimePricePerHour
  * @property {number} sameDaySurchargePercent
- * @property {number} weekendSurchargePercent
+ * @property {number} weekendSurchargePercent — legacy fallback when saturday/sunday % unset
+ * @property {number} saturdaySurchargePercent
+ * @property {number} sundaySurchargePercent
+ * @property {number} bankHolidaySurchargePercent — Scottish bank holidays; takes precedence over weekend %
  * @property {number} extraHelperPrice
  * @property {number} [packingServicePrice] — legacy flat fee key
  * @property {number} packingPricePerBoxOrItem
@@ -152,6 +156,7 @@ import {
  * @property {number} [extraHelpers]
  * @property {boolean} [sameDay]
  * @property {boolean} [weekend] — if true, apply weekend % (usually derived from move date)
+ * @property {boolean} [bankHoliday] — if true, apply bank holiday % (usually derived from move date)
  * @property {boolean} [exactArrivalPremium] — exact arrival hour (premium)
  * @property {PackingMaterialQuantities} [packingMaterialQuantities]
  * @property {string} [promoCode]
@@ -241,7 +246,7 @@ export function resolveDepositAmountGbp(settings) {
  * @param {{ code?: string, discountType?: string, discountValue?: number }[]} promoCodes
  * @param {string} rawCode
  */
-function findPromoMatch(promoCodes, rawCode) {
+export function findPromoMatch(promoCodes, rawCode) {
   const normalized = String(rawCode || '')
     .trim()
     .toUpperCase()
@@ -262,14 +267,79 @@ function hasAnyPackingMaterialPerItemRate(prices) {
 
 /**
  * @param {string|undefined} isoDate
+ * @returns {number|null} 0=Sun … 6=Sat
+ */
+export function getIsoDateDayOfWeek(isoDate) {
+  const m = String(isoDate || '').match(/^(\d{4})-(\d{2})-(\d{2})$/)
+  if (!m) return null
+  const dt = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]))
+  if (Number.isNaN(dt.getTime())) return null
+  return dt.getDay()
+}
+
+/**
+ * @param {string|undefined} isoDate
+ */
+export function isSaturdayDate(isoDate) {
+  return getIsoDateDayOfWeek(isoDate) === 6
+}
+
+/**
+ * @param {string|undefined} isoDate
+ */
+export function isSundayDate(isoDate) {
+  return getIsoDateDayOfWeek(isoDate) === 0
+}
+
+/**
+ * @param {string|undefined} isoDate
  */
 export function isWeekendDate(isoDate) {
-  if (!isoDate) return false
-  const d = new Date(`${isoDate}T12:00:00`)
-  if (Number.isNaN(d.getTime())) return false
-  const day = d.getDay()
+  const day = getIsoDateDayOfWeek(isoDate)
   return day === 0 || day === 6
 }
+
+/**
+ * @param {PricingSettings|Record<string, unknown>} settings
+ * @returns {number}
+ */
+export function resolveSaturdaySurchargePercent(settings) {
+  const s = settings || {}
+  const sat = Number(s.saturdaySurchargePercent)
+  if (Number.isFinite(sat) && sat >= 0) return sat
+  return Number(s.weekendSurchargePercent) || 0
+}
+
+/**
+ * @param {PricingSettings|Record<string, unknown>} settings
+ * @returns {number}
+ */
+export function resolveSundaySurchargePercent(settings) {
+  const s = settings || {}
+  const sun = Number(s.sundaySurchargePercent)
+  if (Number.isFinite(sun) && sun >= 0) return sun
+  return Number(s.weekendSurchargePercent) || 0
+}
+
+/**
+ * @param {PricingSettings|Record<string, unknown>} settings
+ * @param {string|undefined} isoDate
+ * @returns {{ apply: boolean, percent: number, label: string }}
+ */
+export function resolveWeekendSurchargeForDate(settings, isoDate) {
+  const day = getIsoDateDayOfWeek(isoDate)
+  if (day === 6) {
+    const percent = resolveSaturdaySurchargePercent(settings)
+    return { apply: percent > 0, percent, label: `Saturday (${percent}%)` }
+  }
+  if (day === 0) {
+    const percent = resolveSundaySurchargePercent(settings)
+    return { apply: percent > 0, percent, label: `Sunday (${percent}%)` }
+  }
+  return { apply: false, percent: 0, label: '' }
+}
+
+export { isBankHolidayDate, getBankHolidayName } from './ukBankHolidays'
 
 /**
  * @param {QuoteLineItem[]} lineItems
@@ -604,7 +674,8 @@ export function calculateQuote(settings, input) {
   /** @type {BreakdownLine[]} */
   const surchargeLines = []
   const sameDayPct = Number(s.sameDaySurchargePercent) || 0
-  const weekendPct = Number(s.weekendSurchargePercent) || 0
+  const bankHolidayPct = Number(s.bankHolidaySurchargePercent) || 0
+  const weekendForDate = resolveWeekendSurchargeForDate(s, input.moveDate)
 
   if (extras.sameDay && sameDayPct > 0) {
     const amt = money((calculatedSubtotalBeforeSurcharges * sameDayPct) / 100)
@@ -616,18 +687,46 @@ export function calculateQuote(settings, input) {
     }
   }
 
-  const applyWeekend =
-    extras.weekend !== undefined && extras.weekend !== null
-      ? Boolean(extras.weekend)
-      : isWeekendDate(input.moveDate)
+  const applyBankHoliday =
+    extras.bankHoliday !== undefined && extras.bankHoliday !== null
+      ? Boolean(extras.bankHoliday)
+      : isBankHolidayDate(input.moveDate)
 
-  if (applyWeekend && weekendPct > 0) {
-    const amt = money((calculatedSubtotalBeforeSurcharges * weekendPct) / 100)
+  if (applyBankHoliday && bankHolidayPct > 0) {
+    const holidayName = getBankHolidayName(input.moveDate)
+    const label = holidayName
+      ? `Bank holiday — ${holidayName} (${bankHolidayPct}%)`
+      : `Bank holiday (${bankHolidayPct}%)`
+    const amt = money((calculatedSubtotalBeforeSurcharges * bankHolidayPct) / 100)
     if (amt > 0) {
-      surchargeLines.push({
-        label: `Weekend (${weekendPct}%)`,
-        amount: amt,
-      })
+      surchargeLines.push({ label, amount: amt })
+    }
+  } else {
+    const applyWeekend =
+      extras.weekend !== undefined && extras.weekend !== null
+        ? Boolean(extras.weekend)
+        : weekendForDate.apply
+
+    const weekendPct = applyWeekend
+      ? weekendForDate.apply
+        ? weekendForDate.percent
+        : Number(s.weekendSurchargePercent) ||
+          Math.max(resolveSaturdaySurchargePercent(s), resolveSundaySurchargePercent(s))
+      : 0
+    const weekendLabel = applyWeekend
+      ? weekendForDate.apply
+        ? weekendForDate.label
+        : `Weekend (${weekendPct}%)`
+      : ''
+
+    if (applyWeekend && weekendPct > 0) {
+      const amt = money((calculatedSubtotalBeforeSurcharges * weekendPct) / 100)
+      if (amt > 0) {
+        surchargeLines.push({
+          label: weekendLabel || `Weekend (${weekendPct}%)`,
+          amount: amt,
+        })
+      }
     }
   }
 

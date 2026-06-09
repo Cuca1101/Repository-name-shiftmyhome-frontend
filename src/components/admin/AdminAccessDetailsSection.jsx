@@ -1,4 +1,5 @@
 import { PARKING_LABELS, WALKING_LABELS } from '../../lib/emailQuotePayload'
+import { applyWizardPatch } from '../../lib/wizardStateUpdate'
 
 const input =
   'mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 shadow-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/25'
@@ -9,7 +10,7 @@ const label = 'mb-1.5 block text-sm font-medium text-slate-700'
  */
 export default function AdminAccessDetailsSection({ data, onChange }) {
   function set(k, v) {
-    onChange({ ...data, [k]: v })
+    applyWizardPatch(onChange, { [k]: v })
   }
 
   return (

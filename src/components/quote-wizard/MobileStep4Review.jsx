@@ -16,7 +16,7 @@ export default function MobileStep4Review({
   calendarProps,
 }) {
   return (
-    <div data-quote-step="4" className="box-border min-w-0 w-full max-w-full space-y-1.5 overflow-x-hidden md:hidden">
+    <div data-quote-step="4" className="box-border min-w-0 w-full max-w-full space-y-1.5 md:hidden">
       <div>
         <MobileStepTitleWithRef
           title="Review & payment"

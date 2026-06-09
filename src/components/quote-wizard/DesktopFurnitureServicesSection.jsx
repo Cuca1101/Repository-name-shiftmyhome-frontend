@@ -1,5 +1,6 @@
 import { Minus, Plus, Wrench } from 'lucide-react'
 import { reassemblySameAsDismantlingPatch } from '../../lib/quoteWizardReassembly'
+import { applyWizardPatch } from '../../lib/wizardStateUpdate'
 
 const optionBtn =
   'flex min-h-[44px] w-full items-center rounded-xl border px-3 py-2.5 text-left text-sm font-semibold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 disabled:cursor-not-allowed disabled:opacity-45'
@@ -67,7 +68,7 @@ export default function DesktopFurnitureServicesSection({ data, onChange, input,
   const assemblyMode = !data.reassembly ? 'none' : data.reassemblySameAsDismantling ? 'same' : 'different'
 
   function set(patch) {
-    onChange({ ...data, ...patch })
+    applyWizardPatch(onChange, patch)
   }
 
   function setAssemblyMode(mode) {

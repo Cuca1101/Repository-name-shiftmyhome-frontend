@@ -29,6 +29,7 @@ import {
   hasMoveSummaryRouteData,
 } from '../../lib/moveSummaryDisplay'
 import QuotePricingDebugPanel from '../quote-wizard/QuotePricingDebugPanel'
+import QuotePromoPriceReduction from '../quote-wizard/QuotePromoPriceReduction'
 
 const card = 'box-border min-w-0 w-full rounded-lg border border-slate-200 bg-white shadow-sm md:rounded-xl'
 
@@ -38,11 +39,15 @@ function truncate(s, max = 72) {
   return t.length <= max ? t : `${t.slice(0, max)}…`
 }
 
-function SummaryRow({ icon: Icon, iconClass = 'text-slate-400', label, value }) {
+function SummaryRow({ icon: Icon, iconClass = 'text-slate-400', label, value, seamless = false }) {
   const text = value != null ? String(value).trim() : ''
   if (!text) return null
   return (
-    <div className="flex gap-2 border-b border-slate-100 py-1.5 last:border-b-0 md:gap-2.5 md:py-2">
+    <div
+      className={`flex gap-2 py-1.5 md:gap-2.5 md:py-2 ${
+        seamless ? '' : 'border-b border-slate-100 last:border-b-0'
+      }`}
+    >
       <Icon className={`mt-0.5 h-3.5 w-3.5 shrink-0 md:h-4 md:w-4 ${iconClass}`} aria-hidden />
       <div className="min-w-0 flex-1">
         <p className="text-[9px] font-medium uppercase tracking-wide text-slate-500 md:text-[10px]">{label}</p>
@@ -115,8 +120,12 @@ export default function MobileQuoteMoveSummary({
   showPricing,
   breakdown,
   crewSettings,
+  pricingSettings = null,
+  promoCode = '',
+  priceWithoutPromo = null,
   showOnDesktop = false,
   mapVariant = 'default',
+  afterSummary = null,
 }) {
   const itemsEditable = step === 2 && typeof onInventoryLinesChange === 'function'
   const [itemsOpen, setItemsOpen] = useState(false)
@@ -151,10 +160,16 @@ export default function MobileQuoteMoveSummary({
   const propertyTypeDelivery = (deliveryPropertyType || '').trim()
   const showPickupAccess = pickupAddr || propertyTypePickup || pickupFloorLabel
   const showDeliveryAccess = deliveryAddr || propertyTypeDelivery || deliveryFloorLabel
+  const step1MobileSummary = step === 1
+  const summaryRowSeamless = step1MobileSummary ? { seamless: true } : {}
 
   return (
-    <div className={`${card} max-w-full overflow-hidden ${showOnDesktop ? '' : 'md:hidden'}`}>
-      <div className="border-b border-slate-100 bg-gradient-to-br from-slate-50/90 to-white px-2.5 py-2 md:px-3 md:py-2.5">
+    <div className={`${card} max-w-full ${showOnDesktop ? '' : 'md:hidden'}`}>
+      <div
+        className={`bg-gradient-to-br from-slate-50/90 to-white px-2.5 py-2 md:px-3 md:py-2.5 ${
+          step1MobileSummary ? '' : 'border-b border-slate-100'
+        }`}
+      >
         <div className="flex items-center gap-2">
           <ClipboardList className="h-3.5 w-3.5 shrink-0 text-brand-600 md:h-4 md:w-4" aria-hidden />
           <div className="min-w-0 flex-1">
@@ -165,8 +180,14 @@ export default function MobileQuoteMoveSummary({
       </div>
 
       {showRoute ? (
-        <div className="min-w-0 px-3 pt-3">
-          <div className="quote-route-map-compact min-w-0 max-w-full overflow-hidden rounded-lg border border-slate-100 bg-slate-50/80 md:rounded-xl [&_.quote-route-map]:rounded-lg [&_.quote-route-map]:border-0 [&_.quote-route-map]:shadow-none [&_.quote-route-map]:ring-0 md:[&_.quote-route-map]:rounded-xl">
+        <div
+          className={`quote-route-map-bleed min-w-0 max-w-none w-[calc(100%+1.25rem)] -mx-2.5 md:mx-0 md:w-full ${step1MobileSummary ? 'pt-2' : 'pt-3'}`}
+        >
+          <div
+            className={`quote-route-map-compact min-w-0 w-full max-w-none overflow-hidden rounded-none bg-slate-50/80 md:rounded-xl [&_.quote-route-map]:rounded-none [&_.quote-route-map]:border-0 [&_.quote-route-map]:shadow-none [&_.quote-route-map]:ring-0 md:[&_.quote-route-map]:rounded-xl ${
+              step1MobileSummary ? '' : 'border-y border-slate-100'
+            }`}
+          >
             <QuoteRouteMap
               variant={mapVariant === 'review' ? 'review' : undefined}
               compact={mapVariant !== 'review'}
@@ -183,18 +204,19 @@ export default function MobileQuoteMoveSummary({
 
       <div className="px-3 pb-1 pt-2">
         <p className="pb-1 text-[10px] font-semibold uppercase tracking-wide text-slate-400">Move details</p>
-        <SummaryRow icon={Truck} iconClass="text-brand-600" label="Service" value={serviceType} />
-        <SummaryRow icon={MapPin} iconClass="text-brand-600" label="Pickup address" value={pickupAddr} />
+        <SummaryRow icon={Truck} iconClass="text-brand-600" label="Service" value={serviceType} {...summaryRowSeamless} />
+        <SummaryRow icon={MapPin} iconClass="text-brand-600" label="Pickup address" value={pickupAddr} {...summaryRowSeamless} />
         {propertyTypePickup ? (
           <SummaryRow
             icon={MapPin}
             iconClass="text-slate-400"
             label="Pickup property type"
             value={propertyTypePickup}
+            {...summaryRowSeamless}
           />
         ) : null}
         {pickupFloorLabel ? (
-          <SummaryRow icon={MapPin} iconClass="text-slate-400" label="Pickup floor" value={pickupFloorLabel} />
+          <SummaryRow icon={MapPin} iconClass="text-slate-400" label="Pickup floor" value={pickupFloorLabel} {...summaryRowSeamless} />
         ) : null}
         {showPickupAccess ? (
           <SummaryRow
@@ -202,19 +224,27 @@ export default function MobileQuoteMoveSummary({
             iconClass="text-slate-400"
             label="Pickup lift"
             value={formatMoveSummaryLiftLabel(pickupLift)}
+            {...summaryRowSeamless}
           />
         ) : null}
-        <SummaryRow icon={MapPin} iconClass="text-emerald-600" label="Delivery address" value={deliveryAddr} />
+        <SummaryRow
+          icon={MapPin}
+          iconClass="text-emerald-600"
+          label="Delivery address"
+          value={deliveryAddr}
+          {...summaryRowSeamless}
+        />
         {propertyTypeDelivery ? (
           <SummaryRow
             icon={MapPin}
             iconClass="text-slate-400"
             label="Delivery property type"
             value={propertyTypeDelivery}
+            {...summaryRowSeamless}
           />
         ) : null}
         {deliveryFloorLabel ? (
-          <SummaryRow icon={MapPin} iconClass="text-slate-400" label="Delivery floor" value={deliveryFloorLabel} />
+          <SummaryRow icon={MapPin} iconClass="text-slate-400" label="Delivery floor" value={deliveryFloorLabel} {...summaryRowSeamless} />
         ) : null}
         {showDeliveryAccess ? (
           <SummaryRow
@@ -222,17 +252,18 @@ export default function MobileQuoteMoveSummary({
             iconClass="text-slate-400"
             label="Delivery lift"
             value={formatMoveSummaryLiftLabel(deliveryLift)}
+            {...summaryRowSeamless}
           />
         ) : null}
-        <SummaryRow icon={Calendar} label="Move date" value={moveDate ? formatDateUK(moveDate) : ''} />
-        <SummaryRow icon={Clock} label="Arrival window" value={arrival} />
-        <SummaryRow icon={Route} label="Distance" value={distanceLabel} />
-        <SummaryRow icon={Users} label="Crew size" value={crewLabel} />
+        <SummaryRow icon={Calendar} label="Move date" value={moveDate ? formatDateUK(moveDate) : ''} {...summaryRowSeamless} />
+        <SummaryRow icon={Clock} label="Arrival window" value={arrival} {...summaryRowSeamless} />
+        <SummaryRow icon={Route} label="Distance" value={distanceLabel} {...summaryRowSeamless} />
+        <SummaryRow icon={Users} label="Crew size" value={crewLabel} {...summaryRowSeamless} />
         {itemCountLabel ? (
-          <SummaryRow icon={Package} label="Inventory item count" value={itemCountLabel} />
+          <SummaryRow icon={Package} label="Inventory item count" value={itemCountLabel} {...summaryRowSeamless} />
         ) : null}
         {totalM3 > 0 ? (
-          <SummaryRow icon={Package} label="Total volume" value={`${totalM3.toFixed(2)} m³`} />
+          <SummaryRow icon={Package} label="Total volume" value={`${totalM3.toFixed(2)} m³`} {...summaryRowSeamless} />
         ) : null}
       </div>
 
@@ -306,13 +337,24 @@ export default function MobileQuoteMoveSummary({
         </div>
       ) : null}
 
+      {afterSummary ? <div className="border-t border-slate-100 px-3 py-3">{afterSummary}</div> : null}
+
       {showPricing &&
+      !afterSummary &&
       step !== 2 &&
       breakdown?.estimatedTotal != null &&
       Number.isFinite(breakdown.estimatedTotal) ? (
         <div className="border-t border-emerald-100 bg-gradient-to-br from-emerald-50/90 to-white px-3 py-3">
           <p className="text-[10px] font-semibold uppercase tracking-wide text-emerald-800">Estimated total</p>
           <p className="mt-0.5 text-lg font-bold text-emerald-700">£{breakdown.estimatedTotal.toFixed(2)}</p>
+          <QuotePromoPriceReduction
+            promoCode={promoCode ?? wizard?.promoCode}
+            pricingSettings={pricingSettings ?? crewSettings}
+            priceWithPromo={breakdown.estimatedTotal}
+            priceWithoutPromo={priceWithoutPromo}
+            className="mt-1"
+            messageStyle="savingsAmount"
+          />
           <p className="mt-1.5 text-[10px] leading-snug text-slate-600">Final price confirmed by ShiftMyHome.</p>
         </div>
       ) : null}

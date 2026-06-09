@@ -20,6 +20,16 @@ export const ADMIN_PHONE_BOOKING_SOURCES = [
   LEGACY_ADMIN_PHONE_BOOKING_SOURCE,
 ]
 
+/**
+ * PostgREST filter: phone bookings released from New phone booking (Available Jobs).
+ * Must include `operational_status IS NULL` — `neq.phone_booking_pending` alone excludes cleared rows.
+ */
+export function adminPhoneBookingReleasedPostgrestFilter() {
+  const sources = ADMIN_PHONE_BOOKING_SOURCES.join(',')
+  const pending = PHONE_BOOKING_PENDING_OPERATIONAL_STATUS
+  return `and(payment_status.eq.unpaid,source.in.(${sources}),or(operational_status.is.null,operational_status.neq.${pending}))`
+}
+
 /** Sources shown in Admin → Quote Requests (public leads only — not staff phone bookings). */
 export const PUBLIC_QUOTE_REQUEST_SOURCES = [
   HOME_PAGE_QUOTE_SOURCE,

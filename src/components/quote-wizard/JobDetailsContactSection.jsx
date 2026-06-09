@@ -1,4 +1,6 @@
+import { applyWizardPatch } from '../../lib/wizardStateUpdate'
 import { quoteMobileInput, quoteMobileLabel } from '../../lib/quoteMobileUiClasses'
+import QuotePromoCodeField from './QuotePromoCodeField'
 
 const desktopInput =
   'w-full max-w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-base text-slate-900 shadow-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/25 sm:px-4 sm:py-3'
@@ -12,15 +14,21 @@ const mobileCard =
  *   data: Record<string, unknown>,
  *   onChange: (next: Record<string, unknown>) => void,
  *   validationMessage?: string,
+ *   pricingSettings?: import('../../lib/pricingCalculator.js').PricingSettings | null,
+ *   breakdown?: import('../../lib/pricingCalculator.js').QuoteBreakdown | null,
+ *   priceWithoutPromo?: number | null,
  * }} props
  */
 export default function JobDetailsContactSection({
   data,
   onChange,
   validationMessage = '',
+  pricingSettings = null,
+  breakdown = null,
+  priceWithoutPromo = null,
 }) {
   function set(k, v) {
-    onChange((prev) => ({ ...(prev && typeof prev === 'object' ? prev : data), [k]: v }))
+    applyWizardPatch(onChange, { [k]: v })
   }
 
   return (
@@ -76,6 +84,15 @@ export default function JobDetailsContactSection({
               className={quoteMobileInput}
             />
           </label>
+          <QuotePromoCodeField
+            data={data}
+            onChange={onChange}
+            pricingSettings={pricingSettings}
+            breakdown={breakdown}
+            priceWithoutPromo={priceWithoutPromo}
+            variant="mobile"
+            embedded
+          />
         </div>
       </div>
 
@@ -109,7 +126,7 @@ export default function JobDetailsContactSection({
               className={desktopInput}
             />
           </label>
-          <label className="block">
+          <label className="block sm:col-span-2">
             <span className={desktopLabel}>Email</span>
             <input
               id="quote-wizard-email-desktop"
@@ -121,6 +138,17 @@ export default function JobDetailsContactSection({
               className={desktopInput}
             />
           </label>
+          <div className="sm:col-span-2">
+            <QuotePromoCodeField
+              data={data}
+              onChange={onChange}
+              pricingSettings={pricingSettings}
+              breakdown={breakdown}
+              priceWithoutPromo={priceWithoutPromo}
+              variant="desktop"
+              embedded
+            />
+          </div>
         </div>
       </div>
 

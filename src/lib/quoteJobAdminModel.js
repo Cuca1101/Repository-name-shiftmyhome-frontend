@@ -93,7 +93,7 @@ function categorizePricingLines(lines) {
     else if (L.includes('no lift')) noLift.push(row)
     else if (L.includes('heavy item')) heavy.push(row)
     else if (/floor\/access|long walk|parking|stairs/i.test(row.label)) floorAccess.push(row)
-    else if (/packing|dismantl|reassembl|fragile|materials|waiting|helper|same-day|weekend|surcharge|minimum/i.test(L))
+    else if (/packing|dismantl|reassembl|fragile|materials|waiting|helper|same-day|weekend|bank holiday|surcharge|minimum/i.test(L))
       extras.push(row)
     else if (/estimated total/i.test(L)) {
       /* skip — shown separately */

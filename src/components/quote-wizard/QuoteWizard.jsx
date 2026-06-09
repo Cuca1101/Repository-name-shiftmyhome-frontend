@@ -38,6 +38,7 @@ function QuoteWizardInner({ compact = false, servicePreSelected = false }) {
     setFeedback,
     totalM3,
     breakdown,
+    priceWithoutPromo,
     lineItems,
     heavyItemCount,
     crewRestrictions,
@@ -84,6 +85,9 @@ function QuoteWizardInner({ compact = false, servicePreSelected = false }) {
     breakdown,
     serviceType,
     crewSettings: settings,
+    pricingSettings: settings,
+    promoCode: wizard.promoCode,
+    priceWithoutPromo,
     crewRestrictions,
     reviewSticky:
       step === 3
@@ -94,6 +98,7 @@ function QuoteWizardInner({ compact = false, servicePreSelected = false }) {
             serviceType,
             lineItems,
             heavyItemCount,
+            priceWithoutPromo,
             onContinueToPayment: next,
             placement: 'aboveReference',
           }
@@ -166,6 +171,9 @@ function QuoteWizardInner({ compact = false, servicePreSelected = false }) {
             quoteRef={quoteRef}
             data={wizard}
             onChange={setWizard}
+            pricingSettings={settings}
+            breakdown={breakdown}
+            priceWithoutPromo={priceWithoutPromo}
             contactValidationMessage={
               step === 2 &&
               feedback.type === 'error' &&
@@ -195,6 +203,7 @@ function QuoteWizardInner({ compact = false, servicePreSelected = false }) {
           settings={settings}
           lineItems={lineItems}
           heavyItemCount={heavyItemCount}
+          priceWithoutPromo={priceWithoutPromo}
           onGoToStep={goToStep}
         />
       )}
@@ -220,6 +229,7 @@ function QuoteWizardInner({ compact = false, servicePreSelected = false }) {
           reservationFeeGbp={depositAmountGbp}
           onPaymentSucceeded={uploadCustomerPhotosAfterPayment}
           onBack={back}
+          priceWithoutPromo={priceWithoutPromo}
         />
       )}
     </>
@@ -293,7 +303,7 @@ function QuoteWizardInner({ compact = false, servicePreSelected = false }) {
             {/* Mobile: steps → open summary (map + details) → in-flow nav */}
             <div className="quote-wizard-mobile-stack block min-w-0 max-w-full space-y-1.5 md:hidden">
               <div
-                className={`box-border min-w-0 w-full max-w-full overflow-x-hidden rounded-xl border border-slate-200 bg-white p-2 shadow-card${compact ? ' quote-wizard-card' : ''}`}
+                className={`quote-wizard-form-card box-border min-w-0 w-full max-w-full rounded-xl border border-slate-200 bg-white p-2 shadow-card${compact ? ' quote-wizard-card' : ''}`}
               >
                 {stepPanel}
               </div>
@@ -308,10 +318,10 @@ function QuoteWizardInner({ compact = false, servicePreSelected = false }) {
             </div>
 
             {/* Desktop: main + sidebar (Mapbox & move summary), same grid on all steps */}
-            <div className="hidden items-start gap-4 md:grid md:grid-cols-[minmax(0,1fr)_minmax(200px,34%)] lg:grid-cols-[minmax(0,1fr)_minmax(260px,min(100%,360px))] lg:gap-10">
+            <div className="hidden items-start gap-4 md:grid md:grid-cols-[minmax(0,1fr)_minmax(220px,34%)] lg:grid-cols-[minmax(0,1fr)_minmax(260px,min(100%,340px))] lg:gap-6">
               <div className="min-w-0">
                 <div
-                  className={`min-w-0 rounded-2xl border border-slate-200 bg-white shadow-card ${
+                  className={`quote-wizard-form-card min-w-0 rounded-2xl border border-slate-200 bg-white shadow-card ${
                     step === 3 || step === 4 ? 'p-4 lg:p-6' : 'p-8'
                   } ${compact ? 'quote-wizard-card ' : ''}`}
                 >

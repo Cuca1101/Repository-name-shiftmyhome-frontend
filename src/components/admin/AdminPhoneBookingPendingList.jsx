@@ -58,6 +58,12 @@ function PhoneBookingJobRow({ q, mode, busy, onRelease, onDelete }) {
       </div>
       <div className="flex flex-wrap gap-2 sm:shrink-0">
         <Link
+          to={`/admin/new-phone-booking?edit=${encodeURIComponent(id)}`}
+          className="inline-flex min-h-[44px] items-center rounded-xl border border-brand-200 bg-brand-50 px-4 py-2 text-sm font-semibold text-brand-800 hover:bg-brand-100"
+        >
+          Edit
+        </Link>
+        <Link
           to={`/admin/available-jobs/${id}`}
           className="inline-flex min-h-[44px] items-center rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-800 hover:bg-slate-50"
         >
@@ -150,7 +156,9 @@ export default function AdminPhoneBookingPendingList({ refreshKey = 0, onRelease
     setError('')
     try {
       await releaseAdminPhoneBookingToAvailableJobs(id)
-      setMessage(`${quoteRef || 'Booking'} sent to Available Jobs — see the "In Available Jobs" tab.`)
+      setMessage(
+        `${quoteRef || 'Booking'} sent to Available Jobs. Open Available Jobs (filter: All paid) to assign a driver.`,
+      )
       onReleased?.(id)
       await load()
       setTab('sent')

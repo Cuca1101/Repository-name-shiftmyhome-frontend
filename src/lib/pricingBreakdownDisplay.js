@@ -122,7 +122,9 @@ export function buildStandardPricingDisplayRows(b) {
 
   const sameDay = sumLineAmounts(surcharges, (l) => /same-day/i.test(l.label))
 
-  const weekend = sumLineAmounts(surcharges, (l) => /weekend/i.test(l.label))
+  const weekend = sumLineAmounts(surcharges, (l) => /weekend|saturday|sunday/i.test(l.label))
+
+  const bankHoliday = sumLineAmounts(surcharges, (l) => /bank holiday/i.test(l.label))
 
 
 
@@ -202,6 +204,8 @@ export function buildStandardPricingDisplayRows(b) {
     { label: 'Same Day Surcharge', amount: sameDay },
 
     { label: 'Weekend Surcharge', amount: weekend },
+
+    { label: 'Bank Holiday Surcharge', amount: bankHoliday },
 
     { label: 'Exact Arrival Premium', amount: exactArrival },
 

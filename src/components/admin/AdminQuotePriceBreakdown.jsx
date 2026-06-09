@@ -9,7 +9,7 @@ import { formatMoveSummaryCrewForPricing } from '../../lib/crewPricingRules'
 import QuotePricingDebugPanel from '../quote-wizard/QuotePricingDebugPanel'
 
 const liClass =
-  'flex min-w-0 items-start justify-between gap-3 border-b border-slate-100 py-2 text-sm leading-snug last:border-0'
+  'grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-baseline gap-x-2 gap-y-0.5 border-b border-slate-100 py-2.5 text-sm leading-snug last:border-0'
 
 function Money({ amount, isDiscount = false, bold = false }) {
   const n = Number(amount)
@@ -32,18 +32,20 @@ function BreakdownList({ rows, showZero = false }) {
     return <p className="text-sm text-slate-500">No charge lines yet.</p>
   }
   return (
-    <ul className="min-w-0 divide-y divide-slate-100 rounded-xl border border-slate-200 bg-slate-50/50 px-3">
+    <ul className="min-w-0 divide-y divide-slate-100 rounded-xl border border-slate-200 bg-slate-50/50 px-2.5 sm:px-3">
       {visible.map((row, i) => (
         <li
           key={`${row.label}-${i}`}
           className={`${liClass} ${row.isTotal ? 'border-t-2 border-slate-200 bg-white/80' : ''}`}
         >
           <span
-            className={`min-w-0 break-words ${row.isTotal ? 'font-semibold text-slate-900' : 'text-slate-700'}`}
+            className={`min-w-0 break-words pr-1 ${row.isTotal ? 'font-semibold text-slate-900' : 'text-slate-700'}`}
           >
             {row.label}
           </span>
-          <Money amount={row.amount} isDiscount={row.isDiscount} bold={row.isTotal} />
+          <span className="justify-self-end text-right">
+            <Money amount={row.amount} isDiscount={row.isDiscount} bold={row.isTotal} />
+          </span>
         </li>
       ))}
     </ul>
@@ -58,6 +60,7 @@ function BreakdownList({ rows, showZero = false }) {
  *   wizard?: Record<string, unknown> | null,
  *   crewSettings?: import('../../lib/pricingCalculator.js').PricingSettings | null,
  *   compact?: boolean,
+ *   sidebar?: boolean,
  * }} props
  */
 export default function AdminQuotePriceBreakdown({
@@ -66,8 +69,10 @@ export default function AdminQuotePriceBreakdown({
   wizard = null,
   crewSettings = null,
   compact = false,
+  sidebar = false,
 }) {
   const [showEngineDetail, setShowEngineDetail] = useState(false)
+  const [showItemisedLines, setShowItemisedLines] = useState(!sidebar)
 
   if (!breakdown) return null
 
@@ -96,37 +101,41 @@ export default function AdminQuotePriceBreakdown({
     crewSettings,
   )
 
+  const narrow = compact || sidebar
+
   return (
-    <div className={compact ? 'space-y-3' : 'space-y-5'}>
+    <div className={`min-w-0 ${narrow ? 'space-y-3' : 'space-y-5'}`}>
       <dl
-        className={`grid gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-xs sm:grid-cols-2 ${compact ? '' : 'sm:text-sm'}`}
+        className={`grid gap-x-3 gap-y-2 rounded-xl border border-slate-200 bg-slate-50/80 px-3 py-2.5 text-xs ${
+          sidebar ? 'grid-cols-1' : 'sm:grid-cols-2'
+        } ${compact && !sidebar ? '' : sidebar ? '' : 'sm:text-sm'}`}
       >
-        <div>
+        <div className="min-w-0">
           <dt className="font-semibold text-slate-500">Service</dt>
-          <dd className="text-slate-900">{serviceType || '—'}</dd>
+          <dd className="break-words text-slate-900">{serviceType || '—'}</dd>
         </div>
-        <div>
+        <div className="min-w-0">
           <dt className="font-semibold text-slate-500">Route distance</dt>
-          <dd className="tabular-nums text-slate-900">
+          <dd className="break-words tabular-nums text-slate-900">
             {Number(wizard?.distanceMiles) > 0 ? `${Number(wizard.distanceMiles).toFixed(1)} mi` : '—'}
           </dd>
         </div>
-        <div>
+        <div className="min-w-0">
           <dt className="font-semibold text-slate-500">Inventory volume</dt>
-          <dd className="tabular-nums text-slate-900">
+          <dd className="break-words tabular-nums text-slate-900">
             {breakdown.totalCubicMetres != null
               ? `${Number(breakdown.totalCubicMetres).toFixed(2)} m³`
               : '—'}
           </dd>
         </div>
-        <div>
+        <div className="min-w-0">
           <dt className="font-semibold text-slate-500">Crew (selected → priced)</dt>
-          <dd className="text-slate-900">{crewLabel || '—'}</dd>
+          <dd className="break-words text-slate-900">{crewLabel || '—'}</dd>
         </div>
         {breakdown.estimatedTravelHours != null && Number(breakdown.estimatedTravelHours) > 0 ? (
-          <div className="sm:col-span-2">
+          <div className={`min-w-0 ${sidebar ? '' : 'sm:col-span-2'}`}>
             <dt className="font-semibold text-slate-500">Crew travel time (pricing)</dt>
-            <dd className="text-slate-900">
+            <dd className="break-words text-slate-900">
               ~{Number(breakdown.estimatedTravelHours).toFixed(1)} hr
               {breakdown.crewTravelHoursFromMapbox ? ' (Mapbox route)' : ' (fallback speed)'}
             </dd>
@@ -134,26 +143,43 @@ export default function AdminQuotePriceBreakdown({
         ) : null}
       </dl>
 
-      <div>
-        <h4 className="mb-2 text-xs font-bold uppercase tracking-wide text-slate-600">
-          Every charge line
+      <div className="min-w-0">
+        <h4 className="text-xs font-bold uppercase tracking-wide text-slate-600">
+          Price breakdown
         </h4>
-        <p className="mb-2 text-xs text-slate-500">
-          Each row from the pricing engine (distance, volume, access, extras, surcharges, scaling,
-          discounts, minimums).
-        </p>
-        <BreakdownList rows={itemisedWithTotal} />
+        {!sidebar ? (
+          <p className="mb-2 mt-1 text-xs leading-relaxed text-slate-500">
+            Grouped subtotals: mileage + volume + labour + access + extras + surcharges → scaling →
+            minimums → discounts → final estimate.
+          </p>
+        ) : null}
+        <BreakdownList rows={rollupRows} />
       </div>
 
-      <div>
-        <h4 className="mb-2 text-xs font-bold uppercase tracking-wide text-slate-600">
-          How it adds up to the total
-        </h4>
-        <p className="mb-2 text-xs text-slate-500">
-          Grouped subtotals: mileage + volume + labour + access + extras + surcharges → scaling →
-          minimums → discounts → final estimate.
-        </p>
-        <BreakdownList rows={rollupRows} />
+      <div className="min-w-0 rounded-xl border border-slate-200 bg-white">
+        <button
+          type="button"
+          onClick={() => setShowItemisedLines((v) => !v)}
+          className="flex min-h-[40px] w-full items-center justify-between gap-2 px-3 py-2 text-left text-xs font-semibold text-slate-800"
+          aria-expanded={showItemisedLines}
+        >
+          <span className="min-w-0 break-words">All charge lines (detail)</span>
+          <ChevronDown
+            className={`h-4 w-4 shrink-0 text-slate-500 transition-transform ${showItemisedLines ? 'rotate-180' : ''}`}
+            aria-hidden
+          />
+        </button>
+        {showItemisedLines ? (
+          <div className="border-t border-slate-100 px-1 pb-2">
+            {!sidebar ? (
+              <p className="px-2 pb-2 pt-2 text-xs leading-relaxed text-slate-500">
+                Each row from the pricing engine (distance, volume, access, extras, surcharges,
+                scaling, discounts, minimums).
+              </p>
+            ) : null}
+            <BreakdownList rows={itemisedWithTotal} />
+          </div>
+        ) : null}
       </div>
 
       {!reconcile.ok ? (

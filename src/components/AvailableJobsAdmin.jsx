@@ -25,6 +25,7 @@ import AutoMarketplaceHoldToggle from './admin-workflow/AutoMarketplaceHoldToggl
 import { runAutoMarketplaceTick } from '../lib/autoMarketplacePublish'
 import { loadMarketplacePricingDefaults } from '../lib/marketplacePricingDefaultsStore'
 import { subscribeAdminDataRefresh } from '../lib/adminDataRefresh'
+import { filterProductionAdminQuotes } from '../lib/adminProductionFilters'
 import { sendAdminAvailableJobTestEmail } from '../lib/adminAvailableJobTestEmail'
 import AdminSettingsAccordion from './admin/AdminSettingsAccordion'
 
@@ -137,7 +138,7 @@ export default function AvailableJobsAdmin() {
 
   const fetchFilteredRows = useCallback(async () => {
     const list = await fetchQuotesForAdmin(filterKey, activeSearch)
-    return list.filter(quotePassesAvailableJobsStrict)
+    return filterProductionAdminQuotes(list).filter(quotePassesAvailableJobsStrict)
   }, [filterKey, activeSearch])
 
   const jobCountsByDriverId = useMemo(() => countAcceptedJobsByDriverId(rows), [rows])

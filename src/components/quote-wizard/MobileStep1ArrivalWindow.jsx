@@ -64,7 +64,13 @@ function RadioIndicator({ selected }) {
  * Mobile Step 1 preferred arrival — compact field + bottom sheet editor.
  * @param {{ data: object, onChange: (next: object) => void, error?: string }} props
  */
-export default function MobileStep1ArrivalWindow({ data, onChange, error = '' }) {
+export default function MobileStep1ArrivalWindow({
+  data,
+  onChange,
+  error = '',
+  triggerId = 'mobile-arrival-window-trigger',
+  variant = 'default',
+}) {
   const [open, setOpen] = useState(false)
   const [draft, setDraft] = useState(() => draftFromData(data))
   const [saveError, setSaveError] = useState('')
@@ -162,6 +168,10 @@ export default function MobileStep1ArrivalWindow({ data, onChange, error = '' })
 
   const displayLabel = closedFieldLabel(data)
   const isPlaceholder = displayLabel === 'Choose arrival time'
+  const triggerClass =
+    variant === 'mobile-card'
+      ? 'box-border flex min-h-11 w-full min-w-0 items-center justify-between gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-left text-base shadow-sm outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/25'
+      : 'box-border flex min-h-[38px] w-full min-w-0 items-center justify-between gap-2 rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-left text-sm shadow-sm outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/25'
 
   return (
     <div className="box-border min-w-0 w-full space-y-1">
@@ -170,12 +180,13 @@ export default function MobileStep1ArrivalWindow({ data, onChange, error = '' })
       </span>
 
       <button
+        id={triggerId}
         type="button"
         onClick={openSheet}
         aria-labelledby="mobile-arrival-window-label"
         aria-haspopup="dialog"
         aria-expanded={open}
-        className="box-border flex min-h-[38px] w-full min-w-0 items-center justify-between gap-2 rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-left text-sm shadow-sm outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/25"
+        className={triggerClass}
       >
         <span
           className={`min-w-0 flex-1 truncate text-sm leading-snug ${

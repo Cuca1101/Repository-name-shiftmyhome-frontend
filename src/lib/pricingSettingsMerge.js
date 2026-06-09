@@ -25,7 +25,30 @@ const CORE_PRICING_KEYS = [
   'secondManHourlyRate',
   'firstManBaseFee',
   'firstManHourlyRate',
+  'fourthManBaseFee',
+  'fourthManHourlyRate',
   'basePriceByService',
+  'sameDaySurchargePercent',
+  'weekendSurchargePercent',
+  'saturdaySurchargePercent',
+  'sundaySurchargePercent',
+  'bankHolidaySurchargePercent',
+  'longWalkingDistanceCharge',
+  'parkingCharge',
+  'stairsChargePerFlight',
+  'heavyItemHandlingCharge',
+  'waitingTimePricePerHour',
+  'extraHelperPrice',
+  'packingPricePerBoxOrItem',
+  'dismantlingPricePerItem',
+  'reassemblyPricePerItem',
+  'fragilePackingSurcharge',
+  'packingMaterialsFee',
+  'exactArrivalPremiumGbp',
+  'depositAmount',
+  'fallbackSpeedMph',
+  'thirdManBaseFee',
+  'thirdManHourlyRate',
   ...VOLUME_MULTIPLIER_SETTING_KEYS,
 ]
 
@@ -115,6 +138,16 @@ export function mergePricingSettingsWithDefaults(raw, opts = {}) {
   for (const key of VOLUME_MULTIPLIER_SETTING_KEYS) {
     const n = Number(merged[key])
     merged[key] = Number.isFinite(n) && n > 0 ? n : defaults[key]
+  }
+
+  const legacyWeekendPct = Number(merged.weekendSurchargePercent)
+  const legacyWeekend =
+    Number.isFinite(legacyWeekendPct) && legacyWeekendPct >= 0 ? legacyWeekendPct : defaults.weekendSurchargePercent
+  if (merged.saturdaySurchargePercent == null || merged.saturdaySurchargePercent === '') {
+    merged.saturdaySurchargePercent = legacyWeekend
+  }
+  if (merged.sundaySurchargePercent == null || merged.sundaySurchargePercent === '') {
+    merged.sundaySurchargePercent = legacyWeekend
   }
 
   if (opts.warnOnFallback !== false && missingBeforeMerge.length > 0) {
