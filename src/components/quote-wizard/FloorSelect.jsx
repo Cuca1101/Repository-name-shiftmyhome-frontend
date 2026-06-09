@@ -1,5 +1,7 @@
 import { useEffect, useId, useRef, useState } from 'react'
 
+export { floorNeedsLiftQuestion, floorHasLiftPricing } from '../../lib/floorAccess'
+
 export const FLOOR_OPTIONS = [
   { value: -1, label: 'Basement' },
   { value: 0, label: 'Ground floor' },
@@ -19,11 +21,6 @@ export function formatFloorLabel(n) {
   if (n == null) return '—'
   const o = FLOOR_OPTIONS.find((x) => x.value === n)
   return o ? o.label : String(n)
-}
-
-/** Lift question only when floor is above ground (1st+). */
-export function floorNeedsLiftQuestion(floor) {
-  return floor != null && Number(floor) > 0
 }
 
 const labelClass =

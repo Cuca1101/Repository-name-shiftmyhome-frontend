@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { applyWizardPatch } from '../../lib/wizardStateUpdate'
 import { getLocalDateYYYYMMDD } from '../../lib/moveDateLocal'
 import MapboxAddressField from './MapboxAddressField'
 import FloorSelect, { floorNeedsLiftQuestion } from './FloorSelect'
+import { liftClearPatchForWizard } from '../../lib/floorAccess'
 import MobileStep1ArrivalWindow from './MobileStep1ArrivalWindow'
 
 const PROPERTY_TYPES = ['House', 'Flat / apartment', 'Bungalow', 'Commercial', 'Other']
@@ -150,9 +152,14 @@ export default function MobileStep1AddressCards({
   const [activeDropdown, setActiveDropdown] = useState(null)
 
   useEffect(() => {
+    const patch = liftClearPatchForWizard(data)
+    if (patch) applyWizardPatch(onChange, patch)
+
     setOpenSections((prev) => {
-      const next = computeInitialSections(data)
-      return new Set([...prev, ...next])
+      const next = new Set([...prev, ...computeInitialSections(data)])
+      if (!floorNeedsLiftQuestion(data.pickupFloor)) next.delete(SECTION.PICKUP_LIFT)
+      if (!floorNeedsLiftQuestion(data.deliveryFloor)) next.delete(SECTION.DELIVERY_LIFT)
+      return next
     })
   }, [
     data.pickupLng,
@@ -209,13 +216,22 @@ export default function MobileStep1AddressCards({
   }
 
   function onPickupFloorChange(v) {
-    set('pickupFloor', v)
+    if (floorNeedsLiftQuestion(v)) {
+      set('pickupFloor', v)
+    } else {
+      applyWizardPatch(onChange, { pickupFloor: v, pickupLift: null })
+    }
     closeDropdowns()
     if (floorNeedsLiftQuestion(v)) {
       unlock(SECTION.PICKUP_LIFT)
       focusById('quote-mobile-pickup-lift-yes')
       return
     }
+    setOpenSections((prev) => {
+      const next = new Set(prev)
+      next.delete(SECTION.PICKUP_LIFT)
+      return next
+    })
     unlock(SECTION.DELIVERY_ADDRESS)
     focusById(hasMapbox ? 'deliveryAddress' : 'quote-mobile-delivery-address-fallback')
   }
@@ -251,13 +267,22 @@ export default function MobileStep1AddressCards({
   }
 
   function onDeliveryFloorChange(v) {
-    set('deliveryFloor', v)
+    if (floorNeedsLiftQuestion(v)) {
+      set('deliveryFloor', v)
+    } else {
+      applyWizardPatch(onChange, { deliveryFloor: v, deliveryLift: null })
+    }
     closeDropdowns()
     if (floorNeedsLiftQuestion(v)) {
       unlock(SECTION.DELIVERY_LIFT)
       focusById('quote-mobile-delivery-lift-yes')
       return
     }
+    setOpenSections((prev) => {
+      const next = new Set(prev)
+      next.delete(SECTION.DELIVERY_LIFT)
+      return next
+    })
     unlock(SECTION.MOVE_DATE)
     focusById('quote-mobile-move-date')
   }

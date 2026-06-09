@@ -347,8 +347,38 @@ const noLiftWithLift = calculateQuote(settings, {
   extras: {},
   crewSize: 1,
 })
+const noLiftBasement = calculateQuote(settings, {
+  serviceType: 'Man with Van',
+  distanceMiles: 1.3,
+  lineItems: SOFA_LINE,
+  access: {
+    ...baseAccess,
+    pickupFloor: -1,
+    deliveryFloor: 0,
+    pickupLift: false,
+    deliveryLift: false,
+  },
+  extras: {},
+  crewSize: 1,
+})
+const noLiftFirstFloor = calculateQuote(settings, {
+  serviceType: 'Man with Van',
+  distanceMiles: 1.3,
+  lineItems: SOFA_LINE,
+  access: {
+    ...baseAccess,
+    pickupFloor: 1,
+    deliveryFloor: 0,
+    pickupLift: false,
+    deliveryLift: false,
+  },
+  extras: {},
+  crewSize: 1,
+})
 
 const nlGround = noLiftTotal(noLiftGround)
+const nlBasement = noLiftTotal(noLiftBasement)
+const nlFirst = noLiftTotal(noLiftFirstFloor)
 const nlDel3 = noLiftTotal(noLiftDelivery3)
 const nlBoth = noLiftTotal(noLiftBoth)
 const nlLift = noLiftTotal(noLiftWithLift)
@@ -364,6 +394,8 @@ const delLineBoth = (noLiftBoth.accessLines || []).find((l) =>
 
 console.log('\n=== No-lift supplement (per floor) ===')
 console.log(`ground floor: £${nlGround.toFixed(2)} (expected £0)`)
+console.log(`basement (no lift): £${nlBasement.toFixed(2)} (expected £30, same as 1st floor)`)
+console.log(`1st floor (no lift): £${nlFirst.toFixed(2)} (expected £30)`)
 console.log(`delivery floor 3: £${nlDel3.toFixed(2)} (expected £90)`)
 console.log(`pickup 2 + delivery 3: £${nlBoth.toFixed(2)} (expected £150)`)
 console.log(`lift available: £${nlLift.toFixed(2)} (expected £0)`)
@@ -371,6 +403,9 @@ if (delLine) console.log(`breakdown line: ${delLine.label}`)
 
 let noLiftFailed = 0
 if (Math.abs(nlGround) > 0.01) noLiftFailed++
+if (Math.abs(nlBasement - 30) > 0.01) noLiftFailed++
+if (Math.abs(nlFirst - 30) > 0.01) noLiftFailed++
+if (Math.abs(nlBasement - nlFirst) > 0.01) noLiftFailed++
 if (Math.abs(nlDel3 - 90) > 0.01) noLiftFailed++
 if (Math.abs(nlBoth - 150) > 0.01) noLiftFailed++
 if (Math.abs(nlLift) > 0.01) noLiftFailed++
@@ -382,6 +417,58 @@ if (noLiftFailed > 0) {
   process.exit(1)
 }
 console.log('No-lift per-floor supplement: OK')
+
+const adminAccessRates = testSettings({ floorChargePerFloor: 22, noLiftCharge: 55 })
+const adminBasement = calculateQuote(adminAccessRates, {
+  serviceType: 'Man with Van',
+  distanceMiles: 1.3,
+  lineItems: SOFA_LINE,
+  access: {
+    ...baseAccess,
+    pickupFloor: -1,
+    deliveryFloor: 0,
+    pickupLift: false,
+    deliveryLift: false,
+  },
+  extras: {},
+  crewSize: 1,
+})
+const adminBasementNoLift = noLiftTotal(adminBasement)
+const adminBasementFloor = sumAccessByPrefix(adminBasement, /^Floor\/access \(collection\)/i)
+console.log('\n=== Admin pricing engine rates (basement) ===')
+console.log(`no-lift (admin £55/floor): £${adminBasementNoLift.toFixed(2)} (expected £55)`)
+console.log(`floor charge (admin £22/floor): £${adminBasementFloor.toFixed(2)} (expected £22)`)
+if (Math.abs(adminBasementNoLift - 55) > 0.01 || Math.abs(adminBasementFloor - 22) > 0.01) {
+  console.error('FAILED: basement access charges must use admin pricing engine rates')
+  process.exit(1)
+}
+console.log('Basement uses admin pricing engine rates: OK')
+
+const { buildQuoteEngineInput } = await import('../src/lib/buildQuoteEngineInput.js')
+const groundQuote = calculateQuote(
+  settings,
+  buildQuoteEngineInput({
+    serviceType: 'Man with Van',
+    wizard: {
+      moveDate: '2026-06-10',
+      distanceMiles: 1.3,
+      pickupFloor: 0,
+      deliveryFloor: 0,
+      pickupLift: false,
+      deliveryLift: false,
+      walkingDistance: 'standard',
+      parkingDistance: 'standard',
+      stairsFlights: 0,
+    },
+    lineItems: SOFA_LINE,
+    heavyItemCount: 0,
+  }),
+)
+if (noLiftTotal(groundQuote) > 0.01) {
+  console.error('FAILED: ground floor + no lift via buildQuoteEngineInput should be £0')
+  process.exit(1)
+}
+console.log('Ground floor + no lift (quote wizard): OK')
 
 // --- Crew base fees separate from hourly labour ---
 const base1 = calculateQuote(settings, {

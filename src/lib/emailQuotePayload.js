@@ -3,6 +3,7 @@
  */
 
 import { formatDateUK } from './formatDateDisplay'
+import { formatAccessLiftLabel } from './floorAccess'
 import { formatPickupDeliveryContactsForSummary } from './quoteWizardContactFields'
 import { getEffectiveReassemblyItemCount } from './quoteWizardReassembly'
 
@@ -251,12 +252,16 @@ export function buildWizardFullSummaryText({
     '— Pickup property & access —',
     `Property type: ${wizard.pickupPropertyType || '—'}`,
     `Floor: ${wizard.pickupFloor != null ? wizard.pickupFloor : '—'}`,
-    `Lift: ${wizard.pickupLift ? 'Yes' : 'No'}`,
+    ...(formatAccessLiftLabel(wizard.pickupFloor, wizard.pickupLift)
+      ? [`Lift: ${formatAccessLiftLabel(wizard.pickupFloor, wizard.pickupLift)}`]
+      : []),
     '',
     '— Delivery property & access —',
     `Property type: ${wizard.deliveryPropertyType || '—'}`,
     `Floor: ${wizard.deliveryFloor != null ? wizard.deliveryFloor : '—'}`,
-    `Lift: ${wizard.deliveryLift ? 'Yes' : 'No'}`,
+    ...(formatAccessLiftLabel(wizard.deliveryFloor, wizard.deliveryLift)
+      ? [`Lift: ${formatAccessLiftLabel(wizard.deliveryFloor, wizard.deliveryLift)}`]
+      : []),
     '',
     '— Access & carry (both ends factored in pricing) —',
     `Parking / vehicle access: ${PARKING_LABELS[wizard.parkingDistance] || wizard.parkingDistance || '—'}`,

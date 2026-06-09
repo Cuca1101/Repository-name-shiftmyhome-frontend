@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { applyWizardPatch } from '../../../lib/wizardStateUpdate'
 import MapboxAddressField from '../MapboxAddressField'
 import FloorSelect, { floorNeedsLiftQuestion } from '../FloorSelect'
+import { liftClearPatchForWizard } from '../../../lib/floorAccess'
 import { getLocalDateYYYYMMDD } from '../../../lib/moveDateLocal'
 import MobileStepTitleWithRef from '../MobileStepTitleWithRef'
 import MobileStep1AddressCards from '../MobileStep1AddressCards'
@@ -76,6 +77,11 @@ export default function Step1Address({
     }
   }, [data.arrivalWindow, onChange])
 
+  useEffect(() => {
+    const patch = liftClearPatchForWizard(data)
+    if (patch) applyWizardPatch(onChange, patch)
+  }, [data.pickupFloor, data.deliveryFloor, data.pickupLift, data.deliveryLift, onChange])
+
   const [serviceExpanded, setServiceExpanded] = useState(false)
 
   const hasServicePicker =
@@ -84,6 +90,22 @@ export default function Step1Address({
     serviceTypeOptions.length > 0
 
   const showFullServicePicker = hasServicePicker && (!servicePreSelected || serviceExpanded)
+
+  function setPickupFloor(v) {
+    if (floorNeedsLiftQuestion(v)) {
+      set('pickupFloor', v)
+      return
+    }
+    applyWizardPatch(onChange, { pickupFloor: v, pickupLift: null })
+  }
+
+  function setDeliveryFloor(v) {
+    if (floorNeedsLiftQuestion(v)) {
+      set('deliveryFloor', v)
+      return
+    }
+    applyWizardPatch(onChange, { deliveryFloor: v, deliveryLift: null })
+  }
 
   const showPickupLift = floorNeedsLiftQuestion(data.pickupFloor)
   const showDeliveryLift = floorNeedsLiftQuestion(data.deliveryFloor)
@@ -273,14 +295,14 @@ export default function Step1Address({
           <FloorSelect
             label="Pickup floor"
             value={data.pickupFloor}
-            onChange={(v) => set('pickupFloor', v)}
+            onChange={setPickupFloor}
           />
         </div>
         <div className={field} data-quote-field="delivery-access">
           <FloorSelect
             label="Delivery floor"
             value={data.deliveryFloor}
-            onChange={(v) => set('deliveryFloor', v)}
+            onChange={setDeliveryFloor}
           />
         </div>
 

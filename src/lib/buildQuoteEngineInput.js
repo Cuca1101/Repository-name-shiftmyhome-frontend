@@ -1,4 +1,5 @@
 import { parsePackingMaterialQuantities } from './packingMaterialsCatalog'
+import { floorNeedsLiftQuestion, liftValueForFloor } from './floorAccess'
 import { getLocalDateYYYYMMDD } from './moveDateLocal'
 import { isBankHolidayDate, isWeekendDate } from './pricingCalculator'
 
@@ -35,10 +36,16 @@ export function buildQuoteEngineInput({
         : undefined,
     lineItems,
     access: {
-      pickupFloor: wizard.pickupFloor == null ? 0 : Number(wizard.pickupFloor),
-      deliveryFloor: wizard.deliveryFloor == null ? 0 : Number(wizard.deliveryFloor),
-      pickupLift: wizard.pickupLift == null ? undefined : Boolean(wizard.pickupLift),
-      deliveryLift: wizard.deliveryLift == null ? undefined : Boolean(wizard.deliveryLift),
+      pickupFloor:
+        wizard.pickupFloor != null && wizard.pickupFloor !== ''
+          ? Number(wizard.pickupFloor)
+          : undefined,
+      deliveryFloor:
+        wizard.deliveryFloor != null && wizard.deliveryFloor !== ''
+          ? Number(wizard.deliveryFloor)
+          : undefined,
+      pickupLift: liftValueForFloor(wizard.pickupFloor, wizard.pickupLift) ?? undefined,
+      deliveryLift: liftValueForFloor(wizard.deliveryFloor, wizard.deliveryLift) ?? undefined,
       longWalk: wizard.walkingDistance === 'long',
       parking: wizard.parkingDistance === 'long',
       stairsFlights: wizard.stairsFlights,

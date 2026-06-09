@@ -143,7 +143,9 @@ export default function MoveSummaryBody({
               <dd className="mt-1 text-[11px] text-slate-500">
                 {pickupPropertyType}
                 {pickupFloorSummary ? ` · ${pickupFloorSummary}` : ''}
-                {` · ${formatMoveSummaryLiftLabel(pickupLift)}`}
+                {formatMoveSummaryLiftLabel(pickupLift, pickupFloor)
+                  ? ` · ${formatMoveSummaryLiftLabel(pickupLift, pickupFloor)}`
+                  : ''}
               </dd>
             )}
           </div>
@@ -154,7 +156,9 @@ export default function MoveSummaryBody({
               <dd className="mt-1 text-[11px] text-slate-500">
                 {deliveryPropertyType}
                 {deliveryFloorSummary ? ` · ${deliveryFloorSummary}` : ''}
-                {` · ${formatMoveSummaryLiftLabel(deliveryLift)}`}
+                {formatMoveSummaryLiftLabel(deliveryLift, deliveryFloor)
+                  ? ` · ${formatMoveSummaryLiftLabel(deliveryLift, deliveryFloor)}`
+                  : ''}
               </dd>
             )}
           </div>

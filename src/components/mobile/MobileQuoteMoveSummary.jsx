@@ -158,8 +158,8 @@ export default function MobileQuoteMoveSummary({
   const deliveryAddr = truncate(deliveryAddress, 80)
   const propertyTypePickup = (pickupPropertyType || '').trim()
   const propertyTypeDelivery = (deliveryPropertyType || '').trim()
-  const showPickupAccess = pickupAddr || propertyTypePickup || pickupFloorLabel
-  const showDeliveryAccess = deliveryAddr || propertyTypeDelivery || deliveryFloorLabel
+  const pickupLiftLabel = formatMoveSummaryLiftLabel(pickupLift, pickupFloor)
+  const deliveryLiftLabel = formatMoveSummaryLiftLabel(deliveryLift, deliveryFloor)
   const step1MobileSummary = step === 1
   const summaryRowSeamless = step1MobileSummary ? { seamless: true } : {}
 
@@ -218,12 +218,12 @@ export default function MobileQuoteMoveSummary({
         {pickupFloorLabel ? (
           <SummaryRow icon={MapPin} iconClass="text-slate-400" label="Pickup floor" value={pickupFloorLabel} {...summaryRowSeamless} />
         ) : null}
-        {showPickupAccess ? (
+        {pickupLiftLabel ? (
           <SummaryRow
             icon={MapPin}
             iconClass="text-slate-400"
             label="Pickup lift"
-            value={formatMoveSummaryLiftLabel(pickupLift)}
+            value={pickupLiftLabel}
             {...summaryRowSeamless}
           />
         ) : null}
@@ -246,12 +246,12 @@ export default function MobileQuoteMoveSummary({
         {deliveryFloorLabel ? (
           <SummaryRow icon={MapPin} iconClass="text-slate-400" label="Delivery floor" value={deliveryFloorLabel} {...summaryRowSeamless} />
         ) : null}
-        {showDeliveryAccess ? (
+        {deliveryLiftLabel ? (
           <SummaryRow
             icon={MapPin}
             iconClass="text-slate-400"
             label="Delivery lift"
-            value={formatMoveSummaryLiftLabel(deliveryLift)}
+            value={deliveryLiftLabel}
             {...summaryRowSeamless}
           />
         ) : null}

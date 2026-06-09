@@ -16,11 +16,8 @@ function truncate(s, max = 72) {
 
 function LocationColumn({ label, address, propertyType, floor, lift, accent }) {
   const floorLabel = formatMoveSummaryFloorLabel(floor)
-  const access = [
-    propertyType,
-    floorLabel,
-    `Lift: ${formatMoveSummaryLiftLabel(lift)}`,
-  ]
+  const liftLabel = formatMoveSummaryLiftLabel(lift, floor)
+  const access = [propertyType, floorLabel, liftLabel ? `Lift: ${liftLabel}` : null]
     .filter(Boolean)
     .join(' · ')
 

@@ -1,4 +1,5 @@
 import { FLOOR_OPTIONS } from '../components/quote-wizard/FloorSelect'
+import { floorNeedsLiftQuestion } from './floorAccess'
 import { formatCrewSizeLabel, formatMoveSummaryCrewForPricing } from './crewPricingRules'
 import { formatCompactArrivalLine } from './emailQuotePayload'
 import { formatDateUK } from './formatDateDisplay'
@@ -14,8 +15,10 @@ export function formatMoveSummaryFloorLabel(n) {
   return `${o.label} floor`
 }
 
-/** Always "Lift yes" or "Lift no" — never blank. */
-export function formatMoveSummaryLiftLabel(lift) {
+/** "Lift yes" / "Lift no" for summary — blank on ground floor only. */
+export function formatMoveSummaryLiftLabel(lift, floor = undefined) {
+  if (floor !== undefined && !floorNeedsLiftQuestion(floor)) return ''
+  if (lift == null) return ''
   return lift === true ? 'Lift yes' : 'Lift no'
 }
 

@@ -9,6 +9,8 @@ import {
   resolveCrewLabourDistanceRates,
   resolveTravelHoursForCrewLabour,
 } from './crewPricingRules'
+import { effectiveFloorLevelsForPricing, floorNeedsLiftQuestion } from './floorAccess'
+import { resolveAccessChargeRates } from './pricingSettingValue'
 
 const money = (n) => Math.round((Number(n) || 0) * 100) / 100
 
@@ -88,11 +90,11 @@ export function buildPricingDebugDetail(breakdown, ctx) {
   }
 
   const access = ctx.accessInput || {}
-  const pickupFloor = Math.max(0, Number(access.pickupFloor) || 0)
-  const deliveryFloor = Math.max(0, Number(access.deliveryFloor) || 0)
-  const perFloor = Number(s.floorChargePerFloor) || 0
-  const noLiftFlat = Number(s.noLiftCharge) || 0
-  const yesLiftPerEnd = Number(s.yesLiftChargePerEnd) || 0
+  const pickupFloor = effectiveFloorLevelsForPricing(access.pickupFloor)
+  const deliveryFloor = effectiveFloorLevelsForPricing(access.deliveryFloor)
+  const pickupNeedsLiftAccess = floorNeedsLiftQuestion(access.pickupFloor)
+  const deliveryNeedsLiftAccess = floorNeedsLiftQuestion(access.deliveryFloor)
+  const { perFloorRate: perFloor, noLiftFlat, yesLiftPerEnd } = resolveAccessChargeRates(s)
 
   /** @type {object[]} */
   const accessChargeDetail = []
@@ -129,7 +131,7 @@ export function buildPricingDebugDetail(breakdown, ctx) {
   const pickupLift = pickupLiftExplicit ? Boolean(access.pickupLift) : Boolean(access.hasLift)
   const deliveryLift = deliveryLiftExplicit ? Boolean(access.deliveryLift) : Boolean(access.hasLift)
 
-  if (pickupFloor > 0 && pickupLiftExplicit && !pickupLift && noLiftFlat > 0) {
+  if (pickupNeedsLiftAccess && pickupLiftExplicit && !pickupLift && noLiftFlat > 0) {
     pushAccess(
       'no_lift',
       'pickup',
@@ -137,7 +139,7 @@ export function buildPricingDebugDetail(breakdown, ctx) {
       pickupFloor * noLiftFlat,
     )
   }
-  if (deliveryFloor > 0 && deliveryLiftExplicit && !deliveryLift && noLiftFlat > 0) {
+  if (deliveryNeedsLiftAccess && deliveryLiftExplicit && !deliveryLift && noLiftFlat > 0) {
     pushAccess(
       'no_lift',
       'delivery',
@@ -146,11 +148,11 @@ export function buildPricingDebugDetail(breakdown, ctx) {
     )
   }
   if (yesLiftPerEnd > 0) {
-    if (pickupFloor > 0 && pickupLiftExplicit && pickupLift) {
-      pushAccess('lift', 'pickup', 'Lift Yes above ground (per end, per job)', yesLiftPerEnd)
+    if (pickupNeedsLiftAccess && pickupLiftExplicit && pickupLift) {
+      pushAccess('lift', 'pickup', 'Lift Yes (per end, per job)', yesLiftPerEnd)
     }
-    if (deliveryFloor > 0 && deliveryLiftExplicit && deliveryLift) {
-      pushAccess('lift', 'delivery', 'Lift Yes above ground (per end, per job)', yesLiftPerEnd)
+    if (deliveryNeedsLiftAccess && deliveryLiftExplicit && deliveryLift) {
+      pushAccess('lift', 'delivery', 'Lift Yes (per end, per job)', yesLiftPerEnd)
     }
   }
   if (access.longWalk && Number(s.longWalkingDistanceCharge) > 0) {

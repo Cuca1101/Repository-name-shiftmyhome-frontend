@@ -38,3 +38,12 @@ export function resolveFallbackSpeedMph(settings) {
   const legacy = resolvePricingNumber(settings, 'averageSpeedMph', { allowZero: false })
   return legacy > 0 ? legacy : resolvePricingNumber(settings, 'fallbackSpeedMph')
 }
+
+/** Floor / lift access rates — always from merged admin pricing settings. */
+export function resolveAccessChargeRates(settings) {
+  return {
+    perFloorRate: resolvePricingNumber(settings, 'floorChargePerFloor'),
+    noLiftFlat: resolvePricingNumber(settings, 'noLiftCharge'),
+    yesLiftPerEnd: resolvePricingNumber(settings, 'yesLiftChargePerEnd'),
+  }
+}

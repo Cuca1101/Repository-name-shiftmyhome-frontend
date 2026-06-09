@@ -13,9 +13,11 @@ import {
   usesDistanceBasedCrewLabour,
 } from './crewPricingRules'
 import { buildStandardPricingDisplayRows } from './pricingBreakdownDisplay'
+import { effectiveFloorLevelsForPricing, floorNeedsLiftQuestion } from './floorAccess'
+import { mergePricingSettingsWithDefaults } from './pricingSettingsMerge'
 import { buildPricingDebugDetail } from './pricingDebugDetail'
 import { resolveVolumePricingMultiplier } from './volumePricingMultiplier'
-import { resolveDepositAmountGbp as resolveDepositFromSettings } from './pricingSettingValue'
+import { resolveAccessChargeRates, resolveDepositAmountGbp as resolveDepositFromSettings } from './pricingSettingValue'
 import { getEffectiveReassemblyItemCount } from './quoteWizardReassembly'
 import {
   PACKING_MATERIALS_CATALOG,
@@ -370,7 +372,7 @@ export function sumInventoryVolume(lineItems) {
  * @returns {PriceBreakdown}
  */
 export function calculateQuote(settings, input) {
-  const s = settings
+  const s = mergePricingSettingsWithDefaults(settings)
   const distanceMiles = Math.max(0, Number(input.distanceMiles) || 0)
   const mapboxRouteDurationSeconds =
     input.mapboxRouteDurationSeconds != null && input.mapboxRouteDurationSeconds !== ''
@@ -412,8 +414,10 @@ export function calculateQuote(settings, input) {
   const estimatedTravelHoursVal = travelResolve ? money(travelResolve.travelHours) : undefined
 
   const access = input.access || {}
-  const pickupFloor = Math.max(0, Number(access.pickupFloor) || 0)
-  const deliveryFloor = Math.max(0, Number(access.deliveryFloor) || 0)
+  const pickupFloor = effectiveFloorLevelsForPricing(access.pickupFloor)
+  const deliveryFloor = effectiveFloorLevelsForPricing(access.deliveryFloor)
+  const pickupNeedsLiftAccess = floorNeedsLiftQuestion(access.pickupFloor)
+  const deliveryNeedsLiftAccess = floorNeedsLiftQuestion(access.deliveryFloor)
 
   /** When omitted, matches prior behaviour: `Boolean(undefined)` → false (no lift). */
   const legacyHasLift = Boolean(access.hasLift)
@@ -430,8 +434,7 @@ export function calculateQuote(settings, input) {
   /** @type {BreakdownLine[]} */
   const accessLines = []
 
-  const perFloorRate = Number(s.floorChargePerFloor) || 0
-  const noLiftFlat = Number(s.noLiftCharge) || 0
+  const { perFloorRate, noLiftFlat, yesLiftPerEnd } = resolveAccessChargeRates(s)
 
   // Per-floor charge: applies whenever above ground (per job — not multiplied by crew size).
   if (pickupFloor > 0 && perFloorRate > 0) {
@@ -454,7 +457,7 @@ export function calculateQuote(settings, input) {
   }
 
   // No-lift supplement: rate × floor level when above ground + lift No (per job — not × crew).
-  if (pickupFloor > 0 && pickupLiftExplicit && !pickupLift && noLiftFlat > 0) {
+  if (pickupNeedsLiftAccess && pickupLiftExplicit && !pickupLift && noLiftFlat > 0) {
     const amt = money(pickupFloor * noLiftFlat)
     if (amt > 0) {
       accessLines.push({
@@ -463,7 +466,7 @@ export function calculateQuote(settings, input) {
       })
     }
   }
-  if (deliveryFloor > 0 && deliveryLiftExplicit && !deliveryLift && noLiftFlat > 0) {
+  if (deliveryNeedsLiftAccess && deliveryLiftExplicit && !deliveryLift && noLiftFlat > 0) {
     const amt = money(deliveryFloor * noLiftFlat)
     if (amt > 0) {
       accessLines.push({
@@ -473,9 +476,8 @@ export function calculateQuote(settings, input) {
     }
   }
 
-  const yesLiftPerEnd = Number(s.yesLiftChargePerEnd) || 0
   if (yesLiftPerEnd > 0) {
-    if (pickupFloor > 0 && pickupLiftExplicit && pickupLift) {
+    if (pickupNeedsLiftAccess && pickupLiftExplicit && pickupLift) {
       const amt = money(yesLiftPerEnd)
       if (amt > 0) {
         accessLines.push({
@@ -484,7 +486,7 @@ export function calculateQuote(settings, input) {
         })
       }
     }
-    if (deliveryFloor > 0 && deliveryLiftExplicit && deliveryLift) {
+    if (deliveryNeedsLiftAccess && deliveryLiftExplicit && deliveryLift) {
       const amt = money(yesLiftPerEnd)
       if (amt > 0) {
         accessLines.push({
