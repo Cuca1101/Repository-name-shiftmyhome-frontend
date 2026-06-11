@@ -176,8 +176,9 @@ export default function MapboxAddressField({
   const showDesktopList = open && suggestions.length > 0 && !isMobileCard
   const showMobileList =
     isMobileCard && open && !selectedFromList && hasQuery && (searching || suggestions.length > 0)
+  const showSuggestionsPanel = isMobileCard ? showMobileList : showDesktopList
 
-  const panelStyle = useFloatingPanelBelow(inputRef, showMobileList)
+  const panelStyle = useFloatingPanelBelow(inputRef, showSuggestionsPanel)
 
   useEffect(() => {
     function handlePointerDown(ev) {
@@ -238,7 +239,7 @@ export default function MapboxAddressField({
           name={addressKey}
           autoComplete="off"
           spellCheck={false}
-          aria-expanded={showDesktopList || showMobileList}
+          aria-expanded={showSuggestionsPanel}
           aria-controls={listId}
           aria-autocomplete="list"
           role="combobox"
@@ -252,31 +253,8 @@ export default function MapboxAddressField({
           placeholder={placeholder}
           className={resolvedInputClass}
         />
-        {showDesktopList ? (
-          <ul
-            id={listId}
-            role="listbox"
-            className="absolute left-0 right-0 top-full z-50 mt-1 max-h-60 overflow-auto rounded-xl border border-slate-200 bg-white py-1 shadow-lg ring-1 ring-slate-100"
-          >
-            {suggestions.map((s) => (
-              <li key={s.id} role="option" aria-selected={false}>
-                <button
-                  type="button"
-                  className="w-full px-4 py-3 text-left text-sm text-slate-800 hover:bg-slate-50 active:bg-brand-50"
-                  onPointerDown={(e) => {
-                    e.preventDefault()
-                    e.stopPropagation()
-                    pickSuggestion(s)
-                  }}
-                >
-                  {s.placeName}
-                </button>
-              </li>
-            ))}
-          </ul>
-        ) : null}
       </div>
-      {searching && !showMobileList ? (
+      {searching && !showSuggestionsPanel ? (
         <p className="mt-2 text-xs font-medium text-brand-600" aria-live="polite">
           Searching address...
         </p>
@@ -286,13 +264,13 @@ export default function MapboxAddressField({
         <p className="mt-1.5 text-xs text-emerald-700">Location saved from suggestions.</p>
       ) : null}
 
-      {showMobileList && panelStyle && typeof document !== 'undefined'
+      {showSuggestionsPanel && panelStyle && typeof document !== 'undefined'
         ? createPortal(
             <div
               ref={panelRef}
               id={listId}
               role="listbox"
-              className="fixed z-[200] overflow-y-auto overscroll-contain rounded-xl border border-slate-200 bg-white py-1 shadow-[0_12px_40px_rgba(15,23,42,0.18)] ring-1 ring-slate-100"
+              className="quote-floating-panel"
               style={{
                 top: panelStyle.top,
                 left: panelStyle.left,
@@ -304,7 +282,7 @@ export default function MapboxAddressField({
                 <p className="px-4 py-3 text-sm font-medium text-brand-600" aria-live="polite">
                   Searching address...
                 </p>
-              ) : (
+              ) : isMobileCard ? (
                 suggestions.map((s) => (
                   <button
                     key={s.id}
@@ -325,6 +303,23 @@ export default function MapboxAddressField({
                       {markerLetter}
                     </span>
                     <span className="min-w-0 flex-1 leading-snug">{s.placeName}</span>
+                  </button>
+                ))
+              ) : (
+                suggestions.map((s) => (
+                  <button
+                    key={s.id}
+                    type="button"
+                    role="option"
+                    aria-selected={false}
+                    className="w-full px-4 py-3 text-left text-sm text-slate-800 hover:bg-slate-50 active:bg-brand-50"
+                    onPointerDown={(e) => {
+                      e.preventDefault()
+                      e.stopPropagation()
+                      pickSuggestion(s)
+                    }}
+                  >
+                    {s.placeName}
                   </button>
                 ))
               )}

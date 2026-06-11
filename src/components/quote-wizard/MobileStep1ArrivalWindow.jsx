@@ -215,7 +215,7 @@ export default function MobileStep1ArrivalWindow({
 
       {open && typeof document !== 'undefined'
         ? createPortal(
-            <div className="fixed inset-0 z-[200] flex flex-col justify-end" role="presentation">
+            <div className="fixed inset-0 z-[230] flex flex-col justify-end" role="presentation">
           <button
             type="button"
             className="absolute inset-0 bg-slate-900/50"

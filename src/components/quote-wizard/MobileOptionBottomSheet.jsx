@@ -129,7 +129,7 @@ export default function MobileOptionBottomSheet({
               id={listId}
               role="listbox"
               aria-label={panelTitle}
-              className="fixed z-[200] overflow-y-auto overscroll-contain rounded-xl border border-slate-200 bg-white py-1 shadow-[0_12px_40px_rgba(15,23,42,0.18)] ring-1 ring-slate-100"
+              className="quote-floating-panel"
               style={{
                 top: panelStyle.top,
                 left: panelStyle.left,

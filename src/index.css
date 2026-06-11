@@ -893,6 +893,11 @@
   }
 }
 
+/* Quote wizard floating panels (address suggestions, mobile pickers) — above SEO quote modal (z-220). */
+.quote-floating-panel {
+  @apply fixed z-[230] overflow-y-auto overscroll-contain rounded-xl border border-slate-200 bg-white py-1 shadow-[0_12px_40px_rgba(15,23,42,0.18)] ring-1 ring-slate-100;
+}
+
 /* Quote wizard — page scroll only; no nested form scrollbars (mobile + desktop). */
 .quote-flow-main,
 .quote-flow-scope .quote-wizard-form-card,
