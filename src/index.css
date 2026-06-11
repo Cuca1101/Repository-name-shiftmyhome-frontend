@@ -909,6 +909,16 @@
   height: auto;
 }
 
+/* SEO quote modal — desktop scroll inside the overlay (body is locked; mobile keeps window scroll). */
+@media (min-width: 768px) {
+  #seo-quote .quote-flow-main {
+    overflow-x: clip;
+    overflow-y: auto !important;
+    overscroll-behavior: contain;
+    scrollbar-gutter: stable;
+  }
+}
+
 .quote-flow-scope .quote-wizard-section > .mx-auto {
   overflow: visible;
 }
