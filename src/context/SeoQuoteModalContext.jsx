@@ -17,6 +17,7 @@ export function SeoQuoteModalProvider({ children, defaultServiceType = '' }) {
   const navigate = useNavigate()
   const [open, setOpen] = useState(false)
   const [sessionKey, setSessionKey] = useState(0)
+  const [activeServiceType, setActiveServiceType] = useState(defaultServiceType)
 
   const syncHash = useCallback(
     (hash) => {
@@ -28,14 +29,23 @@ export function SeoQuoteModalProvider({ children, defaultServiceType = '' }) {
     [location.pathname, location.search, navigate],
   )
 
-  const openQuote = useCallback(() => {
-    if (location.hash === SEO_QUOTE_HASH) {
-      setSessionKey((k) => k + 1)
-      setOpen(true)
-      return
-    }
-    syncHash(SEO_QUOTE_HASH)
-  }, [location.hash, syncHash])
+  const openQuote = useCallback(
+    (serviceTypeOverride) => {
+      const nextService =
+        serviceTypeOverride !== undefined && serviceTypeOverride !== null
+          ? String(serviceTypeOverride).trim()
+          : defaultServiceType
+      setActiveServiceType(nextService)
+
+      if (location.hash === SEO_QUOTE_HASH) {
+        setSessionKey((k) => k + 1)
+        setOpen(true)
+        return
+      }
+      syncHash(SEO_QUOTE_HASH)
+    },
+    [defaultServiceType, location.hash, syncHash],
+  )
 
   const closeQuote = useCallback(() => {
     setOpen(false)
@@ -43,6 +53,10 @@ export function SeoQuoteModalProvider({ children, defaultServiceType = '' }) {
       syncHash('')
     }
   }, [location.hash, syncHash])
+
+  useEffect(() => {
+    setActiveServiceType(defaultServiceType)
+  }, [defaultServiceType, location.pathname])
 
   useEffect(() => {
     if (location.hash === SEO_QUOTE_HASH) {
@@ -61,7 +75,7 @@ export function SeoQuoteModalProvider({ children, defaultServiceType = '' }) {
       <SeoQuoteWizardModal
         open={open}
         onClose={closeQuote}
-        serviceType={defaultServiceType}
+        serviceType={activeServiceType}
         sessionKey={sessionKey}
       />
     </SeoQuoteModalContext.Provider>

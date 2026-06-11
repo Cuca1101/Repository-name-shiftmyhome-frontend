@@ -1,4 +1,5 @@
 import HeroBackgroundMedia from '../HeroBackgroundMedia'
+import OpenInstantQuoteButton from '../OpenInstantQuoteButton'
 import { coerceUseHeroVideo } from '../../lib/heroCmsVideo'
 import { useWebsiteCms } from '../../context/WebsiteCmsContext'
 import { DEFAULT_HOMEPAGE } from '../../lib/websiteCmsDefaults'
@@ -34,6 +35,16 @@ export default function MobileHero() {
         <p className="mt-1.5 max-w-[20rem] text-[13px] leading-snug text-slate-600 xs:text-[14px]">
           {h.heroSubtitle}
         </p>
+
+        <OpenInstantQuoteButton
+          trackLabel="Get an Instant Quote"
+          className="btn-premium-primary mt-3 min-h-[44px] w-full px-5 py-2.5 text-sm"
+        >
+          {h.ctaPrimaryText}
+          <span aria-hidden className="text-white/90">
+            →
+          </span>
+        </OpenInstantQuoteButton>
 
         <div className="hero-mobile-video relative mt-3 aspect-video overflow-hidden rounded-xl bg-gradient-to-b from-slate-100 to-slate-50 ring-1 ring-slate-200/70 shadow-sm">
           <HeroBackgroundMedia

@@ -27,13 +27,13 @@ export function resolveWizardBootstrap(serviceTypeProp) {
     clearResumeSavedQuote()
   }
 
-  consumeNewQuoteFromServiceCard()
+  const fromServiceCard = consumeNewQuoteFromServiceCard()
 
   return {
     step: 1,
     quoteRef: makeQuoteRef(),
     wizard: initialWizardState(),
-    serviceType: serviceTypeProp,
+    serviceType: fromServiceCard?.serviceType || serviceTypeProp,
     isResumed: false,
     dateWasReset: false,
   }

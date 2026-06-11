@@ -12,7 +12,7 @@ export default function HomeHashScroll() {
     const supportsHashScroll = location.pathname === '/' || location.pathname === '/coverage'
     if (!supportsHashScroll) return undefined
     const id = location.hash?.replace(/^#/, '').trim()
-    if (!id) return undefined
+    if (!id || id === 'seo-quote') return undefined
 
     let cancelled = false
     let timeoutId

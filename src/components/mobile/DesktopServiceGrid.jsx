@@ -1,9 +1,10 @@
-import { Link } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
 import { HouseIcon, iconBySlug } from '../serviceIcons'
 import { useWebsiteCms } from '../../context/WebsiteCmsContext'
 import { DEFAULT_HOMEPAGE } from '../../lib/websiteCmsDefaults'
 import { useServiceGridCards } from '../../hooks/useServiceGridCards'
 import { markNewQuoteFromServiceCard } from '../../lib/quoteSessionMode'
+import { useSeoQuoteModal } from '../../context/SeoQuoteModalContext'
 import { trackWebsiteClick, trackWebsiteLeadEvent } from '../../lib/websiteLeadTracker'
 
 function onServiceCardClick(card) {
@@ -21,6 +22,8 @@ export default function DesktopServiceGrid() {
   const { homepage } = useWebsiteCms()
   const h = homepage ?? DEFAULT_HOMEPAGE
   const cards = useServiceGridCards()
+  const { pathname } = useLocation()
+  const { openQuote, hasModal } = useSeoQuoteModal()
 
   return (
     <section id="services" className="home-section scroll-mt-[76px] bg-white pb-2">
@@ -41,8 +44,14 @@ export default function DesktopServiceGrid() {
             return (
               <li key={card.key} className="flex min-w-0">
                 <Link
-                  to={card.path}
-                  onClick={() => onServiceCardClick(card)}
+                  to={hasModal ? { pathname, hash: '#seo-quote' } : card.path}
+                  onClick={(e) => {
+                    onServiceCardClick(card)
+                    if (hasModal) {
+                      e.preventDefault()
+                      openQuote(card.serviceType || undefined)
+                    }
+                  }}
                   className="group service-card-shell flex h-[300px] flex-col sm:h-[320px] lg:h-[340px]"
                 >
                   <div className="relative flex min-h-0 flex-1 flex-col">

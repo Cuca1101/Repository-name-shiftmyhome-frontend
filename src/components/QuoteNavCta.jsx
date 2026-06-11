@@ -1,11 +1,13 @@
 import { Link, useLocation } from 'react-router-dom'
 import HomeSectionLink from './HomeSectionLink'
+import { useSeoQuoteModal } from '../context/SeoQuoteModalContext'
 import { getSeoPageByPath } from '../data/seoPages'
 import { getServicePageByPath } from '../constants/servicePages'
 import { normalizePublicPath } from '../lib/normalizePublicPath'
 
 /**
- * Navbar / drawer quote CTA — homepage scrolls to services; SEO pages open the quote wizard modal.
+ * Navbar / drawer quote CTA — opens quote modal on homepage & general pages;
+ * SEO pages use hash link; service pages scroll to embedded wizard.
  *
  * @param {{
  *   className?: string,
@@ -19,6 +21,7 @@ export default function QuoteNavCta({ className, children, onNavigate, trackLabe
   const routePath = normalizePublicPath(location.pathname)
   const isSeoLanding = Boolean(getSeoPageByPath(routePath))
   const isServiceQuote = Boolean(getServicePageByPath(routePath))
+  const { openQuote, hasModal } = useSeoQuoteModal()
 
   if (isSeoLanding) {
     return (
@@ -46,6 +49,23 @@ export default function QuoteNavCta({ className, children, onNavigate, trackLabe
       >
         {children}
       </a>
+    )
+  }
+
+  if (hasModal) {
+    return (
+      <button
+        type="button"
+        className={className}
+        data-track-click={trackLabel || 'Nav: instant quote modal'}
+        data-track-section="nav"
+        onClick={() => {
+          onNavigate?.()
+          openQuote()
+        }}
+      >
+        {children}
+      </button>
     )
   }
 
