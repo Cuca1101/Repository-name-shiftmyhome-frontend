@@ -13,7 +13,7 @@ export const SERVICE_PAGES = [
     shortDescription:
       'Full and partial house moves — careful packing, loading, and delivery door to door. Tell us about your home and inventory for an accurate estimate.',
     heroTeaser: 'Full & partial moves — packed, loaded, delivered.',
-    heroImage: '/assets/services/house-removals.jpg?v=4',
+    heroImage: '/assets/services/house-removals.jpg?v=6',
   },
   {
     path: '/man-with-van',
@@ -23,7 +23,7 @@ export const SERVICE_PAGES = [
     shortDescription:
       'Flexible van and crew for smaller loads, single items, and quick local moves. Tell us what you need moved for a clear estimate.',
     heroTeaser: 'Van & crew for smaller loads and quick jobs.',
-    heroImage: '/assets/services/man-with-van.jpg?v=4',
+    heroImage: '/assets/services/man-with-van.jpg?v=9',
   },
   {
     path: '/furniture-delivery',
@@ -33,7 +33,7 @@ export const SERVICE_PAGES = [
     shortDescription:
       'Sofas, beds, and bulky pieces moved with care, straps, and the right vehicle. Share sizes and access details for an accurate quote.',
     heroTeaser: 'Bulky furniture moved safely with care.',
-    heroImage: '/assets/services/furniture-delivery.jpg?v=4',
+    heroImage: '/assets/services/furniture-delivery.jpg?v=8',
   },
   {
     path: '/office-moves',
@@ -43,7 +43,7 @@ export const SERVICE_PAGES = [
     shortDescription:
       'Desks, IT, and office furniture relocated with minimal downtime. We plan around your business hours where possible.',
     heroTeaser: 'Office relocations planned around your business.',
-    heroImage: '/assets/services/office-moves.jpg?v=4',
+    heroImage: '/assets/services/office-moves.jpg?v=6',
   },
   {
     path: '/student-moves',
@@ -53,7 +53,7 @@ export const SERVICE_PAGES = [
     shortDescription:
       'Budget-friendly moves for halls, flats, and term-time addresses — ideal for smaller loads and shared accommodation across Glasgow and beyond.',
     heroTeaser: 'Student & flat moves across Glasgow & beyond.',
-    heroImage: '/assets/services/student-moves.jpg?v=4',
+    heroImage: '/assets/services/student-moves.jpg?v=6',
   },
   {
     path: '/clearance',
@@ -63,7 +63,7 @@ export const SERVICE_PAGES = [
     shortDescription:
       'House, garage, and garden clearances with responsible disposal where possible. Get a clear price before we arrive.',
     heroTeaser: 'Clearances with upfront pricing & disposal.',
-    heroImage: '/assets/services/clearance.jpg?v=4',
+    heroImage: '/assets/services/clearance.jpg?v=7',
   },
 ]
 

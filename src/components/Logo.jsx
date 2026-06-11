@@ -15,11 +15,15 @@ function isCustomBrandLogo(src) {
 }
 
 function BrandWordmark({ className = '', compact = false }) {
-  const isCompact = compact === true || compact === 'nav' || compact === 'footer'
+  const isNav = compact === 'nav'
+  const isFooter = compact === 'footer'
+  const isCompact = compact === true || isNav || isFooter
 
-  const iconClass = isCompact
-    ? 'h-[30px] w-auto max-w-[1.65rem] shrink-0 object-contain'
-    : 'h-[42px] w-auto shrink-0 sm:h-[46px] lg:h-[50px]'
+  const iconClass = isNav || isFooter
+    ? 'h-[40px] w-auto max-w-[2.15rem] shrink-0 object-contain'
+    : isCompact
+      ? 'h-[30px] w-auto max-w-[1.65rem] shrink-0 object-contain'
+      : 'h-[42px] w-auto shrink-0 sm:h-[46px] lg:h-[50px]'
 
   const textClass = isCompact
     ? 'text-[16px] leading-none'

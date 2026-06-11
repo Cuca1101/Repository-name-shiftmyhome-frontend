@@ -33,7 +33,7 @@ export default function MobileNavbar() {
       <nav className="flex min-h-[56px] min-w-0 max-w-full items-center justify-between gap-2 px-3">
         <HomeSectionLink
           sectionId="home"
-          className="relative z-10 flex min-w-0 max-w-[min(82vw,15.5rem)] shrink items-center py-1"
+          className="relative z-10 flex min-w-0 max-w-[min(82vw,16rem)] shrink items-center py-1"
           onNavigate={closeMenu}
         >
           <Logo asImage variant="dark" compact="nav" className="max-w-full" src={navbar.logoUrl || undefined} />

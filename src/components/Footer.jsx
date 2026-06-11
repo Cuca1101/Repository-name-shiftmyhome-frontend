@@ -104,8 +104,8 @@ export default function Footer() {
               to="/"
               className="inline-block outline-none ring-offset-slate-900 focus-visible:ring-2 focus-visible:ring-brand-500"
             >
-              <Logo asImage variant="dark" compact="footer" className="sm:hidden" src={cmsFooter.logoUrl || undefined} />
-              <Logo asImage variant="dark" className="hidden sm:inline-flex" src={cmsFooter.logoUrl || undefined} />
+              <Logo asImage variant="dark" compact="footer" className="lg:hidden" src={cmsFooter.logoUrl || undefined} />
+              <Logo asImage variant="dark" className="hidden lg:inline-flex" src={cmsFooter.logoUrl || undefined} />
             </Link>
             <p className="footer-nav-heading mt-4">About ShiftMyHome</p>
             <p className="mt-3 max-w-sm text-sm leading-relaxed text-slate-400">{tagline}</p>

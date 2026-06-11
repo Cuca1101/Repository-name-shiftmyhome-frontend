@@ -15,7 +15,7 @@ export const DEFAULT_HOMEPAGE = {
   heroTitleHighlight2: 'from start to finish.',
   heroSubtitle:
     'Glasgow removals, Edinburgh removals, and Scotland-wide house moves — professional crews and instant online quotes.',
-  heroImageUrl: '/assets/services/house-removals.jpg?v=4',
+  heroImageUrl: '/assets/services/house-removals.jpg?v=6',
   heroVideoUrl: '',
   useHeroVideo: false,
   ctaPrimaryText: 'Get an Instant Quote',
