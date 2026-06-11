@@ -81,7 +81,7 @@ export const DEFAULT_NAVBAR = {
   ctaText: 'Get an Instant Quote',
   phoneDisplay: CONTACT.phoneDisplay,
   phoneTel: CONTACT.phoneTel,
-  logoUrl: '/logo.png',
+  logoUrl: '/logo-transparent.png',
 }
 
 export const DEFAULT_FOOTER = {

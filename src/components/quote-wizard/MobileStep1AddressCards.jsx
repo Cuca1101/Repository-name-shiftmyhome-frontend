@@ -5,8 +5,11 @@ import MapboxAddressField from './MapboxAddressField'
 import FloorSelect, { floorNeedsLiftQuestion } from './FloorSelect'
 import { liftClearPatchForWizard } from '../../lib/floorAccess'
 import MobileStep1ArrivalWindow from './MobileStep1ArrivalWindow'
+import MobileOptionBottomSheet from './MobileOptionBottomSheet'
 
 const PROPERTY_TYPES = ['House', 'Flat / apartment', 'Bungalow', 'Commercial', 'Other']
+
+const PROPERTY_TYPE_OPTIONS = PROPERTY_TYPES.map((p) => ({ value: p, label: p }))
 
 const mobileInput =
   'box-border min-h-11 w-full min-w-0 max-w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-base leading-snug text-slate-900 shadow-sm outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/25'
@@ -126,14 +129,8 @@ function MobileLiftYesNoField({ legend, name, value, onSelect, liftYesId, liftNo
   )
 }
 
-function MobileCardRow({ children, allowOverflow = false }) {
-  return (
-    <div
-      className={`quote-mobile-step1-row px-3 py-2.5 ${allowOverflow ? 'relative z-20 overflow-visible' : ''}`}
-    >
-      {children}
-    </div>
-  )
+function MobileCardRow({ children }) {
+  return <div className="quote-mobile-step1-row px-3 py-2.5">{children}</div>
 }
 
 /**
@@ -204,15 +201,9 @@ export default function MobileStep1AddressCards({
     setActiveDropdown('pickup-floor')
   }
 
-  function onPickupPropertyChange(e) {
-    set('pickupPropertyType', e.target.value)
+  function onPickupPropertyChange(value) {
+    set('pickupPropertyType', value)
     openPickupFloor()
-  }
-
-  function onPickupPropertyCommit() {
-    if (openSections.has(SECTION.PICKUP_PROPERTY)) {
-      openPickupFloor()
-    }
   }
 
   function onPickupFloorChange(v) {
@@ -255,15 +246,9 @@ export default function MobileStep1AddressCards({
     setActiveDropdown('delivery-floor')
   }
 
-  function onDeliveryPropertyChange(e) {
-    set('deliveryPropertyType', e.target.value)
+  function onDeliveryPropertyChange(value) {
+    set('deliveryPropertyType', value)
     openDeliveryFloor()
-  }
-
-  function onDeliveryPropertyCommit() {
-    if (openSections.has(SECTION.DELIVERY_PROPERTY)) {
-      openDeliveryFloor()
-    }
   }
 
   function onDeliveryFloorChange(v) {
@@ -307,7 +292,7 @@ export default function MobileStep1AddressCards({
 
   return (
     <div className="quote-mobile-step1-flow overflow-visible">
-      <MobileCardRow allowOverflow>
+      <MobileCardRow>
           {hasMapbox ? (
             <MapboxAddressField
               label="Pickup address"
@@ -350,23 +335,18 @@ export default function MobileStep1AddressCards({
         </MobileCardRow>
 
         <MobileCardRow>
-          <label className="block">
-            <span className={mobileLabel}>Pickup property type</span>
-              <select
-                id="quote-mobile-pickup-property-type"
-                value={data.pickupPropertyType}
-                onChange={onPickupPropertyChange}
-                onBlur={onPickupPropertyCommit}
-                onFocus={closeDropdowns}
-                className={mobileInput}
-              >
-                {PROPERTY_TYPES.map((p) => (
-                  <option key={p} value={p}>
-                    {p}
-                  </option>
-                ))}
-              </select>
-            </label>
+          <MobileOptionBottomSheet
+            id="quote-mobile-pickup-property-type"
+            label="Pickup property type"
+            value={data.pickupPropertyType}
+            options={PROPERTY_TYPE_OPTIONS}
+            onChange={onPickupPropertyChange}
+            open={activeDropdown === 'pickup-property'}
+            onOpenChange={(next) => {
+              if (next) closeDropdowns()
+              setActiveDropdown(next ? 'pickup-property' : null)
+            }}
+          />
         </MobileCardRow>
 
         {show.pickupFloor ? (
@@ -398,7 +378,7 @@ export default function MobileStep1AddressCards({
           </MobileCardRow>
         ) : null}
 
-        <MobileCardRow allowOverflow>
+        <MobileCardRow>
           {hasMapbox ? (
             <MapboxAddressField
               label="Delivery address"
@@ -441,23 +421,18 @@ export default function MobileStep1AddressCards({
         </MobileCardRow>
 
         <MobileCardRow>
-          <label className="block">
-            <span className={mobileLabel}>Delivery property type</span>
-            <select
-              id="quote-mobile-delivery-property-type"
-              value={data.deliveryPropertyType}
-              onChange={onDeliveryPropertyChange}
-              onBlur={onDeliveryPropertyCommit}
-              onFocus={closeDropdowns}
-              className={mobileInput}
-            >
-              {PROPERTY_TYPES.map((p) => (
-                <option key={p} value={p}>
-                  {p}
-                </option>
-              ))}
-            </select>
-          </label>
+          <MobileOptionBottomSheet
+            id="quote-mobile-delivery-property-type"
+            label="Delivery property type"
+            value={data.deliveryPropertyType}
+            options={PROPERTY_TYPE_OPTIONS}
+            onChange={onDeliveryPropertyChange}
+            open={activeDropdown === 'delivery-property'}
+            onOpenChange={(next) => {
+              if (next) closeDropdowns()
+              setActiveDropdown(next ? 'delivery-property' : null)
+            }}
+          />
         </MobileCardRow>
 
           {show.deliveryFloor ? (

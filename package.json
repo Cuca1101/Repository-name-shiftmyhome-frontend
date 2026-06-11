@@ -14,7 +14,8 @@
     "seo:final-audit": "node scripts/seo-final-audit.mjs",
     "seo:crawl:report": "node scripts/seo-crawl-report.mjs",
     "db:apply-062": "node scripts/apply-migration-062.mjs",
-    "test:extra-charge-pricing": "node scripts/test-extra-charge-pricing.mjs"
+    "test:extra-charge-pricing": "node scripts/test-extra-charge-pricing.mjs",
+    "logo:generate": "node scripts/generate-logo-transparent.mjs"
   },
   "dependencies": {
     "@emailjs/browser": "^4.4.1",
@@ -35,6 +36,7 @@
     "autoprefixer": "^10.4.20",
     "playwright": "^1.60.0",
     "postcss": "^8.4.49",
+    "sharp": "^0.34.5",
     "tailwindcss": "^3.4.15",
     "vite": "^5.4.11"
   }

@@ -17,7 +17,7 @@ export default function DesktopHero() {
   const heroVideoUrl = h.heroVideoUrl || ''
 
   return (
-    <section id="home" className="hero-desktop-split scroll-mt-[76px] overflow-hidden bg-white">
+    <section id="home" className="hero-desktop-split scroll-mt-[76px] overflow-hidden">
       <div className="hero-desktop-split-grid grid min-w-0 lg:grid-cols-2 lg:items-stretch">
         <div className="hero-text-panel flex min-w-0 flex-col justify-center">
           <div className="home-container py-8 sm:py-10 lg:max-w-none lg:py-12 lg:pl-8 lg:pr-6 xl:pl-10 xl:pr-8">
@@ -84,7 +84,7 @@ export default function DesktopHero() {
             imageUrl={heroImage}
             videoUrl={heroVideoUrl}
             useVideo={useHeroVideo}
-            overlay="panel-edge"
+            overlay="none"
           />
         </div>
       </div>

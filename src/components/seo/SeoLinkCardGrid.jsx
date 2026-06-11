@@ -2,13 +2,13 @@ import { Link } from 'react-router-dom'
 
 /**
  * Grid of location / service links using the shared seo-service-card style.
- * @param {{ links: { href: string, label: string }[] }} props
+ * @param {{ links: { href: string, label: string }[], className?: string }} props
  */
-export default function SeoLinkCardGrid({ links }) {
+export default function SeoLinkCardGrid({ links, className = '' }) {
   if (!links?.length) return null
 
   return (
-    <ul className="mt-4 grid gap-2.5 sm:mt-5 sm:grid-cols-2 sm:gap-3 lg:grid-cols-3">
+    <ul className={`mt-4 grid gap-2.5 sm:mt-5 sm:grid-cols-2 sm:gap-3 lg:grid-cols-3 ${className}`.trim()}>
       {links.map(({ href, label }) => (
         <li key={href}>
           <Link to={href} className="seo-service-card">

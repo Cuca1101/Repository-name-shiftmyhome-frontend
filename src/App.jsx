@@ -155,9 +155,9 @@ export default function App() {
           key={path}
           path={path}
           element={
-            <ServiceQuoteLayout>
+            <PublicLayout>
               <SeoLandingPage />
-            </ServiceQuoteLayout>
+            </PublicLayout>
           }
         />
       ))}

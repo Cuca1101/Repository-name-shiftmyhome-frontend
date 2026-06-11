@@ -195,10 +195,6 @@
     box-shadow: 0 6px 18px rgb(37 99 235 / 0.42);
   }
 
-  .nav-logo-slab {
-    clip-path: polygon(0 0, calc(100% - 16px) 0, 100% 100%, 0 100%);
-  }
-
   .hero-bg-image {
     background-size: cover;
     background-position: center;
@@ -230,7 +226,7 @@
   /* Desktop hero panel — show more of the scene, less crop/zoom */
   @media (min-width: 1024px) {
     .hero-media-panel {
-      background-color: rgb(248 250 252);
+      background: rgb(191 219 254);
     }
 
     .hero-media-panel .hero-bg-video {
@@ -242,11 +238,12 @@
       background-size: contain;
       background-position: center center;
       background-repeat: no-repeat;
+      background-color: transparent;
     }
   }
 
   .hero-text-panel {
-    @apply bg-gradient-to-br from-blue-50 via-sky-50 to-brand-50/90;
+    @apply bg-blue-200;
   }
 
   .hero-media-panel-edge {
@@ -258,87 +255,25 @@
     );
   }
 
-  /* Desktop homepage hero — soft seam between text panel and video */
+  /* Desktop homepage hero — clean 50/50 split (no mist between text and video) */
   @media (min-width: 1024px) {
     .hero-desktop-split {
-      background: linear-gradient(
-        90deg,
-        rgb(239 246 255) 0%,
-        rgb(224 242 254) 42%,
-        rgb(248 250 252) 54%,
-        rgb(255 255 255) 100%
-      );
+      background: rgb(191 219 254);
     }
 
     .hero-desktop-split-grid {
       position: relative;
-      isolation: isolate;
     }
 
     .hero-desktop-split .hero-text-panel {
       position: relative;
       z-index: 2;
-      overflow: visible;
-      background: linear-gradient(
-        125deg,
-        rgb(239 246 255) 0%,
-        rgb(224 242 254 / 0.95) 55%,
-        rgb(224 242 254 / 0.35) 88%,
-        transparent 100%
-      );
-    }
-
-    .hero-desktop-split .hero-text-panel::after {
-      content: '';
-      position: absolute;
-      top: -1px;
-      right: -7.5rem;
-      bottom: -1px;
-      width: 11rem;
-      pointer-events: none;
-      z-index: 1;
-      background: linear-gradient(
-        95deg,
-        rgb(224 242 254 / 0.85) 0%,
-        rgb(224 242 254 / 0.45) 38%,
-        rgb(219 234 254 / 0.15) 72%,
-        transparent 100%
-      );
-      clip-path: polygon(0 0, 100% 7%, 100% 93%, 0 100%);
-    }
-
-    .hero-desktop-split-grid::before {
-      content: '';
-      position: absolute;
-      top: 0;
-      bottom: 0;
-      left: 50%;
-      width: min(14rem, 22vw);
-      transform: translateX(-58%);
-      pointer-events: none;
-      z-index: 4;
-      background: linear-gradient(
-        90deg,
-        rgb(239 246 255 / 0.75) 0%,
-        rgb(224 242 254 / 0.35) 42%,
-        rgb(255 255 255 / 0.08) 78%,
-        transparent 100%
-      );
-      clip-path: polygon(0 0, 100% 5%, 100% 95%, 0 100%);
+      background: rgb(191 219 254);
     }
 
     .hero-desktop-split .hero-media-panel {
       z-index: 1;
-      background-color: transparent;
-    }
-
-    .hero-desktop-split .hero-media-panel-edge {
-      background: linear-gradient(
-        90deg,
-        rgb(239 246 255 / 0.42) 0%,
-        rgb(224 242 254 / 0.14) 14%,
-        transparent 28%
-      );
+      background: rgb(191 219 254);
     }
   }
 
@@ -416,6 +351,42 @@
     @apply relative isolate overflow-hidden border-b border-slate-200/80;
   }
 
+  /* SEO city pages — split hero aligned with ShiftMyHome homepage (not full-bleed competitor-style overlay) */
+  .seo-hero-split {
+    @apply border-b border-slate-200/80 bg-blue-200;
+  }
+
+  .seo-hero-split-title {
+    @apply mt-2 text-balance text-[1.5rem] font-extrabold leading-[1.12] tracking-tight text-navy sm:text-4xl lg:text-[2.35rem] lg:leading-[1.1];
+  }
+
+  .seo-hero-split-teaser {
+    @apply mt-3 max-w-xl text-sm leading-relaxed text-slate-600 sm:text-base;
+  }
+
+  .seo-hero-split-badge {
+    @apply inline-flex min-h-[36px] max-w-full items-center gap-2 rounded-full border border-white/80 bg-white/95 px-3 py-1.5 text-[0.7rem] font-semibold text-slate-800 shadow-sm sm:min-h-[40px] sm:px-4 sm:text-xs;
+  }
+
+  .seo-hero-split-badge-icon {
+    @apply flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-brand-50;
+  }
+
+  .seo-hero-split-panel {
+    background: rgb(191 219 254);
+  }
+
+  .seo-hero-split-media {
+    background: rgb(191 219 254);
+  }
+
+  @media (min-width: 1024px) {
+    .seo-hero-split-media {
+      display: flex;
+      align-items: center;
+    }
+  }
+
   .seo-hero-bg {
     @apply pointer-events-none absolute inset-0 h-full w-full object-cover opacity-0 transition-opacity duration-500;
   }
@@ -463,6 +434,15 @@
 
   .seo-trust-pill-icon {
     @apply flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-emerald-500/90 text-white;
+  }
+
+  .seo-city-map-pin {
+    width: 14px;
+    height: 14px;
+    border-radius: 9999px;
+    background: linear-gradient(135deg, #2563eb, #059669);
+    border: 3px solid #fff;
+    box-shadow: 0 2px 10px rgb(15 23 42 / 0.28);
   }
 
   .seo-chip {
@@ -634,7 +614,17 @@
   }
 
   .site-footer-premium .footer-nav-list {
-    @apply mt-3 space-y-1.5;
+    @apply mt-3 space-y-2;
+  }
+
+  @media (max-width: 639px) {
+    .site-footer-premium .footer-nav-link {
+      @apply min-h-[36px] py-0.5 text-[13px];
+    }
+
+    .site-footer-premium .footer-nav-heading {
+      @apply text-[11px];
+    }
   }
 
   .site-footer-premium .footer-cta-link {

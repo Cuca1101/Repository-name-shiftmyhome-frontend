@@ -1,15 +1,21 @@
 import { useEffect, useId, useRef, useState } from 'react'
+import MobileOptionBottomSheet from './MobileOptionBottomSheet'
 
 export { floorNeedsLiftQuestion, floorHasLiftPricing } from '../../lib/floorAccess'
 
 export const FLOOR_OPTIONS = [
   { value: -1, label: 'Basement' },
-  { value: 0, label: 'Ground floor' },
-  { value: 1, label: '1st' },
-  { value: 2, label: '2nd' },
-  { value: 3, label: '3rd' },
-  { value: 4, label: '4th' },
-  { value: 5, label: '5th+' },
+  { value: 0, label: 'Ground Floor' },
+  { value: 1, label: '1st Floor' },
+  { value: 2, label: '2nd Floor' },
+  { value: 3, label: '3rd Floor' },
+  { value: 4, label: '4th Floor' },
+  { value: 5, label: '5th Floor' },
+  { value: 6, label: '6th Floor' },
+  { value: 7, label: '7th Floor' },
+  { value: 8, label: '8th Floor' },
+  { value: 9, label: '9th Floor' },
+  { value: 10, label: '10+ Floors' },
 ]
 
 const PLACEHOLDER = 'Choose floor'
@@ -66,7 +72,7 @@ export default function FloorSelect({
   const triggerHeight = isMobileCard ? 'min-h-11' : 'h-10 sm:h-12'
 
   useEffect(() => {
-    if (!open) return
+    if (!open || isMobileCard) return
     const onDoc = (e) => {
       if (!rootRef.current?.contains(e.target)) setOpen(false)
     }
@@ -79,16 +85,31 @@ export default function FloorSelect({
       document.removeEventListener('pointerdown', onDoc, true)
       document.removeEventListener('keydown', onKey)
     }
-  }, [open])
+  }, [open, isMobileCard])
 
   const pick = (v) => {
     onChange(v)
     setOpen(false)
   }
 
+  if (isMobileCard) {
+    return (
+      <MobileOptionBottomSheet
+        id={id}
+        label={labelText}
+        value={value}
+        options={FLOOR_OPTIONS}
+        onChange={pick}
+        placeholder={PLACEHOLDER}
+        open={open}
+        onOpenChange={setOpen}
+      />
+    )
+  }
+
   return (
     <div ref={rootRef} className="relative box-border min-w-0 w-full">
-      <label className={isMobileCard ? mobileLabelClass : labelClass} htmlFor={id} id={`${id}-label`}>
+      <label className={labelClass} htmlFor={id} id={`${id}-label`}>
         {labelText}
       </label>
       <button

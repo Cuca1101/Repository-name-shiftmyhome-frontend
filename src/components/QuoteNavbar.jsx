@@ -15,9 +15,9 @@ function DesktopQuoteNavbar() {
       <nav className="home-container flex min-h-[56px] min-w-0 items-center justify-between gap-2 sm:min-h-[60px] sm:gap-4">
         <Link
           to="/"
-          className="nav-logo-slab relative z-10 -ml-3 flex shrink-0 items-center self-stretch bg-white py-1.5 pl-3 pr-6 sm:-ml-4 sm:pl-4 sm:pr-8"
+          className="relative z-10 flex shrink-0 items-center self-stretch py-1.5"
         >
-          <Logo asImage src={navbar.logoUrl || undefined} />
+          <Logo asImage variant="dark" src={navbar.logoUrl || undefined} />
         </Link>
 
         <span className="hidden min-w-0 truncate text-xs font-medium tracking-wide text-white/75 sm:inline sm:text-[13px]">
@@ -36,7 +36,7 @@ function DesktopQuoteNavbar() {
           </Link>
           <a
             href={`tel:${phoneTel}`}
-            className="inline-flex min-h-[40px] items-center gap-1.5 rounded-lg bg-white/10 px-2.5 py-1.5 text-xs font-semibold text-white ring-1 ring-white/15 transition hover:bg-white/15 sm:px-3 sm:text-sm"
+            className="inline-flex min-h-[40px] items-center gap-1.5 rounded-lg bg-white/10 px-2.5 py-1.5 text-[15px] font-semibold text-white ring-1 ring-white/15 transition hover:bg-white/15 sm:px-3 sm:text-base"
           >
             <svg className="h-4 w-4 shrink-0 text-brand-300" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" aria-hidden>
               <path

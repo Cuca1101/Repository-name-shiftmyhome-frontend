@@ -1,14 +1,13 @@
 import { useEffect, useState } from 'react'
-import { Link, useLocation } from 'react-router-dom'
+import { useLocation } from 'react-router-dom'
 import Logo from '../Logo'
 import HomeSectionLink from '../HomeSectionLink'
+import QuoteNavCta from '../QuoteNavCta'
 import CoverageLink from '../CoverageLink'
 import { CONTACT } from '../../config'
 import { useWebsiteCms } from '../../context/WebsiteCmsContext'
 
 const navItems = [
-  { sectionId: 'home', label: 'Home' },
-  { sectionId: 'services', label: 'Services' },
   { sectionId: 'about', label: 'About' },
   { sectionId: 'reviews', label: 'Reviews' },
   { sectionId: 'coverage', label: 'Coverage' },
@@ -34,10 +33,10 @@ export default function MobileNavbar() {
       <nav className="flex min-h-[56px] min-w-0 max-w-full items-center justify-between gap-2 px-3">
         <HomeSectionLink
           sectionId="home"
-          className="nav-logo-slab relative z-10 -ml-1 flex min-w-0 max-w-[min(58vw,12.5rem)] shrink items-center overflow-hidden bg-white py-1.5 pl-2 pr-4"
+          className="relative z-10 flex min-w-0 max-w-[min(82vw,15.5rem)] shrink items-center py-1"
           onNavigate={closeMenu}
         >
-          <Logo asImage className="max-w-full" src={navbar.logoUrl || undefined} />
+          <Logo asImage variant="dark" compact="nav" className="max-w-full" src={navbar.logoUrl || undefined} />
         </HomeSectionLink>
 
         <div className="flex shrink-0 items-center gap-1.5">
@@ -95,20 +94,13 @@ export default function MobileNavbar() {
                 </HomeSectionLink>
               ),
             )}
-            <Link
-              to="/blog"
-              className="rounded-lg px-2 py-3 text-[15px] font-medium text-white/90 active:bg-white/10"
-              onClick={closeMenu}
-            >
-              Blog
-            </Link>
-            <HomeSectionLink
-              sectionId="services"
+            <QuoteNavCta
               className="btn-premium-primary mt-2 min-h-[48px] w-full text-sm"
               onNavigate={closeMenu}
+              trackLabel="Nav: Get a Quote"
             >
               {ctaText}
-            </HomeSectionLink>
+            </QuoteNavCta>
           </div>
         </div>
       ) : null}

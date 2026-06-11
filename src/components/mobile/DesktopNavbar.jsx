@@ -1,24 +1,22 @@
 import { useEffect, useState } from 'react'
-import { Link, useLocation } from 'react-router-dom'
+import { useLocation } from 'react-router-dom'
 import Logo from '../Logo'
 import HomeSectionLink from '../HomeSectionLink'
+import QuoteNavCta from '../QuoteNavCta'
 import CoverageLink from '../CoverageLink'
 import { CONTACT } from '../../config'
 import { useWebsiteCms } from '../../context/WebsiteCmsContext'
 
 const navItems = [
-  { sectionId: 'home', label: 'Home' },
-  { sectionId: 'services', label: 'Services' },
   { sectionId: 'about', label: 'About us' },
   { sectionId: 'reviews', label: 'Reviews' },
   { sectionId: 'coverage', label: 'Coverage' },
   { sectionId: 'contact', label: 'Contact' },
-  { to: '/blog', label: 'Blog' },
 ]
 
 function navLinkClass(isActive) {
   const base =
-    'relative px-1 py-1 text-[13px] font-medium tracking-wide text-white/85 transition-colors duration-200 hover:text-white xl:text-sm'
+    'relative px-1 py-1 text-[14px] font-medium tracking-wide text-white/85 transition-colors duration-200 hover:text-white xl:text-[15px]'
   if (!isActive) return base
   return `${base} text-white after:absolute after:-bottom-1 after:left-0 after:right-0 after:h-0.5 after:rounded-full after:bg-brand-400`
 }
@@ -30,7 +28,7 @@ export default function DesktopNavbar() {
   const phoneTel = navbar.phoneTel || CONTACT.phoneTel
   const ctaText = navbar.ctaText || 'Get a Quote'
   const { pathname, hash } = useLocation()
-  const [activeSection, setActiveSection] = useState('home')
+  const [activeSection, setActiveSection] = useState('')
 
   useEffect(() => {
     if (pathname !== '/') {
@@ -42,7 +40,7 @@ export default function DesktopNavbar() {
       setActiveSection(fromHash)
       return
     }
-    setActiveSection('home')
+    setActiveSection('')
   }, [pathname, hash])
 
   useEffect(() => {
@@ -76,34 +74,15 @@ export default function DesktopNavbar() {
       <nav className="home-container flex min-h-[68px] min-w-0 items-stretch justify-between gap-2 sm:min-h-[72px] lg:min-h-[76px]">
         <HomeSectionLink
           sectionId="home"
-          className="nav-logo-slab relative z-10 -ml-4 flex shrink-0 items-center self-stretch bg-white py-2 pl-4 pr-8 sm:-ml-6 sm:pl-5 sm:pr-10 lg:pr-11"
+          className="relative z-10 flex shrink-0 items-center self-stretch py-1.5 sm:py-2"
         >
-          <Logo asImage src={navbar.logoUrl || undefined} />
+          <Logo asImage variant="dark" src={navbar.logoUrl || undefined} />
         </HomeSectionLink>
 
-        <div className="hidden min-w-0 flex-1 items-center justify-center gap-4 md:flex xl:gap-6">
+        <div className="hidden min-w-0 flex-1 translate-y-2.5 items-center justify-center gap-4 md:flex sm:translate-y-3 lg:translate-y-3.5 xl:gap-6">
           {navItems.map((item) => {
-            const isBlog = Boolean(item.to)
-            const linkClassName = navLinkClass(
-              isBlog ? pathname === item.to : isHome && activeSection === item.sectionId,
-            )
-            const label = (
-              <span className="inline-flex items-center gap-0.5">
-                {item.label}
-                {item.sectionId === 'services' && (
-                  <svg className="mt-0.5 h-3.5 w-3.5 opacity-70" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden>
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="m19 9-7 7-7-7" />
-                  </svg>
-                )}
-              </span>
-            )
-            if (isBlog) {
-              return (
-                <Link key={item.to} to={item.to} className={linkClassName}>
-                  {label}
-                </Link>
-              )
-            }
+            const linkClassName = navLinkClass(isHome && activeSection === item.sectionId)
+            const label = <span>{item.label}</span>
             if (item.sectionId === 'coverage') {
               return (
                 <CoverageLink
@@ -131,10 +110,10 @@ export default function DesktopNavbar() {
         <div className="flex shrink-0 items-center gap-2 sm:gap-3">
           <a
             href={`tel:${phoneTel}`}
-            className="hidden items-center gap-2 text-sm font-medium text-white/95 transition hover:text-white md:inline-flex"
+            className="hidden items-center gap-2.5 text-base font-semibold text-white/95 transition hover:text-white md:inline-flex xl:text-[17px]"
           >
-            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-white/10 text-brand-300">
-              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" aria-hidden>
+            <span className="flex h-10 w-10 items-center justify-center rounded-full bg-white/10 text-brand-300">
+              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" aria-hidden>
                 <path
                   strokeLinecap="round"
                   strokeLinejoin="round"
@@ -144,13 +123,12 @@ export default function DesktopNavbar() {
             </span>
             <span className="whitespace-nowrap">{phoneDisplay}</span>
           </a>
-          <HomeSectionLink
-            sectionId="services"
+          <QuoteNavCta
             className="btn-premium-primary min-h-[40px] px-4 py-2 text-sm sm:min-h-[42px] sm:px-5"
-            onNavigate={() => {}}
+            trackLabel="Nav: Get a Quote"
           >
             {ctaText}
-          </HomeSectionLink>
+          </QuoteNavCta>
         </div>
       </nav>
     </header>

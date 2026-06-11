@@ -5,14 +5,11 @@ import { formatCompactArrivalLine } from './emailQuotePayload'
 import { formatDateUK } from './formatDateDisplay'
 import { getEffectiveReassemblyItemCount } from './quoteWizardReassembly'
 
-/** Floor label for move summary: "1st floor", "2nd floor", etc. */
+/** Floor label for move summary. */
 export function formatMoveSummaryFloorLabel(n) {
   if (n == null) return ''
   const o = FLOOR_OPTIONS.find((x) => x.value === n)
-  if (!o) return ''
-  if (o.value === -1 || o.value === 0) return o.label
-  if (o.label.endsWith('+')) return `${o.label} floor`
-  return `${o.label} floor`
+  return o ? o.label : ''
 }
 
 /** "Lift yes" / "Lift no" for summary — blank on ground floor only. */

@@ -1,11 +1,8 @@
+import { SERVICE_PAGES } from './servicePages.js'
+
 /**
- * Homepage service card images (local assets). Service pages keep servicePages.heroImage.
+ * Homepage + SEO service card images — synced with service page hero photos.
  */
-export const HOME_SERVICE_CARD_IMAGES = {
-  'house-removals': '/assets/services/house-removals.jpg',
-  'man-with-van': '/assets/services/man-with-van.jpg',
-  'furniture-delivery': '/assets/services/furniture-delivery.jpg',
-  'office-moves': '/assets/services/office-moves.jpg',
-  'student-moves': '/assets/services/student-moves.jpg',
-  clearance: '/assets/services/clearance.jpg',
-}
+export const HOME_SERVICE_CARD_IMAGES = Object.fromEntries(
+  SERVICE_PAGES.map((page) => [page.slug, page.heroImage]),
+)

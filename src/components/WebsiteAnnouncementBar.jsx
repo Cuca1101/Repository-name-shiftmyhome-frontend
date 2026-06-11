@@ -64,7 +64,7 @@ export default function WebsiteAnnouncementBar() {
               hasButton ? 'text-center sm:text-left' : 'text-center'
             }`}
           >
-            <p className="break-words text-xs font-medium leading-snug sm:text-sm">
+            <p className="break-words text-[13px] font-semibold leading-tight sm:text-[15px]">
               {normalized.messageText}
             </p>
             {hasButton ? (

@@ -13,8 +13,7 @@ export const SERVICE_PAGES = [
     shortDescription:
       'Full and partial house moves — careful packing, loading, and delivery door to door. Tell us about your home and inventory for an accurate estimate.',
     heroTeaser: 'Full & partial moves — packed, loaded, delivered.',
-    heroImage:
-      'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=2000&q=80',
+    heroImage: '/assets/services/house-removals.jpg?v=2',
   },
   {
     path: '/man-with-van',

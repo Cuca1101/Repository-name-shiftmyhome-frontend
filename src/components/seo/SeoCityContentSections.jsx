@@ -1,5 +1,6 @@
 import SeoCityBodyServiceCard from './SeoCityBodyServiceCard'
 import SeoInfoBodyCard from './SeoInfoBodyCard'
+import { useSeoQuoteModal } from '../../context/SeoQuoteModalContext'
 import {
   getCityServicesHeading,
   getCityServicesIntro,
@@ -14,11 +15,11 @@ import {
  * @param {{
  *   page: import('../../data/seoPages').SeoPageConfig,
  *   heroImage: string,
- *   quoteAnchor?: string,
  *   pagePath: string,
  * }} props
  */
-export default function SeoCityContentSections({ page, heroImage, quoteAnchor = '#seo-quote', pagePath }) {
+export default function SeoCityContentSections({ page, heroImage, pagePath }) {
+  const { openQuote } = useSeoQuoteModal()
   const bodySections = page.bodySections ?? []
   const introHeading = getIntroHeading(page)
   const quoteSidebarTitle = getQuoteSidebarTitle(page)
@@ -32,8 +33,8 @@ export default function SeoCityContentSections({ page, heroImage, quoteAnchor = 
         <div className="seo-section-inner">
           <div className="grid gap-5 lg:grid-cols-3 lg:gap-6 lg:items-stretch">
             <div className="lg:col-span-2">
-              <article className="service-card-shell h-full min-h-[280px] overflow-hidden sm:min-h-[320px]">
-                <div className="relative flex min-h-[280px] flex-1 flex-col sm:min-h-[320px]">
+              <article className="service-card-shell mx-auto h-[280px] w-full max-w-[min(96vw,28rem)] overflow-hidden sm:h-[320px] sm:max-w-[min(96vw,32rem)] lg:mx-0 lg:h-full lg:min-h-[320px] lg:max-w-none">
+                <div className="relative flex h-full min-h-0 flex-1 flex-col">
                   <img
                     src={heroImage}
                     alt=""
@@ -79,12 +80,12 @@ export default function SeoCityContentSections({ page, heroImage, quoteAnchor = 
                   </li>
                 ))}
               </ul>
-              <a href={quoteAnchor} className="service-card-cta mt-6 min-h-[48px] text-sm">
-                Get a Quote
+              <button type="button" onClick={openQuote} className="service-card-cta mt-6 min-h-[48px] text-sm">
+                Start your quote
                 <span className="opacity-90" aria-hidden>
                   →
                 </span>
-              </a>
+              </button>
             </aside>
           </div>
         </div>
@@ -106,11 +107,10 @@ export default function SeoCityContentSections({ page, heroImage, quoteAnchor = 
                   <SeoCityBodyServiceCard
                     key={section.heading}
                     section={section}
-                    quoteAnchor={quoteAnchor}
                     pagePath={pagePath}
                   />
                 ) : (
-                  <SeoInfoBodyCard key={section.heading} section={section} quoteAnchor={quoteAnchor} />
+                  <SeoInfoBodyCard key={section.heading} section={section} />
                 ),
               )}
             </ul>
