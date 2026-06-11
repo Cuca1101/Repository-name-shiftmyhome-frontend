@@ -7,6 +7,7 @@ import { getLocalDateYYYYMMDD } from '../../../lib/moveDateLocal'
 import MobileStepTitleWithRef from '../MobileStepTitleWithRef'
 import MobileStep1AddressCards from '../MobileStep1AddressCards'
 import Step1ArrivalFields from '../Step1ArrivalFields'
+import useMobileQuoteLayout from '../../../hooks/useMobileQuoteLayout'
 
 const PROPERTY_TYPES = ['House', 'Flat / apartment', 'Bungalow', 'Commercial', 'Other']
 
@@ -109,6 +110,7 @@ export default function Step1Address({
 
   const showPickupLift = floorNeedsLiftQuestion(data.pickupFloor)
   const showDeliveryLift = floorNeedsLiftQuestion(data.deliveryFloor)
+  const isMobileLayout = useMobileQuoteLayout()
 
   return (
     <div data-quote-step="1" className="box-border w-full min-w-0 space-y-2 sm:space-y-8">
@@ -173,7 +175,7 @@ export default function Step1Address({
         </div>
       )}
 
-      <div className="md:hidden overflow-visible">
+      {isMobileLayout ? (
         <MobileStep1AddressCards
           data={data}
           onChange={onChange}
@@ -183,9 +185,8 @@ export default function Step1Address({
           showPickupLift={showPickupLift}
           showDeliveryLift={showDeliveryLift}
         />
-      </div>
-
-      <div className="hidden md:grid md:grid-cols-2 md:gap-x-8 md:gap-y-6 md:items-start">
+      ) : (
+        <div className="grid md:grid-cols-2 md:gap-x-8 md:gap-y-6 md:items-start">
         {HAS_MAPBOX ? (
           <>
             <MapboxAddressField
@@ -366,7 +367,8 @@ export default function Step1Address({
               : 'Enter the driving distance in miles for your estimate.'}
           </span>
         </label>
-      </div>
+        </div>
+      )}
     </div>
   )
 }

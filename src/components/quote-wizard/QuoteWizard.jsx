@@ -9,6 +9,7 @@ import Step3ReviewLayout from './Step3ReviewLayout'
 import Step4Review from './steps/Step4Review'
 import MobileQuoteStickyActions from '../mobile/MobileQuoteStickyActions'
 import QuoteStep2TransitionLoading from './QuoteStep2TransitionLoading'
+import useMobileQuoteLayout from '../../hooks/useMobileQuoteLayout'
 
 function step1ArrivalErrorMessage(feedback) {
   if (feedback.type !== 'error' || !feedback.text) return ''
@@ -54,6 +55,7 @@ function QuoteWizardInner({ compact = false, servicePreSelected = false }) {
     uploadCustomerPhotosAfterPayment,
   } = useQuoteWizard()
 
+  const isMobileLayout = useMobileQuoteLayout()
   const serviceTypeOptions = allowServiceChange ? [...SERVICE_TYPES] : undefined
 
   const summaryProps = {
@@ -298,39 +300,35 @@ function QuoteWizardInner({ compact = false, servicePreSelected = false }) {
 
         {loadingSettings ? (
           <p className="text-center text-slate-600">Loading…</p>
+        ) : isMobileLayout ? (
+          <div className="quote-wizard-mobile-stack block min-w-0 max-w-full space-y-1.5">
+            <div
+              className={`quote-wizard-form-card box-border min-w-0 w-full max-w-full rounded-xl border border-slate-200 bg-white p-2 shadow-card${compact ? ' quote-wizard-card' : ''}`}
+            >
+              {stepPanel}
+            </div>
+            <MoveSummary {...summaryProps} />
+            <MobileQuoteStickyActions
+              step={step}
+              onBack={back}
+              onNext={next}
+              nextDisabled={quoteStepTransitionLoading}
+              nextLoading={quoteStepTransitionLoading && step === 2}
+            />
+          </div>
         ) : (
-          <>
-            {/* Mobile: steps → open summary (map + details) → in-flow nav */}
-            <div className="quote-wizard-mobile-stack block min-w-0 max-w-full space-y-1.5 md:hidden">
+          <div className="grid items-start gap-4 md:grid-cols-[minmax(0,1fr)_minmax(220px,34%)] lg:grid-cols-[minmax(0,1fr)_minmax(260px,min(100%,340px))] lg:gap-6">
+            <div className="min-w-0">
               <div
-                className={`quote-wizard-form-card box-border min-w-0 w-full max-w-full rounded-xl border border-slate-200 bg-white p-2 shadow-card${compact ? ' quote-wizard-card' : ''}`}
+                className={`quote-wizard-form-card min-w-0 rounded-2xl border border-slate-200 bg-white shadow-card ${
+                  step === 3 || step === 4 ? 'p-4 lg:p-6' : 'p-8'
+                } ${compact ? 'quote-wizard-card ' : ''}`}
               >
                 {stepPanel}
               </div>
-              <MoveSummary {...summaryProps} />
-              <MobileQuoteStickyActions
-                step={step}
-                onBack={back}
-                onNext={next}
-                nextDisabled={quoteStepTransitionLoading}
-                nextLoading={quoteStepTransitionLoading && step === 2}
-              />
             </div>
-
-            {/* Desktop: main + sidebar (Mapbox & move summary), same grid on all steps */}
-            <div className="hidden items-start gap-4 md:grid md:grid-cols-[minmax(0,1fr)_minmax(220px,34%)] lg:grid-cols-[minmax(0,1fr)_minmax(260px,min(100%,340px))] lg:gap-6">
-              <div className="min-w-0">
-                <div
-                  className={`quote-wizard-form-card min-w-0 rounded-2xl border border-slate-200 bg-white shadow-card ${
-                    step === 3 || step === 4 ? 'p-4 lg:p-6' : 'p-8'
-                  } ${compact ? 'quote-wizard-card ' : ''}`}
-                >
-                  {stepPanel}
-                </div>
-              </div>
-              <MoveSummary {...summaryProps} />
-            </div>
-          </>
+            <MoveSummary {...summaryProps} />
+          </div>
         )}
       </div>
     </section>

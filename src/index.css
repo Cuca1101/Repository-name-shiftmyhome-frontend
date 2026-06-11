@@ -783,12 +783,12 @@
     font-size: 0.5625rem;
   }
 
-  .quote-flow-scope #quote-wizard-top .relative.mb-2 {
+  .quote-flow-scope #quote-wizard-top .relative.mb-1 {
     margin-bottom: 0.25rem;
   }
 
-  .quote-flow-scope #quote-wizard-top .relative.mb-2 > .h-1,
-  .quote-flow-scope #quote-wizard-top .relative.mb-2 > .overflow-hidden {
+  .quote-flow-scope #quote-wizard-top .relative.mb-1 > .h-1,
+  .quote-flow-scope #quote-wizard-top .relative.mb-1 > .overflow-hidden {
     height: 2px;
   }
 

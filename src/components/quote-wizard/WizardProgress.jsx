@@ -13,12 +13,14 @@ const SHORT_LABELS = {
 }
 
 export default function WizardProgress({ step }) {
+  const progressPct = Math.min(100, Math.max(0, (step / STEPS.length) * 100))
+
   return (
     <div className="mb-1.5 rounded-lg border border-slate-200 bg-white p-1 shadow-card md:mb-8 md:rounded-xl md:p-6">
       <div className="relative mb-1 h-1 overflow-hidden rounded-full bg-slate-100 md:mb-6 md:h-2">
         <div
           className="absolute left-0 top-0 h-full rounded-full bg-gradient-to-r from-brand-600 to-emerald-500 transition-all duration-300 ease-out"
-          style={{ width: `${((step - 1) / (STEPS.length - 1)) * 100}%` }}
+          style={{ width: `${progressPct}%` }}
         />
       </div>
       <ol className="grid grid-cols-4 gap-0.5 text-[0.5625rem] font-semibold leading-tight text-slate-500 md:gap-2 md:text-sm">
