@@ -39,7 +39,8 @@ export default function ServicePageSeoSections({
                 <div className="relative flex min-h-[280px] flex-1 flex-col sm:min-h-[320px]">
                   <img
                     src={heroImage}
-                    alt=""
+                    alt={`${content.introHeading} — ShiftMyHome removals Scotland`}
+                    title={`${content.introHeading} | ShiftMyHome`}
                     loading="lazy"
                     decoding="async"
                     className="absolute inset-0 h-full w-full object-cover object-center"

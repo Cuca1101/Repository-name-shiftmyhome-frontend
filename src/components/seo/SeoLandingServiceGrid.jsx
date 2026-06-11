@@ -1,4 +1,5 @@
 import { useServiceGridCards } from '../../hooks/useServiceGridCards'
+import { getBrandedServiceImage } from '../../lib/getBrandedServiceImage'
 import { markNewQuoteFromServiceCard } from '../../lib/quoteSessionMode'
 import { useSeoQuoteModal } from '../../context/SeoQuoteModalContext'
 import HomeStyleServiceCard from './HomeStyleServiceCard'
@@ -20,7 +21,8 @@ export default function SeoLandingServiceGrid({ pagePath, quoteAnchor = '#seo-qu
             slug={card.slug}
             title={card.title}
             description={card.description}
-            imageSrc={card.imageSrc}
+            imageSrc={getBrandedServiceImage(card.slug)}
+            imageAlt={`${card.title} — ShiftMyHome removals Scotland`}
             price={card.price}
             buttonText={card.buttonText}
             href={hasModal ? '#seo-quote' : quoteAnchor}

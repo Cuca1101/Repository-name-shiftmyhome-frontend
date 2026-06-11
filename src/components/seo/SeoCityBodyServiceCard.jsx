@@ -1,8 +1,8 @@
 import HomeStyleServiceCard, { slugForServiceHeading } from './HomeStyleServiceCard'
 import { getServicePageByPath } from '../../constants/servicePages'
+import { getBrandedServiceImage } from '../../lib/getBrandedServiceImage'
 import { markNewQuoteFromServiceCard } from '../../lib/quoteSessionMode'
 import { useSeoQuoteModal } from '../../context/SeoQuoteModalContext'
-import { useServiceCardImageBySlug } from '../../hooks/useServiceGridCards'
 /**
  * @param {{
  *   section: { heading: string, paragraphs: string[] },
@@ -11,7 +11,6 @@ import { useServiceCardImageBySlug } from '../../hooks/useServiceGridCards'
  */
 export default function SeoCityBodyServiceCard({ section, pagePath }) {
   const { openQuote } = useSeoQuoteModal()
-  const getImageForSlug = useServiceCardImageBySlug()
   const slug = slugForServiceHeading(section.heading)
   const excerpt = section.paragraphs[0] ?? ''
   const serviceType = getServicePageByPath(`/${slug}`)?.serviceType ?? ''
@@ -22,7 +21,8 @@ export default function SeoCityBodyServiceCard({ section, pagePath }) {
         slug={slug}
         title={section.heading}
         description={excerpt}
-        imageSrc={getImageForSlug(slug)}
+        imageSrc={getBrandedServiceImage(slug)}
+        imageAlt={`${section.heading} — ShiftMyHome removals Scotland`}
         href="#seo-quote"
         onClick={(e) => {
           e.preventDefault()

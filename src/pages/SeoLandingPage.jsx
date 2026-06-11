@@ -10,9 +10,9 @@ import SeoCityMap from '../components/seo/SeoCityMap'
 import SupportCTASection from '../components/SupportCTASection'
 import RecentMovesGallerySection from '../components/RecentMovesGallerySection'
 import { SeoQuoteModalProvider, useSeoQuoteModal } from '../context/SeoQuoteModalContext'
-import { serviceTypeToSlug, useServiceCardImageBySlug } from '../hooks/useServiceGridCards'
+import { getBrandedServiceImage } from '../lib/getBrandedServiceImage'
+import { serviceTypeToSlug } from '../hooks/useServiceGridCards'
 import { getSeoPageByPath } from '../data/seoPages'
-import { getServicePageByPath } from '../constants/servicePages'
 import { normalizePublicPath } from '../lib/normalizePublicPath'
 import { useSeoSettings } from '../context/SeoSettingsContext'
 import { mergeSeoLandingPageConfig } from '../lib/seoSettingsMerge'
@@ -148,12 +148,13 @@ function SeoLandingPageContent({ page, routePath, heroImage, faqs, areasWeCover,
             <div className="seo-hero-split-frame relative mx-auto w-full max-w-[min(96vw,28rem)] overflow-hidden rounded-2xl shadow-xl shadow-slate-900/10 ring-1 ring-slate-900/10 sm:max-w-[min(96vw,32rem)] lg:mx-0 lg:max-w-none">
               <img
                 src={heroImage}
-                alt=""
+                alt={`${page.h1} — ShiftMyHome professional removals crew and van`}
+                title={`${page.h1} | ShiftMyHome`}
                 width={960}
                 height={640}
                 fetchPriority="high"
                 decoding="async"
-                className="h-[280px] w-full object-cover object-center sm:h-[320px] lg:h-auto lg:min-h-[360px]"
+                className="h-[280px] w-full object-cover object-center sm:h-[320px] lg:h-[360px] lg:min-h-[360px]"
               />
             </div>
           </div>
@@ -281,7 +282,6 @@ export default function SeoLandingPage() {
   const { pathname } = useLocation()
   const routePath = normalizePublicPath(pathname)
   const { getForPath } = useSeoSettings()
-  const getImageForSlug = useServiceCardImageBySlug()
   const basePage = getSeoPageByPath(routePath)
   const page = mergeSeoLandingPageConfig(basePage, getForPath(routePath))
 
@@ -292,9 +292,7 @@ export default function SeoLandingPage() {
   const areasWeCover = page.areasWeCover ?? []
   const nearby = page.nearbyLocations ?? []
   const slug = serviceTypeToSlug(page.serviceType)
-  const heroImage =
-    getServicePageByPath(`/${slug}`)?.heroImage ??
-    getImageForSlug(slug)
+  const heroImage = getBrandedServiceImage(slug)
   const faqs = normalizeSeoFaqs(page.faqs)
 
   return (

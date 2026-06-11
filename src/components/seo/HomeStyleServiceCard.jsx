@@ -15,6 +15,7 @@ import { HOME_SERVICE_CARD_IMAGES } from '../../constants/homeServiceCardImages'
  *   href: string,
  *   onClick?: () => void,
  *   className?: string,
+ *   imageAlt?: string,
  * }} props
  */
 export default function HomeStyleServiceCard({
@@ -27,10 +28,13 @@ export default function HomeStyleServiceCard({
   href,
   onClick,
   className = '',
+  imageAlt,
 }) {
   const Icon = iconBySlug[slug] ?? HouseIcon
   const ctaLabel = buttonText?.trim() || 'Get a Quote'
   const isHashLink = href.startsWith('#')
+  const resolvedImageAlt =
+    imageAlt?.trim() || `${title} — ShiftMyHome removals and man with van Scotland`
 
   const shellClassName = [
     'group service-card-shell flex h-[300px] w-full flex-col sm:h-[320px] lg:h-[340px]',
@@ -44,7 +48,8 @@ export default function HomeStyleServiceCard({
       <div className="relative flex min-h-0 flex-1 flex-col">
         <img
           src={imageSrc}
-          alt=""
+          alt={resolvedImageAlt}
+          title={resolvedImageAlt}
           loading="lazy"
           decoding="async"
           className="absolute inset-0 h-full w-full object-cover object-center transition-transform duration-500 ease-premium group-hover:scale-[1.05]"

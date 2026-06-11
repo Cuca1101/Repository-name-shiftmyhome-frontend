@@ -48,7 +48,8 @@ export default function DesktopServiceGrid() {
                   <div className="relative flex min-h-0 flex-1 flex-col">
                     <img
                       src={card.imageSrc}
-                      alt={card.title}
+                      alt={`${card.title} — ShiftMyHome removals Scotland`}
+                      title={`${card.title} | ShiftMyHome`}
                       loading="lazy"
                       decoding="async"
                       className="absolute inset-0 h-full w-full object-cover object-center transition-transform duration-500 ease-premium group-hover:scale-[1.05]"

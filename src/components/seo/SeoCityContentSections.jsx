@@ -37,10 +37,11 @@ export default function SeoCityContentSections({ page, heroImage, pagePath }) {
                 <div className="relative flex h-full min-h-0 flex-1 flex-col">
                   <img
                     src={heroImage}
-                    alt=""
+                    alt={`${introHeading} — ShiftMyHome ${page.cityName} removals`}
+                    title={`${page.cityName} removals | ShiftMyHome`}
                     loading="lazy"
                     decoding="async"
-                    className="absolute inset-0 h-full w-full object-cover object-center"
+                    className="absolute inset-0 h-full w-full min-h-[280px] object-cover object-center"
                   />
                   <div
                     className="service-card-media-overlay service-card-media-overlay--mobile service-card-media-overlay--desktop pointer-events-none absolute inset-0"

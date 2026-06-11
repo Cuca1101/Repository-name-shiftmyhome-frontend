@@ -40,6 +40,7 @@ export default function MobileHero() {
             imageUrl={heroImage}
             videoUrl={heroVideoUrl}
             useVideo={useHeroVideo}
+            imageAriaLabel="ShiftMyHome house removals — professional crew and van in Scotland"
           />
         </div>
 

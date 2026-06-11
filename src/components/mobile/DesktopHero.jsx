@@ -85,6 +85,7 @@ export default function DesktopHero() {
             videoUrl={heroVideoUrl}
             useVideo={useHeroVideo}
             overlay="none"
+            imageAriaLabel="ShiftMyHome house removals — professional crew and van in Scotland"
           />
         </div>
       </div>
