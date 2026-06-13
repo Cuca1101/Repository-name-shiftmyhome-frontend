@@ -1,6 +1,7 @@
 import { Component, useEffect, useRef, useState } from 'react'
 import mapboxgl from 'mapbox-gl'
 import { fetchDrivingRoute, metersToMiles } from '../../lib/mapboxRouteApi'
+import useMobileQuoteLayout from '../../hooks/useMobileQuoteLayout'
 
 /** Neutral Scotland overview — no city focus until addresses are chosen. */
 const SCOTLAND_CENTER = { lng: -4.0, lat: 56.35 }
@@ -183,6 +184,21 @@ function fetchDrivingRouteTimed(a, b, token, ms = ROUTE_FETCH_TIMEOUT_MS) {
  *   onDistanceFromRoute?: (payload: { type: 'ok', miles: number, durationSeconds: number | null } | { type: 'failed' } | { type: 'incomplete' }) => void,
  * }} props
  */
+function applyMobilePreviewMapGestures(map, mapVariant) {
+  if (mapVariant === 'dispatch') return
+  try {
+    map.scrollZoom.disable()
+    map.boxZoom.disable()
+    map.dragRotate.disable()
+    map.dragPan.disable()
+    map.keyboard.disable()
+    map.doubleClickZoom.disable()
+    map.touchZoomRotate.disable()
+  } catch {
+    /* ignore */
+  }
+}
+
 function QuoteRouteMapInner({
   pickupLng,
   pickupLat,
@@ -193,6 +209,8 @@ function QuoteRouteMapInner({
   onDistanceFromRoute,
 }) {
   const mapVariant = resolveMapVariant({ compact, variant: variantProp })
+  const isMobileLayout = useMobileQuoteLayout()
+  const passScrollOnMobile = isMobileLayout && mapVariant !== 'dispatch'
   const token = import.meta.env.VITE_MAPBOX_TOKEN
   const containerRef = useRef(null)
   const shellRef = useRef(null)
@@ -271,6 +289,7 @@ function QuoteRouteMapInner({
 
       map.on('load', () => {
         applyCleanQuoteBasemap(map)
+        if (passScrollOnMobile) applyMobilePreviewMapGestures(map, mapVariant)
         resizeMap()
         setMapReadyTick((n) => n + 1)
       })
@@ -325,7 +344,7 @@ function QuoteRouteMapInner({
       }
       setMapReadyTick(0)
     }
-  }, [token, mapVariant])
+  }, [token, mapVariant, passScrollOnMobile])
 
   useEffect(() => {
     const map = mapRef.current
@@ -479,7 +498,7 @@ function QuoteRouteMapInner({
     overlay === 'route-error' ? MSG_ROUTE_FAIL : overlay === 'route-timeout' ? MSG_ROUTE_TIMEOUT : null
 
   return (
-    <div className={outerClass}>
+    <div className={`${outerClass}${passScrollOnMobile ? ' quote-route-map--pass-scroll' : ''}`}>
       {!showMap ? (
         <div className={`flex ${mapShellClass} items-center justify-center bg-slate-50 px-4 text-center`}>
           <p className="text-sm leading-relaxed text-slate-700">{MSG_NO_TOKEN}</p>

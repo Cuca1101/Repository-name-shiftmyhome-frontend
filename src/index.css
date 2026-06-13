@@ -924,22 +924,27 @@
     height: 0;
   }
 
-  #seo-quote .quote-flow-main {
-    overflow-x: clip;
+  #seo-quote {
+    overflow-x: hidden;
     overflow-y: auto !important;
     overscroll-behavior: contain;
     -webkit-overflow-scrolling: touch;
-    min-height: 0;
-    height: 0;
-    flex: 1 1 0%;
     scrollbar-width: none;
     -ms-overflow-style: none;
   }
 
-  #seo-quote .quote-flow-main::-webkit-scrollbar {
+  #seo-quote::-webkit-scrollbar {
     display: none;
     width: 0;
     height: 0;
+  }
+
+  #seo-quote .quote-flow-main {
+    overflow-x: clip;
+    overflow-y: visible !important;
+    height: auto !important;
+    min-height: 0;
+    flex: 1 1 auto;
   }
 
   .quote-floating-panel {
@@ -951,6 +956,22 @@
     display: none;
     width: 0;
     height: 0;
+  }
+
+  .quote-mobile-inline-options {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+
+  .quote-mobile-inline-options::-webkit-scrollbar {
+    display: none;
+    width: 0;
+    height: 0;
+  }
+
+  .quote-route-map--pass-scroll .mapboxgl-canvas-container,
+  .quote-route-map--pass-scroll .mapboxgl-canvas {
+    touch-action: pan-y pinch-zoom;
   }
 }
 

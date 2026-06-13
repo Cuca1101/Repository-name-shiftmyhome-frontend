@@ -10,6 +10,9 @@ const triggerClass =
 const optionRow =
   'flex min-h-[56px] w-full min-w-0 items-center gap-3 border-b border-slate-100 px-4 py-3 text-left text-base transition last:border-b-0 active:bg-brand-50'
 
+const inlineListClass =
+  'quote-mobile-inline-options mt-1 max-h-60 overflow-y-auto overscroll-contain rounded-lg border border-slate-200 bg-white py-1 shadow-lg'
+
 function RadioIndicator({ selected }) {
   return (
     <span
@@ -23,6 +26,25 @@ function RadioIndicator({ selected }) {
   )
 }
 
+function OptionButtons({ options, value, onPick }) {
+  return options.map((opt) => {
+    const isSelected = value === opt.value
+    return (
+      <button
+        key={String(opt.value)}
+        type="button"
+        role="option"
+        aria-selected={isSelected}
+        onClick={() => onPick(opt.value)}
+        className={`${optionRow} ${isSelected ? 'bg-brand-50 font-medium text-brand-900' : 'text-slate-900'}`}
+      >
+        <span className="min-w-0 flex-1">{opt.label}</span>
+        <RadioIndicator selected={isSelected} />
+      </button>
+    )
+  })
+}
+
 /**
  * Mobile option picker — trigger + floating panel below (same pattern as address suggestions).
  * @param {{
@@ -34,6 +56,9 @@ function RadioIndicator({ selected }) {
  *   placeholder?: string,
  *   open?: boolean,
  *   onOpenChange?: (open: boolean) => void,
+ *   inline?: boolean,
+ *   closeOnSelect?: boolean,
+ *   dismissOnOutsidePress?: boolean,
  * }} props
  */
 export default function MobileOptionBottomSheet({
@@ -45,6 +70,9 @@ export default function MobileOptionBottomSheet({
   placeholder = 'Choose an option',
   open = false,
   onOpenChange,
+  inline = false,
+  closeOnSelect = true,
+  dismissOnOutsidePress = true,
 }) {
   const listId = useId()
   const rootRef = useRef(null)
@@ -57,9 +85,9 @@ export default function MobileOptionBottomSheet({
   const display = selected ? selected.label : placeholder
   const isPlaceholder = !selected
 
-  const panelStyle = useFloatingPanelBelow(triggerRef, open, {
+  const panelStyle = useFloatingPanelBelow(triggerRef, open && !inline, {
     maxHeight: 400,
-    autoReveal: true,
+    autoReveal: !inline,
     revealMode: 'picker',
   })
 
@@ -72,7 +100,7 @@ export default function MobileOptionBottomSheet({
   }, [onOpenChange, open])
 
   useEffect(() => {
-    if (!open) return undefined
+    if (!open || !dismissOnOutsidePress || inline) return undefined
     function handlePointerDown(ev) {
       if (rootRef.current?.contains(ev.target)) return
       if (panelRef.current?.contains(ev.target)) return
@@ -87,19 +115,19 @@ export default function MobileOptionBottomSheet({
       document.removeEventListener('pointerdown', handlePointerDown, true)
       window.removeEventListener('keydown', handleKey)
     }
-  }, [open, closePanel])
+  }, [open, closePanel, dismissOnOutsidePress, inline])
 
   useEffect(() => {
-    if (!open || !panelStyle) return undefined
+    if (!open || inline || !panelStyle) return undefined
     requestAnimationFrame(() => {
       if (panelRef.current) panelRef.current.scrollTop = 0
     })
     return undefined
-  }, [open, panelStyle])
+  }, [open, inline, panelStyle])
 
   function pick(next) {
     onChange(next)
-    closePanel()
+    if (closeOnSelect) closePanel()
   }
 
   return (
@@ -134,7 +162,13 @@ export default function MobileOptionBottomSheet({
         </svg>
       </button>
 
-      {open && panelStyle && typeof document !== 'undefined'
+      {open && inline ? (
+        <div ref={panelRef} id={listId} role="listbox" aria-label={panelTitle} className={inlineListClass}>
+          <OptionButtons options={options} value={value} onPick={pick} />
+        </div>
+      ) : null}
+
+      {open && !inline && panelStyle && typeof document !== 'undefined'
         ? createPortal(
             <div
               ref={panelRef}
@@ -149,22 +183,7 @@ export default function MobileOptionBottomSheet({
                 maxHeight: panelStyle.maxHeight,
               }}
             >
-              {options.map((opt) => {
-                const isSelected = value === opt.value
-                return (
-                  <button
-                    key={String(opt.value)}
-                    type="button"
-                    role="option"
-                    aria-selected={isSelected}
-                    onClick={() => pick(opt.value)}
-                    className={`${optionRow} ${isSelected ? 'bg-brand-50 font-medium text-brand-900' : 'text-slate-900'}`}
-                  >
-                    <span className="min-w-0 flex-1">{opt.label}</span>
-                    <RadioIndicator selected={isSelected} />
-                  </button>
-                )
-              })}
+              <OptionButtons options={options} value={value} onPick={pick} />
             </div>,
             document.body,
           )
