@@ -57,7 +57,11 @@ export default function MobileOptionBottomSheet({
   const display = selected ? selected.label : placeholder
   const isPlaceholder = !selected
 
-  const panelStyle = useFloatingPanelBelow(triggerRef, open, { maxHeight: 400 })
+  const panelStyle = useFloatingPanelBelow(triggerRef, open, {
+    maxHeight: 400,
+    autoReveal: true,
+    revealMode: 'picker',
+  })
 
   const closePanel = useCallback(() => {
     onOpenChange?.(false)
@@ -84,6 +88,14 @@ export default function MobileOptionBottomSheet({
       window.removeEventListener('keydown', handleKey)
     }
   }, [open, closePanel])
+
+  useEffect(() => {
+    if (!open || !panelStyle) return undefined
+    requestAnimationFrame(() => {
+      if (panelRef.current) panelRef.current.scrollTop = 0
+    })
+    return undefined
+  }, [open, panelStyle])
 
   function pick(next) {
     onChange(next)

@@ -909,13 +909,60 @@
   height: auto;
 }
 
-/* SEO quote modal — desktop scroll inside the overlay (body is locked; mobile keeps window scroll). */
+/* SEO quote modal — scroll inside overlay when body is locked (mobile + desktop). */
+@media (max-width: 767px) {
+  html:has(#seo-quote),
+  body:has(#seo-quote) {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+
+  html:has(#seo-quote)::-webkit-scrollbar,
+  body:has(#seo-quote)::-webkit-scrollbar {
+    display: none;
+    width: 0;
+    height: 0;
+  }
+
+  #seo-quote .quote-flow-main {
+    overflow-x: clip;
+    overflow-y: auto !important;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+    min-height: 0;
+    height: 0;
+    flex: 1 1 0%;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+
+  #seo-quote .quote-flow-main::-webkit-scrollbar {
+    display: none;
+    width: 0;
+    height: 0;
+  }
+
+  .quote-floating-panel {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+
+  .quote-floating-panel::-webkit-scrollbar {
+    display: none;
+    width: 0;
+    height: 0;
+  }
+}
+
 @media (min-width: 768px) {
   #seo-quote .quote-flow-main {
     overflow-x: clip;
     overflow-y: auto !important;
     overscroll-behavior: contain;
     scrollbar-gutter: stable;
+    min-height: 0;
+    height: 0;
+    flex: 1 1 0%;
   }
 }
 

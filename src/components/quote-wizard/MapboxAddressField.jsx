@@ -178,7 +178,12 @@ export default function MapboxAddressField({
     isMobileCard && open && !selectedFromList && hasQuery && (searching || suggestions.length > 0)
   const showSuggestionsPanel = isMobileCard ? showMobileList : showDesktopList
 
-  const panelStyle = useFloatingPanelBelow(inputRef, showSuggestionsPanel)
+  const panelStyle = useFloatingPanelBelow(inputRef, showSuggestionsPanel, {
+    maxHeight: 280,
+    preferBelow: true,
+    autoReveal: true,
+    revealMode: 'panel-only',
+  })
 
   useEffect(() => {
     function handlePointerDown(ev) {
