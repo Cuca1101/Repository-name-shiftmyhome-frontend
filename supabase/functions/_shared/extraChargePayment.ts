@@ -2,6 +2,7 @@
  * Shared: approve extra charge + Stripe checkout (no customer email — sent after payment via webhook).
  */
 import Stripe from 'npm:stripe@14.21.0'
+import { STRIPE_LOCALE } from './stripeMode.ts'
 import type { SupabaseClient } from 'npm:@supabase/supabase-js@2'
 
 export type ExtraChargeRow = Record<string, unknown>
@@ -186,6 +187,7 @@ export async function processExtraChargePayment(opts: {
   try {
     const session = await stripe.checkout.sessions.create({
       mode: 'payment',
+      locale: STRIPE_LOCALE,
       payment_intent_data: { metadata },
       line_items: [{
         price_data: {

@@ -3,6 +3,9 @@
  * Secret key: Supabase Dashboard → Edge Functions → Secrets → STRIPE_SECRET_KEY only.
  */
 
+/** UK site — hosted Checkout sessions must always render in British English. */
+export const STRIPE_LOCALE = 'en-GB' as const
+
 export type StripeKeyMode = 'test' | 'live' | 'unknown'
 
 export type StripeSecretDiagnostics = {

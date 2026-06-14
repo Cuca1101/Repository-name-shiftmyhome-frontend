@@ -2,6 +2,7 @@ import 'jsr:@supabase/functions-js/edge-runtime.d.ts'
 import Stripe from 'npm:stripe@14.21.0'
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import { guardStripeSecretKey, respondStripeConfigFailure } from '../_shared/stripeSecretGuard.ts'
+import { STRIPE_LOCALE } from '../_shared/stripeMode.ts'
 import { formatGbpLabel, validateDepositAmountGbp } from '../_shared/stripeDepositAmount.ts'
 
 /**
@@ -261,6 +262,7 @@ Deno.serve(async (req) => {
   try {
     const session = await stripe.checkout.sessions.create({
       mode: 'payment',
+      locale: STRIPE_LOCALE,
       customer_email: customer_email || undefined,
       line_items: [
         {

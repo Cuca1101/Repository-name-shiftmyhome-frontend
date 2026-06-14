@@ -2,6 +2,7 @@ import { Component, useState } from 'react'
 import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js'
 import { useNavigate } from 'react-router-dom'
 import { stripePromise } from '../../lib/stripePromise'
+import { STRIPE_LOCALE } from '../../lib/stripeConfig'
 import { verifyPaymentIntent, scheduleAdminAvailableJobNotification } from '../../lib/stripeCheckout'
 import { clearQuoteDraft } from '../../lib/quoteDraftStorage'
 
@@ -220,6 +221,7 @@ export default function QuoteStripePayment({
         options={{
           clientSecret,
           appearance: elementsAppearance(mobileReview),
+          locale: STRIPE_LOCALE,
         }}
       >
         <PaymentForm

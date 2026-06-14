@@ -3,6 +3,9 @@
  * Secret keys stay in Supabase Edge Function secrets only.
  */
 
+/** UK site — Payment Element and hosted checkout must always render in British English. */
+export const STRIPE_LOCALE = 'en-GB'
+
 /** @returns {string} */
 export function getStripePublishableKey() {
   return (import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY || '').trim().replace(/^["']|["']$/g, '')
