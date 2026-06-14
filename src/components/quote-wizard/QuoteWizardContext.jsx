@@ -75,6 +75,12 @@ import {
 } from '../../lib/customerLeadTracker'
 import { trackMarketingQuoteSubmit } from '../../lib/marketingPixels'
 import { useLocation } from 'react-router-dom'
+import {
+  canConfirmDeliveryAddress,
+  canConfirmPickupAddress,
+  resolveWizardMissingAddressCoords,
+} from '../../lib/addressConfirmation'
+import { fetchDrivingRoute, metersToMiles } from '../../lib/mapboxRouteApi'
 
 const QuoteWizardContext = createContext(null)
 
@@ -482,59 +488,100 @@ export function QuoteWizardProvider({ children, serviceType: serviceTypeProp, al
     }
   }, [])
 
-  const canGoNext = useCallback(() => {
-    if (step === 1) {
-      const textOk =
-        wizard.pickupAddress.trim().length > 2 && wizard.deliveryAddress.trim().length > 2
-      const coordsOk =
-        !HAS_MAPBOX_TOKEN ||
-        (wizard.pickupLng != null &&
-          wizard.pickupLat != null &&
-          wizard.deliveryLng != null &&
-          wizard.deliveryLat != null)
-      const floorsOk = wizard.pickupFloor != null && wizard.deliveryFloor != null
-      const moveDateOk =
-        Boolean(wizard.moveDate) && isMoveDateOnOrAfterToday(wizard.moveDate)
-      const arrivalOk = isWizardArrivalValid(wizard)
-      return (
-        textOk &&
-        floorsOk &&
-        moveDateOk &&
-        arrivalOk &&
-        Number(wizard.distanceMiles) > 0 &&
-        coordsOk
-      )
-    }
-    if (step === 2) {
-      const crewOk = Number(wizard.crewSize) >= 1 && Number(wizard.crewSize) <= 4
-      return wizard.inventoryLines.length > 0 && crewOk && step3ContactDetailsValid(wizard)
-    }
-    return true
-  }, [step, wizard])
+  const canGoNext = useCallback(
+    (w = wizard) => {
+      if (step === 1) {
+        const textOk =
+          w.pickupAddress.trim().length > 2 && w.deliveryAddress.trim().length > 2
+        const addressesOk =
+          !HAS_MAPBOX_TOKEN ||
+          (canConfirmPickupAddress(w, true) && canConfirmDeliveryAddress(w, true))
+        const coordsPending =
+          HAS_MAPBOX_TOKEN &&
+          (w.pickupLng == null ||
+            w.pickupLat == null ||
+            w.deliveryLng == null ||
+            w.deliveryLat == null)
+        const distanceOk =
+          Number(w.distanceMiles) > 0 || (coordsPending && addressesOk)
+        const floorsOk = w.pickupFloor != null && w.deliveryFloor != null
+        const moveDateOk = Boolean(w.moveDate) && isMoveDateOnOrAfterToday(w.moveDate)
+        const arrivalOk = isWizardArrivalValid(w)
+        return textOk && addressesOk && floorsOk && moveDateOk && arrivalOk && distanceOk
+      }
+      if (step === 2) {
+        const crewOk = Number(w.crewSize) >= 1 && Number(w.crewSize) <= 4
+        return w.inventoryLines.length > 0 && crewOk && step3ContactDetailsValid(w)
+      }
+      return true
+    },
+    [step, wizard],
+  )
 
-  const next = useCallback(() => {
+  const next = useCallback(async () => {
     if (quoteStepTransitionLoading) return
     setFeedback({ type: null, text: '' })
-    if (
-      step === 1 &&
-      HAS_MAPBOX_TOKEN &&
-      (wizard.pickupLng == null ||
-        wizard.pickupLat == null ||
-        wizard.deliveryLng == null ||
-        wizard.deliveryLat == null)
-    ) {
-      setFeedback({
-        type: 'error',
-        text: 'Please select an address from the suggestions so we can calculate the route.',
-      })
-      scheduleQuoteValidationScroll({
-        hint: resolveStep1ScrollHint(
-          wizard,
-          'Please select an address from the suggestions so we can calculate the route.',
-        ),
-      })
-      return
+
+    let currentWizard = wizard
+
+    if (step === 1 && HAS_MAPBOX_TOKEN) {
+      const needsGeocode =
+        currentWizard.pickupLng == null ||
+        currentWizard.pickupLat == null ||
+        currentWizard.deliveryLng == null ||
+        currentWizard.deliveryLat == null
+
+      if (needsGeocode) {
+        const token = import.meta.env.VITE_MAPBOX_TOKEN
+        const { ok, wizard: resolved, errors } = await resolveWizardMissingAddressCoords(
+          currentWizard,
+          token,
+        )
+        if (!ok) {
+          const first = errors[0]
+          setFeedback({ type: 'error', text: first?.message ?? 'Please check your addresses.' })
+          scheduleQuoteValidationScroll({
+            hint:
+              first?.field === 'deliveryAddress'
+                ? QUOTE_ERROR_SCROLL_HINTS.deliveryAddress
+                : QUOTE_ERROR_SCROLL_HINTS.pickupAddress,
+          })
+          return
+        }
+
+        if (resolved !== currentWizard) {
+          currentWizard = resolved
+          setWizard(resolved)
+        }
+
+        if (
+          !(Number(currentWizard.distanceMiles) > 0) &&
+          currentWizard.pickupLng != null &&
+          currentWizard.pickupLat != null &&
+          currentWizard.deliveryLng != null &&
+          currentWizard.deliveryLat != null
+        ) {
+          const route = await fetchDrivingRoute(
+            { lng: currentWizard.pickupLng, lat: currentWizard.pickupLat },
+            { lng: currentWizard.deliveryLng, lat: currentWizard.deliveryLat },
+            token,
+          )
+          if (route) {
+            const durationSeconds =
+              typeof route.durationSeconds === 'number' && route.durationSeconds > 0
+                ? route.durationSeconds
+                : null
+            currentWizard = {
+              ...currentWizard,
+              distanceMiles: metersToMiles(route.distanceMeters),
+              mapboxRouteDurationSeconds: durationSeconds,
+            }
+            setWizard(currentWizard)
+          }
+        }
+      }
     }
+
     if (
       step === 1 &&
       wizard.moveDate &&
@@ -561,25 +608,39 @@ export function QuoteWizardProvider({ children, serviceType: serviceTypeProp, al
       })
       return
     }
-    if (!canGoNext()) {
+    if (!canGoNext(currentWizard)) {
       if (step === 2) {
-        if (!(Number(wizard.crewSize) >= 1 && Number(wizard.crewSize) <= 4)) {
+        if (!(Number(currentWizard.crewSize) >= 1 && Number(currentWizard.crewSize) <= 4)) {
           setFeedback({ type: 'error', text: 'Please select a crew size before continuing.' })
           scheduleQuoteValidationScroll({ hint: QUOTE_ERROR_SCROLL_HINTS.crewSize })
-        } else if (wizard.inventoryLines.length === 0) {
+        } else if (currentWizard.inventoryLines.length === 0) {
           setFeedback({ type: 'error', text: 'Add at least one item to your inventory.' })
           scheduleQuoteValidationScroll({ hint: QUOTE_ERROR_SCROLL_HINTS.inventory })
-        } else if (!step3ContactDetailsValid(wizard)) {
-          const { message, field } = step3ContactDetailsError(wizard)
+        } else if (!step3ContactDetailsValid(currentWizard)) {
+          const { message, field } = step3ContactDetailsError(currentWizard)
           setFeedback({ type: 'error', text: message })
           scrollToStep3ContactField(field)
         } else {
           setFeedback({ type: 'error', text: 'Please complete the required fields.' })
-          scheduleQuoteValidationScroll({ hint: resolveStep2ScrollHint(wizard) })
+          scheduleQuoteValidationScroll({ hint: resolveStep2ScrollHint(currentWizard) })
         }
       } else if (step === 1) {
-        setFeedback({ type: 'error', text: 'Please complete the required fields.' })
-        scheduleQuoteValidationScroll({ hint: resolveStep1ScrollHint(wizard) })
+        if (
+          HAS_MAPBOX_TOKEN &&
+          !(Number(currentWizard.distanceMiles) > 0) &&
+          currentWizard.pickupLng != null &&
+          currentWizard.pickupLat != null &&
+          currentWizard.deliveryLng != null &&
+          currentWizard.deliveryLat != null
+        ) {
+          setFeedback({
+            type: 'error',
+            text: 'Could not calculate the route. Enter the distance manually or check your addresses.',
+          })
+        } else {
+          setFeedback({ type: 'error', text: 'Please complete the required fields.' })
+        }
+        scheduleQuoteValidationScroll({ hint: resolveStep1ScrollHint(currentWizard) })
       } else {
         setFeedback({ type: 'error', text: 'Please complete the required fields.' })
         scheduleQuoteValidationScroll({ hint: QUOTE_ERROR_SCROLL_HINTS.feedback })

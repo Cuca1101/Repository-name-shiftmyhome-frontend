@@ -2,6 +2,8 @@
  * Pickup/delivery address confirmation helpers (quote wizard + admin phone booking).
  */
 
+import { geocodeAddress } from './mapboxRouteApi'
+
 const HAS_MAPBOX_TOKEN = Boolean(import.meta.env.VITE_MAPBOX_TOKEN)
 
 /** Minimum trimmed length for an address to be considered present. */
@@ -79,4 +81,92 @@ export function autoConfirmGeocodedAddresses(wizard) {
   }
   if (Object.keys(patch).length === 0) return wizard
   return { ...wizard, ...patch }
+}
+
+/**
+ * Geocode a single typed address (no autocomplete selection required).
+ * @param {string} addressText
+ * @param {string} token
+ * @returns {Promise<{ lng: number, lat: number } | null>}
+ */
+export async function geocodeTypedWizardAddress(addressText, token) {
+  const text = String(addressText || '').trim()
+  if (!token || text.length < MIN_MANUAL_ADDRESS_LENGTH) return null
+  return geocodeAddress(text, token)
+}
+
+/**
+ * Resolve missing pickup/delivery coordinates from typed addresses via Mapbox geocoding.
+ * @param {Record<string, unknown>} wizard
+ * @param {string} token
+ * @returns {Promise<{ ok: boolean, wizard: Record<string, unknown>, errors: { field: string, message: string }[] }>}
+ */
+export async function resolveWizardMissingAddressCoords(wizard, token) {
+  if (!token) return { ok: true, wizard, errors: [] }
+
+  /** @type {Record<string, unknown>} */
+  const patch = {}
+  /** @type {{ field: string, message: string }[]} */
+  const errors = []
+
+  /**
+   * @param {string | undefined} text
+   * @param {unknown} lng
+   * @param {unknown} lat
+   * @param {string} lngKey
+   * @param {string} latKey
+   * @param {string} confirmedKey
+   * @param {string} field
+   * @param {string} label
+   */
+  async function resolveSide(text, lng, lat, lngKey, latKey, confirmedKey, field, label) {
+    if (lng != null && lat != null) return
+    const trimmed = String(text || '').trim()
+    if (trimmed.length <= MIN_ADDRESS_TEXT_LENGTH) {
+      errors.push({ field, message: `${label} is required.` })
+      return
+    }
+    if (trimmed.length < MIN_MANUAL_ADDRESS_LENGTH) {
+      errors.push({
+        field,
+        message: `Enter a full ${label.toLowerCase()} (at least ${MIN_MANUAL_ADDRESS_LENGTH} characters).`,
+      })
+      return
+    }
+    const hit = await geocodeAddress(trimmed, token)
+    if (!hit) {
+      errors.push({
+        field,
+        message: `We could not verify this ${label.toLowerCase()}. Please check the spelling or try a nearby postcode.`,
+      })
+      return
+    }
+    patch[lngKey] = hit.lng
+    patch[latKey] = hit.lat
+    patch[confirmedKey] = true
+  }
+
+  await resolveSide(
+    wizard.pickupAddress,
+    wizard.pickupLng,
+    wizard.pickupLat,
+    'pickupLng',
+    'pickupLat',
+    'pickupAddressConfirmed',
+    'pickupAddress',
+    'Pickup address',
+  )
+  await resolveSide(
+    wizard.deliveryAddress,
+    wizard.deliveryLng,
+    wizard.deliveryLat,
+    'deliveryLng',
+    'deliveryLat',
+    'deliveryAddressConfirmed',
+    'deliveryAddress',
+    'Delivery address',
+  )
+
+  const updated = Object.keys(patch).length > 0 ? { ...wizard, ...patch } : wizard
+  return { ok: errors.length === 0, wizard: updated, errors }
 }

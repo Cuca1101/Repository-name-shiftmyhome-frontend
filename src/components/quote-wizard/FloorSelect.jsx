@@ -89,7 +89,7 @@ export default function FloorSelect({
 
   const pick = (v) => {
     onChange(v)
-    if (!isMobileCard) setOpen(false)
+    setOpen(false)
   }
 
   if (isMobileCard) {
@@ -104,7 +104,7 @@ export default function FloorSelect({
         open={open}
         onOpenChange={setOpen}
         inline
-        closeOnSelect={false}
+        closeOnSelect
         dismissOnOutsidePress={false}
       />
     )

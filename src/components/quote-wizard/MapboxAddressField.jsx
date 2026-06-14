@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { searchGeocodingSuggestions } from '../../lib/mapboxRouteApi'
+import { geocodeTypedWizardAddress, MIN_MANUAL_ADDRESS_LENGTH } from '../../lib/addressConfirmation'
 import { applyWizardPatch } from '../../lib/wizardStateUpdate'
 import { useFloatingPanelBelow } from './useFloatingPanelBelow'
 
@@ -93,6 +94,7 @@ export default function MapboxAddressField({
   const [searching, setSearching] = useState(false)
   const debounceRef = useRef(0)
   const panelRef = useRef(null)
+  const geocodeBlurRef = useRef(0)
 
   const selectedFromList = lng != null && lat != null
 
@@ -137,6 +139,40 @@ export default function MapboxAddressField({
     },
     [addressKey, lngKey, latKey, confirmedKey, applyPatch, nextFocusId, nextFocusTarget, onAddressSelected],
   )
+
+  const geocodeManualAddress = useCallback(async () => {
+    const trimmed = (address || '').trim()
+    if (!token || selectedFromList || trimmed.length < MIN_MANUAL_ADDRESS_LENGTH) return
+
+    const hit = await geocodeTypedWizardAddress(trimmed, token)
+    if (!hit || !rootRef.current) return
+
+    const patch = {
+      [lngKey]: hit.lng,
+      [latKey]: hit.lat,
+    }
+    if (confirmedKey) patch[confirmedKey] = true
+    applyPatch(patch)
+    setSuggestions([])
+    setOpen(false)
+    onAddressSelected?.()
+  }, [
+    address,
+    token,
+    selectedFromList,
+    lngKey,
+    latKey,
+    confirmedKey,
+    applyPatch,
+    onAddressSelected,
+  ])
+
+  const handleBlur = useCallback(() => {
+    window.clearTimeout(geocodeBlurRef.current)
+    geocodeBlurRef.current = window.setTimeout(() => {
+      void geocodeManualAddress()
+    }, 150)
+  }, [geocodeManualAddress])
 
   useEffect(() => {
     if (!token || !address?.trim() || address.trim().length < 2) {
@@ -250,6 +286,7 @@ export default function MapboxAddressField({
           role="combobox"
           value={address}
           onChange={handleInputChange}
+          onBlur={handleBlur}
           onFocus={() => {
             if (!selectedFromList && (address || '').trim().length >= 2) {
               setOpen(true)
@@ -266,7 +303,7 @@ export default function MapboxAddressField({
       ) : null}
 
       {!searching && selectedFromList ? (
-        <p className="mt-1.5 text-xs text-emerald-700">Location saved from suggestions.</p>
+        <p className="mt-1.5 text-xs text-emerald-700">Address verified.</p>
       ) : null}
 
       {showSuggestionsPanel && panelStyle && typeof document !== 'undefined'

@@ -164,7 +164,7 @@ function AddressRow({ label, address, confirmed, error, canConfirm, confirmLabel
       {!canConfirm && !confirmed && address?.trim() ? (
         <p className="mt-1.5 text-[10px] leading-snug text-amber-800">
           {hasMapboxToken()
-            ? 'Select a Mapbox suggestion on step 1, or enter a full address (8+ characters).'
+            ? 'Enter a full address on step 1 (at least 8 characters), or choose a suggestion.'
             : 'Enter a full address before confirming.'}
         </p>
       ) : null}

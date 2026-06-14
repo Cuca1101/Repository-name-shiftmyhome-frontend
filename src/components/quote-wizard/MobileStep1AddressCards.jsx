@@ -212,7 +212,7 @@ export default function MobileStep1AddressCards({
     } else {
       applyWizardPatch(onChange, { pickupFloor: v, pickupLift: null })
     }
-    if (activeDropdown !== 'pickup-floor') setActiveDropdown('pickup-floor')
+    closeDropdowns()
     if (floorNeedsLiftQuestion(v)) {
       unlock(SECTION.PICKUP_LIFT)
       focusById('quote-mobile-pickup-lift-yes')
@@ -257,7 +257,7 @@ export default function MobileStep1AddressCards({
     } else {
       applyWizardPatch(onChange, { deliveryFloor: v, deliveryLift: null })
     }
-    if (activeDropdown !== 'delivery-floor') setActiveDropdown('delivery-floor')
+    closeDropdowns()
     if (floorNeedsLiftQuestion(v)) {
       unlock(SECTION.DELIVERY_LIFT)
       focusById('quote-mobile-delivery-lift-yes')

@@ -4,6 +4,7 @@
  */
 
 import { isWizardArrivalValid } from './arrivalWizardValidation'
+import { canConfirmDeliveryAddress, canConfirmPickupAddress } from './addressConfirmation'
 import { isMoveDateOnOrAfterToday } from './moveDateLocal'
 import { step3ContactDetailsValid } from './quoteWizardStep3ContactScroll'
 
@@ -29,7 +30,7 @@ export const QUOTE_ERROR_SCROLL_HINTS = {
  * @returns {string}
  */
 export function resolveStep1ScrollHint(wizard, feedbackText = '') {
-  if (/suggestions/i.test(feedbackText)) {
+  if (/verify|could not calculate the route/i.test(feedbackText)) {
     if (wizard.pickupLng == null || wizard.pickupLat == null) {
       return QUOTE_ERROR_SCROLL_HINTS.pickupAddress
     }
@@ -39,12 +40,9 @@ export function resolveStep1ScrollHint(wizard, feedbackText = '') {
   if (wizard.deliveryAddress.trim().length <= 2) return QUOTE_ERROR_SCROLL_HINTS.deliveryAddress
   if (
     HAS_MAPBOX_TOKEN &&
-    (wizard.pickupLng == null ||
-      wizard.pickupLat == null ||
-      wizard.deliveryLng == null ||
-      wizard.deliveryLat == null)
+    (!canConfirmPickupAddress(wizard, true) || !canConfirmDeliveryAddress(wizard, true))
   ) {
-    if (wizard.pickupLng == null || wizard.pickupLat == null) {
+    if (!canConfirmPickupAddress(wizard, true)) {
       return QUOTE_ERROR_SCROLL_HINTS.pickupAddress
     }
     return QUOTE_ERROR_SCROLL_HINTS.deliveryAddress
