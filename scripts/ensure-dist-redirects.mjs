@@ -25,11 +25,19 @@ fs.writeFileSync(target, content, 'utf8')
 
 const legacyRuleCount = content
   .split('\n')
-  .filter((line) => /^\/removals-[a-z0-9-]+\/?\s+\/[a-z0-9-]+-removals\/\s+301\s*$/.test(line.trim()))
-  .length
+  .filter((line) => {
+    const t = line.trim()
+    return (
+      /^\/removals-[a-z0-9-]+\/?\s+\/[a-z0-9-]+-removals\/\s+301\s*$/.test(t) ||
+      /^\/house-removals-[a-z0-9-]+\/?\s+\/[a-z0-9-]+-removals\/\s+301\s*$/.test(t) ||
+      /^\/removal-[a-z0-9-]+\/?\s+\/[a-z0-9-]+-removals\/\s+301\s*$/.test(t) ||
+      /^\/man-and-van-[a-z0-9-]+\/?\s+\/man-with-van-[a-z0-9-]+\/\s+301\s*$/.test(t) ||
+      /^\/[a-z0-9-]+-man-(and|with)-van\/?\s+\/man-with-van-[a-z0-9-]+\/\s+301\s*$/.test(t)
+    )
+  }).length
 
-if (legacyRuleCount < 360) {
-  console.error(`Expected at least 360 legacy redirect rules, found ${legacyRuleCount}`)
+if (legacyRuleCount < 1000) {
+  console.error(`Expected at least 1000 legacy redirect rules, found ${legacyRuleCount}`)
   process.exit(1)
 }
 

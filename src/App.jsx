@@ -68,6 +68,8 @@ const servicePaths = withTrailingSlashVariants([
   '/office-moves',
   '/student-moves',
   '/clearance',
+  '/long-distance-removals',
+  '/urgent-removals',
 ])
 
 const seoRoutePaths = withTrailingSlashVariants(SEO_PAGE_PATHS)

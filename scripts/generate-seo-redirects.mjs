@@ -1,11 +1,19 @@
 /**
- * Append 301 redirects for legacy inverted city URLs (e.g. /removals-glasgow -> /glasgow-removals/).
- * Legacy rules are written before admin SPA proxy rules so Cloudflare treats them as static redirects.
+ * Append 301 redirects for legacy / alternate SEO URLs so Google stops seeing hard 404s.
+ * Rules are written before admin SPA proxy so Cloudflare applies them as static redirects.
+ *
+ * Patterns:
+ * - /removals-{city}        → /{city}-removals/
+ * - /house-removals-{city}  → /{city}-removals/
+ * - /removal-{city}         → /{city}-removals/
+ * - /man-and-van-{city}     → /man-with-van-{city}/  (priority cities)
+ * - /{city}-man-and-van     → /man-with-van-{city}/
+ * - /{city}-man-with-van    → /man-with-van-{city}/
  */
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { SCOTLAND_LOCATION_NAMES } from '../src/lib/seo/locations.js'
+import { SCOTLAND_LOCATION_NAMES, MAN_WITH_VAN_SEO_CITIES } from '../src/lib/seo/locations.js'
 import { cityToSlug } from '../src/lib/citySlug.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -20,13 +28,28 @@ const ADMIN_BLOCK = `# Admin SPA - must stay on index.html
 /admin/*  /index.html    200
 `
 
+/** @param {string} from @param {string} to */
+function addPair(lines, from, to) {
+  lines.push(`${from} ${to} 301`)
+  lines.push(`${from}/ ${to} 301`)
+}
+
 const legacyLines = []
+
 for (const city of SCOTLAND_LOCATION_NAMES) {
   const slug = cityToSlug(city)
-  const canonical = `/${slug}-removals`
-  const legacy = `/removals-${slug}`
-  legacyLines.push(`${legacy} ${canonical}/ 301`)
-  legacyLines.push(`${legacy}/ ${canonical}/ 301`)
+  const canonicalRemovals = `/${slug}-removals/`
+  addPair(legacyLines, `/removals-${slug}`, canonicalRemovals)
+  addPair(legacyLines, `/house-removals-${slug}`, canonicalRemovals)
+  addPair(legacyLines, `/removal-${slug}`, canonicalRemovals)
+}
+
+for (const city of MAN_WITH_VAN_SEO_CITIES) {
+  const slug = cityToSlug(city)
+  const canonicalMwv = `/man-with-van-${slug}/`
+  addPair(legacyLines, `/man-and-van-${slug}`, canonicalMwv)
+  addPair(legacyLines, `/${slug}-man-and-van`, canonicalMwv)
+  addPair(legacyLines, `/${slug}-man-with-van`, canonicalMwv)
 }
 
 const generatedBlock = [MARKER_START, ...legacyLines, MARKER_END].join('\n')
@@ -36,29 +59,10 @@ const header = `# Prerendered HTML lives at /<route>/index.html (Cloudflare adds
 # Missing paths are handled by dist/404.html via the platform not_found behaviour.
 `
 
-let content = fs.existsSync(redirectsPath) ? fs.readFileSync(redirectsPath, 'utf8') : ''
-const blockRe = new RegExp(
-  `${MARKER_START.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}[\\s\\S]*?${MARKER_END.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`,
-  'm',
-)
-
-if (blockRe.test(content)) {
-  content = content.replace(blockRe, generatedBlock)
-} else {
-  content = `${header.trim()}\n\n${generatedBlock}\n\n${ADMIN_BLOCK.trim()}\n`
-}
-
-if (!content.includes(MARKER_START)) {
-  content = `${header.trim()}\n\n${generatedBlock}\n\n${ADMIN_BLOCK.trim()}\n`
-}
-
-content = content
-  .replace(/# Admin SPA[\s\S]*?\/admin\/\*[^\n]*\n/g, '')
-  .replace(new RegExp(`${header.trim()}\\n?`, 'm'), '')
-  .trim()
-
-content = `${header.trim()}\n\n${generatedBlock}\n\n${ADMIN_BLOCK.trim()}\n`
+let content = `${header.trim()}\n\n${generatedBlock}\n\n${ADMIN_BLOCK.trim()}\n`
 content = content.replace(/\r\n/g, '\n')
 
 fs.writeFileSync(redirectsPath, content, 'utf8')
-console.log(`Legacy city redirects written (${legacyLines.length} rules, admin block after legacy)`)
+console.log(
+  `Legacy SEO redirects written (${legacyLines.length} rules: removals aliases + man-and-van aliases)`,
+)

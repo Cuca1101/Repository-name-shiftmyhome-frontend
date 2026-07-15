@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useLocation } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
 import Logo from '../Logo'
 import HomeSectionLink from '../HomeSectionLink'
 import QuoteNavCta from '../QuoteNavCta'
@@ -8,9 +8,12 @@ import { CONTACT } from '../../config'
 import { useWebsiteCms } from '../../context/WebsiteCmsContext'
 
 const navItems = [
-  { sectionId: 'about', label: 'About us' },
-  { sectionId: 'reviews', label: 'Reviews' },
+  { to: '/house-removals', label: 'House Removals' },
+  { to: '/man-with-van', label: 'Man with Van' },
+  { to: '/long-distance-removals', label: 'Long Distance' },
+  { to: '/urgent-removals', label: 'Urgent Removals' },
   { sectionId: 'coverage', label: 'Coverage' },
+  { sectionId: 'reviews', label: 'Reviews' },
   { sectionId: 'contact', label: 'Contact' },
 ]
 
@@ -81,6 +84,14 @@ export default function DesktopNavbar() {
 
         <div className="hidden min-w-0 flex-1 translate-y-2.5 items-center justify-center gap-4 md:flex sm:translate-y-3 lg:translate-y-3.5 xl:gap-6">
           {navItems.map((item) => {
+            if (item.to) {
+              const isActive = pathname === item.to || pathname === `${item.to}/`
+              return (
+                <Link key={item.to} to={item.to} className={navLinkClass(isActive)}>
+                  <span>{item.label}</span>
+                </Link>
+              )
+            }
             const linkClassName = navLinkClass(isHome && activeSection === item.sectionId)
             const label = <span>{item.label}</span>
             if (item.sectionId === 'coverage') {

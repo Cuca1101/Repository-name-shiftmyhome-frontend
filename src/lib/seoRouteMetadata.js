@@ -12,9 +12,9 @@ import {
 } from './seo/seoKeywordHelpers.js'
 import { SEO_SITE_ORIGIN } from '../data/seoPages.js'
 
-const HOMEPAGE_SEO_TITLE = 'House Removals Scotland | ShiftMyHome'
+const HOMEPAGE_SEO_TITLE = 'House Removals Scotland | Local Movers & Man and Van'
 const HOMEPAGE_SEO_DESCRIPTION =
-  'ShiftMyHome — Glasgow removals, Edinburgh removals, and Scotland-wide house moves, man with van, and furniture delivery. Instant online quotes.'
+  'House removals Scotland — Glasgow removals, Edinburgh removals, man and van and furniture delivery nationwide. Local movers. Instant online quotes.'
 import { buildSeoMetadataFromSlug } from './seoSlugMetadata.js'
 import { buildPublicPageUrl } from './normalizePublicPath.js'
 import { normalizePublicPath } from './normalizePublicPath.js'

@@ -11,30 +11,16 @@ import {
   pickContentVariant,
   SEO_KEYWORD_PHRASES,
 } from '../lib/seoPageBodyContent.js'
-import { finalizeMetaDescription, shortenSeoTitle } from '../lib/seo/seoKeywordHelpers.js'
+import { finalizeMetaDescription, shortenSeoTitle, buildServiceCitySeoTitle } from '../lib/seo/seoKeywordHelpers.js'
+import { PRIORITY_SEO_CITIES, getLocationRegion } from '../lib/seo/locations.js'
 
 /** @typedef {import('./seoPages.js').SeoPageConfig} SeoPageConfig */
 
-export const PRIMARY_SEO_CITIES = [
-  'Glasgow',
-  'Edinburgh',
-  'Aberdeen',
-  'Dundee',
-  'Inverness',
-  'Stirling',
-  'Perth',
-]
+/** All priority Scotland towns get deep service × city coverage. */
+export const PRIMARY_SEO_CITIES = [...PRIORITY_SEO_CITIES]
 
 /** @type {Record<string, { key: string, label: string, areaPhrase: string, moveContext: string }>} */
-const REGION_BY_CITY = {
-  Glasgow: { key: 'greater-glasgow', label: 'Greater Glasgow', areaPhrase: 'Glasgow and surrounding towns', moveContext: 'tenements, flats, and family homes' },
-  Edinburgh: { key: 'edinburgh-lothians', label: 'Edinburgh & the Lothians', areaPhrase: 'Edinburgh, Leith, and the Lothians', moveContext: 'city flats and suburban homes' },
-  Aberdeen: { key: 'north-east', label: 'North East Scotland', areaPhrase: 'Aberdeen and Aberdeenshire', moveContext: 'granite properties and coastal flats' },
-  Dundee: { key: 'tayside', label: 'Tayside', areaPhrase: 'Dundee and the Tay cities', moveContext: 'riverside flats and family moves' },
-  Inverness: { key: 'highlands', label: 'The Highlands', areaPhrase: 'Inverness and the wider Highlands', moveContext: 'longer access routes and rural properties' },
-  Stirling: { key: 'central', label: 'Central Scotland', areaPhrase: 'Stirling and the Forth Valley', moveContext: 'commuter moves and town centre properties' },
-  Perth: { key: 'central', label: 'Central Scotland', areaPhrase: 'Perth and Perthshire', moveContext: 'market town homes and rural outskirts' },
-}
+const REGION_BY_CITY = {}
 
 const DEFAULT_REGION = {
   key: 'scotland',
@@ -45,7 +31,7 @@ const DEFAULT_REGION = {
 
 /** @param {string} cityName */
 function getRegion(cityName) {
-  return REGION_BY_CITY[cityName] ?? DEFAULT_REGION
+  return getLocationRegion(cityName) || REGION_BY_CITY[cityName] || DEFAULT_REGION
 }
 
 /**
@@ -75,7 +61,7 @@ const MATRIX_SERVICES = [
     serviceType: 'Office Moves',
     label: 'office relocations',
     path: (slug) => `/office-removals-${slug}`,
-    cities: ['Aberdeen', 'Dundee', 'Inverness', 'Stirling', 'Perth'],
+    cities: PRIMARY_SEO_CITIES,
     h1: (city) => `Office Relocations in ${city}`,
     heroTeaser: (city) => `Business moves and office relocations in ${city}.`,
     bullets: [
@@ -89,7 +75,7 @@ const MATRIX_SERVICES = [
     serviceType: 'Student Moves',
     label: 'student moves',
     path: (slug) => `/student-moves-${slug}`,
-    cities: ['Aberdeen', 'Dundee', 'Inverness', 'Stirling', 'Perth'],
+    cities: PRIMARY_SEO_CITIES,
     h1: (city) => `Student Moves in ${city}`,
     heroTeaser: (city) => `Term-time moves for students in ${city}.`,
     bullets: [
@@ -103,7 +89,7 @@ const MATRIX_SERVICES = [
     serviceType: 'Furniture Delivery',
     label: 'furniture delivery',
     path: (slug) => `/furniture-delivery-${slug}`,
-    cities: ['Aberdeen', 'Dundee', 'Inverness', 'Stirling', 'Perth'],
+    cities: PRIMARY_SEO_CITIES,
     h1: (city) => `Furniture Delivery in ${city}`,
     heroTeaser: (city) => `Sofas, beds, and bulky furniture in ${city}.`,
     bullets: [
@@ -117,7 +103,7 @@ const MATRIX_SERVICES = [
     serviceType: 'Furniture Delivery',
     label: 'furniture removals',
     path: (slug) => `/furniture-removals-${slug}`,
-    cities: ['Aberdeen', 'Dundee', 'Inverness', 'Stirling', 'Perth'],
+    cities: PRIMARY_SEO_CITIES,
     h1: (city) => `Furniture Removals in ${city}`,
     heroTeaser: (city) => `Careful furniture removals across ${city}.`,
     bullets: [
@@ -257,11 +243,11 @@ export function buildServiceMatrixPages(existingPaths) {
       const region = getRegion(cityName)
       const variant = pickContentVariant(cityName, def.key.length * 13)
       const h1 = def.h1(cityName)
-      const title = shortenSeoTitle(`${h1} | ShiftMyHome`)
+      const title = shortenSeoTitle(buildServiceCitySeoTitle(def.key, cityName, variant))
       const area =
         String(region.label || '').length <= 32 ? region.label : cityName
       const metaDescription = finalizeMetaDescription(
-        `Book ${def.label} in ${cityName} with ShiftMyHome. Insured crews and local movers across ${area}. Get your quote today.`,
+        `${def.label} in ${cityName} — local Scotland movers for ${area}. House removals, man and van and furniture delivery. Instant online quote.`,
       )
 
       const linkKind = def.key === 'man-with-van' ? 'man-with-van' : 'removals'

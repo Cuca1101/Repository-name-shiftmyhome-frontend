@@ -65,6 +65,26 @@ export const SERVICE_PAGES = [
     heroTeaser: 'Clearances with upfront pricing & disposal.',
     heroImage: '/assets/services/clearance.jpg?v=7',
   },
+  {
+    path: '/long-distance-removals',
+    slug: 'long-distance-removals',
+    title: 'Long Distance Removals',
+    serviceType: 'House Removals',
+    shortDescription:
+      'Scotland and UK-wide long distance house removals — Glasgow, Edinburgh, Aberdeen and beyond. Clear online pricing from your route and inventory.',
+    heroTeaser: 'Scotland & UK long distance house moves.',
+    heroImage: '/assets/services/house-removals.jpg?v=6',
+  },
+  {
+    path: '/urgent-removals',
+    slug: 'urgent-removals',
+    title: 'Urgent Removals',
+    serviceType: 'House Removals',
+    shortDescription:
+      'Short-notice and same day removals across Scotland when crews are available. Quote online and we confirm honestly if we can help today.',
+    heroTeaser: 'Same day & short-notice removals when available.',
+    heroImage: '/assets/services/house-removals.jpg?v=6',
+  },
 ]
 
 /** @param {string} path */

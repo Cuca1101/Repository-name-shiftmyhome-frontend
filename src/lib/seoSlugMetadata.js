@@ -1,7 +1,12 @@
 /**
  * Slug-based SEO metadata fallback for public routes not in seoPages config.
  */
-import { buildCanonicalUrl, finalizeMetaDescription, shortenSeoTitle } from './seo/seoKeywordHelpers.js'
+import {
+  buildCanonicalUrl,
+  finalizeMetaDescription,
+  shortenSeoTitle,
+  buildSlugFallbackSeoTitle,
+} from './seo/seoKeywordHelpers.js'
 
 const SCOTTISH_LOCATIONS = [
   'glasgow',
@@ -75,15 +80,11 @@ function detectServiceLabel(slug) {
   return 'Removals'
 }
 
-/** @param {string} service @param {string} location */
-function buildTitle(service, location) {
-  if (location === 'Scotland') return shortenSeoTitle(`${service} Scotland | ShiftMyHome`)
-  if (service === 'Furniture Delivery') return shortenSeoTitle(`Furniture Delivery ${location} | ShiftMyHome`)
-  if (service === 'Man and Van') return shortenSeoTitle(`${location} Man and Van | ShiftMyHome`)
-  if (service === 'Student Moves') return shortenSeoTitle(`Student Moves ${location} | ShiftMyHome`)
-  if (service === 'Same Day Removals') return shortenSeoTitle(`Same Day Removals ${location} | ShiftMyHome`)
-  if (service === 'House Removals') return shortenSeoTitle(`${location} Removals | ShiftMyHome`)
-  return shortenSeoTitle(`${location} ${service} | ShiftMyHome`)
+/** @param {string} service @param {string} location @param {string} [slug] */
+function buildTitle(service, location, slug = '') {
+  let variant = 0
+  for (let i = 0; i < slug.length; i++) variant = (variant * 31 + slug.charCodeAt(i)) | 0
+  return shortenSeoTitle(buildSlugFallbackSeoTitle(service, location, Math.abs(variant)))
 }
 
 /** @param {string} service @param {string} location @param {string} slug */
@@ -115,7 +116,7 @@ export function buildSeoMetadataFromSlug(pathname) {
   const slug = path === '/' ? '' : path.slice(1)
   const location = detectLocation(slug)
   const service = detectServiceLabel(slug)
-  const title = buildTitle(service, location)
+  const title = buildTitle(service, location, slug)
   const description = buildDescription(service, location, slug)
   const h1 =
     location === 'Scotland'

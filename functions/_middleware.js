@@ -1,14 +1,42 @@
 /**
- * Cloudflare Pages fallback for legacy /removals-{city} URLs when _redirects is not applied.
- * Only invoked for paths matched by public/_routes.json (include: /removals-*).
+ * Cloudflare Pages fallback redirects when static _redirects miss a path.
+ * Handles common SEO URL variants Google/crawl still requests as 404.
  */
-const LEGACY_CITY_RE = /^\/removals-([a-z0-9-]+)\/?$/
 
+/** @param {string} origin @param {string} path */
+function redirect(origin, path) {
+  return Response.redirect(`${origin}${path}`, 301)
+}
+
+/**
+ * @param {EventContext} context
+ */
 export function onRequest(context) {
   const url = new URL(context.request.url)
-  const match = url.pathname.match(LEGACY_CITY_RE)
-  if (!match) return context.next()
+  const path = url.pathname.replace(/\/+$/, '') || '/'
+  const origin = url.origin
 
-  const destination = `${url.origin}/${match[1]}-removals/`
-  return Response.redirect(destination, 301)
+  // /removals-{city} → /{city}-removals/
+  let m = path.match(/^\/removals-([a-z0-9-]+)$/)
+  if (m) return redirect(origin, `/${m[1]}-removals/`)
+
+  // /house-removals-{city} → /{city}-removals/
+  m = path.match(/^\/house-removals-([a-z0-9-]+)$/)
+  if (m) return redirect(origin, `/${m[1]}-removals/`)
+
+  // /removal-{city} (singular) → /{city}-removals/
+  m = path.match(/^\/removal-([a-z0-9-]+)$/)
+  if (m) return redirect(origin, `/${m[1]}-removals/`)
+
+  // /man-and-van-{city} → /man-with-van-{city}/
+  m = path.match(/^\/man-and-van-([a-z0-9-]+)$/)
+  if (m) return redirect(origin, `/man-with-van-${m[1]}/`)
+
+  // /{city}-man-and-van or /{city}-man-with-van → /man-with-van-{city}/
+  m = path.match(/^\/([a-z0-9-]+)-man-and-van$/)
+  if (m) return redirect(origin, `/man-with-van-${m[1]}/`)
+  m = path.match(/^\/([a-z0-9-]+)-man-with-van$/)
+  if (m) return redirect(origin, `/man-with-van-${m[1]}/`)
+
+  return context.next()
 }

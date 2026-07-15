@@ -25,10 +25,13 @@ const linkClass = 'footer-nav-link'
 const serviceLinks = [
   { to: '/house-removals', label: 'House Removals' },
   { to: '/man-with-van', label: 'Man with Van' },
-  { to: '/furniture-delivery', label: 'Furniture & Items' },
-  { to: '/clearance', label: 'Clearance & Removal' },
+  { to: '/long-distance-removals', label: 'Long Distance Removals' },
+  { to: '/urgent-removals', label: 'Urgent Removals' },
+  { to: '/furniture-delivery', label: 'Furniture Delivery' },
+  { to: '/coverage', label: 'Coverage' },
   { to: '/office-moves', label: 'Office Moves' },
   { to: '/student-moves', label: 'Student Moves' },
+  { to: '/clearance', label: 'Clearance' },
 ]
 
 const legalLinks = [

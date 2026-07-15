@@ -11,6 +11,7 @@ import {
   getSeoDashboardPageDefByPath,
   LEGACY_CITY_SLUG_BY_PATH,
 } from './seoDashboardPages'
+import { stripSeoTitleBrand } from './seo/seoKeywordHelpers'
 
 /**
  * @param {Map<string, import('./seoSettingsDefaults').SeoSettingsRow>|null|undefined} map
@@ -51,11 +52,15 @@ export function mergeSeoLandingPageConfig(page, override) {
       ? override.faq_json.map((f) => ({ q: f.q, a: f.a }))
       : page.faqs
 
+  const title = stripSeoTitleBrand(override.seo_title?.trim() || page.title)
+  const ogTitle = stripSeoTitleBrand(
+    override.og_title?.trim() || override.seo_title?.trim() || page.ogTitle || page.title,
+  )
   return {
     ...page,
-    title: override.seo_title?.trim() || page.title,
+    title,
     metaDescription: override.meta_description?.trim() || page.metaDescription,
-    ogTitle: override.og_title?.trim() || override.seo_title?.trim() || page.ogTitle || page.title,
+    ogTitle,
     ogDescription:
       override.og_description?.trim() || override.meta_description?.trim() || page.ogDescription || page.metaDescription,
     h1: override.h1?.trim() || page.h1,

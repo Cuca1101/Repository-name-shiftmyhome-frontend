@@ -1,18 +1,25 @@
 /**
- * Shared long-form copy blocks for SEO landing pages (300–600 words with intros).
+ * Shared long-form copy blocks for SEO landing pages (Scotland keyword focus).
  */
 
 export const SEO_KEYWORD_PHRASES = [
-  'Removals From £40',
-  'House Removals',
+  'Scotland Removals',
+  'House Removals Scotland',
+  'Man and Van Scotland',
+  'Man with Van Hire',
+  'Furniture Delivery Scotland',
   'Furniture Removals',
-  'Man with Van Services',
-  'Office Relocations',
+  'Local Movers Scotland',
+  'Removal Company Scotland',
+  'Office Removals',
+  'Student Moves Scotland',
   'Long Distance Removals',
-  'Urgent Removals',
-  'Student Moves',
-  'Furniture Delivery',
-  'Trusted UK Movers',
+  'Same Day Removals',
+  'Sofa Delivery Scotland',
+  'Flat Removals',
+  'Cheap Removals Scotland',
+  'House Movers Scotland',
+  'Moving Company Scotland',
 ]
 
 /** @param {string} cityName @param {number} seed */
@@ -34,48 +41,48 @@ export function buildBodySections(serviceLabel, cityName, region, variant) {
   const v = variant
   const pricing = [
     {
-      heading: `Transparent ${serviceLabel} pricing in ${cityName}`,
+      heading: `${serviceLabel} pricing in ${cityName}`,
       paragraphs: [
-        `ShiftMyHome quotes online from your addresses, inventory, and access details — so the price reflects the job, not a guess. Many ${cityName} moves start from competitive rates when the load is small or local; larger house moves are priced on volume, crew, and distance. You see the estimate before you book.`,
-        `We factor parking, stairs, lift access, and walking distance into the quote wizard. That helps avoid surprises on move day and keeps ${serviceLabel} in ${cityName} straightforward for customers and crews alike.`,
+        `ShiftMyHome quotes ${serviceLabel} in ${cityName} online from your addresses, inventory and access — so the price matches the job across Scotland. Small local loads and man and van jobs often cost less; larger house moves price on volume, crew and distance.`,
+        `Parking, stairs, lifts and walking distance feed into the quote wizard. That keeps ${serviceLabel} in ${cityName} clear for customers comparing local movers and removal companies.`,
       ],
     },
     {
-      heading: 'What to expect on move day',
+      heading: `What to expect on move day in ${cityName}`,
       paragraphs: [
-        `Your crew confirms timing, vehicle size, and any packing needs before arrival. We use blankets, straps, and careful loading as standard on booked ${serviceLabel} jobs across ${region.areaPhrase}.`,
-        `Whether you are moving within ${cityName} or heading to another Scottish city or UK postcode, you have one point of contact and clear updates. Goods-in-transit cover applies on confirmed bookings — list fragile or high-value pieces when you quote.`,
+        `Your crew confirms timing, vehicle size and packing needs before arrival. Blankets, straps and careful loading are standard on booked ${serviceLabel} jobs across ${region.areaPhrase}.`,
+        `Whether you move within ${cityName} or to another Scotland city or UK postcode, you have one contact and clear updates. Goods-in-transit cover applies on confirmed bookings — list fragile items when you quote.`,
       ],
     },
     {
-      heading: `Why choose ShiftMyHome in ${cityName}`,
+      heading: `Why choose local movers in ${cityName}`,
       paragraphs: [
         `We are based in Glasgow with Scotland-wide coverage and regular routes through ${region.label}. Local knowledge matters for ${region.moveContext} — we plan access and parking before we arrive.`,
-        `Customers choose us for upfront pricing, professional movers, and flexible options from man-with-van loads to full removals. Add packing, dismantling, or a specific arrival window in the quote notes and we shape the job around your plan.`,
+        `Customers choose us for upfront pricing, professional Scotland movers, and flexible options from man and van to full house removals and furniture delivery. Add packing or a timed window in the quote notes.`,
       ],
     },
   ]
 
   const access = [
     {
-      heading: `Planning access in ${cityName}`,
+      heading: `Access and parking for ${serviceLabel} in ${cityName}`,
       paragraphs: [
-        `${cityName} properties often involve stairs, limited parking, or courtyard carries. Tell us about floors, lifts, and awkward access in your quote so we assign the right crew and allow enough time on site.`,
-        `For ${serviceLabel} in busy streets or residential courts, early booking helps secure a practical arrival slot. We confirm honestly if same-day cover is possible when schedules are tight.`,
+        `${cityName} jobs often involve stairs, limited parking or courtyard carries. Tell us about floors, lifts and awkward access so we assign the right crew for ${serviceLabel}.`,
+        `For busy streets across ${region.areaPhrase}, early booking helps secure a practical slot. We confirm honestly if same day man and van or removals cover is possible.`,
       ],
     },
     {
-      heading: `Local routes and UK coverage`,
+      heading: `Local Scotland routes and UK coverage`,
       paragraphs: [
-        `From ${cityName} we run local jobs daily and longer routes across Scotland and the UK when you need to relocate further. Distance, volume, and date all feed into your live online estimate.`,
-        `Our teams know ${region.areaPhrase} and common commuter links between major cities. That supports reliable scheduling for ${serviceLabel} without treating every street the same.`,
+        `From ${cityName} we run local removals daily and long distance routes across Scotland and the UK. Distance, volume and date feed into your live online estimate for ${serviceLabel}.`,
+        `Our teams know ${region.areaPhrase} and common links between Glasgow, Edinburgh, Aberdeen and other Scotland centres — reliable scheduling without treating every street the same.`,
       ],
     },
     {
-      heading: 'Straightforward booking',
+      heading: `Book ${serviceLabel} in ${cityName} online`,
       paragraphs: [
-        `Use the instant quote wizard below with pickup and delivery postcodes, your item list, and preferred date. No obligation — adjust inventory or addresses until the scope matches your move.`,
-        `Prefer to speak first? Call or WhatsApp with your ${cityName} details and we will talk through options before you confirm.`,
+        `Use the instant quote wizard with pickup and delivery postcodes, your item list and preferred date. No obligation — adjust inventory until the scope matches your ${cityName} move.`,
+        `Prefer to speak first? Call or WhatsApp with your ${cityName} details and we will talk through house removals, man and van or furniture delivery before you confirm.`,
       ],
     },
   ]
@@ -90,6 +97,8 @@ export function buildBodySections(serviceLabel, cityName, region, variant) {
  * @param {string} serviceLabel
  */
 export function buildKeywordSentence(cityName, serviceLabel) {
-  const picks = SEO_KEYWORD_PHRASES.filter((_, i) => (cityName.length + serviceLabel.length + i) % 2 === 0).slice(0, 6)
-  return `Popular searches we help with in ${cityName} include ${picks.join(', ')}, and professional ${serviceLabel} through ShiftMyHome.`
+  const picks = SEO_KEYWORD_PHRASES.filter(
+    (_, i) => (cityName.length + serviceLabel.length + i) % 2 === 0,
+  ).slice(0, 7)
+  return `Popular Scotland searches we help with from ${cityName} include ${picks.join(', ')}, plus professional ${serviceLabel} with instant online quotes across Scotland.`
 }

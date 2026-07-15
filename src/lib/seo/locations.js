@@ -247,19 +247,8 @@ export const SCOTLAND_LOCATION_NAMES = (() => {
   return ordered
 })()
 
-/** Cities with dedicated man-with-van SEO routes. */
-export const MAN_WITH_VAN_SEO_CITIES = [
-  'Glasgow',
-  'Edinburgh',
-  'Aberdeen',
-  'Dundee',
-  'Inverness',
-  'Stirling',
-  'Perth',
-  'Paisley',
-  'Falkirk',
-  'Livingston',
-]
+/** Cities with dedicated man-with-van SEO routes — all priority Scotland search cities. */
+export const MAN_WITH_VAN_SEO_CITIES = [...PRIORITY_SEO_CITIES]
 
 /** Primary footer cities — keep the footer concise; full list lives on /coverage. */
 export const FOOTER_PRIMARY_CITIES = [

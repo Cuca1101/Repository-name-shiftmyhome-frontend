@@ -15,6 +15,8 @@ const STATIC_PATHS = [
   '/office-moves',
   '/student-moves',
   '/clearance',
+  '/long-distance-removals',
+  '/urgent-removals',
 ]
 
 /** Transactional routes — excluded from sitemap (noindex at runtime/build). */

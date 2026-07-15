@@ -41,10 +41,10 @@ const SECONDARY_MWV_LINKS = buildSecondaryManWithVanLinks()
 /** @type {Record<string, ServicePageSeoContent>} */
 export const SERVICE_PAGE_SEO_CONTENT = {
   'house-removals': {
-    seoTitle: 'House Removals Scotland | Instant Quote | ShiftMyHome',
+    seoTitle: 'House Removals Scotland | Local Movers & Man and Van',
     metaDescription:
-      'Professional house removals across Scotland — full and partial home moves with insured crews. Instant online quotes for Glasgow, Edinburgh and UK routes.',
-    introHeading: 'Professional house removals across Scotland',
+      'House removals Scotland — local movers for Glasgow, Edinburgh, Aberdeen and UK routes. Flat moves, man and van and furniture delivery. Instant online quote.',
+    introHeading: 'House removals across Scotland',
     intro:
       'ShiftMyHome provides full and partial house removals across Scotland, from studio flats to multi-bedroom family homes. Tell us your pickup and delivery addresses, list your furniture and boxes, and receive a live price before you book.',
     introSecondary:
@@ -99,10 +99,10 @@ export const SERVICE_PAGE_SEO_CONTENT = {
     ctaText: 'Get a clear price in minutes — start the quote wizard above with your addresses and inventory.',
   },
   'man-with-van': {
-    seoTitle: 'Man With Van Scotland | Instant Quote | ShiftMyHome',
+    seoTitle: 'Man and Van Scotland | Local Hire Near Me',
     metaDescription:
-      'Flexible man with van service across Scotland — single items, flat moves and quick local jobs. Get a clear online price from ShiftMyHome in minutes.',
-    introHeading: 'Man with van service across Scotland',
+      'Man and van hire Scotland — cheap local delivery, flat moves and same day slots when available. Glasgow, Edinburgh and Scotland-wide. Instant online quote.',
+    introHeading: 'Man and van hire across Scotland',
     intro:
       'Our man with van service suits smaller loads — single items, partial flat moves, marketplace collections, and quick local runs. You get a van and experienced crew sized to your job, not a full removal team you do not need.',
     introSecondary:
@@ -166,10 +166,10 @@ export const SERVICE_PAGE_SEO_CONTENT = {
     ctaText: 'Start the quote wizard above — enter your items and addresses for an instant man-with-van price.',
   },
   'furniture-delivery': {
-    seoTitle: 'Furniture Delivery Scotland | Item Removals | ShiftMyHome',
+    seoTitle: 'Furniture Delivery Scotland | Sofa & Item Movers',
     metaDescription:
-      'Furniture delivery and item removals across Scotland — sofas, beds and bulky pieces moved with care. Instant quotes with insured two-person crews.',
-    introHeading: 'Furniture delivery and item removals',
+      'Furniture delivery Scotland — sofa delivery, beds and bulky item removals with two-person crews. Glasgow, Edinburgh and Scotland-wide. Instant online quote.',
+    introHeading: 'Furniture delivery across Scotland',
     intro:
       'We move sofas, beds, wardrobes, and other bulky furniture across Scotland with two-person crews, straps, and blankets. Collections from shops, private sellers, and marketplace purchases are all quoted the same transparent way.',
     introSecondary:
@@ -230,10 +230,10 @@ export const SERVICE_PAGE_SEO_CONTENT = {
     ctaText: 'Quote above with item details and both addresses — get an instant furniture delivery price.',
   },
   'office-moves': {
-    seoTitle: 'Office Removals Scotland | Business Moves | ShiftMyHome',
+    seoTitle: 'Office Removals Scotland | Business Relocation',
     metaDescription:
-      'Office removals and business relocations across Scotland — desks, IT and furniture with minimal downtime. Out-of-hours moves where possible. Quote online.',
-    introHeading: 'Office removals and business relocations',
+      'Office removals Scotland — business relocation for desks, IT and office furniture. Glasgow, Edinburgh and Scotland-wide. Out-of-hours moves. Instant quote.',
+    introHeading: 'Office removals across Scotland',
     intro:
       'ShiftMyHome relocates offices, studios, and commercial spaces across Scotland with careful planning around your business hours. Desks, filing, meeting room furniture, and IT equipment are handled with labelled packing where agreed.',
     introSecondary:
@@ -297,9 +297,9 @@ export const SERVICE_PAGE_SEO_CONTENT = {
     ctaText: 'Start the quote wizard above with your office inventory and both addresses.',
   },
   'student-moves': {
-    seoTitle: 'Student Moves Scotland | Affordable Removals | ShiftMyHome',
+    seoTitle: 'Student Moves Scotland | Cheap Man and Van',
     metaDescription:
-      'Budget-friendly student moves across Scotland — halls, flats and term-time addresses. Smaller loads, clear pricing. Instant quotes from ShiftMyHome.',
+      'Student moves Scotland — affordable halls and flat removals in Glasgow, Edinburgh and university towns. Cheap man and van hire. Instant online quote.',
     introHeading: 'Student moves across Scotland',
     intro:
       'Student moves peak around September and June — booking early secures better dates. Our service suits halls, shared flats, and term-time addresses across Glasgow, Edinburgh, and other Scottish university cities.',
@@ -364,10 +364,10 @@ export const SERVICE_PAGE_SEO_CONTENT = {
     ctaText: 'Get your student move price above — enter both addresses and what you are taking with you.',
   },
   clearance: {
-    seoTitle: 'Clearance Services Scotland | House Clearances | ShiftMyHome',
+    seoTitle: 'House Clearance Scotland | Property Clearances',
     metaDescription:
-      'House, garage and garden clearances across Scotland with responsible disposal where possible. Upfront pricing before we arrive. Get your quote today.',
-    introHeading: 'House and property clearances',
+      'House clearance Scotland — garage, loft and flat clearances with upfront pricing. Local movers across Glasgow, Edinburgh and Scotland. Get a quote today.',
+    introHeading: 'House clearance across Scotland',
     intro:
       'ShiftMyHome handles house, garage, loft, and garden clearances across Scotland with upfront pricing before we arrive. You tell us what needs removed — furniture, appliances, bags, and general items — and we quote from the scope.',
     introSecondary:
@@ -425,6 +425,132 @@ export const SERVICE_PAGE_SEO_CONTENT = {
     ],
     ctaHeading: 'Need a property cleared?',
     ctaText: 'Start the clearance quote above — describe what needs removed for an upfront price.',
+  },
+  'long-distance-removals': {
+    seoTitle: 'Long Distance Removals Scotland | UK House Movers',
+    metaDescription:
+      'Long distance removals Scotland to UK — Glasgow, Edinburgh, Aberdeen and beyond. House movers with clear online pricing. Instant quote for your route.',
+    introHeading: 'Long distance removals across Scotland and the UK',
+    intro:
+      'ShiftMyHome handles long distance house removals from Scotland to other Scottish cities and across the UK. Enter both postcodes and your inventory for a live price based on volume, distance and access — not a vague phone estimate.',
+    introSecondary:
+      'Whether you are moving Glasgow to London, Edinburgh to Aberdeen, or a Highlands address to the Central Belt, we plan loading, transit time and crew size from the details you give online.',
+    bodySections: [
+      {
+        heading: 'Scotland to UK long distance moves',
+        paragraphs: [
+          'Long distance removals cover inter-city Scotland routes and longer journeys into England, Wales and further UK destinations. Distance, date and load size all feed into your online quote.',
+          'Common jobs include family house moves between Glasgow, Edinburgh, Aberdeen, Dundee and Inverness, plus Scotland to UK relocations when work or family takes you further.',
+        ],
+      },
+      {
+        heading: 'Planning, packing and access',
+        paragraphs: [
+          'Tell us about parking, stairs and fragile items at both ends. We assign the right vehicle and crew so long transit does not mean rushed loading.',
+          'Add packing materials or dismantling in the quote wizard when you need extra help before a longer journey.',
+        ],
+      },
+      {
+        heading: 'Clear pricing before you book',
+        paragraphs: [
+          'Your live quote reflects the route and inventory you list. Adjust items until the scope matches the job — no obligation to book.',
+          'Local man and van options can still suit smaller long-distance loads; larger house moves get a full removals crew sized to your list.',
+        ],
+      },
+    ],
+    faqs: [
+      {
+        q: 'Do you offer long distance removals from Scotland to England?',
+        a: 'Yes. Quote with both postcodes and your inventory — we cover Scotland-wide routes and UK destinations.',
+      },
+      {
+        q: 'How is long distance removals pricing calculated?',
+        a: 'Volume, distance, access and date drive the price. Use the instant quote wizard for a live estimate from your actual addresses.',
+      },
+      {
+        q: 'Can you move between Glasgow and Edinburgh as a long distance job?',
+        a: 'Yes — inter-city Scotland moves are booked regularly. Enter both cities in the quote form.',
+      },
+      {
+        q: 'Is long distance cover insured?',
+        a: 'Goods-in-transit cover applies on booked jobs. List fragile or high-value items in your quote notes.',
+      },
+    ],
+    cityLinks: [
+      { href: '/long-distance-removals-glasgow', label: 'Long distance Glasgow' },
+      { href: '/long-distance-removals-edinburgh', label: 'Long distance Edinburgh' },
+      { href: '/long-distance-removals-aberdeen', label: 'Long distance Aberdeen' },
+      { href: '/long-distance-removals-dundee', label: 'Long distance Dundee' },
+      { href: '/long-distance-removals-inverness', label: 'Long distance Inverness' },
+      ...PRIMARY_CITY_REMOVAL_LINKS.slice(0, 4),
+      { href: '/house-removals', label: 'House removals' },
+      { href: '/coverage', label: 'Coverage map' },
+    ],
+    ctaHeading: 'Planning a long distance move?',
+    ctaText: 'Start the quote above with both addresses and your inventory for a clear long distance price.',
+  },
+  'urgent-removals': {
+    seoTitle: 'Urgent Removals Scotland | Same Day Movers',
+    metaDescription:
+      'Urgent removals Scotland — same day and short-notice house movers when crews are available. Glasgow, Edinburgh and Scotland-wide. Instant online quote.',
+    introHeading: 'Urgent and same day removals across Scotland',
+    intro:
+      'Need urgent removals in Scotland? ShiftMyHome helps with short-notice house moves, flat clearances and last-minute man and van jobs when crew schedules allow. Quote with today’s date for an honest availability answer.',
+    introSecondary:
+      'We cannot always accept every same-day request — but when we can help, you get a clear online price from your addresses and inventory before you book.',
+    bodySections: [
+      {
+        heading: 'Same day and last-minute moves',
+        paragraphs: [
+          'Urgent removals cover emergency flat moves, sudden keys handover and short-notice furniture jobs. Enter your preferred date and time window in the quote wizard.',
+          'Smaller loads often suit man and van crews; larger house moves need more planning — we confirm what is realistic for your timeline.',
+        ],
+      },
+      {
+        heading: 'Honest availability',
+        paragraphs: [
+          'Same day slots depend on local crew free time. Quote online and we confirm if we can attend — no over-promising.',
+          'Early requests in Glasgow, Edinburgh and surrounding towns have the best chance of same-day coverage.',
+        ],
+      },
+      {
+        heading: 'What to prepare for a fast booking',
+        paragraphs: [
+          'List inventory accurately, note stairs and parking, and keep both addresses ready. That speeds quoting and dispatch for urgent jobs.',
+          'If the move can wait until tomorrow, mid-week slots are often easier to secure at fair rates.',
+        ],
+      },
+    ],
+    faqs: [
+      {
+        q: 'Do you offer same day removals in Scotland?',
+        a: 'When crews are available — quote with today’s date and we confirm honestly if we can help.',
+      },
+      {
+        q: 'What counts as an urgent removal?',
+        a: 'Short-notice flat or house moves, last-minute man and van collections, and emergency furniture jobs with a tight deadline.',
+      },
+      {
+        q: 'Is urgent removals more expensive?',
+        a: 'Pricing still follows volume, distance and access. Same-day demand can limit options — your online quote shows the live figure.',
+      },
+      {
+        q: 'Can I book urgent man and van instead of a full house move?',
+        a: 'Yes. Smaller urgent loads often suit man and van — choose the right service in the quote wizard.',
+      },
+    ],
+    cityLinks: [
+      { href: '/urgent-removals-glasgow', label: 'Urgent removals Glasgow' },
+      { href: '/urgent-removals-edinburgh', label: 'Urgent removals Edinburgh' },
+      { href: '/urgent-removals-aberdeen', label: 'Urgent removals Aberdeen' },
+      { href: '/same-day-removals-glasgow', label: 'Same day removals Glasgow' },
+      { href: '/man-with-van', label: 'Man and van' },
+      ...PRIMARY_CITY_REMOVAL_LINKS.slice(0, 4),
+      { href: '/house-removals', label: 'House removals' },
+      { href: '/coverage', label: 'Coverage map' },
+    ],
+    ctaHeading: 'Need to move urgently?',
+    ctaText: 'Quote above with today’s date — we confirm quickly if a crew can help.',
   },
 }
 

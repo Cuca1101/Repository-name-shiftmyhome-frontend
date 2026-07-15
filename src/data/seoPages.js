@@ -3,6 +3,7 @@ import { normalizePublicPath } from '../lib/normalizePublicPath.js'
 import { buildNearbyLocationLinks, SCOTLAND_HUB_LINKS } from '../lib/seoNearbyAreas.js'
 import { INTENT_PAGE_DEFINITIONS } from './seoIntentPages.js'
 import { buildServiceMatrixPages } from './seoServiceMatrixPages.js'
+import { buildKeywordMatrixPages } from './seoKeywordMatrixPages.js'
 import {
   buildBodySections,
   buildKeywordSentence,
@@ -15,8 +16,10 @@ import {
   REGION_DEFINITIONS,
 } from '../lib/seo/locations.js'
 import {
-  buildLocationH1,
+  buildLocationSeoH1,
   buildLocationSeoTitle,
+  buildServiceCitySeoTitle,
+  buildIntentSeoTitle,
   buildLocationMetaDescription,
   buildOpenGraphMeta,
   buildLocationKeywordPhrases,
@@ -148,24 +151,22 @@ function buildMetaDescription(cityName, region, meta, variant) {
   const area =
     String(region.label || '').length <= 32 ? region.label : cityName
   const templates = [
-    `Book ${meta.label} in ${cityName} with ShiftMyHome. Insured crews, house removals and man with van across ${area}. Get a quote today.`,
-    `${cityName} ${meta.label} — local movers, furniture delivery and removal company service in ${area}. Transparent pricing. Quote online today.`,
-    `ShiftMyHome ${meta.label} for ${cityName} homes and businesses. Professional movers across ${area}. Fully insured. Get your quote today.`,
-    `Need ${meta.label} near ${cityName}? ShiftMyHome covers ${area} with careful handling and clear pricing. Book online today.`,
+    `${cityName} ${meta.label} — local movers for house removals, man and van and furniture delivery across ${area}, Scotland. Instant online quote.`,
+    `Book ${meta.label} in ${cityName}. Insured Scotland crews for homes and flats across ${area}. Clear pricing. Get a quote today.`,
+    `Need ${meta.label} near ${cityName}? Local movers covering ${area} and Scotland-wide routes. Man and van or full removals. Quote online.`,
+    `${meta.label} ${cityName} from a Scotland removal company. Professional movers across ${area}. Transparent online prices. Book today.`,
   ]
   return finalizeMetaDescription(templates[variant % templates.length])
 }
 
 /**
- * @param {{ titleSuffix: string }} meta
+ * @param {SeoPageKind} kind
+ * @param {string} cityName
  * @param {number} variant
  */
-function buildPageTitle(meta, variant) {
-  const alt =
-    variant % 2 === 1 && meta.titleSuffix.includes('Removals')
-      ? `${meta.titleSuffix} & Van | ShiftMyHome`
-      : `${meta.titleSuffix} | ShiftMyHome`
-  return shortenSeoTitle(alt)
+function buildPageTitle(kind, cityName, variant) {
+  if (kind === 'removals') return buildLocationSeoTitle(cityName, variant)
+  return buildServiceCitySeoTitle(kind, cityName, variant)
 }
 
 /** @param {SeoPageKind} kind @param {string} cityName */
@@ -173,11 +174,11 @@ function kindMeta(kind, cityName) {
   switch (kind) {
     case 'man-with-van':
       return {
-        label: 'man with van',
-        titleSuffix: `Man with Van ${cityName}`,
-        h1: `Man with Van in ${cityName}`,
+        label: 'man and van',
+        titleSuffix: `Man and Van ${cityName}`,
+        h1: `Man and Van in ${cityName}`,
         serviceType: 'Man with Van',
-        heroTeaser: `Flexible van & crew for ${cityName} loads.`,
+        heroTeaser: `Man and van hire in ${cityName} — local delivery and small moves.`,
         bullets: [
           'Single items, flat moves, and small office runs',
           'Same-area collections and multi-drop routes',
@@ -399,9 +400,9 @@ function buildSeoPage(kind, cityName) {
   const isRemovals = kind === 'removals'
 
   const title = shortenSeoTitle(
-    isRemovals ? buildLocationSeoTitle(cityName, cityVariant) : buildPageTitle(meta, variant),
+    buildPageTitle(kind, cityName, isRemovals ? cityVariant : variant),
   )
-  const h1 = isRemovals ? buildLocationH1(cityName) : meta.h1
+  const h1 = isRemovals ? buildLocationSeoH1(cityName, cityVariant) : meta.h1
   const metaDescription = finalizeMetaDescription(
     isRemovals
       ? buildLocationMetaDescription(cityName, region, cityVariant)
@@ -511,7 +512,7 @@ function buildIntentPage(def) {
     citySlug,
     regionKey: region.key,
     regionLabel: def.regionLabel,
-    title: shortenSeoTitle(buildPageTitle({ titleSuffix: def.h1 }, variant)),
+    title: shortenSeoTitle(buildIntentSeoTitle(def.h1, def.serviceType, variant)),
     metaDescription: finalizeMetaDescription(def.metaDescription),
     h1: def.h1,
     intro: def.intro,
@@ -527,7 +528,7 @@ function buildIntentPage(def) {
     keywordSentence: buildKeywordSentence(def.cityName, intentServiceLabel(def)),
     ogTitle: buildOpenGraphMeta(
       def.path,
-      shortenSeoTitle(buildPageTitle({ titleSuffix: def.h1 }, variant)),
+      shortenSeoTitle(buildIntentSeoTitle(def.h1, def.serviceType, variant)),
       finalizeMetaDescription(def.metaDescription),
     ).ogTitle,
     ogDescription: finalizeMetaDescription(def.metaDescription),
@@ -563,7 +564,8 @@ function assertUniqueSeoPaths(pages) {
 const BASE_SEO_PAGES = [...removalsPages, ...manWithVanPages, ...serviceCityPages, ...intentPages]
 const EXISTING_PATHS = new Set(BASE_SEO_PAGES.map((p) => p.path))
 const matrixPages = buildServiceMatrixPages(EXISTING_PATHS)
-const ALL_SEO_PAGES_RAW = [...BASE_SEO_PAGES, ...matrixPages]
+const keywordMatrixPages = buildKeywordMatrixPages(EXISTING_PATHS)
+const ALL_SEO_PAGES_RAW = [...BASE_SEO_PAGES, ...matrixPages, ...keywordMatrixPages]
 assertUniqueSeoPaths(ALL_SEO_PAGES_RAW)
 
 export const ALL_SEO_PAGES = ALL_SEO_PAGES_RAW

@@ -8,6 +8,7 @@ const SEO_SITE_ORIGIN = 'https://www.shiftmyhome.co.uk'
 const META_DESCRIPTION_MAX = 160
 const META_DESCRIPTION_MIN = 120
 const SEO_TITLE_MAX = 60
+/** Legacy brand suffix stripped from SEO landing titles only (via stripSeoTitleBrand). */
 const BRAND_SUFFIX = ' | ShiftMyHome'
 
 /** Trim to a complete sentence within Google's snippet length. */
@@ -43,17 +44,22 @@ export function finalizeMetaDescription(text) {
 }
 
 /**
+ * Remove trailing `| ShiftMyHome` from SEO landing page titles.
+ * @param {string} title
+ */
+export function stripSeoTitleBrand(title) {
+  const t = String(title || '').replace(/\s+/g, ' ').trim()
+  if (t.endsWith(BRAND_SUFFIX)) return t.slice(0, -BRAND_SUFFIX.length).trim()
+  return t
+}
+
+/**
  * @param {string} title
  * @param {number} [max]
  */
 export function shortenSeoTitle(title, max = SEO_TITLE_MAX) {
   const t = String(title || '').replace(/\s+/g, ' ').trim()
   if (t.length <= max) return t
-  if (t.endsWith(BRAND_SUFFIX)) {
-    const core = t.slice(0, -BRAND_SUFFIX.length).trim()
-    const room = max - BRAND_SUFFIX.length
-    if (room > 12) return `${core.slice(0, room).replace(/[|\s-]+$/, '').trim()}${BRAND_SUFFIX}`
-  }
   return t.slice(0, max).replace(/[|\s-]+$/, '').trim()
 }
 
@@ -63,15 +69,213 @@ export function buildLocationH1(cityName) {
 }
 
 /**
- * Generic city-keyword title variants (primary: "<City> removals", secondary phrases rotated).
+ * Rotating query-led H1 for city removals pages (matches search + title language).
+ * @param {string} cityName
+ * @param {number} [variant]
+ */
+export function buildLocationSeoH1(cityName, variant = 0) {
+  const options = [
+    `${cityName} Removals`,
+    `House Removals in ${cityName}`,
+    `${cityName} House Removals`,
+    `Local Removals in ${cityName}`,
+  ]
+  return options[variant % options.length]
+}
+
+/**
+ * Pick a template that fits max length; fall back to shorter options.
+ * @param {string[]} templates
+ * @param {number} variant
+ * @param {number} [max]
+ */
+function pickFittingTitle(templates, variant, max = SEO_TITLE_MAX) {
+  if (!templates.length) return ''
+  const start = ((variant % templates.length) + templates.length) % templates.length
+  for (let i = 0; i < templates.length; i++) {
+    const t = templates[(start + i) % templates.length]
+    if (t.length <= max) return t
+  }
+  return shortenSeoTitle(templates[start], max)
+}
+
+/**
+ * Query-first titles Google can match to searches like "{city} removals", "house removals {city}".
+ * Front half = main query; after | = related searchable phrases (not marketing fluff).
  * @param {string} cityName
  * @param {number} [variant]
  */
 export function buildLocationSeoTitle(cityName, variant = 0) {
-  const short = `${cityName} Removals${BRAND_SUFFIX}`
-  const long = `${cityName} Removals & Man With Van${BRAND_SUFFIX}`
-  const useLong = variant % 2 === 1 && long.length <= SEO_TITLE_MAX
-  return shortenSeoTitle(useLong ? long : short)
+  return pickFittingTitle(
+    [
+      `${cityName} Removals | House Movers Scotland`,
+      `House Removals ${cityName} | Local Movers`,
+      `${cityName} House Removals | Man and Van`,
+      `Removals ${cityName} | Flat & House Movers`,
+      `${cityName} Moving Company | Scotland Removals`,
+      `House Movers ${cityName} | Removals Near Me`,
+      `Local Removals ${cityName} | Man with Van`,
+      `${cityName} Removals | Cheap Local Movers`,
+    ],
+    variant,
+  )
+}
+
+/**
+ * Query-first titles for service × city pages (match how people search in Google).
+ * @param {string} kind
+ * @param {string} cityName
+ * @param {number} [variant]
+ */
+export function buildServiceCitySeoTitle(kind, cityName, variant = 0) {
+  switch (kind) {
+    case 'man-with-van':
+      return pickFittingTitle(
+        [
+          `Man and Van ${cityName} | Local Hire Near Me`,
+          `Man with Van ${cityName} | Cheap Local Delivery`,
+          `Man and Van Hire ${cityName} | Same Day`,
+          `${cityName} Man and Van | Scotland Movers`,
+          `Man And Van in ${cityName} | Local Delivery`,
+          `Local Man and Van ${cityName} | Hire Near Me`,
+        ],
+        variant,
+      )
+    case 'office-removals':
+      return pickFittingTitle(
+        [
+          `Office Removals ${cityName} | Business Movers`,
+          `Office Movers ${cityName} | Business Relocation`,
+          `Business Relocation ${cityName} | Office Removals`,
+          `${cityName} Office Moves | Scotland Removals`,
+        ],
+        variant,
+      )
+    case 'student-moves':
+      return pickFittingTitle(
+        [
+          `Student Moves ${cityName} | Cheap Man and Van`,
+          `Student Removals ${cityName} | Affordable Movers`,
+          `${cityName} Student Movers | Halls & Flat Moves`,
+          `Student Man and Van ${cityName} | Local Hire`,
+        ],
+        variant,
+      )
+    case 'furniture-delivery':
+      return pickFittingTitle(
+        [
+          `Furniture Delivery ${cityName} | Sofa Delivery`,
+          `Sofa Delivery ${cityName} | Furniture Movers`,
+          `${cityName} Furniture Delivery | Man and Van`,
+          `Furniture Collection ${cityName} | Local Delivery`,
+        ],
+        variant,
+      )
+    case 'furniture-removals':
+      return pickFittingTitle(
+        [
+          `Furniture Removals ${cityName} | Sofa Movers`,
+          `${cityName} Furniture Movers | Single Item Removals`,
+          `Furniture Moving ${cityName} | Man and Van`,
+          `Single Item Removals ${cityName} | Furniture Delivery`,
+        ],
+        variant,
+      )
+    case 'same-day-delivery':
+      return pickFittingTitle(
+        [
+          `Same Day Delivery ${cityName} | Man and Van`,
+          `${cityName} Same Day Delivery | Local Movers`,
+          `Same Day Furniture Delivery ${cityName}`,
+          `Urgent Delivery ${cityName} | Same Day Man and Van`,
+        ],
+        variant,
+      )
+    case 'long-distance-removals':
+      return pickFittingTitle(
+        [
+          `Long Distance Removals ${cityName} | UK & Scotland`,
+          `${cityName} Long Distance Removals | House Movers`,
+          `Long Distance Movers ${cityName} | UK Removals`,
+          `UK Removals from ${cityName} | Long Distance`,
+        ],
+        variant,
+      )
+    case 'urgent-removals':
+      return pickFittingTitle(
+        [
+          `Urgent Removals ${cityName} | Same Day Movers`,
+          `Last Minute Removals ${cityName} | Man and Van`,
+          `${cityName} Emergency Removals | Same Day`,
+          `Short Notice Removals ${cityName} | Local Movers`,
+        ],
+        variant,
+      )
+    default:
+      return buildLocationSeoTitle(cityName, variant)
+  }
+}
+
+/**
+ * Intent pages: H1 is already the search query — keep it primary; add a short related query.
+ * @param {string} h1
+ * @param {string} serviceType
+ * @param {number} [variant]
+ */
+export function buildIntentSeoTitle(h1, serviceType, variant = 0) {
+  const type = String(serviceType || '').toLowerCase()
+  const core = String(h1 || '').replace(/\s+/g, ' ').trim()
+
+  /** @type {string[]} */
+  let tails = ['Local Movers', 'House Removals', 'Man with Van', 'Near Me']
+  if (type.includes('man with van') || type.includes('man and van')) {
+    tails = ['Local Hire Near Me', 'Same Day Delivery', 'Local Movers', 'Van Hire']
+  } else if (type.includes('furniture')) {
+    tails = ['Sofa Delivery', 'Two Man Delivery', 'Local Collection', 'Item Delivery']
+  } else if (type.includes('office') || type.includes('business')) {
+    tails = ['Office Movers', 'Business Relocation', 'Local Removals', 'Office Moves']
+  } else if (type.includes('student')) {
+    tails = ['Cheap Man and Van', 'Affordable Movers', 'Halls & Flat Moves', 'Student Removals']
+  } else if (type.includes('clearance')) {
+    tails = ['House Clearance', 'Local Clearance', 'Same Day Help', 'Rubbish Clearance']
+  }
+
+  // Prefer exact query alone when already long; otherwise query + related term.
+  const templates = [
+    core,
+    ...tails.map((t) => `${core} | ${t}`),
+  ]
+  return pickFittingTitle(templates, variant)
+}
+
+/**
+ * Fallback slug metadata: primary search query first.
+ * @param {string} service
+ * @param {string} location
+ * @param {number} [variant]
+ */
+export function buildSlugFallbackSeoTitle(service, location, variant = 0) {
+  if (location === 'Scotland') {
+    return pickFittingTitle(
+      [
+        `${service} Scotland | Local Movers`,
+        `Scotland ${service} | House Removals`,
+        `${service} in Scotland | Man with Van`,
+        `${service} Scotland | Near Me`,
+      ],
+      variant,
+    )
+  }
+  const kindMap = {
+    'House Removals': 'removals',
+    'Man and Van': 'man-with-van',
+    'Student Moves': 'student-moves',
+    'Furniture Delivery': 'furniture-delivery',
+    'Same Day Removals': 'urgent-removals',
+    Clearance: 'removals',
+    Removals: 'removals',
+  }
+  return buildServiceCitySeoTitle(kindMap[service] || 'removals', location, variant)
 }
 
 /**
@@ -83,14 +287,14 @@ export function buildLocationMetaDescription(cityName, region, variant = 0) {
   const area =
     String(region.label || '').length <= 32 ? region.label : cityName
   const templates = [
-    `Book trusted ${cityName} removals with ShiftMyHome. House moves, furniture delivery and man with van across ${area}. Get a quote today.`,
-    `${cityName} removals from a local removal company — house moves, man with van and furniture delivery in ${area}. Insured crews. Quote online.`,
-    `Need ${cityName} removals? ShiftMyHome offers house removals, local movers and man with van in ${area}. Clear pricing. Get your quote today.`,
-    `Professional ${cityName} removals — house moves, furniture delivery and removal company crews serving ${area}. Book your move online today.`,
-    `House removals ${cityName} with ShiftMyHome. Local movers, man with van and furniture delivery across ${area}. Instant online quote today.`,
-    `Trusted ${cityName} removal company for homes and flats. House removals, man with van ${cityName} and furniture delivery. Get a quote today.`,
-    `Local movers ${cityName} — ${cityName} removals, house moves and furniture delivery across ${area}. ShiftMyHome. Get your quote today.`,
-    `Moving company ${cityName} for local and UK routes. House removals, man with van and furniture delivery in ${area}. Quote online today.`,
+    `${cityName} removals — house removals, man and van and furniture delivery across ${area}, Scotland. Instant online quote from local movers.`,
+    `Book house removals ${cityName} with local movers. Man with van, flat removals and furniture delivery in ${area}. Clear Scotland pricing. Quote online.`,
+    `Looking for ${cityName} removals or a removal company near you? House movers, man and van hire and sofa delivery across ${area}. Get a quote today.`,
+    `Local movers ${cityName} for house removals, man and van and furniture moving in ${area}. Scotland-wide and UK routes. Instant online quote.`,
+    `House removals ${cityName} — flat moves, cheap partial loads and man with van across ${area}. Insured Scotland crews. Get your quote today.`,
+    `${cityName} house movers and removal company for homes and flats. Removals, furniture delivery and man and van in ${area}. Quote online today.`,
+    `Cheap local removals ${cityName}? Compare a transparent price for house moves, man and van and furniture delivery in ${area}, Scotland.`,
+    `Moving company ${cityName} — ${cityName} removals, house movers and man with van across ${area} and Scotland. Book online today.`,
   ]
   return finalizeMetaDescription(templates[variant % templates.length])
 }
@@ -102,12 +306,12 @@ export function buildLocationMetaDescription(cityName, region, variant = 0) {
  */
 export function buildLocationHeroTeaser(cityName, region, variant = 0) {
   const teasers = [
-    `${cityName} removals — house removals, man with van, and furniture delivery across ${region.areaPhrase}.`,
-    `Removal company ${cityName} with local movers for house moves, flats, and furniture delivery.`,
-    `House removals and man with van ${cityName} — instant quotes from a trusted local removal company.`,
-    `Local movers ${cityName}: removals, furniture delivery, and Scotland-wide routes from ${region.areaPhrase}.`,
-    `${cityName} removal company — professional house removals, van loads, and careful furniture delivery.`,
-    `Moving company ${cityName} — local removals, house moves, and man with van when you need flexible help.`,
+    `${cityName} removals — house movers, man and van and furniture delivery across ${region.areaPhrase}, Scotland.`,
+    `Removal company ${cityName}: local house removals, flat moves and man with van hire.`,
+    `House removals and man and van ${cityName} — instant quotes from Scotland local movers.`,
+    `Local movers ${cityName} for removals, sofa delivery and Scotland-wide routes from ${region.areaPhrase}.`,
+    `${cityName} removal company — house removals, cheap man and van loads and furniture delivery.`,
+    `Moving company ${cityName} — local removals, house movers and same day man and van when available.`,
   ]
   return teasers[variant % teasers.length]
 }
@@ -140,19 +344,22 @@ export function buildOpenGraphMeta(path, title, description) {
 export function buildLocationKeywordPhrases(cityName) {
   return [
     `${cityName} removals`,
-    `removals ${cityName}`,
-    `removal company ${cityName}`,
     `house removals ${cityName}`,
+    `man and van ${cityName}`,
     `man with van ${cityName}`,
     `local movers ${cityName}`,
+    `removal company ${cityName}`,
     `moving company ${cityName}`,
+    `furniture delivery ${cityName}`,
     `furniture removals ${cityName}`,
     `flat removals ${cityName}`,
-    `office removals ${cityName}`,
-    `local removals ${cityName}`,
-    `moving quotes ${cityName}`,
-    `furniture delivery ${cityName}`,
+    `sofa delivery ${cityName}`,
+    `cheap removals ${cityName}`,
     `same day removals ${cityName}`,
+    `office removals ${cityName}`,
+    `student moves ${cityName}`,
+    `Scotland removals`,
+    `local removals Scotland`,
   ]
 }
 
@@ -162,10 +369,10 @@ export function buildLocationKeywordPhrases(cityName) {
  */
 export function buildLocationKeywordSentence(cityName, variant = 0) {
   const phrases = buildLocationKeywordPhrases(cityName)
-  const picks = phrases.filter((_, i) => (i + variant) % 2 === 0).slice(0, 5)
+  const picks = phrases.filter((_, i) => (i + variant) % 2 === 0).slice(0, 6)
   const templates = [
-    `Customers in ${cityName} often search for ${picks.join(', ')}, and similar local moving help — ShiftMyHome quotes all of these online with clear pricing.`,
-    `Whether you need ${picks.slice(0, 3).join(', ')}, or a longer UK route from ${cityName}, our quote wizard builds a price from your actual addresses and inventory.`,
+    `People searching Scotland for ${picks.join(', ')}, and similar local moving help get one clear online quote covering house removals, man and van and furniture delivery.`,
+    `Whether you need ${picks.slice(0, 4).join(', ')}, or a longer Scotland or UK route from ${cityName}, price from your real addresses and inventory online.`,
   ]
   return templates[variant % templates.length]
 }
