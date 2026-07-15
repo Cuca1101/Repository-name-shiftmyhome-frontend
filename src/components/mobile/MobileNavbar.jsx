@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react'
-import { Link, useLocation } from 'react-router-dom'
+﻿import { useEffect, useState } from 'react'
+import { useLocation } from 'react-router-dom'
 import Logo from '../Logo'
 import HomeSectionLink from '../HomeSectionLink'
 import QuoteNavCta from '../QuoteNavCta'
@@ -8,16 +8,13 @@ import { CONTACT } from '../../config'
 import { useWebsiteCms } from '../../context/WebsiteCmsContext'
 
 const navItems = [
-  { to: '/house-removals', label: 'House Removals' },
-  { to: '/man-with-van', label: 'Man with Van' },
-  { to: '/long-distance-removals', label: 'Long Distance' },
-  { to: '/urgent-removals', label: 'Urgent Removals' },
-  { sectionId: 'coverage', label: 'Coverage' },
+  { sectionId: 'about', label: 'About' },
   { sectionId: 'reviews', label: 'Reviews' },
+  { sectionId: 'coverage', label: 'Coverage' },
   { sectionId: 'contact', label: 'Contact' },
 ]
 
-/** Compact mobile/tablet navbar (&lt; lg) — logo, phone icon, hamburger only; CTA in drawer. */
+/** Compact mobile/tablet navbar (&lt; lg) ÔÇö logo, phone icon, hamburger only; CTA in drawer. */
 export default function MobileNavbar() {
   const { navbar } = useWebsiteCms()
   const phoneTel = navbar.phoneTel || CONTACT.phoneTel
@@ -78,16 +75,7 @@ export default function MobileNavbar() {
         <div className="border-t border-white/10 bg-navy-800">
           <div className="flex max-h-[min(70vh,420px)] flex-col gap-0.5 overflow-y-auto px-3 py-2">
             {navItems.map((item) =>
-              item.to ? (
-                <Link
-                  key={item.to}
-                  to={item.to}
-                  className="rounded-lg px-2 py-3 text-[15px] font-medium text-white/90 active:bg-white/10"
-                  onClick={closeMenu}
-                >
-                  {item.label}
-                </Link>
-              ) : item.sectionId === 'coverage' ? (
+              item.sectionId === 'coverage' ? (
                 <CoverageLink
                   key={item.sectionId}
                   className="rounded-lg px-2 py-3 text-[15px] font-medium text-white/90 active:bg-white/10"
