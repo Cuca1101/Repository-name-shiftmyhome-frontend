@@ -1,4 +1,5 @@
 import { quotePatchForAdminDriverAssign } from '../driverOperationalStatus'
+import { sendJobCustomerNotify } from '../jobCustomerTracking'
 import { isSupabaseConfigured, supabase } from '../supabase'
 import { cancelJobAssignmentForQuote, upsertJobAssignment } from './jobAssignmentsRepository'
 
@@ -106,6 +107,23 @@ export async function assignDriverToQuote(quoteId, driverId, driverName, quote, 
     throw new Error(
       `Driver saved on booking but mobile job list sync failed${detail}. Sign out and sign in again as admin, then re-assign. If it persists, apply migration 075 in Supabase SQL Editor.`,
     )
+  }
+
+  // Paid bookings: email customer driver allocation (idempotent; force on reassignment).
+  const priorDriver = String(quote?.assigned_driver_id || '').trim()
+  const reassigned = Boolean(priorDriver && priorDriver !== String(driverId))
+  const paymentStatus = String(quote?.payment_status || '').toLowerCase()
+  if (paymentStatus === 'paid' || paymentStatus === 'deposit_paid') {
+    try {
+      await sendJobCustomerNotify(quoteId, reassigned ? 'driver_reassigned' : 'driver_assigned', {
+        force: reassigned,
+      })
+    } catch (e) {
+      if (import.meta.env.DEV) {
+        // eslint-disable-next-line no-console
+        console.warn('[assignDriverToQuote] customer notify failed', e?.message || e)
+      }
+    }
   }
 }
 

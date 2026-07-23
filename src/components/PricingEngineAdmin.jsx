@@ -248,7 +248,7 @@ export default function PricingEngineAdmin() {
                       type="number"
                       step="0.01"
                       min="0"
-                      placeholder="Default"
+                      placeholder="—"
                       className={displayInputClass}
                       value={displayPriceInputValue(s)}
                       onChange={(e) => setDisplayPrice(s, e.target.value)}

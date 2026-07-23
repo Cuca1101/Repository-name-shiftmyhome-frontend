@@ -2,7 +2,8 @@ import { useEffect, useMemo, useState } from 'react'
 import { SERVICE_PAGES, getServicePageByPath } from '../constants/servicePages'
 import { HOME_SERVICE_CARD_IMAGES } from '../constants/homeServiceCardImages'
 import { fetchPricingSettings } from '../lib/data/pricingSettingsRepository'
-import { buildServiceCardPriceBySlug } from '../lib/serviceCardDisplayPrice'
+import { onPricingSettingsUpdated } from '../lib/pricingSettingsEvents'
+import { buildServiceCardPriceBySlug, formatServiceCardDisplayPrice } from '../lib/serviceCardDisplayPrice'
 import { useWebsiteCms } from '../context/WebsiteCmsContext'
 
 function serviceTypeForPath(path) {
@@ -36,18 +37,23 @@ export function useServiceGridCards() {
 
   useEffect(() => {
     let cancelled = false
-    ;(async () => {
+
+    async function loadSettings() {
       try {
         const s = await fetchPricingSettings()
         if (!cancelled) setSettings(s)
       } catch {
         if (!cancelled) setSettings(null)
-      } finally {
-        // no loading UI — cards render with optional prices
       }
-    })()
+    }
+
+    void loadSettings()
+    const unsubscribe = onPricingSettingsUpdated(() => {
+      void loadSettings()
+    })
     return () => {
       cancelled = true
+      unsubscribe()
     }
   }, [])
 
@@ -57,18 +63,27 @@ export function useServiceGridCards() {
     if (hasCmsServiceCards) {
       return serviceCards
         .filter((c) => c.is_active !== false)
-        .map((c) => ({
-          key: c.id || c.slug,
-          slug: c.slug,
-          title: c.title,
-          description: c.description,
-          imageSrc: c.image_url,
-          path: `/quote?service=${encodeURIComponent(c.slug)}`,
-          seoPath: c.route_path,
-          serviceType: serviceTypeForPath(c.route_path) || '',
-          buttonText: c.button_text || 'Get a Quote',
-          price: c.starting_price || priceBySlug[c.slug] || null,
-        }))
+        .map((c) => {
+          const serviceType = serviceTypeForPath(c.route_path) || ''
+          // Always use Admin homepageDisplayPrice (`displayPriceByService`) — never CMS starting_price
+          // or quote minimumServiceThreshold (`basePriceByService`).
+          const price =
+            formatServiceCardDisplayPrice(settings, serviceType) ||
+            priceBySlug[c.slug] ||
+            null
+          return {
+            key: c.id || c.slug,
+            slug: c.slug,
+            title: c.title,
+            description: c.description,
+            imageSrc: c.image_url,
+            path: `/quote?service=${encodeURIComponent(c.slug)}`,
+            seoPath: c.route_path,
+            serviceType,
+            buttonText: c.button_text || 'Get a Quote',
+            price,
+          }
+        })
     }
     return SERVICE_PAGES.map((service) => ({
       key: service.path,
@@ -90,7 +105,7 @@ export function useServiceGridCards() {
       buttonText: 'Get a Quote',
       price: priceBySlug[service.slug] || null,
     }))
-  }, [hasCmsServiceCards, serviceCards, priceBySlug])
+  }, [hasCmsServiceCards, serviceCards, priceBySlug, settings])
 
   return cards
 }

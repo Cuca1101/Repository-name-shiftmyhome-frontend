@@ -4,6 +4,7 @@ import type { SupabaseClient } from 'npm:@supabase/supabase-js@2'
 import { renderTransactionalEmailTemplate } from './transactionalEmailTemplates.ts'
 import { sendResendEmailMinimal } from './postResendEmail.ts'
 import { asciiEmailSubject, encodePdfBytesToResendBase64 } from './resendPayloadLog.ts'
+import { formatDateUK } from './formatDateUK.ts'
 
 type UpdateResult = {
   ok: boolean
@@ -109,9 +110,8 @@ function parsePounds(text: string, patterns: RegExp[]) {
 }
 
 function formatDateISO(isoDate: string) {
-  if (!isoDate || !/^\d{4}-\d{2}-\d{2}$/.test(isoDate)) return isoDate || '-'
-  const d = new Date(`${isoDate}T00:00:00Z`)
-  return d.toLocaleDateString('en-GB')
+  // Display-only UK calendar date; storage remains YYYY-MM-DD.
+  return formatDateUK(isoDate)
 }
 
 function todayDateUK() {

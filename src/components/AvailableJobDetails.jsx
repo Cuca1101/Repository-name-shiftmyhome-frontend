@@ -33,6 +33,7 @@ import AdminJobOverrideActions from './admin-workflow/AdminJobOverrideActions'
 import AdminJobQuoteDetailsPanel from './admin-workflow/AdminJobQuoteDetailsPanel'
 import { buildAdminJobQuoteDetailsViewModel } from '../lib/adminJobQuoteDetailsViewModel'
 import AdminJobDetailsSidebar from './admin-workflow/AdminJobDetailsSidebar'
+import AdminJobCustomerComms from './admin-workflow/AdminJobCustomerComms'
 import JobDispatchControlPanel from './admin-workflow/JobDispatchControlPanel'
 import JobDispatchDetailExtras from './admin-workflow/JobDispatchDetailExtras'
 import JobExtraChargesPanel from './admin-workflow/JobExtraChargesPanel'
@@ -734,8 +735,8 @@ export default function AvailableJobDetails() {
             )}
           </AdminCard>
 
-          <AdminCard title="Customer email history">
-            <p className="text-sm text-slate-600">No outbound email log is stored on this quote yet.</p>
+          <AdminCard title="Customer communication">
+            <AdminJobCustomerComms quote={q} onRefresh={() => void load()} />
           </AdminCard>
 
           <details ref={debugDetailsRef} className="rounded-2xl border border-dashed border-slate-300 bg-slate-50/50">

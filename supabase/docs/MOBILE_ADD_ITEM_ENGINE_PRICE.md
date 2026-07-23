@@ -2,6 +2,13 @@
 
 Backend calculates the price via `estimate-extra-charge`. **The mobile UI must call this API and display `price_label`** — the engine does not push UI updates by itself.
 
+## Driver-only prices (admin)
+
+In **Admin → Pricing Engine**, section **“Driver app — extra charge pricing”** (green box):
+
+- **Default: “Same as main Pricing Engine”** — mobile uses the same £/m³, waiting, floors, etc. as the main sections (live after Save).
+- **“Custom driver-only rates”** — optional separate prices in `driverAppExtraCharges` (website unchanged).
+
 ## 1. Deploy backend
 
 - Edge Function: `estimate-extra-charge` (deploy from repo)

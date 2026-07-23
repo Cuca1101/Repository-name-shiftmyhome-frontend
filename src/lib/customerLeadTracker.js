@@ -4,6 +4,8 @@
 import { buildCustomerLeadUpsertPayload, buildHomePageCustomerLeadPayload } from './customerLeadCapture'
 import { upsertCustomerLead, linkCustomerLeadToBooking } from './data/customerLeadsRepository'
 import { getWebsiteLeadSessionId } from './websiteLeadSession'
+import { isSupabaseConfigured, supabase } from './supabase'
+import { isSupabasePublicConfigured, supabasePublic } from './supabasePublicClient'
 
 const CACHE_KEY = 'shiftmyhome_customer_lead_cache_v1'
 
@@ -124,6 +126,25 @@ export async function syncCustomerLeadFromHomePageForm(form) {
 export async function markCustomerLeadBookingComplete(params) {
   const ref = String(params?.quoteRef || '').trim()
   if (!ref) return null
+
+  const db =
+    isSupabasePublicConfigured && supabasePublic
+      ? supabasePublic
+      : isSupabaseConfigured && supabase
+        ? supabase
+        : null
+
+  if (db) {
+    try {
+      await db.rpc('stop_customer_lead_recovery', {
+        p_quote_ref: ref,
+        p_quote_id: params.quoteId ? String(params.quoteId) : null,
+        p_session_id: getWebsiteLeadSessionId(),
+      })
+    } catch {
+      /* migration may not be applied yet */
+    }
+  }
 
   const viaSession = await upsertCustomerLead(
     {

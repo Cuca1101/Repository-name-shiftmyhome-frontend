@@ -6,6 +6,18 @@ import {
 } from '../lib/data/customerLeadsRepository'
 import { CUSTOMER_LEAD_STATUS_LABELS } from '../lib/customerLeadStatus'
 import { formatDateTimeUK, formatDateUK } from '../lib/formatDateDisplay'
+import {
+  buildPayQuoteUrl,
+  buildResumeQuoteUrl,
+  copyTextToClipboard,
+  createLeadRecoveryCheckoutUrl,
+  ensureLeadResumeToken,
+  sendCustomerLeadRecoveryEmail,
+} from '../lib/quoteRecoveryAdminApi'
+import {
+  buildQuoteRecoveryEmailPreview,
+  recoveryContentFromLead,
+} from '../lib/quoteRecoveryEmailPreview'
 
 function DetailBlock({ title, children }) {
   return (
@@ -42,7 +54,10 @@ export default function CustomerLeadDetailAdmin() {
   const [lead, setLead] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [actionMsg, setActionMsg] = useState('')
+  const [busy, setBusy] = useState('')
   const [deleting, setDeleting] = useState(false)
+  const [previewHtml, setPreviewHtml] = useState('')
 
   const load = useCallback(async () => {
     if (!id) return
@@ -66,6 +81,86 @@ export default function CustomerLeadDetailAdmin() {
   useEffect(() => {
     load()
   }, [load])
+
+  async function withToken() {
+    if (!lead?.id) throw new Error('No lead')
+    const token = lead.resume_token || (await ensureLeadResumeToken(String(lead.id)))
+    return token
+  }
+
+  async function handleSendQuoteEmail() {
+    setBusy('email')
+    setActionMsg('')
+    try {
+      await sendCustomerLeadRecoveryEmail(String(lead.id), {
+        kind: lead.status === 'payment_failed' ? 'payment_failed' : undefined,
+        force: true,
+      })
+      setActionMsg('Recovery email sent.')
+      await load()
+    } catch (e) {
+      setActionMsg(e?.message || 'Failed to send email.')
+    } finally {
+      setBusy('')
+    }
+  }
+
+  async function handleSendPaymentLink() {
+    setBusy('pay')
+    setActionMsg('')
+    try {
+      const url = await createLeadRecoveryCheckoutUrl(String(lead.id))
+      await copyTextToClipboard(url)
+      setActionMsg('Payment link created and copied to clipboard.')
+    } catch (e) {
+      setActionMsg(e?.message || 'Failed to create payment link.')
+    } finally {
+      setBusy('')
+    }
+  }
+
+  async function handleCopyResume() {
+    setBusy('resume')
+    setActionMsg('')
+    try {
+      const token = await withToken()
+      await copyTextToClipboard(buildResumeQuoteUrl(token))
+      setActionMsg('Resume link copied.')
+      await load()
+    } catch (e) {
+      setActionMsg(e?.message || 'Copy failed.')
+    } finally {
+      setBusy('')
+    }
+  }
+
+  async function handleCopyPayment() {
+    setBusy('copypay')
+    setActionMsg('')
+    try {
+      const token = await withToken()
+      await copyTextToClipboard(buildPayQuoteUrl(token))
+      setActionMsg('Payment link copied.')
+      await load()
+    } catch (e) {
+      setActionMsg(e?.message || 'Copy failed.')
+    } finally {
+      setBusy('')
+    }
+  }
+
+  function handlePreviewEmail() {
+    const content = recoveryContentFromLead(lead)
+    const token = lead.resume_token || 'preview-token'
+    const built = buildQuoteRecoveryEmailPreview({
+      kind: lead.status === 'payment_failed' ? 'payment_failed' : 'abandoned',
+      ...content,
+      resumeUrl: buildResumeQuoteUrl(token),
+      payUrl: buildPayQuoteUrl(token),
+      siteUrl: typeof window !== 'undefined' ? window.location.origin : undefined,
+    })
+    setPreviewHtml(built.html)
+  }
 
   async function handleDelete() {
     if (!lead?.id) return
@@ -115,6 +210,7 @@ export default function CustomerLeadDetailAdmin() {
   const convertHref = lead.quote_id
     ? `/admin/quote-requests/${lead.quote_id}`
     : '/admin/new-phone-booking'
+  const canRecover = eff !== 'converted_to_booking'
 
   return (
     <div className="space-y-6 pb-10">
@@ -177,6 +273,115 @@ export default function CustomerLeadDetailAdmin() {
         </div>
       </div>
 
+      {actionMsg ? (
+        <p className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800">{actionMsg}</p>
+      ) : null}
+
+      {canRecover ? (
+        <DetailBlock title="Quote recovery">
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              disabled={Boolean(busy) || !lead.customer_email}
+              onClick={() => void handleSendQuoteEmail()}
+              className="inline-flex min-h-[40px] items-center rounded-lg bg-brand-600 px-3 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-50"
+            >
+              {busy === 'email' ? 'Sending…' : 'Send Quote Email'}
+            </button>
+            <button
+              type="button"
+              disabled={Boolean(busy)}
+              onClick={() => void handleSendPaymentLink()}
+              className="inline-flex min-h-[40px] items-center rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-800 hover:bg-slate-50 disabled:opacity-50"
+            >
+              {busy === 'pay' ? 'Creating…' : 'Send Payment Link'}
+            </button>
+            <button
+              type="button"
+              disabled={Boolean(busy)}
+              onClick={() => void handleCopyResume()}
+              className="inline-flex min-h-[40px] items-center rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-800 hover:bg-slate-50 disabled:opacity-50"
+            >
+              Copy Resume Link
+            </button>
+            <button
+              type="button"
+              disabled={Boolean(busy)}
+              onClick={() => void handleCopyPayment()}
+              className="inline-flex min-h-[40px] items-center rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-800 hover:bg-slate-50 disabled:opacity-50"
+            >
+              Copy Payment Link
+            </button>
+            <button
+              type="button"
+              disabled={Boolean(busy)}
+              onClick={handlePreviewEmail}
+              className="inline-flex min-h-[40px] items-center rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-800 hover:bg-slate-50 disabled:opacity-50"
+            >
+              Preview Email
+            </button>
+          </div>
+          <div className="mt-4 grid gap-2 border-t border-slate-100 pt-4 sm:grid-cols-2">
+            <Row
+              label="Last email sent"
+              value={lead.last_recovery_email_at ? formatDateTimeUK(lead.last_recovery_email_at) : null}
+            />
+            <Row label="Email kind" value={lead.last_recovery_email_kind} />
+            <Row
+              label="Email opened"
+              value={
+                lead.recovery_email_opened
+                  ? `Yes${lead.recovery_email_opened_at ? ` · ${formatDateTimeUK(lead.recovery_email_opened_at)}` : ''}`
+                  : 'No'
+              }
+            />
+            <Row
+              label="Resume link clicked"
+              value={
+                lead.resume_link_clicked
+                  ? `Yes (${lead.resume_link_click_count || 1})${
+                      lead.resume_link_clicked_at ? ` · ${formatDateTimeUK(lead.resume_link_clicked_at)}` : ''
+                    }`
+                  : 'No'
+              }
+            />
+            <Row
+              label="Payment link clicked"
+              value={
+                lead.payment_link_clicked
+                  ? `Yes (${lead.payment_link_click_count || 1})${
+                      lead.payment_link_clicked_at ? ` · ${formatDateTimeUK(lead.payment_link_clicked_at)}` : ''
+                    }`
+                  : 'No'
+              }
+            />
+            <Row label="Recovery emails sent" value={lead.recovery_emails_sent_count ?? 0} />
+            <Row
+              label="Next recovery email"
+              value={lead.next_recovery_email_at ? formatDateTimeUK(lead.next_recovery_email_at) : null}
+            />
+            {lead.payment_failed_at ? (
+              <Row label="Payment failed at" value={formatDateTimeUK(lead.payment_failed_at)} />
+            ) : null}
+          </div>
+        </DetailBlock>
+      ) : null}
+
+      {previewHtml ? (
+        <DetailBlock title="Email preview">
+          <div className="overflow-hidden rounded-lg border border-slate-200">
+            <iframe title="Recovery email preview" className="h-[480px] w-full bg-white" srcDoc={previewHtml} />
+          </div>
+          <button
+            type="button"
+            className="mt-2 text-sm font-semibold text-brand-700 hover:underline"
+            onClick={() => setPreviewHtml('')}
+          >
+            Close preview
+          </button>
+        </DetailBlock>
+      ) : null}
+
       <DetailBlock title="Summary">
         <Row label="Name" value={lead.customer_name} />
         <Row label="Phone" value={lead.customer_phone} />
@@ -206,7 +411,7 @@ export default function CustomerLeadDetailAdmin() {
         <Row label="Service" value={s1.serviceType || lead.service_type} />
         <Row label="Pickup" value={s1.pickupAddress || lead.pickup_address} />
         <Row label="Delivery" value={s1.deliveryAddress || lead.delivery_address} />
-        <Row label="Move date" value={s1.moveDate} />
+        <Row label="Move date" value={s1.moveDate ? formatDateUK(s1.moveDate) : null} />
         <Row label="Arrival" value={s1.arrivalSummary} />
         <Row label="Distance (mi)" value={s1.distanceMiles} />
       </DetailBlock>

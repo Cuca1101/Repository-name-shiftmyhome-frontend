@@ -47,7 +47,7 @@ export async function fetchCustomerLeadsForAdmin(opts = {}) {
   if (!isSupabaseConfigured || !supabase) return []
 
   try {
-    await supabase.rpc('mark_stale_customer_leads_abandoned', { p_inactive_minutes: 30 })
+    await supabase.rpc('mark_stale_customer_leads_abandoned', { p_inactive_minutes: 15 })
   } catch {
     /* RPC may not exist until migration applied */
   }
@@ -81,7 +81,7 @@ export async function fetchCustomerLeadsForAdmin(opts = {}) {
             eff === 'payment_started'
           )
         case 'abandoned':
-          return eff === 'abandoned'
+          return eff === 'abandoned' || eff === 'payment_failed'
         case 'converted':
           return eff === 'converted_to_booking'
         default:
@@ -187,6 +187,8 @@ export async function linkCustomerLeadToBooking({ quoteRef, quoteId }) {
     quote_ref: ref,
     quote_id: quoteId || null,
     converted_at: new Date().toISOString(),
+    recovery_stopped_at: new Date().toISOString(),
+    next_recovery_email_at: null,
     last_activity_at: new Date().toISOString(),
   })
 }

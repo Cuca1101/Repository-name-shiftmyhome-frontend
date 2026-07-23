@@ -6,6 +6,7 @@ export const CUSTOMER_LEAD_STATUSES = [
   'quote_viewed',
   'payment_started',
   'abandoned',
+  'payment_failed',
   'converted_to_booking',
 ]
 
@@ -15,10 +16,12 @@ export const CUSTOMER_LEAD_STATUS_LABELS = {
   quote_viewed: 'Quote Viewed',
   payment_started: 'Payment Started',
   abandoned: 'Abandoned',
+  payment_failed: 'Payment Failed',
   converted_to_booking: 'Converted To Booking',
 }
 
-export const CUSTOMER_LEAD_ABANDON_MS = 30 * 60 * 1000
+/** Idle time before a lead is treated as abandoned for recovery (15 minutes). */
+export const CUSTOMER_LEAD_ABANDON_MS = 15 * 60 * 1000
 
 const STATUS_RANK = {
   new_lead: 1,
@@ -26,6 +29,7 @@ const STATUS_RANK = {
   quote_viewed: 3,
   payment_started: 4,
   abandoned: 5,
+  payment_failed: 5,
   converted_to_booking: 6,
 }
 
@@ -45,7 +49,7 @@ export function isCustomerLeadInactive(lastActivityAt) {
  */
 export function effectiveCustomerLeadStatus(row) {
   const raw = String(row?.status || 'new_lead')
-  if (raw === 'converted_to_booking' || raw === 'abandoned') return raw
+  if (raw === 'converted_to_booking' || raw === 'abandoned' || raw === 'payment_failed') return raw
   if (
     (raw === 'new_lead' ||
       raw === 'quote_started' ||
@@ -69,7 +73,9 @@ export function maxCustomerLeadStatus(current, next) {
   if (cur === 'converted_to_booking' || nxt === 'converted_to_booking') {
     return 'converted_to_booking'
   }
-  if (cur === 'abandoned' && nxt !== 'converted_to_booking') return 'abandoned'
+  if ((cur === 'abandoned' || cur === 'payment_failed') && nxt !== 'converted_to_booking') {
+    return cur === 'payment_failed' || nxt === 'payment_failed' ? 'payment_failed' : 'abandoned'
+  }
   const curRank = STATUS_RANK[cur] ?? 0
   const nextRank = STATUS_RANK[nxt] ?? 0
   return nextRank >= curRank ? nxt : cur

@@ -28,6 +28,17 @@ const ADMIN_BLOCK = `# Admin SPA - must stay on index.html
 /admin/*  /index.html    200
 `
 
+/** Dynamic customer SPA routes (email deep links) — serve React shell, not 404.html */
+const CUSTOMER_SPA_BLOCK = `# Customer SPA routes (resume / pay / track / payment result)
+/quote/resume/*  /index.html  200
+/quote/pay/*     /index.html  200
+/track/*         /index.html  200
+/payment-success /index.html  200
+/payment-success/ /index.html 200
+/payment-cancelled /index.html  200
+/payment-cancelled/ /index.html 200
+`
+
 /** @param {string} from @param {string} to */
 function addPair(lines, from, to) {
   lines.push(`${from} ${to} 301`)
@@ -59,7 +70,7 @@ const header = `# Prerendered HTML lives at /<route>/index.html (Cloudflare adds
 # Missing paths are handled by dist/404.html via the platform not_found behaviour.
 `
 
-let content = `${header.trim()}\n\n${generatedBlock}\n\n${ADMIN_BLOCK.trim()}\n`
+let content = `${header.trim()}\n\n${generatedBlock}\n\n${CUSTOMER_SPA_BLOCK.trim()}\n\n${ADMIN_BLOCK.trim()}\n`
 content = content.replace(/\r\n/g, '\n')
 
 fs.writeFileSync(redirectsPath, content, 'utf8')

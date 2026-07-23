@@ -2,16 +2,9 @@ import { SERVICE_PAGES } from '../constants/servicePages'
 
 /**
  * Homepage / service card "From £..." prices only — never used by the quote calculator.
+ * Source of truth: pricing settings `displayPriceByService` (Admin: Homepage display price).
+ * Never read `basePriceByService` (Admin: Minimum service threshold) here.
  */
-
-/** Marketing defaults when admin display price is unset (not quote base prices). */
-export function getDefaultServiceCardDisplayPrices() {
-  return {
-    'House Removals': 79,
-    'Man with Van': 65,
-    'Furniture Delivery': 60,
-  }
-}
 
 /**
  * @param {unknown} raw
@@ -36,14 +29,20 @@ export function sanitizeDisplayPriceByService(raw) {
  */
 export function resolveServiceCardDisplayPrice(settings, serviceType) {
   const map = settings?.displayPriceByService
-  if (map && Object.prototype.hasOwnProperty.call(map, serviceType)) {
-    const v = map[serviceType]
-    if (typeof v === 'number' && Number.isFinite(v) && v > 0) return v
-    return null
-  }
-  const fallback = getDefaultServiceCardDisplayPrices()[serviceType]
-  if (typeof fallback === 'number' && Number.isFinite(fallback) && fallback > 0) return fallback
+  if (!map || !Object.prototype.hasOwnProperty.call(map, serviceType)) return null
+  const v = map[serviceType]
+  if (typeof v === 'number' && Number.isFinite(v) && v > 0) return v
   return null
+}
+
+/**
+ * @param {import('./pricingCalculator.js').PricingSettings | null | undefined} settings
+ * @param {string} serviceType
+ * @returns {string | null}
+ */
+export function formatServiceCardDisplayPrice(settings, serviceType) {
+  const amount = resolveServiceCardDisplayPrice(settings, serviceType)
+  return amount != null ? `£${Math.round(amount)}` : null
 }
 
 /**
@@ -53,8 +52,7 @@ export function resolveServiceCardDisplayPrice(settings, serviceType) {
 export function buildServiceCardPriceBySlug(settings) {
   const out = /** @type {Record<string, string | null>} */ ({})
   for (const s of SERVICE_PAGES) {
-    const amount = resolveServiceCardDisplayPrice(settings, s.serviceType)
-    out[s.slug] = amount != null ? `£${Math.round(amount)}` : null
+    out[s.slug] = formatServiceCardDisplayPrice(settings, s.serviceType)
   }
   return out
 }

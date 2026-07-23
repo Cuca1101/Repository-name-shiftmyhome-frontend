@@ -10,6 +10,11 @@ import PublicLayout from './layouts/PublicLayout'
 import ServiceQuoteLayout from './layouts/ServiceQuoteLayout'
 import HomePage from './pages/HomePage'
 import QuotePage from './pages/QuotePage'
+import QuoteResumePage from './pages/QuoteResumePage'
+import QuotePayRecoveryPage from './pages/QuotePayRecoveryPage'
+import JobTrackingPortalPage from './pages/JobTrackingPortalPage'
+import JobFeedbackPage from './pages/JobFeedbackPage'
+import JobTipPage from './pages/JobTipPage'
 import CoveragePage from './pages/CoveragePage'
 import TermsPage from './pages/TermsPage'
 import PrivacyPage from './pages/PrivacyPage'
@@ -85,6 +90,46 @@ export default function App() {
       <Routes>
       <Route path="/" element={<HomePage />} />
       <Route path="/quote" element={<QuotePage />} />
+      <Route
+        path="/quote/resume/:token"
+        element={
+          <PublicLayout>
+            <QuoteResumePage />
+          </PublicLayout>
+        }
+      />
+      <Route
+        path="/quote/pay/:token"
+        element={
+          <PublicLayout>
+            <QuotePayRecoveryPage />
+          </PublicLayout>
+        }
+      />
+      <Route
+        path="/track/:token"
+        element={
+          <PublicLayout>
+            <JobTrackingPortalPage />
+          </PublicLayout>
+        }
+      />
+      <Route
+        path="/track/:token/feedback"
+        element={
+          <PublicLayout>
+            <JobFeedbackPage />
+          </PublicLayout>
+        }
+      />
+      <Route
+        path="/track/:token/tip"
+        element={
+          <PublicLayout>
+            <JobTipPage />
+          </PublicLayout>
+        }
+      />
       <Route
         path="/coverage"
         element={

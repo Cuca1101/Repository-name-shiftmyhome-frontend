@@ -2,6 +2,7 @@ import type { SupabaseClient } from 'npm:@supabase/supabase-js@2'
 import type Stripe from 'npm:stripe@14.21.0'
 import { sendResendEmail } from './resendClient.ts'
 import { renderAdminAvailableJobEmail } from './transactionalEmailTemplates.ts'
+import { formatDateUK } from './formatDateUK.ts'
 import {
   estimatedTotalFromQuote,
   formatVolumeAndCrewLine,
@@ -39,15 +40,7 @@ export function adminSiteOrigin(): string {
 }
 
 function formatMoveDateUK(q: QuoteRow): string {
-  const raw = q.move_date
-  if (raw == null || raw === '') return '—'
-  try {
-    const d = new Date(String(raw))
-    if (!Number.isFinite(d.getTime())) return String(raw)
-    return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
-  } catch {
-    return String(raw)
-  }
+  return formatDateUK(q.move_date)
 }
 
 async function loadQuoteById(supabase: SupabaseClient, quoteId: string): Promise<QuoteRow | null> {
@@ -181,6 +174,7 @@ export async function sendAdminAvailableJobNotificationIfNeeded(params: {
     html,
     text,
     idempotencyKey,
+    logTag: 'admin-available-job',
   })
 
   if (!sendResult.ok) {

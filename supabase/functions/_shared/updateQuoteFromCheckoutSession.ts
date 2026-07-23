@@ -151,5 +151,23 @@ export async function updateQuoteFromCheckoutSession(
     },
   })
 
+  try {
+    if (eventKind === 'paid') {
+      await supabase.rpc('stop_customer_lead_recovery', {
+        p_quote_ref: quoteRef || null,
+        p_quote_id: updatedQuoteId,
+        p_session_id: null,
+      })
+    } else {
+      await supabase.rpc('mark_customer_lead_payment_failed', {
+        p_quote_ref: quoteRef || null,
+        p_quote_id: updatedQuoteId,
+        p_session_id: null,
+      })
+    }
+  } catch (e) {
+    console.error('[updateQuoteFromCheckoutSession] customer_lead recovery sync failed', e)
+  }
+
   return { ok: true, booking_id: updatedBookingId, quote_id: updatedQuoteId }
 }

@@ -1,6 +1,14 @@
 import { useEffect, useMemo, useState } from 'react'
 import { fetchPricingSettings } from '../lib/data/pricingSettingsRepository'
+import { onPricingSettingsUpdated } from '../lib/pricingSettingsEvents'
+import { formatServiceCardDisplayPrice } from '../lib/serviceCardDisplayPrice'
 import OpenInstantQuoteButton from './OpenInstantQuoteButton'
+
+const PRICING_TIERS = [
+  { title: 'Man with Van', sub: 'Ideal for single items & small loads', serviceType: 'Man with Van' },
+  { title: 'Small Move', sub: 'Studio / few rooms', serviceType: 'Furniture Delivery' },
+  { title: 'House Removals', sub: 'Larger homes & full loads', serviceType: 'House Removals' },
+]
 
 export default function PricingPreview() {
   const [loading, setLoading] = useState(true)
@@ -8,7 +16,8 @@ export default function PricingPreview() {
 
   useEffect(() => {
     let cancelled = false
-    ;(async () => {
+
+    async function loadSettings() {
       try {
         const s = await fetchPricingSettings()
         if (!cancelled) setSettings(s)
@@ -17,31 +26,27 @@ export default function PricingPreview() {
       } finally {
         if (!cancelled) setLoading(false)
       }
-    })()
+    }
+
+    void loadSettings()
+    const unsubscribe = onPricingSettingsUpdated(() => {
+      setLoading(true)
+      void loadSettings()
+    })
     return () => {
       cancelled = true
+      unsubscribe()
     }
   }, [])
 
-  const tiers = useMemo(() => {
-    const b = settings?.basePriceByService
-    if (!b) {
-      return [
-        { title: 'Man with Van', priceLabel: '—', sub: 'Ideal for single items & small loads', key: 'Man with Van' },
-        { title: 'Small Move', priceLabel: '—', sub: 'Studio / few rooms', key: 'Furniture Delivery' },
-        { title: 'House Removals', priceLabel: '—', sub: 'Larger homes & full loads', key: 'House Removals' },
-      ]
-    }
-    const fmt = (k) => {
-      const v = b[k]
-      return typeof v === 'number' && Number.isFinite(v) ? `£${Math.round(v)}` : '—'
-    }
-    return [
-      { title: 'Man with Van', priceLabel: fmt('Man with Van'), sub: 'Ideal for single items & small loads', key: 'Man with Van' },
-      { title: 'Small Move', priceLabel: fmt('Furniture Delivery'), sub: 'Studio / few rooms', key: 'Furniture Delivery' },
-      { title: 'House Removals', priceLabel: fmt('House Removals'), sub: 'Larger homes & full loads', key: 'House Removals' },
-    ]
-  }, [settings])
+  const tiers = useMemo(
+    () =>
+      PRICING_TIERS.map((tier) => ({
+        ...tier,
+        priceLabel: formatServiceCardDisplayPrice(settings, tier.serviceType) || '—',
+      })),
+    [settings],
+  )
 
   return (
     <section id="pricing" className="scroll-mt-20 bg-white py-12 sm:py-24">

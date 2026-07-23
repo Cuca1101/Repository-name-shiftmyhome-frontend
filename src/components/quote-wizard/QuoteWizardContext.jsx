@@ -10,6 +10,7 @@ import {
 import { EMAILJS_TEMPLATE_ID_GUIDE, isEmailJsReady } from '../../emailjs.config'
 import { fetchPricingSettings } from '../../lib/data/pricingSettingsRepository'
 import { onPricingSettingsUpdated } from '../../lib/pricingSettingsEvents'
+import { consumeWelcomeBackFlag } from '../../lib/quoteRecoveryResume'
 
 /** Do not calculate pricing in UI components. Use shared pricing engine only. */
 import { createJobRequest } from '../../lib/data/jobsRepository'
@@ -177,6 +178,15 @@ export function QuoteWizardProvider({ children, serviceType: serviceTypeProp, al
     })
     scheduleQuoteValidationScroll({ hint: QUOTE_ERROR_SCROLL_HINTS.moveDate })
   }, [bootstrap.dateWasReset])
+
+  useEffect(() => {
+    if (!bootstrap.isResumed) return
+    if (!consumeWelcomeBackFlag()) return
+    setFeedback({
+      type: 'success',
+      text: "Welcome back! We've restored your quote exactly where you left it.",
+    })
+  }, [bootstrap.isResumed])
 
   const addQuotePhotos = useCallback((fileList) => {
     const incoming = Array.from(fileList).filter(

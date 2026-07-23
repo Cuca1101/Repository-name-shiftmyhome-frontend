@@ -1205,6 +1205,15 @@
 /st-andrews-man-with-van/ /man-with-van-st-andrews/ 301
 # END legacy city canonical redirects (auto-generated)
 
+# Customer SPA routes (resume / pay / track / payment result)
+/quote/resume/*  /index.html  200
+/quote/pay/*     /index.html  200
+/track/*         /index.html  200
+/payment-success /index.html  200
+/payment-success/ /index.html 200
+/payment-cancelled /index.html  200
+/payment-cancelled/ /index.html 200
+
 # Admin SPA - must stay on index.html
 /admin    /index.html    200
 /admin/*  /index.html    200

@@ -32,9 +32,11 @@ export function formatDateUK(isoOrDate) {
   const s = String(isoOrDate).trim()
   if (!s) return '—'
   if (/^\d{2}\/\d{2}\/\d{4}$/.test(s)) return s
-  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
-    const [, y, m, d] = s.match(/^(\d{4})-(\d{2})-(\d{2})$/) || []
-    if (y && m && d) return `${d}/${m}/${y}`
+  // Calendar YYYY-MM-DD (or leading date of a timestamptz) — remap without Date parsing.
+  const ymd = s.match(/^(\d{4})-(\d{2})-(\d{2})/)
+  if (ymd) {
+    const [, y, m, d] = ymd
+    return `${d}/${m}/${y}`
   }
   const d = new Date(s)
   if (Number.isNaN(d.getTime())) return s

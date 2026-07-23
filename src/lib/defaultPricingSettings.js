@@ -21,7 +21,7 @@ export function getDefaultPricingSettings() {
 
   return {
     basePriceByService,
-    /** Homepage card prices only; empty = use {@link getDefaultServiceCardDisplayPrices} at display time. */
+    /** Homepage card "From £..." only — never used by the quote calculator. Empty = hide display price. */
     displayPriceByService: {},
     pricePerMile: 1.3,
     pricePerCubicMetre: 14,

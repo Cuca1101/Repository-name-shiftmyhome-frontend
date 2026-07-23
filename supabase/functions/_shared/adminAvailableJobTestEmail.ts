@@ -5,6 +5,7 @@
 import { sendResendEmail } from './resendClient.ts'
 import { renderAdminAvailableJobEmail } from './transactionalEmailTemplates.ts'
 import { adminSiteOrigin, getAdminNotificationRecipients } from './adminAvailableJobNotification.ts'
+import { formatDateUK } from './formatDateUK.ts'
 
 export type AdminTestEmailResult = {
   ok: boolean
@@ -26,11 +27,14 @@ function testBannerHtml(): string {
 }
 
 function todayUk(): string {
-  return new Date().toLocaleDateString('en-GB', {
-    day: 'numeric',
-    month: 'short',
+  // Today in Europe/London as DD/MM/YYYY (display only).
+  const ymd = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Europe/London',
     year: 'numeric',
-  })
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date())
+  return formatDateUK(ymd)
 }
 
 /**
@@ -78,6 +82,7 @@ export async function sendAdminAvailableJobTestEmail(
     html,
     text,
     idempotencyKey,
+    logTag: 'admin-available-job-test',
   })
 
   if (!sendResult.ok) {
