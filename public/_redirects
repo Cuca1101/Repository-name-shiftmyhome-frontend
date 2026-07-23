@@ -1206,13 +1206,15 @@
 # END legacy city canonical redirects (auto-generated)
 
 # Customer SPA routes (resume / pay / track / payment result)
-/quote/resume/*  /index.html  200
-/quote/pay/*     /index.html  200
-/track/*         /index.html  200
-/payment-success /index.html  200
-/payment-success/ /index.html 200
-/payment-cancelled /index.html  200
-/payment-cancelled/ /index.html 200
+/quote/resume/:token  /index.html  200
+/quote/pay/:token     /index.html  200
+/track/:token         /index.html  200
+/track/:token/feedback /index.html  200
+/track/:token/tip     /index.html  200
+/payment-success      /index.html  200
+/payment-success/     /index.html  200
+/payment-cancelled    /index.html  200
+/payment-cancelled/   /index.html  200
 
 # Admin SPA - must stay on index.html
 /admin    /index.html    200

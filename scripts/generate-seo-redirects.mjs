@@ -30,13 +30,15 @@ const ADMIN_BLOCK = `# Admin SPA - must stay on index.html
 
 /** Dynamic customer SPA routes (email deep links) — serve React shell, not 404.html */
 const CUSTOMER_SPA_BLOCK = `# Customer SPA routes (resume / pay / track / payment result)
-/quote/resume/*  /index.html  200
-/quote/pay/*     /index.html  200
-/track/*         /index.html  200
-/payment-success /index.html  200
-/payment-success/ /index.html 200
-/payment-cancelled /index.html  200
-/payment-cancelled/ /index.html 200
+/quote/resume/:token  /index.html  200
+/quote/pay/:token     /index.html  200
+/track/:token         /index.html  200
+/track/:token/feedback /index.html  200
+/track/:token/tip     /index.html  200
+/payment-success      /index.html  200
+/payment-success/     /index.html  200
+/payment-cancelled    /index.html  200
+/payment-cancelled/   /index.html  200
 `
 
 /** @param {string} from @param {string} to */

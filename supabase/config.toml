@@ -1,0 +1,43 @@
+# Supabase local/CLI config — Edge Function JWT policy.
+# Public/cron/webhook functions must skip JWT; admin/client invoke keeps JWT on.
+
+project_id = "msjhkfdqogymkartariq"
+
+[functions.process-quote-recovery]
+verify_jwt = false
+
+[functions.track-quote-recovery]
+verify_jwt = false
+
+[functions.create-recovery-checkout]
+verify_jwt = false
+
+[functions.process-job-customer-notify]
+verify_jwt = false
+
+[functions.get-job-tracking-media]
+verify_jwt = false
+
+[functions.submit-job-feedback]
+verify_jwt = false
+
+[functions.create-job-tip-checkout]
+verify_jwt = false
+
+[functions.confirm-job-tip]
+verify_jwt = false
+
+[functions.stripe-webhook]
+verify_jwt = false
+
+[functions.verify-payment-intent]
+verify_jwt = true
+
+[functions.verify-checkout-session]
+verify_jwt = true
+
+[functions.notify-admin-available-job]
+verify_jwt = true
+
+[functions.send-admin-available-job-test-email]
+verify_jwt = true
