@@ -246,6 +246,19 @@ function LeadDetailDrawer({ row, onClose, onRefresh }) {
               )}
             </DetailRow>
           </dl>
+          <p className="mt-4 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
+            To set a custom agreed price and send a Stripe payment link, open the matching record under{' '}
+            <Link to="/admin/customer-leads" className="font-semibold text-brand-700 hover:underline">
+              Customer Leads
+            </Link>
+            {row.quote_ref ? (
+              <>
+                {' '}
+                (search <span className="font-mono">{row.quote_ref}</span>)
+              </>
+            ) : null}
+            .
+          </p>
           {row.quote_id ? (
             <p className="mt-4">
               <Link

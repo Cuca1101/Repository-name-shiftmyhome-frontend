@@ -14,6 +14,8 @@ import { formatDateUK } from './formatDateDisplay'
  *   crewSize?: string|number|null,
  *   inventoryLines?: Array<{ name?: string, label?: string, qty?: number, quantity?: number }>,
  *   estimatedTotal?: number|null,
+ *   agreedPrice?: number|null,
+ *   calculatedTotal?: number|null,
  *   resumeUrl?: string,
  *   payUrl?: string,
  *   siteUrl?: string,
@@ -27,10 +29,20 @@ export function buildQuoteRecoveryEmailPreview(data) {
   const service = String(data.serviceType || '').trim() || '—'
   const moveDate = formatDateUK(data.moveDate)
   const crew = data.crewSize != null && String(data.crewSize).trim() ? String(data.crewSize) : '—'
-  const total =
-    data.estimatedTotal != null && Number.isFinite(Number(data.estimatedTotal))
-      ? `£${Number(data.estimatedTotal).toFixed(2)}`
-      : '—'
+  const agreed =
+    data.agreedPrice != null && Number.isFinite(Number(data.agreedPrice))
+      ? Number(data.agreedPrice)
+      : null
+  const calculated =
+    data.calculatedTotal != null && Number.isFinite(Number(data.calculatedTotal))
+      ? Number(data.calculatedTotal)
+      : data.estimatedTotal != null && Number.isFinite(Number(data.estimatedTotal))
+        ? Number(data.estimatedTotal)
+        : null
+  const charge = agreed ?? calculated
+  const total = charge != null ? `£${charge.toFixed(2)}` : '—'
+  const hasOverride =
+    agreed != null && calculated != null && Math.abs(agreed - calculated) > 0.009
   const resumeUrl = data.resumeUrl || '#'
   const payUrl = data.payUrl || '#'
   const siteUrl = (data.siteUrl || 'https://www.shiftmyhome.co.uk').replace(/\/$/, '')
@@ -74,7 +86,12 @@ export function buildQuoteRecoveryEmailPreview(data) {
       <tr><td style="padding:4px 0;"><strong>Service</strong></td><td style="padding:4px 0;text-align:right;">${esc(service)}</td></tr>
       <tr><td style="padding:4px 0;"><strong>Move date</strong></td><td style="padding:4px 0;text-align:right;">${esc(moveDate)}</td></tr>
       <tr><td style="padding:4px 0;"><strong>Crew</strong></td><td style="padding:4px 0;text-align:right;">${esc(crew)}</td></tr>
-      <tr><td style="padding:4px 0;"><strong>Total</strong></td><td style="padding:4px 0;text-align:right;font-weight:700;color:#0f172a;">${esc(total)}</td></tr>
+      ${
+        hasOverride
+          ? `<tr><td style="padding:4px 0;"><strong>Calculated price</strong></td><td style="padding:4px 0;text-align:right;">£${calculated.toFixed(2)}</td></tr>
+      <tr><td style="padding:4px 0;"><strong>Agreed price</strong></td><td style="padding:4px 0;text-align:right;font-weight:700;color:#0f172a;">${esc(total)}</td></tr>`
+          : `<tr><td style="padding:4px 0;"><strong>Total</strong></td><td style="padding:4px 0;text-align:right;font-weight:700;color:#0f172a;">${esc(total)}</td></tr>`
+      }
     </table>
     <h2 style="font-size:15px;margin:0 0 8px;color:#0f172a;">Inventory</h2>
     <table width="100%" style="font-size:14px;color:#334155;margin-bottom:20px;">${invRows}</table>
@@ -132,5 +149,7 @@ export function recoveryContentFromLead(lead) {
     crewSize: s3.crewSize ?? s2.crewSize ?? null,
     inventoryLines: Array.isArray(s2.inventoryLines) ? s2.inventoryLines : [],
     estimatedTotal: lead?.estimated_total ?? s3.estimatedTotal ?? null,
+    calculatedTotal: lead?.calculated_total ?? lead?.estimated_total ?? s3.estimatedTotal ?? null,
+    agreedPrice: lead?.agreed_price ?? null,
   }
 }

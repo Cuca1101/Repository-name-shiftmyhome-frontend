@@ -188,6 +188,7 @@ export default function CustomerLeadsAdmin() {
                   <th className="px-4 py-3">Service</th>
                   <th className="min-w-[160px] px-4 py-3">Route</th>
                   <th className="px-4 py-3">Quote price</th>
+                  <th className="px-4 py-3">Agreed</th>
                   <th className="px-4 py-3">Status</th>
                   <th className="px-4 py-3">Created</th>
                   <th className="px-4 py-3">Actions</th>
@@ -227,6 +228,13 @@ export default function CustomerLeadsAdmin() {
                         {row.route_label || '—'}
                       </td>
                       <td className="px-4 py-3 tabular-nums">{money(row.estimated_total)}</td>
+                      <td className="px-4 py-3 tabular-nums">
+                        {row.agreed_price != null ? (
+                          <span className="font-semibold text-brand-800">{money(row.agreed_price)}</span>
+                        ) : (
+                          '—'
+                        )}
+                      </td>
                       <td className="px-4 py-3">
                         <StatusBadge status={eff} />
                       </td>

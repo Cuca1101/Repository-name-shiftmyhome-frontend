@@ -27,7 +27,7 @@ export default function SeoCityBodyServiceCard({ section, pagePath }) {
         onClick={(e) => {
           e.preventDefault()
           markNewQuoteFromServiceCard(serviceType, pagePath)
-          openQuote()
+          openQuote(serviceType || undefined)
         }}
       />
     </li>

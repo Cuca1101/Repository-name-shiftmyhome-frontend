@@ -31,7 +31,7 @@ export default function SeoLandingServiceGrid({ pagePath, quoteAnchor = '#seo-qu
                 ? (e) => {
                     e.preventDefault()
                     markNewQuoteFromServiceCard(card.serviceType || '', pagePath)
-                    openQuote()
+                    openQuote(card.serviceType || undefined)
                   }
                 : () => markNewQuoteFromServiceCard(card.serviceType || '', pagePath)
             }

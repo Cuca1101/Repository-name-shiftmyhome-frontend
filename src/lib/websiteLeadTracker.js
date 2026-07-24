@@ -3,6 +3,7 @@ import { insertWebsiteEvent } from './data/websiteEventsRepository'
 import { getVisitorTrackingContext } from './visitorContext'
 import { getWebsiteLeadSessionId } from './websiteLeadSession'
 import { trackingDevLog } from './trackingDevLog'
+import { resolveServiceLabel } from './normalizeServiceType'
 
 /** @typedef {import('./data/websiteLeadsRepository').WebsiteLeadStatus} WebsiteLeadStatus */
 
@@ -158,7 +159,7 @@ export async function trackWebsiteClick(label, metadata = {}) {
     label: String(label || 'Click').trim() || 'Click',
     href: metadata.href != null ? safeHrefForMetadata(String(metadata.href)) : null,
     section: metadata.section ? String(metadata.section) : null,
-    service_type: metadata.serviceType ? String(metadata.serviceType) : null,
+    service_type: resolveServiceLabel(metadata.serviceType) || null,
   }
   void recordWebsiteEvent('button_click', pagePath, meta, {
     quote_ref: metadata.quoteRef ?? null,
@@ -167,7 +168,7 @@ export async function trackWebsiteClick(label, metadata = {}) {
     funnel_event: 'button_click',
     landing_path: pagePath,
     city_route: cityRouteFromPath(pagePath),
-    service_type: metadata.serviceType ?? null,
+    service_type: resolveServiceLabel(metadata.serviceType) || null,
   })
 }
 
@@ -222,7 +223,10 @@ export async function trackWebsiteLeadEvent(event, data = {}) {
   }
 
   if (data.quoteRef) patch.quote_ref = data.quoteRef
-  if (data.serviceType) patch.service_type = data.serviceType
+  if (data.serviceType) {
+    const label = resolveServiceLabel(data.serviceType)
+    if (label) patch.service_type = label
+  }
   if (data.step != null) patch.current_step = data.step
   if (data.estimatedTotal != null) patch.estimated_total = data.estimatedTotal
 
@@ -313,7 +317,7 @@ export async function trackWebsiteLeadEvent(event, data = {}) {
   const canonical = canonicalFunnelEventName(funnelEvent, patch.current_step)
 
   const eventMeta = {
-    service_type: patch.service_type ?? data.serviceType ?? null,
+    service_type: resolveServiceLabel(patch.service_type ?? data.serviceType) || null,
     payment_type: data.paymentType ?? null,
   }
 
@@ -349,18 +353,19 @@ export function trackQuoteWizardSnapshot(opts) {
   const allowContact = opts.allowContactInLead === true
   const landingPath = opts.landingPath || currentPagePath()
   const step = opts.step
+  const serviceLabel = resolveServiceLabel(opts.serviceType)
 
   void recordWebsiteEvent(
     step >= 1 && step <= 3 ? `quote_step_${step}` : 'step_completed',
     landingPath,
-    { service_type: opts.serviceType },
+    { service_type: serviceLabel || null },
     { quote_ref: opts.quoteRef, funnel_step: step }
   )
 
   return trackWebsiteLeadPatch({
     status: opts.status || (opts.step > 1 ? 'step_completed' : 'quote_started'),
     quote_ref: opts.quoteRef,
-    service_type: opts.serviceType,
+    service_type: serviceLabel || null,
     current_step: opts.step,
     landing_path: landingPath,
     funnel_event: step >= 1 && step <= 3 ? `quote_step_${step}` : 'step_completed',

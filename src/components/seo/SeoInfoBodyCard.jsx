@@ -27,7 +27,11 @@ export default function SeoInfoBodyCard({ section, quoteAnchor = '#seo-quote' })
         <h3 className="text-base font-bold leading-snug text-slate-900 sm:text-lg">{section.heading}</h3>
         <p className="mt-2 flex-1 text-sm leading-relaxed text-slate-600 line-clamp-5">{excerpt}</p>
         {hasModal ? (
-          <button type="button" onClick={openQuote} className="service-card-cta mt-4 min-h-[42px] text-xs sm:min-h-[44px] sm:text-sm">
+          <button
+            type="button"
+            onClick={() => openQuote()}
+            className="service-card-cta mt-4 min-h-[42px] text-xs sm:min-h-[44px] sm:text-sm"
+          >
             {cta}
           </button>
         ) : (

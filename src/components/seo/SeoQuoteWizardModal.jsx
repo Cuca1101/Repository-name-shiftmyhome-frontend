@@ -2,9 +2,10 @@ import { useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import QuoteWizard from '../quote-wizard/QuoteWizard'
 import { preloadStripeJs } from '../../lib/stripePromise'
+import { resolveServiceLabel } from '../../lib/normalizeServiceType'
 
 /**
- * Full-screen quote flow overlay for SEO landing pages — same layout as /quote.
+ * Full-screen quote flow overlay for SEO landing pages — same QuoteWizard as homepage /quote.
  *
  * @param {{
  *   open: boolean,
@@ -14,6 +15,7 @@ import { preloadStripeJs } from '../../lib/stripePromise'
  * }} props
  */
 export default function SeoQuoteWizardModal({ open, onClose, serviceType = '', sessionKey = 0 }) {
+  const resolvedServiceType = resolveServiceLabel(serviceType)
   useEffect(() => {
     if (!open) return
     preloadStripeJs()
@@ -62,9 +64,9 @@ export default function SeoQuoteWizardModal({ open, onClose, serviceType = '', s
       <div className="quote-flow-main quote-flow-scope min-h-0 flex-1 overflow-y-auto overscroll-contain pb-24 md:pb-0">
         <QuoteWizard
           key={sessionKey}
-          serviceType={serviceType}
+          serviceType={resolvedServiceType}
           allowServiceChange
-          servicePreSelected={Boolean(serviceType)}
+          servicePreSelected={Boolean(resolvedServiceType)}
         />
       </div>
     </div>

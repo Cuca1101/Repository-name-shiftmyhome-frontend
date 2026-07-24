@@ -5,6 +5,7 @@ import {
   consumeNewQuoteFromServiceCard,
   isResumeSavedQuote,
 } from './quoteSessionMode'
+import { resolveServiceLabel } from './normalizeServiceType'
 
 /**
  * Initial wizard state: only hydrate localStorage when user chose “Continue saved quote”.
@@ -12,6 +13,8 @@ import {
  * @param {string} serviceTypeProp
  */
 export function resolveWizardBootstrap(serviceTypeProp) {
+  const propLabel = resolveServiceLabel(serviceTypeProp)
+
   if (isResumeSavedQuote()) {
     const draft = loadQuoteDraft()
     if (draft) {
@@ -19,7 +22,7 @@ export function resolveWizardBootstrap(serviceTypeProp) {
         step: draft.step,
         quoteRef: draft.quoteRef,
         wizard: draft.wizard,
-        serviceType: draft.serviceType || serviceTypeProp,
+        serviceType: resolveServiceLabel(draft.serviceType) || propLabel,
         isResumed: true,
         dateWasReset: Boolean(draft.dateWasReset),
       }
@@ -33,7 +36,7 @@ export function resolveWizardBootstrap(serviceTypeProp) {
     step: 1,
     quoteRef: makeQuoteRef(),
     wizard: initialWizardState(),
-    serviceType: fromServiceCard?.serviceType || serviceTypeProp,
+    serviceType: resolveServiceLabel(fromServiceCard?.serviceType) || propLabel,
     isResumed: false,
     dateWasReset: false,
   }

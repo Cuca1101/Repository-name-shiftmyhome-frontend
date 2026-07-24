@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import {
   deleteCustomerLeadById,
@@ -18,6 +18,18 @@ import {
   buildQuoteRecoveryEmailPreview,
   recoveryContentFromLead,
 } from '../lib/quoteRecoveryEmailPreview'
+import {
+  buildPriceOverrideConfirmMessage,
+  formatGbp,
+  parseAdminAgreedPriceInput,
+  resolveCalculatedTotal,
+  resolveChargeableTotal,
+} from '../lib/adminAgreedPrice'
+import {
+  convertCustomerLeadToBooking,
+  saveCustomerLeadAgreedPrice,
+} from '../lib/customerLeadBookingConvert'
+import { isSupabaseConfigured, supabase } from '../lib/supabase'
 
 function DetailBlock({ title, children }) {
   return (
@@ -48,6 +60,16 @@ function mailHref(email) {
   return e ? `mailto:${e}` : null
 }
 
+async function resolveAdminCreatorLabel() {
+  if (!isSupabaseConfigured || !supabase) return 'admin'
+  try {
+    const { data } = await supabase.auth.getSession()
+    return String(data.session?.user?.email || '').trim() || 'admin'
+  } catch {
+    return 'admin'
+  }
+}
+
 export default function CustomerLeadDetailAdmin() {
   const { id } = useParams()
   const navigate = useNavigate()
@@ -58,6 +80,9 @@ export default function CustomerLeadDetailAdmin() {
   const [busy, setBusy] = useState('')
   const [deleting, setDeleting] = useState(false)
   const [previewHtml, setPreviewHtml] = useState('')
+  const [pricePanelOpen, setPricePanelOpen] = useState(false)
+  const [agreedPriceInput, setAgreedPriceInput] = useState('')
+  const [overrideReason, setOverrideReason] = useState('')
 
   const load = useCallback(async () => {
     if (!id) return
@@ -70,6 +95,10 @@ export default function CustomerLeadDetailAdmin() {
         setLead(null)
       } else {
         setLead(row)
+        if (row.agreed_price != null && Number.isFinite(Number(row.agreed_price))) {
+          setAgreedPriceInput(String(Number(row.agreed_price).toFixed(2)))
+        }
+        setOverrideReason(String(row.price_override_reason || ''))
       }
     } catch (e) {
       setError(e?.message || 'Failed to load lead.')
@@ -82,10 +111,108 @@ export default function CustomerLeadDetailAdmin() {
     load()
   }, [load])
 
+  const calculated = useMemo(() => resolveCalculatedTotal(lead), [lead])
+  const chargeable = useMemo(() => resolveChargeableTotal(lead), [lead])
+  const hasOverride =
+    calculated != null &&
+    chargeable != null &&
+    Math.abs(calculated - chargeable) > 0.009 &&
+    lead?.agreed_price != null
+
   async function withToken() {
     if (!lead?.id) throw new Error('No lead')
     const token = lead.resume_token || (await ensureLeadResumeToken(String(lead.id)))
     return token
+  }
+
+  async function handleSetCustomPrice() {
+    setBusy('price')
+    setActionMsg('')
+    try {
+      const parsed = parseAdminAgreedPriceInput(agreedPriceInput)
+      if (!parsed.ok) {
+        setActionMsg(parsed.error)
+        return
+      }
+      const confirmMsg = buildPriceOverrideConfirmMessage({
+        calculated,
+        agreed: parsed.amount,
+        reason: overrideReason,
+      })
+      if (!window.confirm(confirmMsg)) return
+
+      const adminLabel = await resolveAdminCreatorLabel()
+      await saveCustomerLeadAgreedPrice({
+        leadId: String(lead.id),
+        agreedPrice: parsed.amount,
+        reason: overrideReason,
+        adminLabel,
+        currentLead: lead,
+      })
+      setActionMsg(
+        `Admin agreed price saved: ${formatGbp(parsed.amount)}. Old payment links for a different amount are invalidated.`,
+      )
+      setPricePanelOpen(false)
+      await load()
+    } catch (e) {
+      setActionMsg(e?.message || 'Failed to save custom price.')
+    } finally {
+      setBusy('')
+    }
+  }
+
+  async function handleSaveAndConvert() {
+    setBusy('convert')
+    setActionMsg('')
+    try {
+      // If admin typed a new price but hasn't saved yet, require save first via confirm.
+      const parsed = parseAdminAgreedPriceInput(agreedPriceInput)
+      let workingLead = lead
+      if (parsed.ok) {
+        const currentAgreed = lead.agreed_price != null ? Number(lead.agreed_price) : null
+        if (currentAgreed == null || Math.abs(currentAgreed - parsed.amount) > 0.009) {
+          const confirmMsg = buildPriceOverrideConfirmMessage({
+            calculated,
+            agreed: parsed.amount,
+            reason: overrideReason,
+          })
+          if (!window.confirm(`${confirmMsg}\n\nThen convert this lead into a booking.`)) return
+          const adminLabel = await resolveAdminCreatorLabel()
+          const saved = await saveCustomerLeadAgreedPrice({
+            leadId: String(lead.id),
+            agreedPrice: parsed.amount,
+            reason: overrideReason,
+            adminLabel,
+            currentLead: lead,
+          })
+          workingLead = saved.lead
+        }
+      } else if (resolveChargeableTotal(lead) == null) {
+        setActionMsg(parsed.error || 'Set a custom price before converting.')
+        setPricePanelOpen(true)
+        return
+      } else if (
+        !window.confirm(
+          `Convert this lead to a booking at ${formatGbp(resolveChargeableTotal(lead))}?`,
+        )
+      ) {
+        return
+      }
+
+      const adminLabel = await resolveAdminCreatorLabel()
+      const result = await convertCustomerLeadToBooking({
+        lead: workingLead,
+        createdBy: adminLabel,
+      })
+      setActionMsg(
+        `Booking saved (${result.quoteRef}). Chargeable total: ${formatGbp(resolveChargeableTotal(result.lead || workingLead))}. You can send a payment link next.`,
+      )
+      await load()
+    } catch (e) {
+      setActionMsg(e?.message || 'Failed to convert to booking.')
+    } finally {
+      setBusy('')
+    }
   }
 
   async function handleSendQuoteEmail() {
@@ -96,7 +223,7 @@ export default function CustomerLeadDetailAdmin() {
         kind: lead.status === 'payment_failed' ? 'payment_failed' : undefined,
         force: true,
       })
-      setActionMsg('Recovery email sent.')
+      setActionMsg('Recovery email sent (shows admin agreed price when set).')
       await load()
     } catch (e) {
       setActionMsg(e?.message || 'Failed to send email.')
@@ -109,9 +236,22 @@ export default function CustomerLeadDetailAdmin() {
     setBusy('pay')
     setActionMsg('')
     try {
-      const url = await createLeadRecoveryCheckoutUrl(String(lead.id))
-      await copyTextToClipboard(url)
-      setActionMsg('Payment link created and copied to clipboard.')
+      const charge = resolveChargeableTotal(lead)
+      if (charge == null || charge < 1) {
+        setActionMsg('Set an admin agreed price (or ensure a calculated quote exists) before creating a payment link.')
+        setPricePanelOpen(true)
+        return
+      }
+      const result = await createLeadRecoveryCheckoutUrl(String(lead.id))
+      await copyTextToClipboard(result.url)
+      setActionMsg(
+        `Payment link created for ${formatGbp(result.amount ?? charge)} and copied to clipboard.${
+          hasOverride || result.agreed_price != null
+            ? ` (Calculated ${formatGbp(result.calculated_total ?? calculated)} → Agreed ${formatGbp(result.agreed_price ?? charge)})`
+            : ''
+        }`,
+      )
+      await load()
     } catch (e) {
       setActionMsg(e?.message || 'Failed to create payment link.')
     } finally {
@@ -140,7 +280,7 @@ export default function CustomerLeadDetailAdmin() {
     try {
       const token = await withToken()
       await copyTextToClipboard(buildPayQuoteUrl(token))
-      setActionMsg('Payment link copied.')
+      setActionMsg('Customer pay page link copied (charges admin agreed price when set).')
       await load()
     } catch (e) {
       setActionMsg(e?.message || 'Copy failed.')
@@ -209,8 +349,8 @@ export default function CustomerLeadDetailAdmin() {
   const emailHref = mailHref(lead.customer_email)
   const convertHref = lead.quote_id
     ? `/admin/quote-requests/${lead.quote_id}`
-    : '/admin/new-phone-booking'
-  const canRecover = eff !== 'converted_to_booking'
+    : null
+  const isConverted = eff === 'converted_to_booking'
 
   return (
     <div className="space-y-6 pb-10">
@@ -247,21 +387,14 @@ export default function CustomerLeadDetailAdmin() {
               Email customer
             </a>
           ) : null}
-          {eff !== 'converted_to_booking' ? (
-            <Link
-              to={convertHref}
-              className="inline-flex min-h-[44px] items-center rounded-xl bg-brand-600 px-4 text-sm font-semibold text-white hover:bg-brand-700"
-            >
-              Convert to booking
-            </Link>
-          ) : (
+          {isConverted && convertHref ? (
             <Link
               to={convertHref}
               className="inline-flex min-h-[44px] items-center rounded-xl border border-emerald-200 bg-emerald-50 px-4 text-sm font-semibold text-emerald-900 hover:bg-emerald-100"
             >
               View booking / quote
             </Link>
-          )}
+          ) : null}
           <button
             type="button"
             disabled={deleting}
@@ -277,95 +410,208 @@ export default function CustomerLeadDetailAdmin() {
         <p className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800">{actionMsg}</p>
       ) : null}
 
-      {canRecover ? (
-        <DetailBlock title="Quote recovery">
-          <div className="flex flex-wrap gap-2">
-            <button
-              type="button"
-              disabled={Boolean(busy) || !lead.customer_email}
-              onClick={() => void handleSendQuoteEmail()}
-              className="inline-flex min-h-[40px] items-center rounded-lg bg-brand-600 px-3 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-50"
-            >
-              {busy === 'email' ? 'Sending…' : 'Send Quote Email'}
-            </button>
-            <button
-              type="button"
-              disabled={Boolean(busy)}
-              onClick={() => void handleSendPaymentLink()}
-              className="inline-flex min-h-[40px] items-center rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-800 hover:bg-slate-50 disabled:opacity-50"
-            >
-              {busy === 'pay' ? 'Creating…' : 'Send Payment Link'}
-            </button>
-            <button
-              type="button"
-              disabled={Boolean(busy)}
-              onClick={() => void handleCopyResume()}
-              className="inline-flex min-h-[40px] items-center rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-800 hover:bg-slate-50 disabled:opacity-50"
-            >
-              Copy Resume Link
-            </button>
-            <button
-              type="button"
-              disabled={Boolean(busy)}
-              onClick={() => void handleCopyPayment()}
-              className="inline-flex min-h-[40px] items-center rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-800 hover:bg-slate-50 disabled:opacity-50"
-            >
-              Copy Payment Link
-            </button>
-            <button
-              type="button"
-              disabled={Boolean(busy)}
-              onClick={handlePreviewEmail}
-              className="inline-flex min-h-[40px] items-center rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-800 hover:bg-slate-50 disabled:opacity-50"
-            >
-              Preview Email
-            </button>
+      <DetailBlock title="Price & booking">
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Calculated price</p>
+            <p className="mt-1 text-xl font-bold text-slate-900">{formatGbp(calculated)}</p>
+            <p className="mt-1 text-xs text-slate-500">Pricing Engine total (preserved for audit)</p>
           </div>
-          <div className="mt-4 grid gap-2 border-t border-slate-100 pt-4 sm:grid-cols-2">
-            <Row
-              label="Last email sent"
-              value={lead.last_recovery_email_at ? formatDateTimeUK(lead.last_recovery_email_at) : null}
-            />
-            <Row label="Email kind" value={lead.last_recovery_email_kind} />
-            <Row
-              label="Email opened"
-              value={
-                lead.recovery_email_opened
-                  ? `Yes${lead.recovery_email_opened_at ? ` · ${formatDateTimeUK(lead.recovery_email_opened_at)}` : ''}`
-                  : 'No'
-              }
-            />
-            <Row
-              label="Resume link clicked"
-              value={
-                lead.resume_link_clicked
-                  ? `Yes (${lead.resume_link_click_count || 1})${
-                      lead.resume_link_clicked_at ? ` · ${formatDateTimeUK(lead.resume_link_clicked_at)}` : ''
-                    }`
-                  : 'No'
-              }
-            />
-            <Row
-              label="Payment link clicked"
-              value={
-                lead.payment_link_clicked
-                  ? `Yes (${lead.payment_link_click_count || 1})${
-                      lead.payment_link_clicked_at ? ` · ${formatDateTimeUK(lead.payment_link_clicked_at)}` : ''
-                    }`
-                  : 'No'
-              }
-            />
-            <Row label="Recovery emails sent" value={lead.recovery_emails_sent_count ?? 0} />
-            <Row
-              label="Next recovery email"
-              value={lead.next_recovery_email_at ? formatDateTimeUK(lead.next_recovery_email_at) : null}
-            />
-            {lead.payment_failed_at ? (
-              <Row label="Payment failed at" value={formatDateTimeUK(lead.payment_failed_at)} />
-            ) : null}
+          <div className="rounded-lg border border-brand-200 bg-brand-50/60 px-3 py-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-brand-700">Admin agreed price</p>
+            <p className="mt-1 text-xl font-bold text-brand-900">
+              {lead.agreed_price != null ? formatGbp(Number(lead.agreed_price)) : 'Not set'}
+            </p>
+            <p className="mt-1 text-xs text-brand-800/80">
+              Stripe Checkout charges this amount when set
+            </p>
           </div>
-        </DetailBlock>
-      ) : null}
+        </div>
+
+        {hasOverride ? (
+          <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950">
+            Override active: {formatGbp(calculated)} → {formatGbp(chargeable)}
+            {lead.price_override_by
+              ? ` · by ${lead.price_override_by}${
+                  lead.price_override_at ? ` · ${formatDateTimeUK(lead.price_override_at)}` : ''
+                }`
+              : ''}
+            {lead.price_override_reason ? ` · ${lead.price_override_reason}` : ''}
+          </p>
+        ) : null}
+
+        {pricePanelOpen ? (
+          <div className="space-y-3 rounded-lg border border-slate-200 bg-white p-3">
+            <label className="block text-sm font-semibold text-slate-800" htmlFor="admin-agreed-price">
+              Final / agreed price (£)
+            </label>
+            <input
+              id="admin-agreed-price"
+              type="number"
+              min="0"
+              step="0.01"
+              inputMode="decimal"
+              value={agreedPriceInput}
+              onChange={(e) => setAgreedPriceInput(e.target.value)}
+              className="w-full max-w-xs rounded-lg border border-slate-300 px-3 py-2 text-sm"
+              placeholder="e.g. 250.00"
+            />
+            <label className="block text-sm font-semibold text-slate-800" htmlFor="override-reason">
+              Reason / note (optional)
+            </label>
+            <textarea
+              id="override-reason"
+              rows={2}
+              value={overrideReason}
+              onChange={(e) => setOverrideReason(e.target.value)}
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+              placeholder="Agreed with customer on phone…"
+            />
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                disabled={Boolean(busy)}
+                onClick={() => void handleSetCustomPrice()}
+                className="inline-flex min-h-[40px] items-center rounded-lg bg-brand-600 px-3 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-50"
+              >
+                {busy === 'price' ? 'Saving…' : 'Confirm & save custom price'}
+              </button>
+              <button
+                type="button"
+                disabled={Boolean(busy)}
+                onClick={() => setPricePanelOpen(false)}
+                className="inline-flex min-h-[40px] items-center rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-800 hover:bg-slate-50"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        ) : null}
+
+        <div className="flex flex-wrap gap-2 border-t border-slate-100 pt-3">
+          <button
+            type="button"
+            disabled={Boolean(busy)}
+            onClick={() => {
+              setPricePanelOpen(true)
+              if (!agreedPriceInput && calculated != null) {
+                setAgreedPriceInput(String(calculated.toFixed(2)))
+              }
+            }}
+            className="inline-flex min-h-[40px] items-center rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-800 hover:bg-slate-50 disabled:opacity-50"
+          >
+            Set custom price
+          </button>
+          <button
+            type="button"
+            disabled={Boolean(busy)}
+            onClick={() => void handleSaveAndConvert()}
+            className="inline-flex min-h-[40px] items-center rounded-lg bg-brand-600 px-3 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-50"
+          >
+            {busy === 'convert'
+              ? 'Saving…'
+              : isConverted
+                ? 'Update booking price'
+                : 'Save & convert to booking'}
+          </button>
+          <button
+            type="button"
+            disabled={Boolean(busy)}
+            onClick={() => void handleSendPaymentLink()}
+            className="inline-flex min-h-[40px] items-center rounded-lg border border-emerald-200 bg-emerald-50 px-3 text-sm font-semibold text-emerald-900 hover:bg-emerald-100 disabled:opacity-50"
+          >
+            {busy === 'pay' ? 'Creating…' : 'Send payment link'}
+          </button>
+        </div>
+      </DetailBlock>
+
+      <DetailBlock title="Quote recovery">
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            disabled={Boolean(busy) || !lead.customer_email}
+            onClick={() => void handleSendQuoteEmail()}
+            className="inline-flex min-h-[40px] items-center rounded-lg bg-brand-600 px-3 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-50"
+          >
+            {busy === 'email' ? 'Sending…' : 'Send Quote Email'}
+          </button>
+          <button
+            type="button"
+            disabled={Boolean(busy)}
+            onClick={() => void handleCopyResume()}
+            className="inline-flex min-h-[40px] items-center rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-800 hover:bg-slate-50 disabled:opacity-50"
+          >
+            Copy Resume Link
+          </button>
+          <button
+            type="button"
+            disabled={Boolean(busy)}
+            onClick={() => void handleCopyPayment()}
+            className="inline-flex min-h-[40px] items-center rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-800 hover:bg-slate-50 disabled:opacity-50"
+          >
+            Copy Payment Link
+          </button>
+          <button
+            type="button"
+            disabled={Boolean(busy)}
+            onClick={handlePreviewEmail}
+            className="inline-flex min-h-[40px] items-center rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-800 hover:bg-slate-50 disabled:opacity-50"
+          >
+            Preview Email
+          </button>
+        </div>
+        <div className="mt-4 grid gap-2 border-t border-slate-100 pt-4 sm:grid-cols-2">
+          <Row
+            label="Last email sent"
+            value={lead.last_recovery_email_at ? formatDateTimeUK(lead.last_recovery_email_at) : null}
+          />
+          <Row label="Email kind" value={lead.last_recovery_email_kind} />
+          <Row
+            label="Email opened"
+            value={
+              lead.recovery_email_opened
+                ? `Yes${lead.recovery_email_opened_at ? ` · ${formatDateTimeUK(lead.recovery_email_opened_at)}` : ''}`
+                : 'No'
+            }
+          />
+          <Row
+            label="Resume link clicked"
+            value={
+              lead.resume_link_clicked
+                ? `Yes (${lead.resume_link_click_count || 1})${
+                    lead.resume_link_clicked_at ? ` · ${formatDateTimeUK(lead.resume_link_clicked_at)}` : ''
+                  }`
+                : 'No'
+            }
+          />
+          <Row
+            label="Payment link clicked"
+            value={
+              lead.payment_link_clicked
+                ? `Yes (${lead.payment_link_click_count || 1})${
+                    lead.payment_link_clicked_at ? ` · ${formatDateTimeUK(lead.payment_link_clicked_at)}` : ''
+                  }`
+                : 'No'
+            }
+          />
+          <Row label="Recovery emails sent" value={lead.recovery_emails_sent_count ?? 0} />
+          <Row
+            label="Live checkout amount"
+            value={
+              lead.stripe_payment_link_amount != null
+                ? formatGbp(Number(lead.stripe_payment_link_amount))
+                : null
+            }
+          />
+          <Row
+            label="Next recovery email"
+            value={lead.next_recovery_email_at ? formatDateTimeUK(lead.next_recovery_email_at) : null}
+          />
+          {lead.payment_failed_at ? (
+            <Row label="Payment failed at" value={formatDateTimeUK(lead.payment_failed_at)} />
+          ) : null}
+        </div>
+      </DetailBlock>
 
       {previewHtml ? (
         <DetailBlock title="Email preview">
@@ -388,13 +634,10 @@ export default function CustomerLeadDetailAdmin() {
         <Row label="Email" value={lead.customer_email} />
         <Row label="Service" value={lead.service_type} />
         <Row label="Route" value={lead.route_label} />
+        <Row label="Calculated price" value={formatGbp(calculated)} />
         <Row
-          label="Quote price"
-          value={
-            lead.estimated_total != null && Number.isFinite(Number(lead.estimated_total))
-              ? `£${Number(lead.estimated_total).toFixed(2)}`
-              : null
-          }
+          label="Admin agreed price"
+          value={lead.agreed_price != null ? formatGbp(Number(lead.agreed_price)) : '—'}
         />
         <Row label="Volume (m³)" value={lead.total_volume_m3} />
         <Row label="Move date" value={lead.move_date ? formatDateUK(lead.move_date) : null} />

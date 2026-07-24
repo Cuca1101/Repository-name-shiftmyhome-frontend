@@ -43,6 +43,8 @@ export type LeadLike = {
   service_type?: string | null
   move_date?: string | null
   estimated_total?: number | null
+  calculated_total?: number | null
+  agreed_price?: number | null
   wizard_data?: Record<string, unknown> | null
 }
 
@@ -85,8 +87,20 @@ export function buildRecoveryEmailContent(lead: LeadLike, kind: RecoveryEmailKin
   const moveDate = formatDateUK(moveDateFromLead(lead))
   const crew = crewFromLead(lead)
   const crewLabel = crew != null && String(crew).trim() ? String(crew) : '—'
-  const totalNum = lead.estimated_total != null ? Number(lead.estimated_total) : NaN
-  const total = Number.isFinite(totalNum) ? `£${totalNum.toFixed(2)}` : '—'
+  const agreedNum = lead.agreed_price != null ? Number(lead.agreed_price) : NaN
+  const calculatedNum =
+    lead.calculated_total != null
+      ? Number(lead.calculated_total)
+      : lead.estimated_total != null
+        ? Number(lead.estimated_total)
+        : NaN
+  const chargeNum = Number.isFinite(agreedNum) ? agreedNum : calculatedNum
+  const total = Number.isFinite(chargeNum) ? `£${chargeNum.toFixed(2)}` : '—'
+  const hasOverride =
+    Number.isFinite(agreedNum) &&
+    Number.isFinite(calculatedNum) &&
+    Math.abs(agreedNum - calculatedNum) > 0.009
+  const calculatedLabel = Number.isFinite(calculatedNum) ? `£${calculatedNum.toFixed(2)}` : '—'
 
   const inventory = inventoryFromLead(lead)
   const invRows = inventory.length
@@ -137,7 +151,12 @@ export function buildRecoveryEmailContent(lead: LeadLike, kind: RecoveryEmailKin
             <tr><td style="padding:4px 0;"><strong>Service</strong></td><td style="padding:4px 0;text-align:right;">${escHtml(service)}</td></tr>
             <tr><td style="padding:4px 0;"><strong>Move date</strong></td><td style="padding:4px 0;text-align:right;">${escHtml(moveDate)}</td></tr>
             <tr><td style="padding:4px 0;"><strong>Crew</strong></td><td style="padding:4px 0;text-align:right;">${escHtml(crewLabel)}</td></tr>
-            <tr><td style="padding:4px 0;"><strong>Total</strong></td><td style="padding:4px 0;text-align:right;font-weight:700;">${escHtml(total)}</td></tr>
+            ${
+              hasOverride
+                ? `<tr><td style="padding:4px 0;"><strong>Calculated price</strong></td><td style="padding:4px 0;text-align:right;">${escHtml(calculatedLabel)}</td></tr>
+            <tr><td style="padding:4px 0;"><strong>Agreed price</strong></td><td style="padding:4px 0;text-align:right;font-weight:700;">${escHtml(total)}</td></tr>`
+                : `<tr><td style="padding:4px 0;"><strong>Total</strong></td><td style="padding:4px 0;text-align:right;font-weight:700;">${escHtml(total)}</td></tr>`
+            }
           </table>
           <h2 style="font-size:15px;margin:0 0 8px;">Inventory</h2>
           <table width="100%" style="font-size:14px;color:#334155;margin-bottom:20px;">${invRows}</table>
@@ -163,11 +182,14 @@ export function buildRecoveryEmailContent(lead: LeadLike, kind: RecoveryEmailKin
     `Service: ${service}`,
     `Move date: ${moveDate}`,
     `Crew: ${crewLabel}`,
-    `Total: ${total}`,
+    hasOverride ? `Calculated price: ${calculatedLabel}` : null,
+    hasOverride ? `Agreed price: ${total}` : `Total: ${total}`,
     '',
     `Resume Quote: ${trackResume}`,
     `${payLabel}: ${trackPay}`,
-  ].join('\n')
+  ]
+    .filter((line) => line != null)
+    .join('\n')
 
   return { subject, html, text, resumeUrl: trackResume, payUrl: trackPay }
 }

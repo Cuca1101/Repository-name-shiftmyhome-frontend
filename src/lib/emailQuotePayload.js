@@ -6,6 +6,7 @@ import { formatDateUK } from './formatDateDisplay'
 import { formatAccessLiftLabel } from './floorAccess'
 import { formatPickupDeliveryContactsForSummary } from './quoteWizardContactFields'
 import { getEffectiveReassemblyItemCount } from './quoteWizardReassembly'
+import { resolveServiceLabel } from './normalizeServiceType'
 
 /** @param {Record<string, unknown>} wizard */
 function formatPickupDeliveryContactsBlock(wizard) {
@@ -236,7 +237,7 @@ export function buildWizardFullSummaryText({
     formatPickupDeliveryContactsBlock(wizard),
     '',
     '— Service —',
-    `Selected service: ${serviceType || '—'}`,
+    `Selected service: ${resolveServiceLabel(serviceType) || '—'}`,
     `Crew size: ${wizard.crewSize ? `${wizard.crewSize} ${Number(wizard.crewSize) === 1 ? 'Man' : 'Men'}` : '—'}`,
     `Route distance (miles): ${wizard.distanceMiles != null && wizard.distanceMiles !== '' ? wizard.distanceMiles : '—'}`,
     `Move date: ${wizard.moveDate ? formatDateUK(wizard.moveDate) : '—'}`,
@@ -372,7 +373,7 @@ export function buildQuoteFormFullSummaryText(ctx) {
     contact.message?.trim() && `Free-text message: ${contact.message.trim()}`,
     '',
     '— Service —',
-    `Selected service: ${effectiveServiceType || '—'}`,
+    `Selected service: ${resolveServiceLabel(effectiveServiceType) || '—'}`,
     `Route distance (miles): ${distanceMiles != null && distanceMiles !== '' ? distanceMiles : '—'}`,
     `Move date: ${contact.moveDate ? formatDateUK(contact.moveDate) : '—'}`,
     variantBlock,
@@ -419,11 +420,12 @@ export function buildQuoteEmailTemplateParams({
 }) {
   const md = (move_date ?? '').trim()
   const isIso = /^\d{4}-\d{2}-\d{2}$/.test(md)
+  const serviceLabel = resolveServiceLabel(service)
   const base = {
     name: name || '',
     email: email || '',
     phone: phone || '',
-    service: service || '',
+    service: serviceLabel,
     pickup: pickup || '',
     delivery: delivery || '',
     /** UK display for EmailJS / PDF short field — DB row uses `move_date_iso` when present */

@@ -48,6 +48,7 @@ export async function sendCustomerLeadRecoveryEmail(leadId, opts = {}) {
 
 /**
  * @param {string} leadId
+ * @returns {Promise<{ url: string, amount: number | null, agreed_price: number | null, calculated_total: number | null }>}
  */
 export async function createLeadRecoveryCheckoutUrl(leadId) {
   if (!isSupabaseConfigured || !supabase) throw new Error('Supabase not configured')
@@ -56,7 +57,12 @@ export async function createLeadRecoveryCheckoutUrl(leadId) {
   })
   if (error) throw new Error(error.message || 'Failed to create payment link')
   if (!data?.url) throw new Error(data?.error || 'No payment URL returned')
-  return String(data.url)
+  return {
+    url: String(data.url),
+    amount: data.amount != null ? Number(data.amount) : null,
+    agreed_price: data.agreed_price != null ? Number(data.agreed_price) : null,
+    calculated_total: data.calculated_total != null ? Number(data.calculated_total) : null,
+  }
 }
 
 /**

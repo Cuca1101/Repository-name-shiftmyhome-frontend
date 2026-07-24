@@ -63,6 +63,7 @@ import { formatReservationFeeGbp } from '../../lib/quoteReservationFee'
 import { QUOTE_STEP2_TRANSITION_DURATION_MS } from '../../lib/quoteStep2Transition'
 import { clearQuoteDraft, saveQuoteDraft } from '../../lib/quoteDraftStorage'
 import { resolveWizardBootstrap } from '../../lib/quoteWizardBootstrap'
+import { resolveServiceLabel } from '../../lib/normalizeServiceType'
 import {
   initialWizardState,
   makeQuoteRef,
@@ -217,7 +218,7 @@ export function QuoteWizardProvider({ children, serviceType: serviceTypeProp, al
 
   useEffect(() => {
     if (!allowServiceChange) {
-      setServiceType(serviceTypeProp)
+      setServiceType(resolveServiceLabel(serviceTypeProp))
     }
   }, [serviceTypeProp, allowServiceChange])
 

@@ -3,6 +3,7 @@
  */
 import { maxCustomerLeadStatus } from './customerLeadStatus'
 import { formatWizardArrivalSummary } from './emailQuotePayload'
+import { normalizeServiceType } from './normalizeServiceType'
 
 /**
  * @param {{
@@ -33,8 +34,10 @@ export function deriveCustomerLeadStatus({ step, wizard, currentStatus = 'new_le
  * @param {Record<string, unknown>} wizard
  */
 function buildStep1Snapshot(wizard) {
+  const service = normalizeServiceType(wizard.serviceType)
   return {
-    serviceType: wizard.serviceType ?? null,
+    serviceType: service.label || null,
+    serviceKey: service.key || null,
     pickupAddress: wizard.pickupAddress ?? '',
     deliveryAddress: wizard.deliveryAddress ?? '',
     pickupPropertyType: wizard.pickupPropertyType ?? '',
@@ -125,7 +128,8 @@ export function buildCustomerLeadUpsertPayload({
   currentStatus = 'new_lead',
   paymentPhase = 'none',
 }) {
-  const w = { ...wizard, serviceType: serviceType || wizard.serviceType }
+  const service = normalizeServiceType(serviceType || wizard.serviceType)
+  const w = { ...wizard, serviceType: service.label || wizard.serviceType }
   const pickup = String(w.pickupAddress || '').trim()
   const delivery = String(w.deliveryAddress || '').trim()
   const routeLabel =
@@ -148,7 +152,7 @@ export function buildCustomerLeadUpsertPayload({
     status,
     entry_point: entryPoint,
     source_page_url: sourcePageUrl || null,
-    service_type: String(serviceType || '').trim() || null,
+    service_type: service.label || null,
     customer_name: String(w.fullName || '').trim() || null,
     customer_phone: String(w.phone || '').trim() || null,
     customer_email: String(w.email || '').trim() || null,
@@ -190,12 +194,13 @@ export function buildCustomerLeadUpsertPayload({
 export function buildHomePageCustomerLeadPayload(form) {
   const pickup = String(form.pickup || '').trim()
   const delivery = String(form.delivery || '').trim()
+  const service = normalizeServiceType(form.service)
   return {
     quote_ref: String(form.quote_ref || '').trim() || null,
     status: 'quote_started',
     entry_point: 'home_page_form',
     source_page_url: form.source_page_url || '/',
-    service_type: String(form.service || '').trim() || null,
+    service_type: service.label || null,
     customer_name: String(form.name || '').trim() || null,
     customer_phone: String(form.phone || '').trim() || null,
     customer_email: String(form.email || '').trim() || null,
@@ -210,7 +215,8 @@ export function buildHomePageCustomerLeadPayload(form) {
         pickupAddress: pickup,
         deliveryAddress: delivery,
         moveDate: form.move_date || '',
-        serviceType: form.service || '',
+        serviceType: service.label || '',
+        serviceKey: service.key || '',
       },
       homepageDetails: String(form.details || '').trim() || '',
       capturedAt: new Date().toISOString(),

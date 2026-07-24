@@ -81,7 +81,11 @@ export default function SeoCityContentSections({ page, heroImage, pagePath }) {
                   </li>
                 ))}
               </ul>
-              <button type="button" onClick={openQuote} className="service-card-cta mt-6 min-h-[48px] text-sm">
+              <button
+                type="button"
+                onClick={() => openQuote()}
+                className="service-card-cta mt-6 min-h-[48px] text-sm"
+              >
                 Start your quote
                 <span className="opacity-90" aria-hidden>
                   →

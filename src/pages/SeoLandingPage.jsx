@@ -124,7 +124,7 @@ function SeoLandingPageContent({ page, routePath, heroImage, faqs, areasWeCover,
             <div className="mt-6 flex flex-col gap-2.5 sm:mt-8 sm:flex-row sm:flex-wrap">
               <button
                 type="button"
-                onClick={openQuote}
+                onClick={() => openQuote(page.serviceType)}
                 className="btn-premium-primary min-h-[48px] w-full px-6 py-3 text-sm sm:w-auto sm:min-w-[200px] sm:text-[15px]"
               >
                 Start your quote
@@ -255,7 +255,7 @@ function SeoLandingPageContent({ page, routePath, heroImage, faqs, areasWeCover,
             Get a clear price in minutes. Call, WhatsApp, or start the quote wizard.
           </p>
           <div className="seo-cta-actions mt-7 flex flex-col items-stretch justify-center gap-3 sm:mt-8 sm:flex-row sm:flex-wrap sm:items-center">
-            <button type="button" onClick={openQuote} className="seo-cta-btn-primary">
+            <button type="button" onClick={() => openQuote(page.serviceType)} className="seo-cta-btn-primary">
               Start your quote
             </button>
             <a href={`tel:${CONTACT.phoneTel}`} className="seo-cta-btn-secondary">

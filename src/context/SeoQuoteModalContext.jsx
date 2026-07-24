@@ -1,23 +1,26 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import SeoQuoteWizardModal from '../components/seo/SeoQuoteWizardModal'
+import { normalizeServiceType } from '../lib/normalizeServiceType'
 
-/** @type {import('react').Context<{ openQuote: () => void } | null>} */
+/** @type {import('react').Context<{ openQuote: (serviceTypeOverride?: string) => void } | null>} */
 const SeoQuoteModalContext = createContext(null)
 
 const SEO_QUOTE_HASH = '#seo-quote'
 
 /**
  * Quote wizard modal for SEO landing pages — opens step-by-step flow on CTA click.
+ * Same QuoteWizard + fetchPricingSettings + calculateQuote path as homepage /quote.
  *
  * @param {{ children: import('react').ReactNode, defaultServiceType?: string }} props
  */
 export function SeoQuoteModalProvider({ children, defaultServiceType = '' }) {
   const location = useLocation()
   const navigate = useNavigate()
+  const resolvedDefault = normalizeServiceType(defaultServiceType).label
   const [open, setOpen] = useState(false)
   const [sessionKey, setSessionKey] = useState(0)
-  const [activeServiceType, setActiveServiceType] = useState(defaultServiceType)
+  const [activeServiceType, setActiveServiceType] = useState(resolvedDefault)
 
   const syncHash = useCallback(
     (hash) => {
@@ -31,10 +34,9 @@ export function SeoQuoteModalProvider({ children, defaultServiceType = '' }) {
 
   const openQuote = useCallback(
     (serviceTypeOverride) => {
-      const nextService =
-        serviceTypeOverride !== undefined && serviceTypeOverride !== null
-          ? String(serviceTypeOverride).trim()
-          : defaultServiceType
+      // onClick={openQuote} passes a SyntheticEvent — never String(event).
+      const fromOverride = normalizeServiceType(serviceTypeOverride).label
+      const nextService = fromOverride || resolvedDefault
       setActiveServiceType(nextService)
 
       if (location.hash === SEO_QUOTE_HASH) {
@@ -44,7 +46,7 @@ export function SeoQuoteModalProvider({ children, defaultServiceType = '' }) {
       }
       syncHash(SEO_QUOTE_HASH)
     },
-    [defaultServiceType, location.hash, syncHash],
+    [resolvedDefault, location.hash, syncHash],
   )
 
   const closeQuote = useCallback(() => {
@@ -55,8 +57,8 @@ export function SeoQuoteModalProvider({ children, defaultServiceType = '' }) {
   }, [location.hash, syncHash])
 
   useEffect(() => {
-    setActiveServiceType(defaultServiceType)
-  }, [defaultServiceType, location.pathname])
+    setActiveServiceType(resolvedDefault)
+  }, [resolvedDefault, location.pathname])
 
   useEffect(() => {
     if (location.hash === SEO_QUOTE_HASH) {

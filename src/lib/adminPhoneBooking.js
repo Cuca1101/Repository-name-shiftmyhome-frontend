@@ -334,6 +334,30 @@ export function buildAdminPhoneBookingQuoteRow({
     operational_status: PHONE_BOOKING_PENDING_OPERATIONAL_STATUS,
     estimated_total: calculatedTotal,
     remaining_balance: remaining,
+    calculated_total: calculatedTotal,
+    agreed_price:
+      !useCalculatedPrice &&
+      calculatedTotal != null &&
+      finalTotal != null &&
+      Math.abs(calculatedTotal - finalTotal) > 0.009
+        ? finalTotal
+        : null,
+    price_override_reason:
+      !useCalculatedPrice && overrideReason.trim() ? overrideReason.trim() : null,
+    price_override_by:
+      !useCalculatedPrice &&
+      calculatedTotal != null &&
+      finalTotal != null &&
+      Math.abs(calculatedTotal - finalTotal) > 0.009
+        ? createdBy || 'admin'
+        : null,
+    price_override_at:
+      !useCalculatedPrice &&
+      calculatedTotal != null &&
+      finalTotal != null &&
+      Math.abs(calculatedTotal - finalTotal) > 0.009
+        ? new Date().toISOString()
+        : null,
     details,
     inventory: inventoryJson.length ? inventoryJson : [],
     pricing: formatQuoteBreakdownLines(breakdown),

@@ -1,5 +1,6 @@
 import { isSupabaseConfigured, supabase } from '../supabase'
 import { isSupabasePublicConfigured, supabasePublic } from '../supabasePublicClient'
+import { resolveServiceLabel } from '../normalizeServiceType'
 
 const QUOTES_TABLE = 'quotes'
 
@@ -118,13 +119,14 @@ function formatHomePageQuoteInsertError(error) {
  */
 function buildHomePageQuoteRow(form) {
   const ref = String(form.quote_ref || '').trim()
+  const serviceLabel = resolveServiceLabel(form.service)
   return {
     quote_ref: ref,
     full_name: (form.name || '').trim(),
     email: (form.email || '').trim(),
     phone: (form.phone || '').trim(),
-    service: (form.service || '').trim() || null,
-    service_type: (form.service || '').trim() || null,
+    service: serviceLabel || null,
+    service_type: serviceLabel || null,
     pickup_address: (form.pickup || '').trim(),
     delivery_address: (form.delivery || '').trim(),
     move_date: normalizeMoveDate(form.move_date),
@@ -168,13 +170,14 @@ function resolveIsoMoveDateFromParams(p) {
 export function buildQuoteRowFromTemplateParams(templateParams, extras = {}, rowOverrides = {}) {
   const p = templateParams || {}
   const inv = p.inventory != null && String(p.inventory).trim() !== '' ? String(p.inventory) : null
+  const serviceLabel = resolveServiceLabel(p.service)
   const base = {
     quote_ref: p.quote_ref?.trim() || null,
     full_name: (p.name || '').trim(),
     email: (p.email || '').trim(),
     phone: (p.phone || '').trim(),
-    service: (p.service || '').trim() || null,
-    service_type: (p.service || '').trim() || null,
+    service: serviceLabel || null,
+    service_type: serviceLabel || null,
     pickup_address: (p.pickup || '').trim(),
     delivery_address: (p.delivery || '').trim(),
     move_date: resolveIsoMoveDateFromParams(p),
@@ -271,13 +274,15 @@ export function buildAdminPhoneBookingRow(form) {
   const customerDetails = (form.details || '').trim()
   const details = customerDetails ? `${staffNote}\n\n${customerDetails}` : staffNote
 
+  const serviceLabel = resolveServiceLabel(form.service) || 'Phone booking'
+
   return {
     quote_ref: ref,
     full_name: (form.name || '').trim(),
     email: (form.email || '').trim() || 'phone-booking@shiftmyhome.local',
     phone: (form.phone || '').trim(),
-    service: (form.service || '').trim() || 'Phone booking',
-    service_type: (form.service || '').trim() || 'Phone booking',
+    service: serviceLabel,
+    service_type: serviceLabel,
     pickup_address: (form.pickup || '').trim(),
     delivery_address: (form.delivery || '').trim(),
     move_date: normalizeMoveDate(form.move_date),
