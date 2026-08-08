@@ -11,6 +11,7 @@
     "preview": "vite preview",
     "test:pricing": "node scripts/run-pricing-tests.mjs",
     "test:quote-parity": "node scripts/test-quote-entry-parity.mjs",
+    "test:customer-leads": "node scripts/test-customer-lead-session.mjs",
     "test:admin-agreed-price": "node scripts/test-admin-agreed-price.mjs",
     "seo:audit:dist": "node scripts/seo-audit-dist.mjs",
     "seo:final-audit": "node scripts/seo-final-audit.mjs",

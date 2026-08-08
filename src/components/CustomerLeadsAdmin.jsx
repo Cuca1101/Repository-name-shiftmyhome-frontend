@@ -178,7 +178,7 @@ export default function CustomerLeadsAdmin() {
           <p className="p-8 text-center text-slate-600">{emptyMessage}</p>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[1100px] text-left text-sm">
+            <table className="w-full min-w-[1240px] text-left text-sm">
               <thead className="border-b border-slate-200 bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-500">
                 <tr>
                   <th className="px-4 py-3">Lead ref</th>
@@ -190,6 +190,7 @@ export default function CustomerLeadsAdmin() {
                   <th className="px-4 py-3">Quote price</th>
                   <th className="px-4 py-3">Agreed</th>
                   <th className="px-4 py-3">Status</th>
+                  <th className="px-4 py-3">Last activity</th>
                   <th className="px-4 py-3">Created</th>
                   <th className="px-4 py-3">Actions</th>
                 </tr>
@@ -239,6 +240,9 @@ export default function CustomerLeadsAdmin() {
                         <StatusBadge status={eff} />
                       </td>
                       <td className="whitespace-nowrap px-4 py-3 text-xs text-slate-600">
+                        {formatDateTimeUK(row.last_activity_at)}
+                      </td>
+                      <td className="whitespace-nowrap px-4 py-3 text-xs text-slate-500">
                         {formatDateTimeUK(row.created_at)}
                       </td>
                       <td className="px-4 py-3">

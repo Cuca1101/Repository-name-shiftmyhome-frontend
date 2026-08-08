@@ -64,6 +64,8 @@ export function effectiveCustomerLeadStatus(row) {
 
 /**
  * Pick the furthest status in the funnel (never downgrade converted).
+ * Abandoned / payment_failed reopen to active funnel statuses on new activity
+ * so resumed quotes are not trapped; terminal converted stays locked.
  * @param {string} current
  * @param {string} next
  */
@@ -73,8 +75,12 @@ export function maxCustomerLeadStatus(current, next) {
   if (cur === 'converted_to_booking' || nxt === 'converted_to_booking') {
     return 'converted_to_booking'
   }
-  if ((cur === 'abandoned' || cur === 'payment_failed') && nxt !== 'converted_to_booking') {
-    return cur === 'payment_failed' || nxt === 'payment_failed' ? 'payment_failed' : 'abandoned'
+  if (cur === 'abandoned' || cur === 'payment_failed') {
+    if (nxt === 'abandoned' || nxt === 'payment_failed') {
+      return cur === 'payment_failed' || nxt === 'payment_failed' ? 'payment_failed' : 'abandoned'
+    }
+    // Reopen: active quote activity replaces frozen recovery status.
+    return nxt
   }
   const curRank = STATUS_RANK[cur] ?? 0
   const nextRank = STATUS_RANK[nxt] ?? 0

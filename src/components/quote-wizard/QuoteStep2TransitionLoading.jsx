@@ -34,7 +34,7 @@ export default function QuoteStep2TransitionLoading() {
   return createPortal(
     <div
       id="quote-step2-transition"
-      className="fixed inset-0 z-[100] flex items-center justify-center overflow-y-auto overscroll-y-contain bg-slate-900/25 px-4 py-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-[max(1rem,env(safe-area-inset-top))] backdrop-blur-[3px]"
+      className="fixed inset-0 z-[300] flex items-center justify-center overflow-y-auto overscroll-y-contain bg-slate-900/25 px-4 py-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-[max(1rem,env(safe-area-inset-top))] backdrop-blur-[3px]"
       role="status"
       aria-live="polite"
       aria-busy="true"

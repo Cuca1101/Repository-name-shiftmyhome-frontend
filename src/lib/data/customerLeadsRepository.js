@@ -8,6 +8,42 @@ import {
 
 const TABLE = 'customer_leads'
 
+/** Last upsert failure (code/message only — no PII). For support / console diagnosis. */
+let lastCustomerLeadUpsertError = null
+
+/**
+ * @returns {{ at: string, code: string, message: string } | null}
+ */
+export function getLastCustomerLeadUpsertError() {
+  return lastCustomerLeadUpsertError
+}
+
+/**
+ * Sanitize PostgREST / Postgres errors for logs (no emails, phones, payloads).
+ * @param {unknown} error
+ */
+function sanitizeLeadError(error) {
+  const raw = error && typeof error === 'object' ? error : null
+  const code = String(raw?.code || raw?.status || 'unknown').slice(0, 64)
+  let message = String(raw?.message || raw?.details || 'upsert_failed').slice(0, 240)
+  message = message
+    .replace(/\b[\w.+-]+@[\w.-]+\.\w+\b/gi, '[redacted-email]')
+    .replace(/\+?\d[\d\s()-]{7,}\d/g, '[redacted-phone]')
+  return { code, message }
+}
+
+function logLeadUpsertFailure(reason, error) {
+  const sanitized = error ? sanitizeLeadError(error) : { code: reason, message: reason }
+  lastCustomerLeadUpsertError = {
+    at: new Date().toISOString(),
+    code: sanitized.code,
+    message: sanitized.message,
+  }
+  // Always diagnosable in prod consoles; never surface to customers.
+  // eslint-disable-next-line no-console
+  console.warn('[customer_leads] upsert failed', sanitized.code, sanitized.message)
+}
+
 /**
  * Public funnel writes — always anon (same pattern as homepage quote insert).
  * @param {Record<string, unknown>} payload
@@ -20,10 +56,16 @@ export async function upsertCustomerLead(payload, sessionId) {
       : isSupabaseConfigured && supabase
         ? supabase
         : null
-  if (!db) return null
+  if (!db) {
+    logLeadUpsertFailure('supabase_not_configured', null)
+    return null
+  }
 
   const sid = (sessionId || getWebsiteLeadSessionId()).trim()
-  if (!sid) return null
+  if (!sid) {
+    logLeadUpsertFailure('missing_session_id', null)
+    return null
+  }
 
   const { data, error } = await db.rpc('upsert_customer_lead', {
     p_session_id: sid,
@@ -31,12 +73,10 @@ export async function upsertCustomerLead(payload, sessionId) {
   })
 
   if (error) {
-    if (import.meta.env.DEV) {
-      // eslint-disable-next-line no-console
-      console.warn('[customer_leads] upsert failed', error.message)
-    }
+    logLeadUpsertFailure('rpc_error', error)
     return null
   }
+  lastCustomerLeadUpsertError = null
   return data
 }
 
@@ -55,7 +95,7 @@ export async function fetchCustomerLeadsForAdmin(opts = {}) {
   const { data, error } = await supabase
     .from(TABLE)
     .select('*')
-    .order('created_at', { ascending: false })
+    .order('last_activity_at', { ascending: false })
     .limit(500)
 
   if (error) {

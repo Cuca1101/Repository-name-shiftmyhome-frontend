@@ -2,6 +2,7 @@ import { SERVICE_PAGES } from '../constants/servicePages'
 import { initialWizardState, QUOTE_WIZARD_MAX_STEP } from './quoteWizardDefaults'
 import { step3ContactDetailsValid } from './quoteWizardStep3ContactScroll'
 import { sanitizeDraftMoveDate } from './moveDateLocal'
+import { getWebsiteLeadSessionId } from './websiteLeadSession'
 
 export const QUOTE_DRAFT_STORAGE_KEY = 'shiftmyhome_quote_draft_v1'
 
@@ -93,6 +94,11 @@ export function loadQuoteDraft() {
     wizard = sanitized.wizard
     step = sanitized.step
 
+    const leadSessionId =
+      typeof data.leadSessionId === 'string' && data.leadSessionId.trim()
+        ? data.leadSessionId.trim()
+        : null
+
     if (sanitized.dateWasReset) {
       saveQuoteDraft({
         step,
@@ -101,6 +107,7 @@ export function loadQuoteDraft() {
         returnPath,
         wizard,
         estimatedTotal,
+        leadSessionId,
       })
     }
 
@@ -113,6 +120,7 @@ export function loadQuoteDraft() {
       returnPath,
       wizard,
       estimatedTotal,
+      leadSessionId,
       dateWasReset: sanitized.dateWasReset,
     }
   } catch {
@@ -125,6 +133,10 @@ export function loadQuoteDraft() {
 export function saveQuoteDraft(payload) {
   if (typeof window === 'undefined') return
   try {
+    const leadSessionId =
+      typeof payload.leadSessionId === 'string' && payload.leadSessionId.trim()
+        ? payload.leadSessionId.trim()
+        : getWebsiteLeadSessionId() || null
     const body = {
       version: DRAFT_VERSION,
       savedAt: Date.now(),
@@ -134,6 +146,7 @@ export function saveQuoteDraft(payload) {
       returnPath: payload.returnPath,
       wizard: payload.wizard,
       estimatedTotal: payload.estimatedTotal,
+      leadSessionId,
     }
     window.localStorage.setItem(QUOTE_DRAFT_STORAGE_KEY, JSON.stringify(body))
     window.dispatchEvent(new Event('shiftmyhome-quote-draft'))
@@ -167,5 +180,6 @@ export function hasQuoteDraft() {
  * @property {string} returnPath
  * @property {ReturnType<typeof initialWizardState>} wizard
  * @property {number | null} estimatedTotal
+ * @property {string | null} [leadSessionId]
  * @property {boolean} [dateWasReset]
  */

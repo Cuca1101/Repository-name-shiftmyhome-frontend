@@ -72,9 +72,11 @@ import {
 import { clearResumeSavedQuote } from '../../lib/quoteSessionMode'
 import { trackQuoteWizardSnapshot, trackWebsiteLeadEvent } from '../../lib/websiteLeadTracker'
 import {
+  clearCustomerLeadCache,
   markCustomerLeadPaymentStarted,
   syncCustomerLeadFromWizard,
 } from '../../lib/customerLeadTracker'
+import { rotateWebsiteLeadSessionId } from '../../lib/websiteLeadSession'
 import { trackMarketingQuoteSubmit } from '../../lib/marketingPixels'
 import { useLocation } from 'react-router-dom'
 import {
@@ -262,6 +264,9 @@ export function QuoteWizardProvider({ children, serviceType: serviceTypeProp, al
     addressBaselineRef.current = { pickup, delivery }
     const nextRef = makeQuoteRef()
     setQuoteRef(nextRef)
+    rotateWebsiteLeadSessionId()
+    clearCustomerLeadCache()
+    customerLeadStatusRef.current = 'new_lead'
     if (pickupChanged) {
       trackWebsiteLeadEvent('pickup_address_changed', {
         quoteRef: nextRef,
@@ -1045,6 +1050,9 @@ export function QuoteWizardProvider({ children, serviceType: serviceTypeProp, al
       })
       skipAutosaveRef.current = true
       clearQuoteDraft()
+      rotateWebsiteLeadSessionId()
+      clearCustomerLeadCache()
+      customerLeadStatusRef.current = 'new_lead'
       setWizard(initialWizardState())
       setQuotePhotoFiles([])
       setQuoteRef(makeQuoteRef())
@@ -1068,7 +1076,11 @@ export function QuoteWizardProvider({ children, serviceType: serviceTypeProp, al
     isResumedRef.current = false
     addressBaselineRef.current = null
     savedDraftTrackedRef.current = false
+    funnelTrackedRef.current = false
     clearQuoteDraft()
+    rotateWebsiteLeadSessionId()
+    clearCustomerLeadCache()
+    customerLeadStatusRef.current = 'new_lead'
     setWizard(initialWizardState())
     setQuoteRef(makeQuoteRef())
     setStep(1)

@@ -2,6 +2,7 @@ import { Link, useSearchParams } from 'react-router-dom'
 import SeoHead from '../components/seo/SeoHead'
 import { isSupabaseConfigured, supabase } from '../lib/supabase'
 import { isSupabasePublicConfigured, supabasePublic } from '../lib/supabasePublicClient'
+import { getWebsiteLeadSessionId } from '../lib/websiteLeadSession'
 import { useEffect } from 'react'
 
 function dbClient() {
@@ -13,17 +14,19 @@ function dbClient() {
 export default function PaymentCancelledPage() {
   const [searchParams] = useSearchParams()
   const resumeToken = String(searchParams.get('resume') || '').trim()
+  const quoteRef = String(searchParams.get('quote_ref') || '').trim()
 
   useEffect(() => {
-    const quoteRef = String(searchParams.get('quote_ref') || '').trim()
     const db = dbClient()
     if (!db) return
+    const sessionId = getWebsiteLeadSessionId() || null
+    if (!quoteRef && !sessionId && !resumeToken) return
     void db.rpc('mark_customer_lead_payment_failed', {
       p_quote_ref: quoteRef || null,
       p_quote_id: null,
-      p_session_id: null,
+      p_session_id: sessionId,
     })
-  }, [searchParams])
+  }, [quoteRef, resumeToken, searchParams])
 
   return (
     <>
@@ -58,10 +61,10 @@ export default function PaymentCancelledPage() {
             ) : (
               <>
                 <Link
-                  to="/"
+                  to={quoteRef ? '/quote' : '/'}
                   className="inline-flex min-h-[48px] items-center justify-center rounded-xl bg-brand-600 px-8 py-3 text-sm font-bold text-white shadow-md transition hover:bg-brand-700"
                 >
-                  Back to home
+                  {quoteRef ? 'Return to quote' : 'Back to home'}
                 </Link>
                 <a
                   href="/quote"

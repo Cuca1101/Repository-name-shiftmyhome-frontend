@@ -162,7 +162,9 @@ Deno.serve(async (req) => {
         },
       ],
       success_url: `${siteUrl}/payment-success?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${siteUrl}/payment-cancelled?resume=${encodeURIComponent(resumeToken)}`,
+      cancel_url: `${siteUrl}/payment-cancelled?resume=${encodeURIComponent(resumeToken)}${
+        quoteRef ? `&quote_ref=${encodeURIComponent(quoteRef)}` : ''
+      }`,
       metadata: {
         quote_ref: quoteRef.slice(0, 500),
         quote_id: lead.quote_id ? String(lead.quote_id) : '',

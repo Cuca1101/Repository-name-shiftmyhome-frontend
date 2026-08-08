@@ -12,6 +12,8 @@ import {
   markNewQuoteFromServiceCard,
   markResumeSavedQuote,
 } from '../lib/quoteSessionMode'
+import { rotateWebsiteLeadSessionId } from '../lib/websiteLeadSession'
+import { clearCustomerLeadCache } from '../lib/customerLeadTracker'
 import { trackWebsiteClick, trackWebsiteLeadEvent } from '../lib/websiteLeadTracker'
 
 /**
@@ -65,6 +67,8 @@ export default function ContinueQuoteBanner() {
   function handleStartNew(e) {
     e.preventDefault()
     clearQuoteDraft()
+    rotateWebsiteLeadSessionId()
+    clearCustomerLeadCache()
     markNewQuoteFromServiceCard('', '/quote')
     void trackWebsiteClick('Start new quote', { section: 'banner', href: '/quote' })
     trackWebsiteLeadEvent('new_quote_started', {

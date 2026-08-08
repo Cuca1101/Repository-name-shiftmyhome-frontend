@@ -1,10 +1,12 @@
 /** Session-only flags for saved quote resume vs new quote flows (not persisted drafts). */
 
 import { resolveServiceLabel } from './normalizeServiceType'
+import { rotateWebsiteLeadSessionId } from './websiteLeadSession'
 
 export const QUOTE_RESUME_SESSION_KEY = 'shiftmyhome_quote_resume_v1'
 export const QUOTE_BANNER_DISMISS_KEY = 'shiftmyhome_quote_banner_dismiss_v1'
 export const QUOTE_NEW_SERVICE_INTENT_KEY = 'shiftmyhome_new_service_quote_v1'
+const CUSTOMER_LEAD_CACHE_KEY = 'shiftmyhome_customer_lead_cache_v1'
 
 function session() {
   if (typeof window === 'undefined') return null
@@ -12,6 +14,15 @@ function session() {
     return window.sessionStorage
   } catch {
     return null
+  }
+}
+
+function clearLeadCacheQuietly() {
+  if (typeof window === 'undefined') return
+  try {
+    window.localStorage.removeItem(CUSTOMER_LEAD_CACHE_KEY)
+  } catch {
+    /* ignore */
   }
 }
 
@@ -52,6 +63,8 @@ export function markNewQuoteFromServiceCard(serviceType, path) {
     }),
   )
   clearResumeSavedQuote()
+  rotateWebsiteLeadSessionId()
+  clearLeadCacheQuietly()
 }
 
 /** @returns {{ serviceType: string, path: string, at: number } | null} */

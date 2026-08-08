@@ -3,7 +3,10 @@
  */
 import { buildCustomerLeadUpsertPayload, buildHomePageCustomerLeadPayload } from './customerLeadCapture'
 import { upsertCustomerLead, linkCustomerLeadToBooking } from './data/customerLeadsRepository'
-import { getWebsiteLeadSessionId } from './websiteLeadSession'
+import {
+  createEphemeralLeadSessionId,
+  getWebsiteLeadSessionId,
+} from './websiteLeadSession'
 import { isSupabaseConfigured, supabase } from './supabase'
 import { isSupabasePublicConfigured, supabasePublic } from './supabasePublicClient'
 
@@ -40,6 +43,15 @@ export function setCustomerLeadCache(data) {
     )
   } catch {
     /* ignore quota */
+  }
+}
+
+export function clearCustomerLeadCache() {
+  if (typeof window === 'undefined') return
+  try {
+    window.localStorage.removeItem(CACHE_KEY)
+  } catch {
+    /* ignore */
   }
 }
 
@@ -113,7 +125,8 @@ export async function syncCustomerLeadFromHomePageForm(form) {
     source_page_url,
   })
 
-  const result = await upsertCustomerLead(payload, getWebsiteLeadSessionId())
+  // Each homepage form submit is a distinct lead — do not reuse wizard session.
+  const result = await upsertCustomerLead(payload, createEphemeralLeadSessionId())
   if (result?.lead_ref) {
     setCustomerLeadCache({ leadRef: result.lead_ref, id: result.id })
   }

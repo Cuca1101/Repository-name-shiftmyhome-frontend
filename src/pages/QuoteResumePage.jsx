@@ -61,8 +61,12 @@ export default function QuoteResumePage() {
           wizard_step: data.wizard_step,
           wizard_data: data.wizard_data,
           estimated_total: data.estimated_total,
+          source_page_url: data.source_page_url,
         })
-        const path = applyCustomerLeadResumeDraft(draft, { welcomeBack: true })
+        const path = applyCustomerLeadResumeDraft(draft, {
+          welcomeBack: true,
+          leadSessionId: data.session_id || null,
+        })
         setStatus('Welcome back — opening your quote…')
         navigate(path, { replace: true })
       } catch (e) {

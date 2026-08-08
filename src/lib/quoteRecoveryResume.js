@@ -5,6 +5,7 @@ import { initialWizardState, QUOTE_WIZARD_MAX_STEP } from './quoteWizardDefaults
 import { hydrateWizardFromDraft, pathForServiceType, saveQuoteDraft } from './quoteDraftStorage'
 import { markResumeSavedQuote } from './quoteSessionMode'
 import { step3ContactDetailsValid } from './quoteWizardStep3ContactScroll'
+import { bindWebsiteLeadSessionId, getWebsiteLeadSessionId } from './websiteLeadSession'
 
 export const QUOTE_WELCOME_BACK_SESSION_KEY = 'shiftmyhome_quote_welcome_back_v1'
 
@@ -84,11 +85,19 @@ function s3Estimated(wizardData) {
 
 /**
  * Persist draft + mark resume session so the wizard restores full state.
- * @param {ReturnType<typeof draftPayloadFromCustomerLead>} draft
- * @param {{ welcomeBack?: boolean }} [opts]
+ * Re-binds the customer lead session when provided so recovery continues the same lead.
+ * @param {ReturnType<typeof draftPayloadFromCustomerLead> & { leadSessionId?: string|null }} draft
+ * @param {{ welcomeBack?: boolean, leadSessionId?: string|null }} [opts]
  */
 export function applyCustomerLeadResumeDraft(draft, opts = {}) {
-  saveQuoteDraft(draft)
+  const sessionId = opts.leadSessionId || draft.leadSessionId || null
+  if (sessionId) {
+    bindWebsiteLeadSessionId(sessionId)
+  }
+  saveQuoteDraft({
+    ...draft,
+    leadSessionId: sessionId || getWebsiteLeadSessionId() || null,
+  })
   markResumeSavedQuote()
   if (opts.welcomeBack !== false && typeof window !== 'undefined') {
     try {

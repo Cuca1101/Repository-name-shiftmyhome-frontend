@@ -278,7 +278,9 @@ Deno.serve(async (req) => {
         },
       ],
       success_url: `${siteUrl}/payment-success?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${siteUrl}/payment-cancelled`,
+      cancel_url: quote_ref
+        ? `${siteUrl}/payment-cancelled?quote_ref=${encodeURIComponent(quote_ref)}`
+        : `${siteUrl}/payment-cancelled`,
       metadata,
       payment_intent_data: {
         metadata,
