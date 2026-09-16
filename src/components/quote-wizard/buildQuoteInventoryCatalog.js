@@ -60,7 +60,9 @@ export function buildQuoteInventoryCatalogFromLibrary(rows) {
       name: String(row.name),
       m3: Math.max(0.01, Number(row.cubic_metres) || 0),
       weightType: row.weight_type || 'medium',
-      mult: Number(row.handling_multiplier) > 0 ? Number(row.handling_multiplier) : 1,
+      mult: 1,
+      /** Weight type Heavy in Items Library = charge specialist heavy fee. */
+      heavyFee: String(row.weight_type || '').toLowerCase() === 'heavy',
       defaultQty,
     })
   }

@@ -7,8 +7,7 @@
  *
  * IMPORTANT:
  * m3 is ALWAYS per unit, not total line volume.
- * Quantity is applied later by pricing:
- * quantity × m3 × handling multiplier.
+ * Pricing uses quantity × m3 only (handling multiplier does not inflate billed volume).
  */
 
 export const INVENTORY_BY_CATEGORY = {

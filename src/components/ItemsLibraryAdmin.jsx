@@ -180,10 +180,15 @@ export default function ItemsLibraryAdmin() {
     setSaving(true)
     setError('')
     try {
+      const payload = {
+        ...form,
+        category: normalizeFormCategory(form.category),
+        handling_multiplier: 1,
+      }
       if (editingId === 'new') {
-        await insertLibraryItem(form)
+        await insertLibraryItem(payload)
       } else if (editingId) {
-        await updateLibraryItem(editingId, form)
+        await updateLibraryItem(editingId, payload)
       }
       await load()
       setEditingId(null)
@@ -422,7 +427,7 @@ export default function ItemsLibraryAdmin() {
                 onChange={(e) => setForm((f) => ({ ...f, cubic_metres: parseFloat(e.target.value) || 0 }))}
               />
             </label>
-            <label className="block">
+            <label className="block sm:col-span-2">
               <span className="text-sm font-medium text-slate-700">Weight type</span>
               <select
                 className={`mt-1 ${inputClass}`}
@@ -431,23 +436,14 @@ export default function ItemsLibraryAdmin() {
               >
                 {WEIGHT_TYPES.map((w) => (
                   <option key={w} value={w}>
-                    {w}
+                    {w === 'heavy' ? 'heavy — charges specialist heavy fee' : w}
                   </option>
                 ))}
               </select>
-            </label>
-            <label className="block">
-              <span className="text-sm font-medium text-slate-700">Handling multiplier</span>
-              <input
-                type="number"
-                step="0.01"
-                min="0.1"
-                className={`mt-1 ${inputClass}`}
-                value={form.handling_multiplier}
-                onChange={(e) =>
-                  setForm((f) => ({ ...f, handling_multiplier: parseFloat(e.target.value) || 1 }))
-                }
-              />
+              <p className="mt-1 text-xs text-slate-500">
+                Choose <strong>heavy</strong> only for items that should add the Pricing Engine specialist heavy fee
+                (e.g. £35). Normal fridge / washing machine → use <strong>large</strong>, not heavy.
+              </p>
             </label>
             <label className="block">
               <span className="text-sm font-medium text-slate-700">Default quantity (admin hint)</span>
@@ -495,8 +491,8 @@ export default function ItemsLibraryAdmin() {
                   <li key={row.id} className="min-w-0 p-4">
                     <p className="font-medium text-slate-900">{row.name}</p>
                     <p className="mt-1 text-sm text-slate-600">
-                      {formatLibraryNumber(row.cubic_metres)} m³ · {row.weight_type} · ×
-                      {formatLibraryNumber(row.handling_multiplier)}
+                      {formatLibraryNumber(row.cubic_metres)} m³ · {row.weight_type}
+                      {String(row.weight_type).toLowerCase() === 'heavy' ? ' · +heavy fee' : ''}
                     </p>
                     <div className="mt-3 flex flex-wrap gap-2">
                       <button
@@ -524,7 +520,6 @@ export default function ItemsLibraryAdmin() {
                       <th className="px-4 py-3">Name</th>
                       <th className="px-4 py-3">m³</th>
                       <th className="px-4 py-3">Weight</th>
-                      <th className="px-4 py-3">Multiplier</th>
                       <th className="px-4 py-3 text-right">Actions</th>
                     </tr>
                   </thead>
@@ -533,9 +528,9 @@ export default function ItemsLibraryAdmin() {
                       <tr key={row.id} className="text-slate-800">
                         <td className="px-4 py-3 font-medium">{row.name}</td>
                         <td className="px-4 py-3 tabular-nums">{formatLibraryNumber(row.cubic_metres)}</td>
-                        <td className="px-4 py-3 capitalize">{row.weight_type}</td>
-                        <td className="px-4 py-3 tabular-nums">
-                          {formatLibraryNumber(row.handling_multiplier)}
+                        <td className="px-4 py-3 capitalize">
+                          {row.weight_type}
+                          {String(row.weight_type).toLowerCase() === 'heavy' ? ' (+fee)' : ''}
                         </td>
                         <td className="px-4 py-3 text-right">
                           <button

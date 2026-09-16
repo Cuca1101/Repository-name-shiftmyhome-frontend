@@ -103,7 +103,7 @@ export default function Step2Inventory({
   const totalM3 = useMemo(() => {
     let t = 0
     for (const row of lines) {
-      t += row.quantity * row.m3 * (row.mult || 1)
+      t += row.quantity * row.m3
     }
     return Math.round(t * 100) / 100
   }, [lines])
@@ -705,7 +705,6 @@ export default function Step2Inventory({
                 quantity={row.quantity}
                 perUnitM3={row.m3}
                 defaultPerUnitM3={resolveDefaultM3PerUnit(row, getCatalogItem)}
-                multiplier={row.mult ?? 1}
                 onPerUnitM3Change={(v) => setLineM3(row.lineId, v)}
                 onResetDefault={() => resetLineM3(row.lineId)}
               />

@@ -14,13 +14,11 @@ export default function InventorySelectionVolumeRow({
   quantity,
   perUnitM3,
   defaultPerUnitM3,
-  multiplier = 1,
   disabled = false,
   onPerUnitM3Change,
   onResetDefault,
 }) {
-  const mult = Number(multiplier) > 0 ? Number(multiplier) : 1
-  const lineVol = quantity * perUnitM3 * mult
+  const lineVol = quantity * perUnitM3
   const def = Math.max(MIN, Number(defaultPerUnitM3) || MIN)
   const canReset = Math.abs(perUnitM3 - def) > 0.001
 

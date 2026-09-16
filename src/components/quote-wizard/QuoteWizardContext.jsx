@@ -357,7 +357,7 @@ export function QuoteWizardProvider({ children, serviceType: serviceTypeProp, al
   const totalM3 = useMemo(() => {
     let t = 0
     for (const l of wizard.inventoryLines) {
-      t += l.quantity * l.m3 * (l.mult ?? 1)
+      t += l.quantity * l.m3
     }
     return Math.round(t * 100) / 100
   }, [wizard.inventoryLines])
@@ -953,7 +953,7 @@ export function QuoteWizardProvider({ children, serviceType: serviceTypeProp, al
     }
 
     const jobItems = wizard.inventoryLines.map((row) => {
-      const lineVol = row.quantity * row.m3 * (row.mult ?? 1)
+      const lineVol = row.quantity * row.m3
       return {
         item_name: row.name,
         library_item_id: row.isCustom ? null : row.catalogId ?? null,

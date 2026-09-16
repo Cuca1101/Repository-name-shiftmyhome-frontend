@@ -111,7 +111,7 @@ export function lineItemsToStoredAddedItems(lineItems, pricing) {
       handling_multiplier: row.handlingMultiplier,
       matched_library: row.matchedLibrary,
       notes: row.notes,
-      line_volume_m3: detail?.lineVolumeM3 ?? row.quantity * row.volumePerUnitM3 * row.handlingMultiplier,
+      line_volume_m3: detail?.lineVolumeM3 ?? row.quantity * row.volumePerUnitM3,
       line_amount_gbp: detail?.lineAmountGbp ?? null,
     }
   })

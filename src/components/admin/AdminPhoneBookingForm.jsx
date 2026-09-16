@@ -186,7 +186,7 @@ export default function AdminPhoneBookingForm({
   const totalM3 = useMemo(() => {
     let t = 0
     for (const l of wizard.inventoryLines) {
-      t += l.quantity * l.m3 * (l.mult ?? 1)
+      t += l.quantity * l.m3
     }
     return Math.round(t * 100) / 100
   }, [wizard.inventoryLines])

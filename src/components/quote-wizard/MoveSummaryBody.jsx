@@ -31,7 +31,7 @@ function formatMapboxTravelSummary(hours, durationSeconds) {
 function formatInventorySummaryLine(line) {
   const qty = Math.max(0, Number(line.quantity) || 0)
   const name = (line.name || 'Item').trim() || 'Item'
-  const lineVolume = qty * Math.max(0, Number(line.m3) || 0) * Math.max(0, Number(line.mult) || 1)
+  const lineVolume = qty * Math.max(0, Number(line.m3) || 0)
   const volumeLabel = Number.isFinite(lineVolume) ? `${lineVolume.toFixed(2)} m³` : '—'
   if (line.isCustom) {
     return { label: `Custom item: ${name}`, qty, volumeLabel }

@@ -42,21 +42,17 @@ export function countHeavyItemsForCrew(lineItems) {
 }
 
 /**
- * Specialist / exceptional heavy surcharge only.
- * Ordinary appliances (fridge freezer ×1.15, washing machine, etc.) do NOT qualify.
+ * Specialist / exceptional heavy surcharge — admin chooses via Weight type = Heavy.
+ * Ordinary awkward items should use Large/Medium (not Heavy) so they are not charged.
+ * handlingMultiplier is ignored for pricing.
  *
- * Explicit flags win; otherwise legacy heavy + multiplier ≥ 1.2 (American fridge, piano, …).
  * @param {import('./pricingCalculator.js').QuoteLineItem | Record<string, unknown>} row
  */
 export function lineItemAppliesHeavyHandlingFee(row) {
   if (!row || typeof row !== 'object') return false
   if (row.appliesHeavyHandlingFee === true || row.heavyFee === true) return true
   if (row.appliesHeavyHandlingFee === false || row.heavyFee === false) return false
-  const wt = String(row.weightType || '').toLowerCase()
-  if (wt !== 'heavy') return false
-  const mult = Number(row.handlingMultiplier) > 0 ? Number(row.handlingMultiplier) : 1
-  // Legacy specialist threshold (American fridge, piano, treadmill, …).
-  return mult >= 1.2
+  return String(row.weightType || '').toLowerCase() === 'heavy'
 }
 
 /**

@@ -18,8 +18,7 @@ export function formatInventoryRowsForEmail(rows) {
   if (!rows?.length) return '—'
   return rows
     .map((l) => {
-      const mult = l.handlingMultiplier ?? 1
-      const vol = l.quantity * l.volumePerUnitM3 * mult
+      const vol = l.quantity * l.volumePerUnitM3
       const vr = Math.round(vol * 100) / 100
       const custom = l.isCustom ? ', custom' : ''
       const category = l.categoryLabel ? ` [${l.categoryLabel}]` : ''

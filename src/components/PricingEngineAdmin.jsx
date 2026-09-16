@@ -486,7 +486,7 @@ export default function PricingEngineAdmin() {
             </Field>
             <Field
               label="Specialist heavy handling per item (£)"
-              helper="Only for exceptional/specialist heavy items (e.g. American fridge, piano). Ordinary fridge freezer / washing machine do not use this fee."
+              helper="Charged only for Items Library weight type Heavy (you choose which items). Set ordinary fridge/washer to Large so they skip this fee."
             >
               <input
                 type="number"

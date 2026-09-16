@@ -75,10 +75,24 @@ assert(lineItemAppliesHeavyHandlingFee(FRIDGE[0]) === false, 'standard fridge do
 assert(
   lineItemAppliesHeavyHandlingFee({
     weightType: 'heavy',
-    handlingMultiplier: 1.2,
     name: 'American fridge',
+    heavyFee: true,
   }) === true,
-  'American fridge (×1.2) still qualifies for specialist heavy fee',
+  'items marked heavy fee / weight Heavy get specialist heavy fee',
+)
+assert(
+  lineItemAppliesHeavyHandlingFee({
+    weightType: 'heavy',
+    name: 'Library heavy item',
+  }) === true,
+  'Items Library weight Heavy charges specialist fee',
+)
+assert(
+  lineItemAppliesHeavyHandlingFee({
+    weightType: 'large',
+    name: 'Awkward but not specialist',
+  }) === false,
+  'Large weight does not charge specialist fee',
 )
 assert(
   getQuoteCrewRestrictions({ heavyItemCount: 1 }).oneManAllowed === true,
@@ -228,7 +242,7 @@ assert(
   'fridge extra = raw volume £ × smooth volume mult (no specialist heavy)',
 )
 const extraAmerican = calculateExtraItemsCharge(settings, [
-  { name: 'American fridge', quantity: 1, volumePerUnitM3: 1.6, weightType: 'heavy', handlingMultiplier: 1.2 },
+  { name: 'American fridge', quantity: 1, volumePerUnitM3: 1.6, weightType: 'heavy', heavyFee: true },
 ])
 assert(extraAmerican.estimatedAmount > 1.6 * settings.pricePerCubicMetre, 'specialist heavy adds fee on extras path')
 
