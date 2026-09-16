@@ -125,5 +125,7 @@ export function preparePricingSettingsForSave(settings) {
   next.driverAppExtraChargeMode = 'website'
   next.driverAppExtraChargesCustomEnabled = false
   next.driverAppExtraCharges = copyWebsiteRatesToDriverAppExtraCharge(next)
+  // Service base is always a per-job floor — never × crew.
+  next.basePricePerMan = false
   return next
 }

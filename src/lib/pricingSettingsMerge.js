@@ -6,6 +6,7 @@ import {
 } from './driverExtraChargePricingSettings.js'
 import {
   detectVolumeMultiplierSources,
+  migrateLegacyVolumeMultiplierKeys,
   VOLUME_MULTIPLIER_SETTING_KEYS,
 } from './volumePricingMultiplier'
 
@@ -57,9 +58,10 @@ const CORE_PRICING_KEYS = [
  * @returns {string[]}
  */
 export function detectMissingPricingSettingKeys(raw) {
+  const migrated = migrateLegacyVolumeMultiplierKeys(raw && typeof raw === 'object' ? raw : null)
   if (!raw || typeof raw !== 'object') return [...CORE_PRICING_KEYS]
   return CORE_PRICING_KEYS.filter((key) => {
-    const value = raw[key]
+    const value = migrated[key] ?? raw[key]
     if (key === 'basePriceByService') {
       return !value || typeof value !== 'object' || !Object.keys(value).length
     }
@@ -76,16 +78,17 @@ export function detectMissingPricingSettingKeys(raw) {
  */
 export function mergePricingSettingsWithDefaults(raw, opts = {}) {
   const defaults = getDefaultPricingSettings()
-  const missingBeforeMerge = detectMissingPricingSettingKeys(raw)
-  const base = raw?.basePriceByService && typeof raw.basePriceByService === 'object'
-    ? { ...defaults.basePriceByService, ...raw.basePriceByService }
+  const rawIn = raw && typeof raw === 'object' ? migrateLegacyVolumeMultiplierKeys(raw) : raw
+  const missingBeforeMerge = detectMissingPricingSettingKeys(rawIn)
+  const base = rawIn?.basePriceByService && typeof rawIn.basePriceByService === 'object'
+    ? { ...defaults.basePriceByService, ...rawIn.basePriceByService }
     : defaults.basePriceByService
   const custom =
-    raw?.customSizeM3 && typeof raw.customSizeM3 === 'object'
-      ? { ...defaults.customSizeM3, ...raw.customSizeM3 }
+    rawIn?.customSizeM3 && typeof rawIn.customSizeM3 === 'object'
+      ? { ...defaults.customSizeM3, ...rawIn.customSizeM3 }
       : defaults.customSizeM3
-  const promoCodes = Array.isArray(raw?.promoCodes)
-    ? raw.promoCodes
+  const promoCodes = Array.isArray(rawIn?.promoCodes)
+    ? rawIn.promoCodes
         .filter((c) => c && typeof c === 'object')
         .map((c) => ({
           code: String(c.code || '').trim(),
@@ -97,48 +100,52 @@ export function mergePricingSettingsWithDefaults(raw, opts = {}) {
 
   const merged = {
     ...defaults,
-    ...(raw && typeof raw === 'object' ? raw : {}),
+    ...(rawIn && typeof rawIn === 'object' ? rawIn : {}),
     basePriceByService: base,
     customSizeM3: custom,
     promoCodes,
     driverAppExtraChargeMode:
-      raw?.driverAppExtraChargesCustomEnabled === true &&
-      raw?.driverAppExtraChargeMode === 'custom'
+      rawIn?.driverAppExtraChargesCustomEnabled === true &&
+      rawIn?.driverAppExtraChargeMode === 'custom'
         ? 'custom'
         : 'website',
-    driverAppExtraChargesCustomEnabled: raw?.driverAppExtraChargesCustomEnabled === true,
+    driverAppExtraChargesCustomEnabled: rawIn?.driverAppExtraChargesCustomEnabled === true,
     driverAppExtraCharges: (() => {
       const mergedMain = {
         ...defaults,
-        ...(raw && typeof raw === 'object' ? raw : {}),
+        ...(rawIn && typeof rawIn === 'object' ? rawIn : {}),
         basePriceByService: base,
         customSizeM3: custom,
         driverAppExtraChargeMode:
-          raw?.driverAppExtraChargesCustomEnabled === true &&
-          raw?.driverAppExtraChargeMode === 'custom'
+          rawIn?.driverAppExtraChargesCustomEnabled === true &&
+          rawIn?.driverAppExtraChargeMode === 'custom'
             ? 'custom'
             : 'website',
-        driverAppExtraChargesCustomEnabled: raw?.driverAppExtraChargesCustomEnabled === true,
+        driverAppExtraChargesCustomEnabled: rawIn?.driverAppExtraChargesCustomEnabled === true,
       }
       if (getDriverAppExtraChargeMode(mergedMain) === 'custom') {
         return {
           ...copyWebsiteRatesToDriverAppExtraCharge(mergedMain),
           ...mergeDriverAppExtraChargePricing(
-            raw?.driverAppExtraCharges && typeof raw.driverAppExtraCharges === 'object'
-              ? raw.driverAppExtraCharges
+            rawIn?.driverAppExtraCharges && typeof rawIn.driverAppExtraCharges === 'object'
+              ? rawIn.driverAppExtraCharges
               : null,
           ),
         }
       }
       return copyWebsiteRatesToDriverAppExtraCharge(mergedMain)
     })(),
-    volumeMultiplierSources: detectVolumeMultiplierSources(raw),
+    volumeMultiplierSources: detectVolumeMultiplierSources(rawIn),
   }
 
   for (const key of VOLUME_MULTIPLIER_SETTING_KEYS) {
     const n = Number(merged[key])
-    merged[key] = Number.isFinite(n) && n > 0 ? n : defaults[key]
+    // Whole-quote underpricing from legacy values like 0.2 — require ≥ 1.
+    merged[key] = Number.isFinite(n) && n >= 1 ? n : defaults[key]
   }
+
+  // Service base is always a floor, never × crew.
+  merged.basePricePerMan = false
 
   const legacyWeekendPct = Number(merged.weekendSurchargePercent)
   const legacyWeekend =

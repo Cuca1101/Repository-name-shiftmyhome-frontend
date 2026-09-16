@@ -19,13 +19,14 @@ export const DRIVER_APP_EXTRA_CHARGE_KEYS = [
   'volumeMultiplier0To3M3',
   'volumeMultiplier3To8M3',
   'volumeMultiplier8To15M3',
-  'volumeMultiplier15To25M3',
-  'volumeMultiplier25PlusM3',
+  'volumeMultiplier15To20M3',
+  'volumeMultiplier20To30M3',
+  'volumeMultiplier30PlusM3',
 ] as const
 
 const FALLBACK_DEFAULTS: Record<string, number> = {
-  pricePerCubicMetre: 14,
-  heavyItemHandlingCharge: 32,
+  pricePerCubicMetre: 30,
+  heavyItemHandlingCharge: 35,
   floorChargePerFloor: 13,
   noLiftCharge: 30,
   yesLiftChargePerEnd: 0,
@@ -37,10 +38,11 @@ const FALLBACK_DEFAULTS: Record<string, number> = {
   reassemblyPricePerItem: 42,
   extraHelperPrice: 40,
   volumeMultiplier0To3M3: 1,
-  volumeMultiplier3To8M3: 1.1,
-  volumeMultiplier8To15M3: 1.2,
-  volumeMultiplier15To25M3: 1.35,
-  volumeMultiplier25PlusM3: 1.5,
+  volumeMultiplier3To8M3: 1.2,
+  volumeMultiplier8To15M3: 1.4,
+  volumeMultiplier15To20M3: 1.3,
+  volumeMultiplier20To30M3: 1.4,
+  volumeMultiplier30PlusM3: 1.4,
 }
 
 export function mergeDriverAppExtraChargePricing(

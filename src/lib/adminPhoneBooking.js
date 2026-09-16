@@ -247,6 +247,8 @@ export function buildAdminPhoneBookingQuoteRow({
     volumePerUnitM3: l.m3,
     handlingMultiplier: l.mult ?? 1,
     weightType: l.weightType,
+    heavyFee: l.heavyFee,
+    appliesHeavyHandlingFee: l.heavyFee,
     isCustom: l.isCustom,
     categoryLabel: l.categoryLabel,
     customSizeBand: l.customSizeBand,

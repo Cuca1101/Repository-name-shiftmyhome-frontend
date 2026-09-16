@@ -64,7 +64,10 @@ export function buildStandardPricingDisplayRows(b) {
 
   )
 
-  const heavyCharges = sumLineAmounts(access, (l) => /^Heavy item/i.test(l.label))
+  const heavyCharges = sumLineAmounts(
+    access,
+    (l) => /^Heavy item/i.test(l.label) || /^Specialist heavy/i.test(l.label),
+  )
 
   const accessCharges = sumLineAmounts(
 
@@ -141,136 +144,77 @@ export function buildStandardPricingDisplayRows(b) {
 
 
   const calculatedBeforeMultiplier =
-
     b.calculatedSubtotalBeforeMultiplier != null
-
       ? money(b.calculatedSubtotalBeforeMultiplier)
-
       : money(
-
           (b.distancePrice || 0) +
-
             (b.volumePrice || 0) +
-
             (b.accessTotal || 0) +
-
             (b.extrasTotal || 0) +
-
             (b.surchargesTotal || 0),
-
         )
 
-
-
   const volumeMultiplier = b.volumeMultiplier != null ? Number(b.volumeMultiplier) : 1
-
   const volumeScalingAmount = money(b.volumeScalingAmount ?? 0)
-
-  const scaledSubtotal = money(b.scaledSubtotal ?? calculatedBeforeMultiplier * volumeMultiplier)
-
+  const scaledSubtotal = money(b.scaledSubtotal ?? calculatedBeforeMultiplier)
   const minimumBaseAdjustment = money(b.minimumBaseAdjustment ?? 0)
   const minimumJobAdjustment = money(b.minimumJobAdjustment ?? 0)
 
-
-
   /** @type {{ label: string, amount: number, isDiscount?: boolean, isTotal?: boolean }[]} */
-
   const rows = [
-
     { label: 'Mileage Price', amount: money(b.distancePrice) },
-
-    { label: 'Volume Price', amount: money(b.volumePrice) },
-
-    { label: 'Crew Labour', amount: crewLabour },
-
-    { label: 'Fuel Surcharge', amount: fuelSurcharge },
-
-    { label: 'Access Charges', amount: accessCharges },
-
-    { label: 'Floor Charges', amount: floorCharges },
-
-    { label: 'No-lift / Lift Charges', amount: liftCharges },
-
-    { label: 'Heavy Item Charges', amount: heavyCharges },
-
-    { label: 'Waiting Time', amount: waitingTime },
-
-    { label: 'Packing', amount: packing },
-
-    { label: 'Dismantling', amount: dismantling },
-
-    { label: 'Reassembly', amount: reassembly },
-
-    { label: 'Same Day Surcharge', amount: sameDay },
-
-    { label: 'Weekend Surcharge', amount: weekend },
-
-    { label: 'Bank Holiday Surcharge', amount: bankHoliday },
-
-    { label: 'Exact Arrival Premium', amount: exactArrival },
-
-    { label: 'Calculated Subtotal (before volume multiplier)', amount: calculatedBeforeMultiplier },
-
+    {
+      label: 'Volume Price (raw m³)',
+      amount: money(b.baseVolumePrice != null ? b.baseVolumePrice : b.volumePrice),
+    },
   ]
 
-
-
   if (volumeMultiplier !== 1 && volumeScalingAmount !== 0) {
-
     rows.push({
-
-      label: `Volume Scaling (×${volumeMultiplier.toFixed(2)}${b.volumeMultiplierBand ? ` — ${b.volumeMultiplierBand}` : ''})`,
-
+      label: `Volume band on inventory only (×${volumeMultiplier.toFixed(2)}${b.volumeMultiplierBand ? ` — ${b.volumeMultiplierBand}` : ''})`,
       amount: volumeScalingAmount,
-
     })
-
   }
 
-
+  rows.push(
+    { label: 'Crew Labour', amount: crewLabour },
+    { label: 'Fuel Surcharge', amount: fuelSurcharge },
+    { label: 'Access Charges', amount: accessCharges },
+    { label: 'Floor Charges', amount: floorCharges },
+    { label: 'No-lift / Lift Charges', amount: liftCharges },
+    { label: 'Heavy Item Charges', amount: heavyCharges },
+    { label: 'Waiting Time', amount: waitingTime },
+    { label: 'Packing', amount: packing },
+    { label: 'Dismantling', amount: dismantling },
+    { label: 'Reassembly', amount: reassembly },
+    { label: 'Same Day Surcharge', amount: sameDay },
+    { label: 'Weekend Surcharge', amount: weekend },
+    { label: 'Bank Holiday Surcharge', amount: bankHoliday },
+    { label: 'Exact Arrival Premium', amount: exactArrival },
+    { label: 'Subtotal (after date surcharges)', amount: calculatedBeforeMultiplier },
+  )
 
   rows.push({ label: 'Scaled Subtotal', amount: scaledSubtotal })
 
-
-
   if (minimumBaseAdjustment > 0) {
-
-    rows.push({ label: 'Minimum Base Threshold Adjustment', amount: minimumBaseAdjustment })
-
+    rows.push({ label: 'Minimum Base Threshold Adjustment (floor)', amount: minimumBaseAdjustment })
   }
-
   if (minimumJobAdjustment > 0) {
-
-    rows.push({ label: 'Minimum Job Price Adjustment', amount: minimumJobAdjustment })
-
+    rows.push({ label: 'Minimum Job Price Adjustment (floor)', amount: minimumJobAdjustment })
   }
-
   rows.push({ label: 'Discounts', amount: discountAmount, isDiscount: true })
-
-
 
   const filtered = rows.filter((row) => row.amount !== 0)
 
-
-
   if (b.estimatedTotal != null && Number.isFinite(b.estimatedTotal)) {
-
     filtered.push({
-
       label: 'Final Estimated Total',
-
       amount: money(b.estimatedTotal),
-
       isTotal: true,
-
     })
-
   }
 
-
-
   return filtered
-
 }
 
 
@@ -330,15 +274,10 @@ export function collectBreakdownDisplayLines(b) {
   for (const l of b.surchargeLines || []) rows.push({ label: l.label, amount: l.amount })
 
   if (b.volumeScalingAmount != null && b.volumeScalingAmount !== 0) {
-
     rows.push({
-
-      label: `Volume scaling (×${b.volumeMultiplier ?? 1})`,
-
+      label: `Volume band on inventory (×${b.volumeMultiplier ?? 1})`,
       amount: b.volumeScalingAmount,
-
     })
-
   }
 
   for (const l of b.discountLines || []) {

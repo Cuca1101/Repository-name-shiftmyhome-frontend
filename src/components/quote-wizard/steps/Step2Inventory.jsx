@@ -140,6 +140,7 @@ export default function Step2Inventory({
         defaultM3: item.m3,
         weightType: item.weightType,
         mult: item.mult ?? 1,
+        heavyFee: item.heavyFee,
         isCustom: false,
       },
     ])

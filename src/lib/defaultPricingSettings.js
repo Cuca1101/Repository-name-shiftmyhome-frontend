@@ -2,62 +2,60 @@ import { SERVICE_TYPES } from '../constants/serviceTypes'
 
 /**
  * Offline / fallback pricing when Supabase `pricing_settings` is unavailable.
- * All numeric defaults live here only — the pricing engine must not hardcode prices.
- * Admin Pricing Settings always override these values when present.
+ * Competitive calibrated rates for ShiftMyHome (small jobs competitive, large jobs profitable).
  */
 export function getDefaultPricingSettings() {
   const basePriceByService = Object.fromEntries(
     SERVICE_TYPES.map((s) => {
-      if (s === 'Man with Van') return [s, 72]
-      if (s === 'Furniture Delivery') return [s, 58]
-      if (s === 'Office Moves') return [s, 145]
-      if (s === 'Clearance') return [s, 88]
-      if (s === 'Storage Move') return [s, 85]
-      if (s === 'Student Moves') return [s, 62]
-      if (s === 'House Removals') return [s, 118]
-      return [s, 100]
+      // Floors only — never hard-added. Keep at/below crew job mins so mins dominate for MWV.
+      if (s === 'Man with Van') return [s, 0]
+      if (s === 'Furniture Delivery') return [s, 0]
+      if (s === 'Office Moves') return [s, 90]
+      if (s === 'Clearance') return [s, 60]
+      if (s === 'Storage Move') return [s, 55]
+      if (s === 'Student Moves') return [s, 0]
+      if (s === 'House Removals') return [s, 110]
+      return [s, 0]
     }),
   )
 
   return {
     basePriceByService,
-    /** Homepage card "From £..." only — never used by the quote calculator. Empty = hide display price. */
     displayPriceByService: {},
     pricePerMile: 1.3,
-    pricePerCubicMetre: 14,
-    minimumJobPrice: 85,
-    minimumJobPriceOneMan: 85,
-    minimumJobPriceTwoMen: 105,
-    minimumJobPriceThreeMen: 130,
+    pricePerCubicMetre: 10,
+    minimumJobPrice: 50,
+    minimumJobPriceOneMan: 50,
+    /** £70 keeps a typical small 2-man local job (e.g. fridge / ~6 mi / Sat) in the £65–£75 band. */
+    minimumJobPriceTwoMen: 70,
+    minimumJobPriceThreeMen: 90,
     floorChargePerFloor: 13,
     noLiftCharge: 30,
     longWalkingDistanceCharge: 28,
     parkingCharge: 15,
     waitingTimePricePerHour: 40,
-    sameDaySurchargePercent: 12,
-    weekendSurchargePercent: 15,
-    saturdaySurchargePercent: 15,
-    sundaySurchargePercent: 15,
+    sameDaySurchargePercent: 10,
+    weekendSurchargePercent: 8,
+    saturdaySurchargePercent: 8,
+    sundaySurchargePercent: 10,
     bankHolidaySurchargePercent: 20,
     extraHelperPrice: 40,
     crewSurchargePerExtraMember: 40,
-    /** Used only when live Mapbox route duration is unavailable (legacy key: averageSpeedMph). */
-    fallbackSpeedMph: 35,
-    averageSpeedMph: 35,
-    secondManBaseFee: 15,
-    secondManHourlyRate: 18,
-    firstManBaseFee: 15,
-    firstManHourlyRate: 18,
+    fallbackSpeedMph: 30,
+    averageSpeedMph: 30,
+    secondManBaseFee: 0,
+    secondManHourlyRate: 16,
+    firstManBaseFee: 0,
+    firstManHourlyRate: 12,
     firstManLabourFee: 30,
-    thirdManBaseFee: 25,
-    thirdManHourlyRate: 16,
-    fourthManBaseFee: 25,
-    fourthManHourlyRate: 16,
-    /** Legacy flat fees only if distance crew hourly rates are all zero */
+    thirdManBaseFee: 0,
+    thirdManHourlyRate: 18,
+    fourthManBaseFee: 0,
+    fourthManHourlyRate: 18,
     secondManLabourFee: 30,
     thirdManLabourFee: 38,
     fourthManLabourFee: 38,
-    oneManLabourDiscountPercent: 18,
+    oneManLabourDiscountPercent: 10,
     basePricePerMan: false,
     crewSizeOneEnabled: true,
     crewSizeTwoEnabled: true,
@@ -74,7 +72,7 @@ export function getDefaultPricingSettings() {
     fragilePackingSurcharge: 25,
     packingMaterialsFee: 35,
     stairsChargePerFlight: 14,
-    heavyItemHandlingCharge: 32,
+    heavyItemHandlingCharge: 35,
     exactArrivalPremiumGbp: 20,
     customSizeM3: {
       small: 0.1,
@@ -82,7 +80,7 @@ export function getDefaultPricingSettings() {
       large: 0.8,
       heavy: 1.2,
     },
-    fuelSurchargeEnabled: true,
+    fuelSurchargeEnabled: false,
     fuelSurchargePerMile: 0.12,
     yesLiftChargePerEnd: 0,
     packingMaterialPerItemEnabled: false,
@@ -98,11 +96,12 @@ export function getDefaultPricingSettings() {
     depositAmount: 50,
     promoCodesEnabled: false,
     promoCodes: [],
-    /** Volume scaling — applied to calculated quote subtotal only (not display prices or minimum thresholds). */
+    /** Applied to inventory volume £ only. Smooth below 15 m³; flat bands from 15+. */
     volumeMultiplier0To3M3: 1,
     volumeMultiplier3To8M3: 1.1,
     volumeMultiplier8To15M3: 1.2,
-    volumeMultiplier15To25M3: 1.35,
-    volumeMultiplier25PlusM3: 1.5,
+    volumeMultiplier15To20M3: 1.3,
+    volumeMultiplier20To30M3: 1.4,
+    volumeMultiplier30PlusM3: 1.4,
   }
 }

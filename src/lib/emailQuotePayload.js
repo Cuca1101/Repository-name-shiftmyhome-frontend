@@ -52,7 +52,7 @@ export function formatQuoteBreakdownLines(b) {
     lines.push(`${l.label}: −£${l.amount.toFixed(2)}`)
   }
   if (b.volumeScalingAmount != null && b.volumeScalingAmount !== 0) {
-    lines.push(`Volume scaling (×${b.volumeMultiplier ?? 1}): £${b.volumeScalingAmount.toFixed(2)}`)
+    lines.push(`Volume band on inventory (×${b.volumeMultiplier ?? 1}): £${b.volumeScalingAmount.toFixed(2)}`)
   }
   if (b.minimumApplied > 0) lines.push(`Minimum price adjustment: £${b.minimumApplied.toFixed(2)}`)
   lines.push(`Estimated total: £${b.estimatedTotal.toFixed(2)}`)

@@ -6,8 +6,10 @@ export const HOUSE_REMOVALS_SERVICE = 'House Removals'
 
 /**
  * Minimum crew required for pricing (not customer UI toggles).
- * @param {string} [serviceType]
- * @param {number} [heavyItemCount]
+ * Customer selects 1 or 2+ men freely — heavy items do NOT force crew size.
+ * (Large-move volume threshold may still bump crew in the calculator via admin settings.)
+ * @param {string} [_serviceType]
+ * @param {number} [_heavyItemCount]
  * @returns {number}
  */
 export function getMinimumCrewForQuote(_serviceType, _heavyItemCount = 0) {
@@ -16,7 +18,8 @@ export function getMinimumCrewForQuote(_serviceType, _heavyItemCount = 0) {
 
 /**
  * Whether 1 Man can be selected on the quote.
- * @param {{ serviceType?: string, heavyItemCount?: number }} input
+ * Always allowed — crew size is the customer's choice.
+ * @param {{ serviceType?: string, heavyItemCount?: number }} [_input]
  * @returns {CrewRestrictions}
  */
 export function getQuoteCrewRestrictions(_input = {}) {

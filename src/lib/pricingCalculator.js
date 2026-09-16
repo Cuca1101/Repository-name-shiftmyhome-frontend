@@ -24,6 +24,18 @@ import {
   resolvePackingMaterialUnitPrices,
 } from './packingMaterialsCatalog'
 import { getBankHolidayName, isBankHolidayDate } from './ukBankHolidays'
+import {
+  countHeavyItemsForCrew,
+  countSpecialistHeavyItems,
+  sumInventoryVolumeRaw,
+} from './inventoryPricing'
+
+export {
+  sumInventoryVolumeRaw,
+  countHeavyItemsForCrew,
+  countSpecialistHeavyItems,
+  lineItemAppliesHeavyHandlingFee,
+} from './inventoryPricing'
 
 /**
  * @typedef {Object} CustomSizeM3
@@ -102,8 +114,9 @@ import { getBankHolidayName, isBankHolidayDate } from './ukBankHolidays'
  * @property {number} [volumeMultiplier0To3M3]
  * @property {number} [volumeMultiplier3To8M3]
  * @property {number} [volumeMultiplier8To15M3]
- * @property {number} [volumeMultiplier15To25M3]
- * @property {number} [volumeMultiplier25PlusM3]
+ * @property {number} [volumeMultiplier15To20M3]
+ * @property {number} [volumeMultiplier20To30M3]
+ * @property {number} [volumeMultiplier30PlusM3]
  * @property {Record<string, 'admin'|'defaults'>} [volumeMultiplierSources]
  */
 
@@ -183,12 +196,14 @@ import { getBankHolidayName, isBankHolidayDate } from './ukBankHolidays'
  * @property {number} [volumeMultiplier0To3M3]
  * @property {number} [volumeMultiplier3To8M3]
  * @property {number} [volumeMultiplier8To15M3]
- * @property {number} [volumeMultiplier15To25M3]
- * @property {number} [volumeMultiplier25PlusM3]
+ * @property {number} [volumeMultiplier15To20M3]
+ * @property {number} [volumeMultiplier20To30M3]
+ * @property {number} [volumeMultiplier30PlusM3]
  * @property {Record<string, 'admin'|'defaults'>} [volumeMultiplierSources]
+ * @property {number} [baseVolumePrice] — raw m³ × £/m³ before volume-band multiplier
  * @property {number} [calculatedSubtotalBeforeMultiplier]
- * @property {number} [scaledSubtotal]
- * @property {number} [volumeScalingAmount]
+ * @property {number} [scaledSubtotal] — after date surcharges (volume band already applied to volume £ only)
+ * @property {number} [volumeScalingAmount] — volume-band uplift on inventory £ only
  * @property {number} distancePrice
  * @property {number} volumePrice
  * @property {number} totalCubicMetres
@@ -344,17 +359,12 @@ export function resolveWeekendSurchargeForDate(settings, isoDate) {
 export { isBankHolidayDate, getBankHolidayName } from './ukBankHolidays'
 
 /**
+ * Raw physical inventory volume (m³) for capacity and pricing.
+ * Handling multipliers are NOT applied — they must not inflate billed volume.
  * @param {QuoteLineItem[]} lineItems
  */
 export function sumInventoryVolume(lineItems) {
-  let total = 0
-  for (const row of lineItems) {
-    const q = Number(row.quantity) || 0
-    const v = Number(row.volumePerUnitM3) || 0
-    const mult = Number(row.handlingMultiplier) > 0 ? Number(row.handlingMultiplier) : 1
-    total += q * v * mult
-  }
-  return money(total)
+  return sumInventoryVolumeRaw(lineItems)
 }
 
 /**
@@ -381,18 +391,32 @@ export function calculateQuote(settings, input) {
   const distancePrice = money(distanceMiles * (Number(s.pricePerMile) || 0))
 
   const lineItems = input.lineItems || []
-  const totalCubicMetres = sumInventoryVolume(lineItems)
-  const volumePrice = money(totalCubicMetres * (Number(s.pricePerCubicMetre) || 0))
+  /** Physical m³ — capacity + priced volume (no handling-multiplier inflation). */
+  const totalCubicMetres = sumInventoryVolumeRaw(lineItems)
+  const pricePerM3 = Number(s.pricePerCubicMetre) || 0
+  const baseVolumePrice = money(totalCubicMetres * pricePerM3)
+
+  const {
+    multiplier: volumeMultiplier,
+    bandLabel: volumeMultiplierBand,
+    multiplierSource: volumeMultiplierSource,
+  } = resolveVolumePricingMultiplier(s, totalCubicMetres)
+  /** Volume band applies ONLY to inventory £ — never the whole quote. */
+  const volumePrice = money(baseVolumePrice * volumeMultiplier)
+  const volumeScalingAmount = money(volumePrice - baseVolumePrice)
 
   const crewRaw = Number(input.crewSize)
   const selectedCrew =
     Number.isFinite(crewRaw) && crewRaw >= 1 && crewRaw <= 4 ? Math.round(crewRaw) : 2
 
-  const heavyItemCountEarly = Math.max(0, Number(input.access?.heavyItemCount) || 0)
+  const heavyForCrew = Math.max(
+    countHeavyItemsForCrew(lineItems),
+    Math.max(0, Number(input.access?.heavyItemCount) || 0),
+  )
 
   const largeMoveThreshold = Math.max(0, Number(s.largeMoveVolumeThresholdM3) || 0)
   const minCrewForLargeMoves = Math.max(1, Math.min(4, Number(s.minimumCrewForLargeMoves) || 1))
-  const minCrewForService = getMinimumCrewForQuote(input.serviceType, heavyItemCountEarly)
+  const minCrewForService = getMinimumCrewForQuote(input.serviceType, heavyForCrew)
   let effectiveCrewSize = Math.max(selectedCrew, minCrewForService)
   const largeMoveTriggered =
     largeMoveThreshold > 0 && totalCubicMetres >= largeMoveThreshold
@@ -401,7 +425,7 @@ export function calculateQuote(settings, input) {
   }
   effectiveCrewSize = Math.max(1, Math.min(4, effectiveCrewSize))
 
-  const basePricePerMan = Boolean(s.basePricePerMan)
+  const basePricePerMan = false
   const distanceCrewLabour = usesDistanceBasedCrewLabour(s)
   const { serviceBasePrice, crewBaseFees, minimumBaseThreshold } = resolveMinimumBaseThreshold(
     s,
@@ -429,14 +453,14 @@ export function calculateQuote(settings, input) {
   const deliveryLift = deliveryLiftExplicit ? Boolean(access.deliveryLift) : legacyHasLift
 
   const stairsFlights = Math.max(0, Number(access.stairsFlights) || 0)
-  const heavyItemCount = Math.max(0, Number(access.heavyItemCount) || 0)
+  /** Specialist heavy fee only — ordinary fridge freezer etc. excluded. */
+  const specialistHeavyCount = countSpecialistHeavyItems(lineItems)
 
   /** @type {BreakdownLine[]} */
   const accessLines = []
 
   const { perFloorRate, noLiftFlat, yesLiftPerEnd } = resolveAccessChargeRates(s)
 
-  // Per-floor charge: applies whenever above ground (per job — not multiplied by crew size).
   if (pickupFloor > 0 && perFloorRate > 0) {
     const amt = money(pickupFloor * perFloorRate)
     if (amt > 0) {
@@ -456,7 +480,6 @@ export function calculateQuote(settings, input) {
     }
   }
 
-  // No-lift supplement: rate × floor level when above ground + lift No (per job — not × crew).
   if (pickupNeedsLiftAccess && pickupLiftExplicit && !pickupLift && noLiftFlat > 0) {
     const amt = money(pickupFloor * noLiftFlat)
     if (amt > 0) {
@@ -518,12 +541,12 @@ export function calculateQuote(settings, input) {
     }
   }
 
-  if (heavyItemCount > 0) {
+  if (specialistHeavyCount > 0) {
     const perH = Number(s.heavyItemHandlingCharge) || 0
-    const hAmt = money(heavyItemCount * perH)
+    const hAmt = money(specialistHeavyCount * perH)
     if (hAmt > 0) {
       accessLines.push({
-        label: `Heavy item handling (${heavyItemCount})`,
+        label: `Specialist heavy handling (${specialistHeavyCount})`,
         amount: hAmt,
       })
     }
@@ -644,17 +667,15 @@ export function calculateQuote(settings, input) {
     }
   }
 
-  if (distanceCrewLabour || !basePricePerMan) {
-    appendCrewLabourFeeLines(
-      extrasLines,
-      s,
-      effectiveCrewSize,
-      distanceMiles,
-      mapboxRouteDurationSeconds,
-      money,
-      { hourlyOnly: distanceCrewLabour },
-    )
-  }
+  appendCrewLabourFeeLines(
+    extrasLines,
+    s,
+    effectiveCrewSize,
+    distanceMiles,
+    mapboxRouteDurationSeconds,
+    money,
+    { hourlyOnly: true },
+  )
 
   if (fuelSurchargeAmount > 0) {
     extrasLines.push({
@@ -736,11 +757,7 @@ export function calculateQuote(settings, input) {
   const calculatedSubtotalBeforeMultiplier = money(
     calculatedSubtotalBeforeSurcharges + surchargesTotal,
   )
-
-  const { multiplier: volumeMultiplier, bandLabel: volumeMultiplierBand, multiplierSource: volumeMultiplierSource } =
-    resolveVolumePricingMultiplier(s, totalCubicMetres)
-  const scaledSubtotal = money(calculatedSubtotalBeforeMultiplier * volumeMultiplier)
-  const volumeScalingAmount = money(scaledSubtotal - calculatedSubtotalBeforeMultiplier)
+  const scaledSubtotal = calculatedSubtotalBeforeMultiplier
 
   /** @type {BreakdownLine[]} */
   const discountLines = []
@@ -818,7 +835,7 @@ export function calculateQuote(settings, input) {
   logPricingDebug('CREW LABOUR', crewLabourTotal)
   logPricingDebug('ACCESS BREAKDOWN', accessLines)
   logPricingDebug('MINIMUM BASE THRESHOLD', minimumBaseThreshold)
-  logPricingDebug('VOLUME MULTIPLIER', volumeMultiplier)
+  logPricingDebug('VOLUME MULTIPLIER (volume £ only)', volumeMultiplier)
   logPricingDebug('MINIMUM APPLIED', minimumApplied)
 
   /** @type {PriceBreakdown} */
@@ -831,6 +848,7 @@ export function calculateQuote(settings, input) {
     volumeMultiplier,
     volumeMultiplierBand,
     volumeMultiplierSource,
+    baseVolumePrice,
     calculatedSubtotalBeforeMultiplier,
     scaledSubtotal,
     volumeScalingAmount,
@@ -909,7 +927,7 @@ export function breakdownToFlatRows(b) {
     rows.push({ label: l.label, amount: -Math.abs(l.amount) })
   }
   if (b.volumeScalingAmount != null && b.volumeScalingAmount !== 0) {
-    rows.push({ label: `Volume scaling (×${b.volumeMultiplier ?? 1})`, amount: b.volumeScalingAmount })
+    rows.push({ label: `Volume band on inventory (×${b.volumeMultiplier ?? 1})`, amount: b.volumeScalingAmount })
   }
   if (b.minimumApplied > 0) {
     rows.push({ label: 'Minimum price adjustment', amount: b.minimumApplied })

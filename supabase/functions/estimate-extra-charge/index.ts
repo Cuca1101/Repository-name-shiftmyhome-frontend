@@ -56,32 +56,83 @@ type LineItem = {
 }
 
 function resolveVolumeMultiplier(settings: Record<string, unknown>, totalM3: number) {
+  const legacy15 = Number(settings.volumeMultiplier15To25M3)
+  const legacy25 = Number(settings.volumeMultiplier25PlusM3)
+  const m15to20 = Number(settings.volumeMultiplier15To20M3)
+  const m20to30 = Number(settings.volumeMultiplier20To30M3)
+  const m30 = Number(settings.volumeMultiplier30PlusM3)
   const bands = [
-    { min: 25, key: 'volumeMultiplier25PlusM3', label: '25 m³+' },
-    { min: 15, key: 'volumeMultiplier15To25M3', label: '15–25 m³' },
-    { min: 8, key: 'volumeMultiplier8To15M3', label: '8–15 m³' },
-    { min: 3, key: 'volumeMultiplier3To8M3', label: '3–8 m³' },
-    { min: 0, key: 'volumeMultiplier0To3M3', label: '0–3 m³' },
+    {
+      min: 30.0001,
+      key: 'volumeMultiplier30PlusM3',
+      label: '30 m³+',
+      fallback: 1.4,
+      resolved:
+        Number.isFinite(m30) && m30 >= 1
+          ? m30
+          : Number.isFinite(legacy25) && legacy25 >= 1
+            ? legacy25
+            : 1.4,
+    },
+    {
+      min: 20.01,
+      key: 'volumeMultiplier20To30M3',
+      label: '20.01–30 m³',
+      fallback: 1.4,
+      resolved:
+        Number.isFinite(m20to30) && m20to30 >= 1
+          ? m20to30
+          : Number.isFinite(legacy25) && legacy25 >= 1
+            ? legacy25
+            : 1.4,
+    },
+    {
+      min: 15,
+      key: 'volumeMultiplier15To20M3',
+      label: '15–20 m³',
+      fallback: 1.3,
+      resolved:
+        Number.isFinite(m15to20) && m15to20 >= 1
+          ? m15to20
+          : Number.isFinite(legacy15) && legacy15 >= 1
+            ? legacy15
+            : 1.3,
+    },
+    { min: 8, key: 'volumeMultiplier8To15M3', label: '8–15 m³', fallback: 1.2 },
+    { min: 3, key: 'volumeMultiplier3To8M3', label: '3–8 m³', fallback: 1.2 },
+    { min: 0, key: 'volumeMultiplier0To3M3', label: '0–3 m³', fallback: 1 },
   ]
   const v = Math.max(0, totalM3)
   for (const b of bands) {
     if (v >= b.min) {
-      const mult = Number(settings[b.key]) || 1
+      if ('resolved' in b && typeof b.resolved === 'number') {
+        return { multiplier: b.resolved, bandLabel: b.label }
+      }
+      const raw = Number(settings[b.key])
+      const mult = Number.isFinite(raw) && raw >= 1 ? raw : b.fallback
       return { multiplier: mult, bandLabel: b.label }
     }
   }
   return { multiplier: 1, bandLabel: '0–3 m³' }
 }
 
+/** Physical m³ only — handling multipliers must not inflate billed volume. */
 function sumVolume(items: LineItem[]) {
   let t = 0
   for (const row of items) {
     const q = Number(row.quantity) || 0
     const v = Number(row.volumePerUnitM3) || 0
-    const m = Number(row.handlingMultiplier) > 0 ? Number(row.handlingMultiplier) : 1
-    t += q * v * m
+    t += q * v
   }
   return money(t)
+}
+
+/** Specialist / exceptional heavy only (ordinary fridge freezer ×1.15 does not qualify). */
+function lineAppliesSpecialistHeavyFee(row: LineItem) {
+  const wt = String(row.weightType || '').toLowerCase()
+  if (wt !== 'heavy') return false
+  const mult = Number(row.handlingMultiplier) > 0 ? Number(row.handlingMultiplier) : 1
+  return mult >= 1.2
 }
 
 function resolveItems(raw: unknown[], library: LibRow[]) {
@@ -122,10 +173,11 @@ function calculate(settings: Record<string, unknown>, lineItems: LineItem[]) {
   const rate = Number(settings.pricePerCubicMetre) || 0
   const base = money(totalM3 * rate)
   const { multiplier, bandLabel } = resolveVolumeMultiplier(settings, totalM3)
+  // Band multiplies inventory £ only (same as website quote engine).
   const scaled = money(base * multiplier)
   let heavy = 0
   for (const row of lineItems) {
-    if (String(row.weightType).toLowerCase() === 'heavy') heavy += Number(row.quantity) || 0
+    if (lineAppliesSpecialistHeavyFee(row)) heavy += Number(row.quantity) || 0
   }
   const heavyTotal = money(heavy * (Number(settings.heavyItemHandlingCharge) || 0))
   const estimatedAmount = money(scaled + heavyTotal)
@@ -133,8 +185,7 @@ function calculate(settings: Record<string, unknown>, lineItems: LineItem[]) {
   const itemLines = lineItems.map((row) => {
     const qty = Math.max(0, Number(row.quantity) || 0)
     const volUnit = Number(row.volumePerUnitM3) || 0
-    const mult = Number(row.handlingMultiplier) > 0 ? Number(row.handlingMultiplier) : 1
-    const lineVolumeM3 = money(qty * volUnit * mult)
+    const lineVolumeM3 = money(qty * volUnit)
     const share = totalM3 > 0 ? lineVolumeM3 / totalM3 : 0
     const lineAmountGbp = money(share * scaled)
     return {
@@ -403,7 +454,7 @@ Deno.serve(async (req) => {
       }
       if (calc.heavyTotal > 0) {
         breakdown.push({
-          label: `Heavy handling (${calc.heavy})`,
+          label: `Specialist heavy handling (${calc.heavy})`,
           amount: calc.heavyTotal,
           amount_label: formatGbp(calc.heavyTotal),
         })

@@ -193,27 +193,52 @@ export default function PricingEngineAdmin() {
       ) : null}
 
       <form onSubmit={handleSave} className="space-y-8">
+        <div className="rounded-2xl border border-emerald-200 bg-emerald-50/60 p-6 shadow-card">
+          <h3 className="text-lg font-semibold text-emerald-950">How quotes are calculated (single engine)</h3>
+          <p className="mt-2 text-sm leading-relaxed text-emerald-900/90">
+            One shared formula powers the website Quote Wizard, New Phone Booking, lead conversion, and driver extra
+            item estimates (volume/heavy portion).
+          </p>
+          <ol className="mt-3 list-decimal space-y-1 pl-5 text-sm text-emerald-950/90">
+            <li>Mileage × price/mile (fuel is optional and off by default — do not enable unless you want a second distance charge).</li>
+            <li>Raw inventory m³ × £/m³, then volume-band multiplier on that volume £ only (never the whole quote).</li>
+            <li>Access &amp; extras (floors, lift, stairs, parking, packing, etc.).</li>
+            <li>Crew hourly travel labour (Mapbox duration or miles ÷ fallback speed). Crew/service bases are floors only.</li>
+            <li>Date surcharge once (same-day / Saturday / Sunday / bank holiday).</li>
+            <li>
+              Final = max(calculated, service+crew-base floor, crew job minimum). Minimums are never added on top.
+            </li>
+          </ol>
+          <p className="mt-3 text-xs leading-relaxed text-emerald-900/80">
+            Ordinary appliances (e.g. standard fridge freezer) are not charged a specialist heavy fee and no longer
+            inflate billed m³ via handling multipliers. Crew size stays the customer’s choice (1 or 2+ men).
+          </p>
+        </div>
+
         <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-card">
           <h3 className="text-lg font-semibold text-slate-900">Minimum service threshold per service type</h3>
-          <label className="mt-4 flex cursor-pointer items-start gap-3 rounded-xl border border-slate-100 bg-slate-50/80 p-4">
-            <input
-              type="checkbox"
-              className="mt-1 h-5 w-5 rounded border-slate-300 text-brand-600 focus:ring-brand-500"
-              checked={Boolean(settings.basePricePerMan)}
-              onChange={(e) => setBool('basePricePerMan', e.target.checked)}
-            />
-            <span>
-              <span className="block text-sm font-semibold text-slate-900">Base price is per crew member</span>
-              <span className="mt-1 block text-xs leading-relaxed text-slate-600">
-                Legacy admin option — kept for compatibility. Quote calculations use a flat service minimum threshold
-                plus per-crew base thresholds; this toggle no longer multiplies the service threshold by crew size.
+          <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50/80 p-4">
+            <p className="text-sm font-semibold text-amber-950">Deprecated — unused in quotes</p>
+            <label className="mt-2 flex cursor-not-allowed items-start gap-3 opacity-70">
+              <input
+                type="checkbox"
+                disabled
+                className="mt-1 h-5 w-5 rounded border-slate-300"
+                checked={false}
+                readOnly
+              />
+              <span>
+                <span className="block text-sm font-semibold text-slate-900">Base price is per crew member</span>
+                <span className="mt-1 block text-xs leading-relaxed text-slate-600">
+                  Removed from the pricing engine. Service thresholds are always a per-job floor (never × crew size).
+                </span>
               </span>
-            </span>
-          </label>
+            </label>
+          </div>
           <p className="mt-3 text-xs leading-relaxed text-slate-500">
             Homepage display prices only change the service card &ldquo;From £&hellip;&rdquo; text. They do not affect
-            quote calculations. Minimum service thresholds below are floors applied only when the calculated quote
-            subtotal (after volume scaling) is lower.
+            quote calculations. Minimum service thresholds below are floors applied only when the calculated quote is
+            lower — they are never hard-added.
           </p>
           <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {SERVICE_TYPES.map((s) => (
@@ -329,9 +354,10 @@ export default function PricingEngineAdmin() {
             never multiplied by crew size.
           </p>
           <div className="mt-6 border-t border-slate-100 pt-6">
-            <h4 className="text-sm font-semibold text-slate-900">Fuel surcharge</h4>
+            <h4 className="text-sm font-semibold text-slate-900">Fuel surcharge (optional — off by default)</h4>
             <p className="mt-1 text-xs text-slate-600">
-              Added in addition to price per mile (distance × fuel rate). Disabled or £0 per mile = no charge.
+              Leave disabled so distance is charged once via price per mile. Enabling this adds a second per-mile
+              charge on top of mileage — only use if you intentionally want a separate fuel line.
             </p>
             <label className="mt-3 flex cursor-pointer items-center gap-2 text-sm text-slate-700">
               <input
@@ -360,8 +386,9 @@ export default function PricingEngineAdmin() {
         <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-card">
           <h3 className="text-lg font-semibold text-slate-900">Volume scaling multipliers</h3>
           <p className="mt-1 text-sm leading-relaxed text-slate-600">
-            Applied to the calculated quote subtotal (after surcharges, before discounts). Band boundaries are fixed;
-            only the multiplier values are editable here. Does not affect homepage display prices or minimum thresholds.
+            Applied <strong className="font-semibold text-slate-800">only to inventory volume £</strong> (raw m³ ×
+            £/m³), never to mileage, labour, access, or the whole quote. Use values ≥ 1.0 (e.g. 1.2 = +20% on volume
+            £ for that band). Values below 1.0 are ignored as misconfiguration.
           </p>
           <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {[...VOLUME_MULTIPLIER_BANDS].reverse().map((band) => (
@@ -457,7 +484,10 @@ export default function PricingEngineAdmin() {
                 onChange={(e) => setNum('parkingCharge', e.target.value)}
               />
             </Field>
-            <Field label="Heavy item handling per item (£)">
+            <Field
+              label="Specialist heavy handling per item (£)"
+              helper="Only for exceptional/specialist heavy items (e.g. American fridge, piano). Ordinary fridge freezer / washing machine do not use this fee."
+            >
               <input
                 type="number"
                 step="0.01"
@@ -809,7 +839,10 @@ export default function PricingEngineAdmin() {
                 distance or when routing fails.
               </p>
             </Field>
-            <Field label="First man — base fee (£)">
+            <Field
+              label="First man — base fee (£)"
+              helper="Contributes to the minimum job floor only — never hard-added to the calculated subtotal. Prefer £0 and use hourly rates + service floor."
+            >
               <input
                 type="number"
                 step="0.01"

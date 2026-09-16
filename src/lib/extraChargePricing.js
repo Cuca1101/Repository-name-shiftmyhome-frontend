@@ -1,8 +1,12 @@
 /**
- * Extra items charge — uses shared pricing engine rates (volume + heavy handling only).
- * Do not calculate pricing in UI components; use this module only.
+ * Extra items charge — uses shared pricing engine rates (volume + specialist heavy only).
+ * Volume band multiplies inventory £ only. Handling multipliers do not inflate m³.
  */
-import { sumInventoryVolume } from './pricingCalculator'
+import {
+  countSpecialistHeavyItems,
+  lineItemAppliesHeavyHandlingFee,
+  sumInventoryVolumeRaw,
+} from './inventoryPricing'
 import { resolveVolumePricingMultiplier } from './volumePricingMultiplier'
 
 const money = (n) => Math.round(n * 100) / 100
@@ -27,7 +31,7 @@ const money = (n) => Math.round(n * 100) / 100
 export function calculateExtraItemsCharge(settings, lineItems) {
   const s = settings || {}
   const items = lineItems || []
-  const totalVolumeM3 = sumInventoryVolume(items)
+  const totalVolumeM3 = sumInventoryVolumeRaw(items)
   const rate = Number(s.pricePerCubicMetre) || 0
   const baseVolumePrice = money(totalVolumeM3 * rate)
 
@@ -35,11 +39,7 @@ export function calculateExtraItemsCharge(settings, lineItems) {
   const multiplier = Number(volScale.multiplier) || 1
   const scaledVolumePrice = money(baseVolumePrice * multiplier)
 
-  let heavyCount = 0
-  for (const row of items) {
-    const wt = String(row.weightType || '').toLowerCase()
-    if (wt === 'heavy') heavyCount += Math.max(0, Number(row.quantity) || 0)
-  }
+  const heavyCount = countSpecialistHeavyItems(items)
   const heavyRate = Number(s.heavyItemHandlingCharge) || 0
   const heavyTotal = money(heavyCount * heavyRate)
 
@@ -60,7 +60,7 @@ export function calculateExtraItemsCharge(settings, lineItems) {
   }
   if (heavyTotal > 0) {
     breakdownLines.push({
-      label: `Heavy item handling (${heavyCount} item${heavyCount === 1 ? '' : 's'})`,
+      label: `Specialist heavy handling (${heavyCount} item${heavyCount === 1 ? '' : 's'})`,
       amount: heavyTotal,
     })
   }
@@ -70,8 +70,7 @@ export function calculateExtraItemsCharge(settings, lineItems) {
   const itemLines = items.map((row) => {
     const qty = Math.max(0, Number(row.quantity) || 0)
     const volUnit = Number(row.volumePerUnitM3) || 0
-    const mult = Number(row.handlingMultiplier) > 0 ? Number(row.handlingMultiplier) : 1
-    const lineVolumeM3 = money(qty * volUnit * mult)
+    const lineVolumeM3 = money(qty * volUnit)
     const share = totalVolumeM3 > 0 ? lineVolumeM3 / totalVolumeM3 : 0
     const lineAmountGbp = money(share * scaledVolumePrice)
     return {
@@ -79,6 +78,7 @@ export function calculateExtraItemsCharge(settings, lineItems) {
       quantity: qty,
       lineVolumeM3,
       lineAmountGbp,
+      specialistHeavy: lineItemAppliesHeavyHandlingFee(row),
     }
   })
 

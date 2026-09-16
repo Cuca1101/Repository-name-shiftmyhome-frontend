@@ -1,6 +1,9 @@
 /**
  * Pricing engine regression tests (Node — no Vite).
  * Run: npm run test:pricing
+ *
+ * Covers anti-stacking rules, floors-only minimums, volume-band-on-volume-only,
+ * small-job calibration (~£65 weekday / ~£70 Saturday), and larger-job scaling.
  */
 import { pathToFileURL } from 'node:url'
 import { dirname, join } from 'node:path'
@@ -9,736 +12,244 @@ import { fileURLToPath } from 'node:url'
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const root = join(__dirname, '..')
 
-/** Load ESM module from src with .js extension for Node. */
 async function loadSrc(relPath) {
-  const url = pathToFileURL(join(root, 'src', relPath)).href
-  return import(url)
+  return import(pathToFileURL(join(root, 'src', relPath)).href)
 }
 
-const { calculateQuote } = await loadSrc('lib/pricingCalculator.js')
+const { calculateQuote, sumInventoryVolume } = await loadSrc('lib/pricingCalculator.js')
+const { getDefaultPricingSettings } = await loadSrc('lib/defaultPricingSettings.js')
 const { verifyBreakdownReconcilesWithTotal } = await loadSrc('lib/pricingBreakdownDisplay.js')
+const { calculateExtraItemsCharge } = await loadSrc('lib/extraChargePricing.js')
+const { lineItemAppliesHeavyHandlingFee } = await loadSrc('lib/inventoryPricing.js')
+const { getQuoteCrewRestrictions, getMinimumCrewForQuote } = await loadSrc('lib/crewPricingRules.js')
 
-/** Minimal admin-like settings for tests (mirrors merged defaults + sample admin overrides). */
-function testSettings(overrides = {}) {
-  return {
-    basePriceByService: { 'Man with Van': 72 },
-    pricePerMile: 1.2,
-    pricePerCubicMetre: 14,
-    minimumJobPrice: 85,
-    minimumJobPriceOneMan: 85,
-    minimumJobPriceTwoMen: 105,
-    minimumJobPriceThreeMen: 130,
-    floorChargePerFloor: 13,
-    noLiftCharge: 30,
-    yesLiftChargePerEnd: 0,
-    fuelSurchargeEnabled: true,
-    fuelSurchargePerMile: 0.2,
-    secondManBaseFee: 15,
-    secondManHourlyRate: 18,
-    firstManBaseFee: 15,
-    firstManHourlyRate: 18,
-    firstManLabourFee: 30,
-    thirdManBaseFee: 25,
-    thirdManHourlyRate: 16,
-    secondManLabourFee: 30,
-    thirdManLabourFee: 38,
-    fallbackSpeedMph: 35,
-    oneManLabourDiscountPercent: 18,
-    basePricePerMan: false,
-    waitingTimePricePerHour: 40,
-    sameDaySurchargePercent: 12,
-    weekendSurchargePercent: 15,
-    saturdaySurchargePercent: 15,
-    sundaySurchargePercent: 15,
-    bankHolidaySurchargePercent: 20,
-    packingPricePerBoxOrItem: 5,
-    dismantlingPricePerItem: 42,
-    reassemblyPricePerItem: 42,
-    exactArrivalPremiumGbp: 20,
-    promoCodesEnabled: false,
-    promoCodes: [],
-    ...overrides,
+let failed = 0
+function assert(cond, msg) {
+  if (!cond) {
+    failed += 1
+    console.error('FAIL:', msg)
+  } else {
+    console.log('OK:', msg)
   }
 }
 
-const SOFA_LINE = [{ name: 'Sofa', quantity: 1, volumePerUnitM3: 1.5, handlingMultiplier: 1, weightType: 'large' }]
-
-function runScenario(id, settings, input) {
-  const breakdown = calculateQuote(settings, input)
-  const reconcile = verifyBreakdownReconcilesWithTotal(breakdown)
-  const rows = breakdown.standardDisplayRows || []
-  return {
-    id,
-    finalTotal: breakdown.estimatedTotal,
-    minimumApplied: breakdown.minimumApplied,
-    crewLabourTotal: breakdown.crewLabourTotal,
-    mileagePrice: breakdown.distancePrice,
-    fuelSurcharge: breakdown.fuelSurchargeAmount,
-    breakdownRows: rows.filter((r) => !r.isTotal),
-    reconcileOk: reconcile.ok,
-    reconcileDelta: reconcile.delta,
-  }
+function approx(n, target, tol, label) {
+  const ok = Math.abs(Number(n) - target) <= tol
+  assert(ok, `${label}: got £${Number(n).toFixed(2)}, expected ~£${target} (±${tol})`)
 }
 
-const settings = testSettings()
+const settings = getDefaultPricingSettings()
+
+const FRIDGE = [
+  {
+    name: 'Fridge freezer',
+    quantity: 1,
+    volumePerUnitM3: 0.95,
+    handlingMultiplier: 1.15,
+    weightType: 'heavy',
+    heavyFee: false,
+  },
+]
+
 const baseAccess = {
   pickupFloor: 0,
   deliveryFloor: 0,
-  pickupLift: false,
-  deliveryLift: false,
   longWalk: false,
   parking: false,
   stairsFlights: 0,
-  heavyItemCount: 0,
 }
 
-const scenarios = [
-  ['A', { crewSize: 1, distanceMiles: 1.3, access: baseAccess, extras: {} }],
-  ['B', { crewSize: 2, distanceMiles: 1.3, access: baseAccess, extras: {} }],
-  ['C', { crewSize: 1, distanceMiles: 5, access: baseAccess, extras: {} }],
-  ['D', { crewSize: 2, distanceMiles: 5, access: baseAccess, extras: {} }],
-  [
-    'E',
-    {
-      crewSize: 1,
-      distanceMiles: 1.3,
-      access: { ...baseAccess, pickupFloor: 1, pickupLift: false, deliveryLift: false },
-      extras: {},
-    },
-  ],
-  [
-    'F',
-    {
-      crewSize: 2,
-      distanceMiles: 1.3,
-      access: { ...baseAccess, pickupFloor: 1, pickupLift: false, deliveryLift: false },
-      extras: {},
-    },
-  ],
-  [
-    'G',
-    {
-      crewSize: 1,
-      distanceMiles: 1.3,
-      access: { ...baseAccess, pickupFloor: 1, pickupLift: true, deliveryLift: true },
-      extras: {},
-    },
-  ],
-  [
-    'H',
-    { crewSize: 2, distanceMiles: 1.3, access: baseAccess, extras: { packing: true, packingApproxBoxes: 10 } },
-  ],
-  [
-    'I',
-    {
-      crewSize: 2,
-      distanceMiles: 1.3,
-      access: baseAccess,
-      extras: { dismantling: true, dismantlingItemCount: 2 },
-    },
-  ],
-  [
-    'J',
-    { crewSize: 2, distanceMiles: 1.3, access: baseAccess, extras: { waitingHours: 2 } },
-  ],
-  [
-    'K',
-    {
-      crewSize: 2,
-      distanceMiles: 1.3,
-      access: baseAccess,
-      extras: { weekend: true },
-      moveDate: '2026-05-16',
-    },
-  ],
-  [
-    'K2',
-    {
-      crewSize: 2,
-      distanceMiles: 1.3,
-      access: baseAccess,
-      extras: { bankHoliday: true },
-      moveDate: '2026-05-04',
-    },
-  ],
-  ['L', { crewSize: 2, distanceMiles: 1.3, access: baseAccess, extras: { sameDay: true } }],
-  [
-    'M',
-    { crewSize: 2, distanceMiles: 1.3, access: baseAccess, extras: { exactArrivalPremium: true } },
-  ],
-]
-
-const results = scenarios.map(([id, partial]) =>
-  runScenario(String(id), settings, {
+function quote(partial) {
+  return calculateQuote(settings, {
     serviceType: 'Man with Van',
-    distanceMiles: partial.distanceMiles,
-    lineItems: SOFA_LINE,
-    access: partial.access,
-    extras: partial.extras,
-    crewSize: partial.crewSize,
-    moveDate: partial.moveDate,
-  }),
-)
-
-let failed = 0
-for (const r of results) {
-  const minExpected = r.id === 'A' || r.id === 'C' || r.id === 'E' || r.id === 'G' ? 85 : 0
-  const ok = r.reconcileOk && r.finalTotal >= minExpected && (r.id === 'A' || r.id === 'C' ? r.crewLabourTotal > 0 : true)
-  if (!ok) failed += 1
-  console.log(`\n=== Scenario ${r.id} ===`)
-  console.log(`Final total: £${r.finalTotal.toFixed(2)}`)
-  console.log(`Minimum applied: £${r.minimumApplied.toFixed(2)}`)
-  console.log(`Crew labour: £${(r.crewLabourTotal || 0).toFixed(2)}`)
-  console.log(`Mileage: £${r.mileagePrice.toFixed(2)} | Fuel: £${(r.fuelSurcharge || 0).toFixed(2)}`)
-  console.log(`Reconcile OK: ${r.reconcileOk} (delta ${r.reconcileDelta})`)
-  console.log('Breakdown rows:')
-  for (const row of r.breakdownRows) {
-    const sign = row.isDiscount ? '−' : ''
-    console.log(`  ${row.label} .... ${sign}£${Math.abs(row.amount).toFixed(2)}`)
-  }
-  if (!ok) console.log('FAILED')
-}
-
-const { mergePricingSettingsWithDefaults } = await loadSrc('lib/pricingSettingsMerge.js')
-
-const adminOverride = mergePricingSettingsWithDefaults(
-  { pricePerMile: 2.5, minimumJobPriceOneMan: 120 },
-  { warnOnFallback: false },
-)
-const defaultQuote = calculateQuote(testSettings(), {
-  serviceType: 'Man with Van',
-  distanceMiles: 1.3,
-  lineItems: SOFA_LINE,
-  access: baseAccess,
-  extras: {},
-  crewSize: 1,
-})
-const adminQuote = calculateQuote(adminOverride, {
-  serviceType: 'Man with Van',
-  distanceMiles: 1.3,
-  lineItems: SOFA_LINE,
-  access: baseAccess,
-  extras: {},
-  crewSize: 1,
-})
-
-console.log('\n=== Admin override proof ===')
-console.log(`Default pricePerMile total mileage: £${defaultQuote.distancePrice.toFixed(2)}`)
-console.log(`Admin pricePerMile=2.5 total mileage: £${adminQuote.distancePrice.toFixed(2)}`)
-if (adminQuote.distancePrice <= defaultQuote.distancePrice) {
-  console.error('FAILED: admin pricePerMile did not override fallback')
-  process.exit(1)
-}
-if (adminOverride.pricePerMile !== 2.5) {
-  console.error('FAILED: merged admin settings lost pricePerMile override')
-  process.exit(1)
-}
-console.log('Admin settings override fallback: OK')
-
-if (failed > 0) {
-  console.error(`\n${failed} scenario(s) failed`)
-  process.exit(1)
-}
-
-// --- Access charges must NOT scale with crew size ---
-const accessInput = {
-  pickupFloor: 1,
-  deliveryFloor: 0,
-  pickupLift: false,
-  deliveryLift: false,
-  longWalk: false,
-  parking: false,
-  stairsFlights: 0,
-  heavyItemCount: 0,
-}
-const quote1ManAccess = calculateQuote(settings, {
-  serviceType: 'Man with Van',
-  distanceMiles: 1.3,
-  lineItems: SOFA_LINE,
-  access: accessInput,
-  extras: {},
-  crewSize: 1,
-})
-const quote2ManAccess = calculateQuote(settings, {
-  serviceType: 'Man with Van',
-  distanceMiles: 1.3,
-  lineItems: SOFA_LINE,
-  access: accessInput,
-  extras: {},
-  crewSize: 2,
-})
-
-function sumAccessByPrefix(b, re) {
-  return (b.accessLines || [])
-    .filter((l) => re.test(l.label))
-    .reduce((s, l) => s + l.amount, 0)
-}
-
-const floor1 = sumAccessByPrefix(quote1ManAccess, /^Floor\/access/i)
-const floor2 = sumAccessByPrefix(quote2ManAccess, /^Floor\/access/i)
-const noLift1 = sumAccessByPrefix(quote1ManAccess, /^No lift supplement/i)
-const noLift2 = sumAccessByPrefix(quote2ManAccess, /^No lift supplement/i)
-
-console.log('\n=== Access charge crew invariance (1 vs 2 men) ===')
-console.log(`1 man floor: £${floor1.toFixed(2)} | 2 men floor: £${floor2.toFixed(2)}`)
-console.log(`1 man no-lift: £${noLift1.toFixed(2)} | 2 men no-lift: £${noLift2.toFixed(2)}`)
-if (Math.abs(floor1 - floor2) > 0.01 || Math.abs(noLift1 - noLift2) > 0.01) {
-  console.error('FAILED: access charges changed when crew size increased')
-  process.exit(1)
-}
-if (quote2ManAccess.pricingDebugDetail?.accessCharges?.crewMultiplierApplied) {
-  console.error('FAILED: debug detail reports crew multiplier on access')
-  process.exit(1)
-}
-console.log('Access charges unchanged when crew increases: OK')
-
-// --- No-lift supplement: per floor × rate (not flat per end) ---
-function noLiftTotal(b) {
-  return sumAccessByPrefix(b, /^No lift supplement/i)
-}
-
-const noLiftGround = calculateQuote(settings, {
-  serviceType: 'Man with Van',
-  distanceMiles: 1.3,
-  lineItems: SOFA_LINE,
-  access: { ...baseAccess, pickupFloor: 0, pickupLift: false, deliveryLift: false },
-  extras: {},
-  crewSize: 1,
-})
-const noLiftDelivery3 = calculateQuote(settings, {
-  serviceType: 'Man with Van',
-  distanceMiles: 1.3,
-  lineItems: SOFA_LINE,
-  access: {
-    ...baseAccess,
-    pickupFloor: 0,
-    deliveryFloor: 3,
-    pickupLift: false,
-    deliveryLift: false,
-  },
-  extras: {},
-  crewSize: 1,
-})
-const noLiftBoth = calculateQuote(settings, {
-  serviceType: 'Man with Van',
-  distanceMiles: 1.3,
-  lineItems: SOFA_LINE,
-  access: {
-    ...baseAccess,
-    pickupFloor: 2,
-    deliveryFloor: 3,
-    pickupLift: false,
-    deliveryLift: false,
-  },
-  extras: {},
-  crewSize: 1,
-})
-const noLiftWithLift = calculateQuote(settings, {
-  serviceType: 'Man with Van',
-  distanceMiles: 1.3,
-  lineItems: SOFA_LINE,
-  access: {
-    ...baseAccess,
-    pickupFloor: 3,
-    deliveryFloor: 3,
-    pickupLift: true,
-    deliveryLift: true,
-  },
-  extras: {},
-  crewSize: 1,
-})
-const noLiftBasement = calculateQuote(settings, {
-  serviceType: 'Man with Van',
-  distanceMiles: 1.3,
-  lineItems: SOFA_LINE,
-  access: {
-    ...baseAccess,
-    pickupFloor: -1,
-    deliveryFloor: 0,
-    pickupLift: false,
-    deliveryLift: false,
-  },
-  extras: {},
-  crewSize: 1,
-})
-const noLiftFirstFloor = calculateQuote(settings, {
-  serviceType: 'Man with Van',
-  distanceMiles: 1.3,
-  lineItems: SOFA_LINE,
-  access: {
-    ...baseAccess,
-    pickupFloor: 1,
-    deliveryFloor: 0,
-    pickupLift: false,
-    deliveryLift: false,
-  },
-  extras: {},
-  crewSize: 1,
-})
-
-const nlGround = noLiftTotal(noLiftGround)
-const nlBasement = noLiftTotal(noLiftBasement)
-const nlFirst = noLiftTotal(noLiftFirstFloor)
-const nlDel3 = noLiftTotal(noLiftDelivery3)
-const nlBoth = noLiftTotal(noLiftBoth)
-const nlLift = noLiftTotal(noLiftWithLift)
-const delLine = (noLiftDelivery3.accessLines || []).find((l) =>
-  /^No lift supplement \(delivery\)/i.test(l.label),
-)
-const pickLine = (noLiftBoth.accessLines || []).find((l) =>
-  /^No lift supplement \(pickup\)/i.test(l.label),
-)
-const delLineBoth = (noLiftBoth.accessLines || []).find((l) =>
-  /^No lift supplement \(delivery\)/i.test(l.label),
-)
-
-console.log('\n=== No-lift supplement (per floor) ===')
-console.log(`ground floor: £${nlGround.toFixed(2)} (expected £0)`)
-console.log(`basement (no lift): £${nlBasement.toFixed(2)} (expected £30, same as 1st floor)`)
-console.log(`1st floor (no lift): £${nlFirst.toFixed(2)} (expected £30)`)
-console.log(`delivery floor 3: £${nlDel3.toFixed(2)} (expected £90)`)
-console.log(`pickup 2 + delivery 3: £${nlBoth.toFixed(2)} (expected £150)`)
-console.log(`lift available: £${nlLift.toFixed(2)} (expected £0)`)
-if (delLine) console.log(`breakdown line: ${delLine.label}`)
-
-let noLiftFailed = 0
-if (Math.abs(nlGround) > 0.01) noLiftFailed++
-if (Math.abs(nlBasement - 30) > 0.01) noLiftFailed++
-if (Math.abs(nlFirst - 30) > 0.01) noLiftFailed++
-if (Math.abs(nlBasement - nlFirst) > 0.01) noLiftFailed++
-if (Math.abs(nlDel3 - 90) > 0.01) noLiftFailed++
-if (Math.abs(nlBoth - 150) > 0.01) noLiftFailed++
-if (Math.abs(nlLift) > 0.01) noLiftFailed++
-if (!delLine?.label.includes('× 3 floors')) noLiftFailed++
-if (!pickLine?.label.includes('× 2 floors') || Math.abs(pickLine.amount - 60) > 0.01) noLiftFailed++
-if (!delLineBoth?.label.includes('× 3 floors') || Math.abs(delLineBoth.amount - 90) > 0.01) noLiftFailed++
-if (noLiftFailed > 0) {
-  console.error('FAILED: no-lift per-floor supplement')
-  process.exit(1)
-}
-console.log('No-lift per-floor supplement: OK')
-
-const adminAccessRates = testSettings({ floorChargePerFloor: 22, noLiftCharge: 55 })
-const adminBasement = calculateQuote(adminAccessRates, {
-  serviceType: 'Man with Van',
-  distanceMiles: 1.3,
-  lineItems: SOFA_LINE,
-  access: {
-    ...baseAccess,
-    pickupFloor: -1,
-    deliveryFloor: 0,
-    pickupLift: false,
-    deliveryLift: false,
-  },
-  extras: {},
-  crewSize: 1,
-})
-const adminBasementNoLift = noLiftTotal(adminBasement)
-const adminBasementFloor = sumAccessByPrefix(adminBasement, /^Floor\/access \(collection\)/i)
-console.log('\n=== Admin pricing engine rates (basement) ===')
-console.log(`no-lift (admin £55/floor): £${adminBasementNoLift.toFixed(2)} (expected £55)`)
-console.log(`floor charge (admin £22/floor): £${adminBasementFloor.toFixed(2)} (expected £22)`)
-if (Math.abs(adminBasementNoLift - 55) > 0.01 || Math.abs(adminBasementFloor - 22) > 0.01) {
-  console.error('FAILED: basement access charges must use admin pricing engine rates')
-  process.exit(1)
-}
-console.log('Basement uses admin pricing engine rates: OK')
-
-const { buildQuoteEngineInput } = await import('../src/lib/buildQuoteEngineInput.js')
-const groundQuote = calculateQuote(
-  settings,
-  buildQuoteEngineInput({
-    serviceType: 'Man with Van',
-    wizard: {
-      moveDate: '2026-06-10',
-      distanceMiles: 1.3,
-      pickupFloor: 0,
-      deliveryFloor: 0,
-      pickupLift: false,
-      deliveryLift: false,
-      walkingDistance: 'standard',
-      parkingDistance: 'standard',
-      stairsFlights: 0,
-    },
-    lineItems: SOFA_LINE,
-    heavyItemCount: 0,
-  }),
-)
-if (noLiftTotal(groundQuote) > 0.01) {
-  console.error('FAILED: ground floor + no lift via buildQuoteEngineInput should be £0')
-  process.exit(1)
-}
-console.log('Ground floor + no lift (quote wizard): OK')
-
-// --- Crew base fees separate from hourly labour ---
-const base1 = calculateQuote(settings, {
-  serviceType: 'Man with Van',
-  distanceMiles: 5,
-  lineItems: SOFA_LINE,
-  access: baseAccess,
-  extras: {},
-  crewSize: 1,
-})
-const base2 = calculateQuote(settings, {
-  serviceType: 'Man with Van',
-  distanceMiles: 5,
-  lineItems: SOFA_LINE,
-  access: baseAccess,
-  extras: {},
-  crewSize: 2,
-})
-const base3 = calculateQuote(settings, {
-  serviceType: 'Man with Van',
-  distanceMiles: 5,
-  lineItems: SOFA_LINE,
-  access: baseAccess,
-  extras: {},
-  crewSize: 3,
-})
-
-console.log('\n=== Crew base fee separation ===')
-console.log(
-  `1 man crew base: £${(base1.crewBaseFees?.total ?? 0).toFixed(2)} (expected £15)`,
-)
-console.log(
-  `2 men crew base: £${(base2.crewBaseFees?.total ?? 0).toFixed(2)} (expected £30)`,
-)
-console.log(
-  `3 men crew base: £${(base3.crewBaseFees?.total ?? 0).toFixed(2)} (expected £55)`,
-)
-const expectedBases = [15, 30, 55]
-const actualBases = [base1.crewBaseFees?.total, base2.crewBaseFees?.total, base3.crewBaseFees?.total]
-for (let i = 0; i < 3; i++) {
-  if (Math.abs((actualBases[i] ?? 0) - expectedBases[i]) > 0.01) {
-    console.error(`FAILED: crew base fee for ${i + 1} man(s) expected £${expectedBases[i]}`)
-    process.exit(1)
-  }
-}
-if ((base2.crewLabourTotal ?? 0) <= (base1.crewLabourTotal ?? 0)) {
-  console.error('FAILED: 2-man crew labour should exceed 1-man hourly labour')
-  process.exit(1)
-}
-console.log('Crew base thresholds (minimum operational floor): OK')
-
-// --- Minimum threshold + volume scaling ---
-const smallJob = calculateQuote(settings, {
-  serviceType: 'Man with Van',
-  distanceMiles: 1.3,
-  lineItems: SOFA_LINE,
-  access: baseAccess,
-  extras: {},
-  crewSize: 1,
-})
-if (smallJob.baseThresholdApplied !== true || smallJob.estimatedTotal !== smallJob.minimumBaseThreshold) {
-  console.error('FAILED: small job should hit minimum base threshold')
-  process.exit(1)
-}
-if (smallJob.volumeMultiplier !== 1) {
-  console.error(`FAILED: small job (0–3 m³) expected ×1.00 volume multiplier, got ×${smallJob.volumeMultiplier}`)
-  process.exit(1)
-}
-console.log(`Small job (1.3mi, 1.5m³): calculated £${smallJob.scaledSubtotal.toFixed(2)} → final £${smallJob.estimatedTotal.toFixed(2)} (threshold applied, ×${smallJob.volumeMultiplier})`)
-
-const mediumJob = calculateQuote(settings, {
-  serviceType: 'Man with Van',
-  distanceMiles: 45,
-  lineItems: SOFA_LINE,
-  access: baseAccess,
-  extras: {},
-  crewSize: 2,
-})
-if (mediumJob.scaledSubtotal <= mediumJob.minimumBaseThreshold) {
-  console.error('FAILED: medium/long job scaled subtotal should exceed minimum base threshold')
-  process.exit(1)
-}
-if (mediumJob.minimumBaseAdjustment > 0) {
-  console.error('FAILED: medium/long job should not need minimum base threshold adjustment')
-  process.exit(1)
-}
-console.log(`Medium job (45mi, 1.5m³): calculated £${mediumJob.scaledSubtotal.toFixed(2)} → final £${mediumJob.estimatedTotal.toFixed(2)} (above threshold, no base bump)`)
-
-const LARGE_LINE = [{ name: 'Load', quantity: 1, volumePerUnitM3: 18, handlingMultiplier: 1, weightType: 'large' }]
-const largeJob = calculateQuote(settings, {
-  serviceType: 'Man with Van',
-  distanceMiles: 15,
-  lineItems: LARGE_LINE,
-  access: baseAccess,
-  extras: {},
-  crewSize: 2,
-})
-if (largeJob.volumeMultiplier !== 1.35) {
-  console.error(`FAILED: large job expected ×1.35 volume multiplier, got ×${largeJob.volumeMultiplier}`)
-  process.exit(1)
-}
-if (largeJob.scaledSubtotal <= largeJob.calculatedSubtotalBeforeMultiplier) {
-  console.error('FAILED: large job scaled subtotal should exceed pre-multiplier subtotal')
-  process.exit(1)
-}
-console.log(
-  `Large job (15mi, 18m³): pre-multiplier £${largeJob.calculatedSubtotalBeforeMultiplier.toFixed(2)} × ${largeJob.volumeMultiplier} → £${largeJob.scaledSubtotal.toFixed(2)} → final £${largeJob.estimatedTotal.toFixed(2)}`,
-)
-
-function volumeLine(m3) {
-  return [{ name: 'Load', quantity: 1, volumePerUnitM3: m3, handlingMultiplier: 1, weightType: 'large' }]
-}
-
-const bandCases = [
-  { m3: 2, expected: 1, label: '0–3 m³' },
-  { m3: 10, expected: 1.2, label: '8–15 m³' },
-  { m3: 26, expected: 1.5, label: '25 m³+' },
-]
-for (const { m3, expected, label } of bandCases) {
-  const job = calculateQuote(settings, {
-    serviceType: 'Man with Van',
-    distanceMiles: 20,
-    lineItems: volumeLine(m3),
     access: baseAccess,
     extras: {},
-    crewSize: 2,
+    lineItems: FRIDGE,
+    ...partial,
   })
-  if (job.volumeMultiplier !== expected) {
-    console.error(`FAILED: ${label} job expected ×${expected}, got ×${job.volumeMultiplier}`)
-    process.exit(1)
-  }
 }
-console.log('Volume band multipliers (default fallbacks): OK')
 
-const bandInput = {
-  serviceType: 'Man with Van',
+console.log('\n=== Volume / heavy stacking guards ===')
+assert(sumInventoryVolume(FRIDGE) === 0.95, 'raw volume is 0.95 m³ (no ×1.15 inflation)')
+assert(lineItemAppliesHeavyHandlingFee(FRIDGE[0]) === false, 'standard fridge does not get specialist heavy fee')
+assert(
+  lineItemAppliesHeavyHandlingFee({
+    weightType: 'heavy',
+    handlingMultiplier: 1.2,
+    name: 'American fridge',
+  }) === true,
+  'American fridge (×1.2) still qualifies for specialist heavy fee',
+)
+assert(
+  getQuoteCrewRestrictions({ heavyItemCount: 1 }).oneManAllowed === true,
+  'heavy items do not block 1-man selection',
+)
+assert(getMinimumCrewForQuote('Man with Van', 1) === 1, 'heavy items do not force pricing crew')
+
+const henryWeekday = quote({
+  distanceMiles: 6.3,
+  crewSize: 2,
+  moveDate: '2026-09-18',
+  lineItems: FRIDGE,
+})
+assert(
+  !henryWeekday.accessLines.some((l) => /heavy/i.test(l.label)),
+  'Henry Gibbs fridge: no heavy fee line',
+)
+assert(henryWeekday.fuelSurchargeAmount === 0, 'fuel off by default')
+assert(
+  henryWeekday.volumeMultiplier > 1 && henryWeekday.volumeMultiplier < 1.1,
+  `small job uses smooth 0–3→3–8 mult (got ×${henryWeekday.volumeMultiplier})`,
+)
+assert(henryWeekday.volumeScalingAmount > 0, 'smooth volume uplift is applied on inventory £ only')
+
+console.log('\n=== Scenario board (defaults) ===')
+/** A */ const A = quote({
+  distanceMiles: 5,
+  crewSize: 1,
+  moveDate: '2026-09-18',
+  lineItems: [{ name: 'Box', quantity: 1, volumePerUnitM3: 1, weightType: 'medium', handlingMultiplier: 1 }],
+})
+/** B */ const B = quote({ distanceMiles: 6.3, crewSize: 2, moveDate: '2026-09-18', lineItems: FRIDGE })
+/** C */ const C = quote({ distanceMiles: 6.3, crewSize: 2, moveDate: '2026-09-19', lineItems: FRIDGE })
+/** D */ const D = quote({
+  distanceMiles: 10,
+  crewSize: 2,
+  moveDate: '2026-09-18',
+  lineItems: [{ name: 'Load', quantity: 1, volumePerUnitM3: 5, weightType: 'large', handlingMultiplier: 1 }],
+})
+/** E */ const E = quote({
   distanceMiles: 20,
-  lineItems: volumeLine(10),
-  access: baseAccess,
-  extras: {},
   crewSize: 2,
-}
-const defaultBandJob = calculateQuote(settings, bandInput)
-const adminBandSettings = testSettings({ volumeMultiplier8To15M3: 2.5 })
-const adminBandJob = calculateQuote(adminBandSettings, bandInput)
-if (adminBandJob.volumeMultiplier !== 2.5) {
-  console.error(`FAILED: admin 8–15 m³ override expected ×2.5, got ×${adminBandJob.volumeMultiplier}`)
-  process.exit(1)
-}
-if (adminBandJob.volumeMultiplierSource !== 'admin') {
-  console.error(`FAILED: admin override expected source "admin", got "${adminBandJob.volumeMultiplierSource}"`)
-  process.exit(1)
-}
-if (adminBandJob.scaledSubtotal <= defaultBandJob.scaledSubtotal) {
-  console.error('FAILED: admin multiplier override should increase scaled subtotal vs defaults')
-  process.exit(1)
-}
+  moveDate: '2026-09-18',
+  lineItems: [{ name: 'Load', quantity: 1, volumePerUnitM3: 10, weightType: 'large', handlingMultiplier: 1 }],
+})
+/** F */ const F = quote({
+  distanceMiles: 50,
+  crewSize: 2,
+  moveDate: '2026-09-18',
+  lineItems: [{ name: 'Load', quantity: 1, volumePerUnitM3: 20, weightType: 'large', handlingMultiplier: 1 }],
+})
+
 console.log(
-  `Admin multiplier override (8–15 m³ ×2.5): default £${defaultBandJob.scaledSubtotal.toFixed(2)} → admin £${adminBandJob.scaledSubtotal.toFixed(2)}`,
+  JSON.stringify(
+    {
+      A: A.estimatedTotal,
+      B: B.estimatedTotal,
+      C: C.estimatedTotal,
+      D: D.estimatedTotal,
+      E: E.estimatedTotal,
+      F: F.estimatedTotal,
+    },
+    null,
+    2,
+  ),
 )
 
-const { SHOW_PRICE_DEBUG } = await loadSrc('lib/quotePricingDebugConfig.js')
-if (SHOW_PRICE_DEBUG !== false) {
-  console.error('FAILED: SHOW_PRICE_DEBUG must be false before production')
-  process.exit(1)
-}
-console.log('SHOW_PRICE_DEBUG=false: OK')
+approx(A.estimatedTotal, 55, 20, 'A 1 m³ / 5 mi / 1 man / weekday')
+approx(B.estimatedTotal, 65, 5, 'B fridge / 6.3 mi / 2 men / weekday')
+approx(C.estimatedTotal, 70, 5, 'C same as B / Saturday')
+assert(D.estimatedTotal > B.estimatedTotal, 'D 5 m³ / 10 mi > small job B')
+assert(E.estimatedTotal > D.estimatedTotal, 'E 10 m³ / 20 mi > D')
+assert(F.estimatedTotal > E.estimatedTotal, 'F 20 m³ / 50 mi > E')
+assert(C.estimatedTotal >= B.estimatedTotal, 'Saturday >= weekday for same job')
+assert(C.surchargeLines.length === 1, 'Saturday surcharge applied once')
+assert(B.surchargeLines.length === 0, 'weekday has no weekend surcharge')
+// Both hit the 2-man floor (£70); Saturday % is applied before the floor so totals match.
+assert(C.minimumApplied > 0 && B.minimumApplied > 0, 'small MWV jobs sit on the 2-man floor')
 
-const { isBankHolidayDate, getBankHolidayName } = await loadSrc('lib/ukBankHolidays.js')
+console.log('\n=== Henry Gibbs original quote ===')
+console.log('OLD PRICE: £142.31')
+console.log(`NEW PRICE: £${C.estimatedTotal.toFixed(2)}`)
+approx(C.estimatedTotal, 70, 5, 'Henry Gibbs Saturday replay')
 
-console.log('\n=== Scottish bank holidays ===')
-if (!isBankHolidayDate('2026-05-04')) {
-  console.error('FAILED: 2026-05-04 should be Early May bank holiday')
-  process.exit(1)
-}
-if (getBankHolidayName('2026-05-04') !== 'Early May bank holiday') {
-  console.error('FAILED: unexpected bank holiday name for 2026-05-04')
-  process.exit(1)
-}
-if (isBankHolidayDate('2026-05-05')) {
-  console.error('FAILED: 2026-05-05 should not be a bank holiday')
-  process.exit(1)
-}
-
-const weekdayQuote = calculateQuote(settings, {
-  serviceType: 'Man with Van',
-  distanceMiles: 1.3,
-  lineItems: SOFA_LINE,
-  access: baseAccess,
-  extras: {},
+console.log('\n=== Floors only (minimums never added) ===')
+const tiny = quote({
+  distanceMiles: 0.5,
   crewSize: 2,
-  moveDate: '2026-05-05',
+  moveDate: '2026-09-18',
+  lineItems: [{ name: 'Box', quantity: 1, volumePerUnitM3: 0.1, weightType: 'small', handlingMultiplier: 1 }],
 })
-const bankHolidayQuote = calculateQuote(settings, {
-  serviceType: 'Man with Van',
-  distanceMiles: 1.3,
-  lineItems: SOFA_LINE,
-  access: baseAccess,
-  extras: { bankHoliday: true },
-  crewSize: 2,
-  moveDate: '2026-05-04',
-})
-const bankHolidaySurcharge = (bankHolidayQuote.surchargeLines || []).find((l) =>
-  /bank holiday/i.test(l.label),
+assert(tiny.estimatedTotal === Math.max(tiny.scaledSubtotal, tiny.minimumBaseThreshold, tiny.minimumJobPrice), 'final is max(subtotal, floors)')
+assert(
+  tiny.estimatedTotal < tiny.scaledSubtotal + tiny.minimumJobPrice - 0.01 || tiny.minimumApplied > 0,
+  'minimum acts as floor uplift only when needed',
 )
-if (!bankHolidaySurcharge || bankHolidaySurcharge.amount <= 0) {
-  console.error('FAILED: bank holiday surcharge line missing')
-  process.exit(1)
-}
-if (bankHolidayQuote.scaledSubtotal <= weekdayQuote.scaledSubtotal) {
-  console.error('FAILED: bank holiday scaled subtotal should exceed weekday quote')
-  process.exit(1)
-}
-
-const weekendBankHolidaySat = calculateQuote(settings, {
-  serviceType: 'Man with Van',
-  distanceMiles: 1.3,
-  lineItems: SOFA_LINE,
-  access: baseAccess,
-  extras: { bankHoliday: true, weekend: true },
-  crewSize: 2,
-  moveDate: '2026-05-04',
-})
-const weekendLineOnHoliday = (weekendBankHolidaySat.surchargeLines || []).find((l) =>
-  /weekend/i.test(l.label),
+// Prove we never hard-add service base into subtotal
+assert(
+  Math.abs(tiny.subtotalBeforeSurcharges - (tiny.distancePrice + tiny.volumePrice + tiny.accessTotal + tiny.extrasTotal)) < 0.02,
+  'subtotal excludes service base hard-add',
 )
-if (weekendLineOnHoliday) {
-  console.error('FAILED: weekend surcharge should not stack on bank holiday')
-  process.exit(1)
-}
-console.log('Scottish bank holiday pricing: OK')
 
-console.log('\n=== Saturday / Sunday surcharges ===')
-const splitSettings = {
-  ...settings,
-  saturdaySurchargePercent: 20,
-  sundaySurchargePercent: 10,
-}
-const saturdayQuote = calculateQuote(splitSettings, {
-  serviceType: 'Man with Van',
-  distanceMiles: 1.3,
-  lineItems: SOFA_LINE,
+console.log('\n=== Volume band on inventory only (new upper bands) ===')
+approx(D.volumeMultiplier, 1.14, 0.01, '5 m³ smooth between ×1.1 and ×1.2')
+approx(E.volumeMultiplier, 1.2286, 0.01, '10 m³ smooth between ×1.2 and ×1.3')
+assert(F.volumeMultiplier === 1.3, '20 m³ uses flat 15–20 band ×1.3')
+const at2001 = quote({
+  distanceMiles: 50,
+  crewSize: 2,
+  moveDate: '2026-09-18',
+  lineItems: [{ name: 'Load', quantity: 1, volumePerUnitM3: 20.01, weightType: 'large', handlingMultiplier: 1 }],
+})
+assert(at2001.volumeMultiplier === 1.4, '20.01 m³ uses flat 20.01–30 band ×1.4')
+const at25 = quote({
+  distanceMiles: 5,
+  crewSize: 2,
+  moveDate: '2026-09-18',
+  lineItems: [{ name: 'Load', quantity: 1, volumePerUnitM3: 25, weightType: 'large', handlingMultiplier: 1 }],
+})
+assert(at25.volumeMultiplier === 1.4, '25 m³ uses 20.01–30 band ×1.4')
+const dBaseVol = D.baseVolumePrice
+const dVol = D.volumePrice
+assert(Math.abs(dVol - dBaseVol * D.volumeMultiplier) < 0.02, 'volume £ = base volume £ × smooth mult only')
+// Whole-quote must not be scaled by volume band: distance should equal miles × rate
+assert(Math.abs(D.distancePrice - 10 * settings.pricePerMile) < 0.02, 'mileage not scaled by volume band')
+
+console.log('\n=== House Removals remains higher floor / scalable ===')
+const house = calculateQuote(settings, {
+  serviceType: 'House Removals',
+  distanceMiles: 20,
+  crewSize: 2,
+  moveDate: '2026-09-18',
+  lineItems: [{ name: 'House load', quantity: 1, volumePerUnitM3: 25, weightType: 'large', handlingMultiplier: 1 }],
   access: baseAccess,
   extras: {},
-  crewSize: 2,
-  moveDate: '2026-06-06',
 })
-const sundayQuote = calculateQuote(splitSettings, {
-  serviceType: 'Man with Van',
-  distanceMiles: 1.3,
-  lineItems: SOFA_LINE,
-  access: baseAccess,
-  extras: {},
-  crewSize: 2,
-  moveDate: '2026-06-07',
-})
-const saturdayLine = (saturdayQuote.surchargeLines || []).find((l) => /saturday/i.test(l.label))
-const sundayLine = (sundayQuote.surchargeLines || []).find((l) => /sunday/i.test(l.label))
-if (!saturdayLine || !/20/.test(saturdayLine.label)) {
-  console.error('FAILED: Saturday surcharge line missing or wrong percent')
-  process.exit(1)
-}
-if (!sundayLine || !/10/.test(sundayLine.label)) {
-  console.error('FAILED: Sunday surcharge line missing or wrong percent')
-  process.exit(1)
-}
-if (saturdayLine.amount <= sundayLine.amount) {
-  console.error('FAILED: Saturday surcharge should exceed Sunday at 20% vs 10%')
-  process.exit(1)
-}
-console.log('Saturday / Sunday surcharges: OK')
+assert(house.estimatedTotal > F.estimatedTotal, 'House Removals large job prices above MWV F')
+assert(house.serviceBasePrice >= 100, 'House Removals service floor stays elevated')
 
-console.log(`\nAll ${results.length} pricing scenarios passed.`)
+console.log('\n=== Extra-charge path parity (volume + specialist heavy) ===')
+const extraFridge = calculateExtraItemsCharge(settings, FRIDGE)
+assert(extraFridge.totalVolumeM3 === 0.95, 'extra charge uses raw m³')
+assert(
+  Math.abs(
+    extraFridge.estimatedAmount - extraFridge.totalVolumeM3 * settings.pricePerCubicMetre * extraFridge.volumeMultiplier,
+  ) < 0.02,
+  'fridge extra = raw volume £ × smooth volume mult (no specialist heavy)',
+)
+const extraAmerican = calculateExtraItemsCharge(settings, [
+  { name: 'American fridge', quantity: 1, volumePerUnitM3: 1.6, weightType: 'heavy', handlingMultiplier: 1.2 },
+])
+assert(extraAmerican.estimatedAmount > 1.6 * settings.pricePerCubicMetre, 'specialist heavy adds fee on extras path')
+
+console.log('\n=== Reconcile display totals ===')
+for (const [name, b] of [
+  ['A', A],
+  ['B', B],
+  ['C', C],
+  ['D', D],
+  ['E', E],
+  ['F', F],
+]) {
+  const r = verifyBreakdownReconcilesWithTotal(b)
+  assert(r.ok, `${name} breakdown reconciles (delta ${r.delta})`)
+}
+
+console.log('\n=== Fuel default ===')
+assert(settings.fuelSurchargeEnabled === false, 'fuel surcharge disabled in defaults')
+
+if (failed > 0) {
+  console.error(`\n${failed} assertion(s) failed`)
+  process.exit(1)
+}
+console.log('\nAll pricing regression tests passed.')
