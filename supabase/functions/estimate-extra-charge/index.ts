@@ -75,9 +75,9 @@ function resolveVolumeMultiplier(settings: Record<string, unknown>, totalM3: num
             : 1.4,
     },
     {
-      min: 20.01,
+      min: 20,
       key: 'volumeMultiplier20To30M3',
-      label: '20.01–30 m³',
+      label: '20–30 m³',
       fallback: 1.4,
       resolved:
         Number.isFinite(m20to30) && m20to30 >= 1

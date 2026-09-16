@@ -184,21 +184,21 @@ assert(
 console.log('\n=== Volume band on inventory only (new upper bands) ===')
 approx(D.volumeMultiplier, 1.14, 0.01, '5 m³ smooth between ×1.1 and ×1.2')
 approx(E.volumeMultiplier, 1.2286, 0.01, '10 m³ smooth between ×1.2 and ×1.3')
-assert(F.volumeMultiplier === 1.3, '20 m³ uses flat 15–20 band ×1.3')
-const at2001 = quote({
+assert(F.volumeMultiplier === 1.4, '20 m³ uses flat 20–30 band ×1.4')
+const at19 = quote({
   distanceMiles: 50,
   crewSize: 2,
   moveDate: '2026-09-18',
-  lineItems: [{ name: 'Load', quantity: 1, volumePerUnitM3: 20.01, weightType: 'large', handlingMultiplier: 1 }],
+  lineItems: [{ name: 'Load', quantity: 1, volumePerUnitM3: 19.99, weightType: 'large', handlingMultiplier: 1 }],
 })
-assert(at2001.volumeMultiplier === 1.4, '20.01 m³ uses flat 20.01–30 band ×1.4')
+assert(at19.volumeMultiplier === 1.3, '19.99 m³ uses flat 15–20 band ×1.3')
 const at25 = quote({
   distanceMiles: 5,
   crewSize: 2,
   moveDate: '2026-09-18',
   lineItems: [{ name: 'Load', quantity: 1, volumePerUnitM3: 25, weightType: 'large', handlingMultiplier: 1 }],
 })
-assert(at25.volumeMultiplier === 1.4, '25 m³ uses 20.01–30 band ×1.4')
+assert(at25.volumeMultiplier === 1.4, '25 m³ uses 20–30 band ×1.4')
 const dBaseVol = D.baseVolumePrice
 const dVol = D.volumePrice
 assert(Math.abs(dVol - dBaseVol * D.volumeMultiplier) < 0.02, 'volume £ = base volume £ × smooth mult only')

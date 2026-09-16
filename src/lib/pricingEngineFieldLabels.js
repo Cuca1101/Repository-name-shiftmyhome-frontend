@@ -18,7 +18,7 @@ export const PRICING_SETTING_FIELD_LABELS = {
   volumeMultiplier3To8M3: 'Volume multiplier 3–8 m³',
   volumeMultiplier8To15M3: 'Volume multiplier 8–15 m³',
   volumeMultiplier15To20M3: 'Volume multiplier 15–20 m³',
-  volumeMultiplier20To30M3: 'Volume multiplier 20.01–30 m³',
+  volumeMultiplier20To30M3: 'Volume multiplier 20–30 m³',
   volumeMultiplier30PlusM3: 'Volume multiplier 30 m³+',
   sameDaySurchargePercent: 'Same day booking surcharge (%)',
   weekendSurchargePercent: 'Weekend surcharge (%) — legacy',

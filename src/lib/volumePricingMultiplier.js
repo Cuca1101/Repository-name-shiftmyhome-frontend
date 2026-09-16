@@ -1,7 +1,7 @@
 /**
  * Volume scaling multipliers — applied to inventory volume £ only (never the whole quote).
  * Below 15 m³: smooth piecewise-linear interpolation between anchors.
- * From 15 m³ up: flat bands — 15–20, 20.01–30, 30+.
+ * From 15 m³ up: flat bands — 15–20 (under 20), 20–30, 30+.
  */
 
 import { getDefaultPricingSettings } from './defaultPricingSettings'
@@ -20,7 +20,7 @@ export const VOLUME_MULTIPLIER_SETTING_KEYS = /** @type {const} */ ([
 /** @type {{ key: VolumeMultiplierSettingKey, bandLabel: string, minM3: number }[]} */
 export const VOLUME_MULTIPLIER_BANDS = [
   { key: 'volumeMultiplier30PlusM3', bandLabel: '30 m³+', minM3: 30 },
-  { key: 'volumeMultiplier20To30M3', bandLabel: '20.01–30 m³', minM3: 20.01 },
+  { key: 'volumeMultiplier20To30M3', bandLabel: '20–30 m³', minM3: 20 },
   { key: 'volumeMultiplier15To20M3', bandLabel: '15–20 m³', minM3: 15 },
   { key: 'volumeMultiplier8To15M3', bandLabel: '8–15 m³', minM3: 8 },
   { key: 'volumeMultiplier3To8M3', bandLabel: '3–8 m³', minM3: 3 },
@@ -28,7 +28,7 @@ export const VOLUME_MULTIPLIER_BANDS = [
 ]
 
 /**
- * Map legacy 15–25 / 25+ keys onto the new 15–20 / 20.01–30 / 30+ keys.
+ * Map legacy 15–25 / 25+ keys onto the new 15–20 / 20–30 / 30+ keys.
  * @param {Record<string, unknown> | null | undefined} raw
  * @returns {Record<string, unknown>}
  */
@@ -125,10 +125,10 @@ export function interpolateVolumeMultiplier(multipliers, totalCubicMetres) {
       interpolated: false,
     }
   }
-  if (v > 20) {
+  if (v >= 20) {
     return {
       multiplier: multipliers.volumeMultiplier20To30M3,
-      bandLabel: '20.01–30 m³',
+      bandLabel: '20–30 m³',
       bandKey: /** @type {VolumeMultiplierSettingKey} */ ('volumeMultiplier20To30M3'),
       interpolated: false,
     }
