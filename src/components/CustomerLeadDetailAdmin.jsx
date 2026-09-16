@@ -30,6 +30,8 @@ import {
   saveCustomerLeadAgreedPrice,
 } from '../lib/customerLeadBookingConvert'
 import { isSupabaseConfigured, supabase } from '../lib/supabase'
+import { formatFloorLabel } from './quote-wizard/FloorSelect'
+import { formatAccessLiftLabel } from '../lib/floorAccess'
 
 function DetailBlock({ title, children }) {
   return (
@@ -48,6 +50,12 @@ function Row({ label, value }) {
       <span className="break-words">{text}</span>
     </div>
   )
+}
+
+function floorDisplay(value) {
+  if (value == null || value === '') return null
+  const n = Number(value)
+  return Number.isFinite(n) ? formatFloorLabel(n) : String(value)
 }
 
 function telHref(phone) {
@@ -653,7 +661,13 @@ export default function CustomerLeadDetailAdmin() {
       <DetailBlock title="Step 1 — Move details">
         <Row label="Service" value={s1.serviceType || lead.service_type} />
         <Row label="Pickup" value={s1.pickupAddress || lead.pickup_address} />
+        <Row label="Pickup property" value={s1.pickupPropertyType} />
+        <Row label="Pickup floor" value={floorDisplay(s1.pickupFloor)} />
+        <Row label="Pickup lift" value={formatAccessLiftLabel(s1.pickupFloor, s1.pickupLift)} />
         <Row label="Delivery" value={s1.deliveryAddress || lead.delivery_address} />
+        <Row label="Delivery property" value={s1.deliveryPropertyType} />
+        <Row label="Delivery floor" value={floorDisplay(s1.deliveryFloor)} />
+        <Row label="Delivery lift" value={formatAccessLiftLabel(s1.deliveryFloor, s1.deliveryLift)} />
         <Row label="Move date" value={s1.moveDate ? formatDateUK(s1.moveDate) : null} />
         <Row label="Arrival" value={s1.arrivalSummary} />
         <Row label="Distance (mi)" value={s1.distanceMiles} />
