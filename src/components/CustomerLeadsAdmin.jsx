@@ -40,6 +40,16 @@ function statusTone(status) {
   return 'slate'
 }
 
+/** True when lead was converted to an unpaid job (status and/or converted_at). */
+function leadIsConverted(row) {
+  if (!row) return false
+  const st = String(row.status || '')
+  const eff = String(row.effective_status || st)
+  if (st === 'converted_to_booking' || eff === 'converted_to_booking') return true
+  if (row.converted_at) return true
+  return false
+}
+
 function StatusBadge({ status }) {
   const tone = BADGE_TONES[statusTone(status)] || BADGE_TONES.slate
   const label = CUSTOMER_LEAD_STATUS_LABELS[status] || status
@@ -320,11 +330,13 @@ export default function CustomerLeadsAdmin() {
               <tbody className="divide-y divide-slate-100">
                 {rows.map((row) => {
                   const eff = row.effective_status || row.status
+                  const converted = leadIsConverted(row)
                   const phone = row.customer_phone
                   const email = row.customer_email
                   const callHref = telHref(phone)
                   const emailHref = mailHref(email)
                   const busyConvert = convertingId === String(row.id)
+                  const busyRevert = revertingId === String(row.id)
 
                   return (
                     <tr key={row.id} className="align-top text-slate-800">
@@ -358,6 +370,16 @@ export default function CustomerLeadsAdmin() {
                       </td>
                       <td className="px-4 py-3">
                         <StatusBadge status={eff} />
+                        {converted ? (
+                          <button
+                            type="button"
+                            disabled={busyRevert || Boolean(convertingId) || Boolean(revertingId)}
+                            onClick={() => void handleRevertLead(row)}
+                            className="mt-1.5 block rounded-lg border border-amber-300 bg-amber-50 px-2 py-1 text-[11px] font-bold text-amber-950 hover:bg-amber-100 disabled:opacity-50"
+                          >
+                            {busyRevert ? 'Undoing…' : 'Undo convert'}
+                          </button>
+                        ) : null}
                       </td>
                       <td className="whitespace-nowrap px-4 py-3 text-xs text-slate-600">
                         {formatDateTimeUK(row.last_activity_at)}
@@ -365,7 +387,7 @@ export default function CustomerLeadsAdmin() {
                       <td className="whitespace-nowrap px-4 py-3 text-xs text-slate-500">
                         {formatDateTimeUK(row.created_at)}
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="sticky right-0 bg-white px-4 py-3 shadow-[-8px_0_8px_-8px_rgba(15,23,42,0.15)]">
                         <div className="flex flex-wrap gap-1.5">
                           {callHref ? (
                             <a
@@ -389,7 +411,7 @@ export default function CustomerLeadsAdmin() {
                           >
                             Details
                           </Link>
-                          {eff !== 'converted_to_booking' ? (
+                          {!converted ? (
                             <button
                               type="button"
                               disabled={busyConvert || Boolean(convertingId) || Boolean(revertingId)}
@@ -402,16 +424,12 @@ export default function CustomerLeadsAdmin() {
                           ) : (
                             <button
                               type="button"
-                              disabled={
-                                revertingId === String(row.id) ||
-                                Boolean(convertingId) ||
-                                Boolean(revertingId)
-                              }
+                              disabled={busyRevert || Boolean(convertingId) || Boolean(revertingId)}
                               onClick={() => void handleRevertLead(row)}
                               title="Undo convert — restore lead and remove unpaid job from Available Jobs"
-                              className="rounded-lg border border-amber-200 bg-amber-50 px-2 py-1 text-[11px] font-semibold text-amber-950 hover:bg-amber-100 disabled:opacity-50"
+                              className="rounded-lg border-2 border-amber-400 bg-amber-100 px-2 py-1 text-[11px] font-bold text-amber-950 hover:bg-amber-200 disabled:opacity-50"
                             >
-                              {revertingId === String(row.id) ? 'Undoing…' : 'Undo convert'}
+                              {busyRevert ? 'Undoing…' : 'Undo convert'}
                             </button>
                           )}
                           <button

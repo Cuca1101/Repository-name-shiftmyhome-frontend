@@ -474,7 +474,10 @@ export default function CustomerLeadDetailAdmin() {
   const convertHref = lead.quote_id
     ? `/admin/available-jobs/${lead.quote_id}`
     : null
-  const isConverted = eff === 'converted_to_booking'
+  const isConverted =
+    eff === 'converted_to_booking' ||
+    lead.status === 'converted_to_booking' ||
+    Boolean(lead.converted_at)
 
   return (
     <div className="space-y-6 pb-10">
@@ -511,6 +514,16 @@ export default function CustomerLeadDetailAdmin() {
               Email customer
             </a>
           ) : null}
+          {isConverted ? (
+            <button
+              type="button"
+              disabled={Boolean(busy)}
+              onClick={() => void handleUndoConvert()}
+              className="inline-flex min-h-[44px] items-center rounded-xl border-2 border-amber-400 bg-amber-100 px-4 text-sm font-bold text-amber-950 hover:bg-amber-200 disabled:opacity-50"
+            >
+              {busy === 'revert' ? 'Undoing…' : 'Undo convert'}
+            </button>
+          ) : null}
           {isConverted && convertHref ? (
             <Link
               to={convertHref}
@@ -529,6 +542,16 @@ export default function CustomerLeadDetailAdmin() {
           </button>
         </div>
       </div>
+
+      {isConverted ? (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+          <p className="font-semibold">Converted to unpaid job</p>
+          <p className="mt-1">
+            Use <strong>Undo convert</strong> to put this lead back and remove the job from Available
+            Jobs (only if still unpaid and unassigned).
+          </p>
+        </div>
+      ) : null}
 
       {actionMsg ? (
         <p className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800">{actionMsg}</p>
