@@ -62,7 +62,7 @@ const QUOTE_ASSIGNMENT_SAFE_KEYS = new Set([
 ])
 
 /**
- * @typedef {'all'|'all_paid'|'unpaid'|'deposit_paid'|'paid'|'booked'} AvailableJobsAdminFilter
+ * @typedef {'all'|'all_paid'|'paid_online'|'offline'|'unpaid'|'deposit_paid'|'paid'|'booked'} AvailableJobsAdminFilter
  */
 
 /**
@@ -78,9 +78,13 @@ export async function fetchQuotesForAdmin(filterKey = 'all', searchTerm = '') {
   let q = supabase.from(QUOTES_TABLE).select('*').order('created_at', { ascending: false })
 
   if (filterKey === 'all_paid') {
+    // Online Stripe paid/deposit + offline phone bookings released to Available Jobs.
     q = q.or(`payment_status.in.(paid,deposit_paid),${adminPhoneBookingReleasedPostgrestFilter()}`)
-  } else if (filterKey === 'unpaid') {
-    // Unpaid phone bookings (client filter keeps only those released to Available Jobs).
+  } else if (filterKey === 'paid_online') {
+    // Stripe / online payment only — does not include offline phone bookings.
+    q = q.in('payment_status', ['paid', 'deposit_paid'])
+  } else if (filterKey === 'offline' || filterKey === 'unpaid') {
+    // Phone / admin bookings paid separately (cash, bank, etc.) — not online Stripe.
     q = q.eq('payment_status', 'unpaid').in('source', ADMIN_PHONE_BOOKING_SOURCES)
   } else if (filterKey === 'deposit_paid') {
     q = q.eq('payment_status', 'deposit_paid')

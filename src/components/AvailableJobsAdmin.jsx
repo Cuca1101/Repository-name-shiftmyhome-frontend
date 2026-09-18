@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { fetchQuotesForAdmin } from '../lib/data/quotesAdminRepository'
-import { quotePassesAvailableJobsStrict } from '../lib/adminJobListRules'
+import { quoteIsAdminPhoneBookingReleased, quoteIsCardPaid, quotePassesAvailableJobsStrict } from '../lib/adminJobListRules'
 import {
   availableJobIdSet,
   findNewAvailableJobIds,
@@ -36,7 +36,8 @@ const NOTIFY_DEBOUNCE_MS = 450
 
 const FILTERS = [
   { key: 'all_paid', label: 'All open' },
-  { key: 'unpaid', label: 'Unpaid / phone' },
+  { key: 'paid_online', label: 'Paid online' },
+  { key: 'offline', label: 'Offline / phone' },
   { key: 'deposit_paid', label: 'Deposit paid' },
   { key: 'paid', label: 'Fully paid' },
 ]
@@ -291,6 +292,16 @@ export default function AvailableJobsAdmin() {
     return copy
   }, [rows, sortKey])
 
+  const onlinePaidRows = useMemo(
+    () => sortedRows.filter((q) => quoteIsCardPaid(q)),
+    [sortedRows],
+  )
+  const offlinePhoneRows = useMemo(
+    () => sortedRows.filter((q) => quoteIsAdminPhoneBookingReleased(q) && !quoteIsCardPaid(q)),
+    [sortedRows],
+  )
+  const splitAllOpen = filterKey === 'all_paid'
+
   const runSearchNow = useCallback(() => {
     setActiveSearch(searchInput.trim())
   }, [searchInput])
@@ -298,8 +309,15 @@ export default function AvailableJobsAdmin() {
   const emptyMessage = useMemo(() => {
     if (loading) return ''
     if (sortedRows.length > 0) return ''
-    return activeSearch ? 'No jobs found.' : 'No Available Jobs yet.'
-  }, [loading, sortedRows.length, activeSearch])
+    if (activeSearch) return 'No jobs found.'
+    if (filterKey === 'offline') {
+      return 'No offline / phone bookings in Available Jobs yet.'
+    }
+    if (filterKey === 'paid_online') {
+      return 'No online-paid jobs in Available Jobs yet.'
+    }
+    return 'No Available Jobs yet.'
+  }, [loading, sortedRows.length, activeSearch, filterKey])
 
   async function enableSoundAlerts() {
     const ok = await unlockAvailableJobsSound()
@@ -324,6 +342,48 @@ export default function AvailableJobsAdmin() {
       return next
     })
   }
+
+  const renderAvailableJob = useCallback(
+    (q) => (
+      <JobCard
+        q={q}
+        listVariant="available"
+        layoutMode={viewMode}
+        highlight={highlightIds.has(String(q.id))}
+        secondarySlot={
+          <div className="flex w-full flex-col gap-2">
+            <JobQuickAssignDriver
+              quote={q}
+              jobCountsByDriverId={jobCountsByDriverId}
+              onApplied={async () => {
+                const filtered = await fetchFilteredRows()
+                mergeRows(filtered, { notify: false })
+              }}
+            />
+            <AutoMarketplaceHoldToggle
+              q={q}
+              onUpdated={async () => {
+                const filtered = await fetchFilteredRows()
+                mergeRows(filtered, { notify: false })
+              }}
+            />
+          </div>
+        }
+        selectionCheckbox={
+          <label className="flex cursor-pointer items-center gap-1.5 text-[11px] font-medium text-slate-600">
+            <input
+              type="checkbox"
+              className="h-3.5 w-3.5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+              checked={selectedIds.has(String(q.id))}
+              onChange={() => toggleSelected(q.id)}
+            />
+            Journey
+          </label>
+        }
+      />
+    ),
+    [viewMode, highlightIds, jobCountsByDriverId, fetchFilteredRows, mergeRows, selectedIds],
+  )
 
   const showTestEmailToast = useCallback((message, variant) => {
     setTestEmailToast({ message, variant })
@@ -505,21 +565,29 @@ export default function AvailableJobsAdmin() {
       />
 
       <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
-        <div className="flex flex-wrap gap-2">
-          {FILTERS.map((f) => (
-            <button
-              key={f.key}
-              type="button"
-              onClick={() => setFilterKey(f.key)}
-              className={`rounded-lg px-3 py-1.5 text-sm font-semibold transition ${
-                filterKey === f.key
-                  ? 'bg-brand-600 text-white shadow-sm'
-                  : 'border border-slate-200 bg-white text-slate-800 hover:bg-slate-50'
-              }`}
-            >
-              {f.label}
-            </button>
-          ))}
+        <div className="space-y-2">
+          <div className="flex flex-wrap gap-2">
+            {FILTERS.map((f) => (
+              <button
+                key={f.key}
+                type="button"
+                onClick={() => setFilterKey(f.key)}
+                className={`rounded-lg px-3 py-1.5 text-sm font-semibold transition ${
+                  filterKey === f.key
+                    ? 'bg-brand-600 text-white shadow-sm'
+                    : 'border border-slate-200 bg-white text-slate-800 hover:bg-slate-50'
+                }`}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
+          <p className="text-xs text-slate-500">
+            <span className="font-semibold text-slate-700">Paid online</span> = Stripe card/deposit.
+            {' '}
+            <span className="font-semibold text-slate-700">Offline / phone</span> = paid separately
+            (cash, bank, admin booking) — not hidden by online payment filters.
+          </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
@@ -578,49 +646,52 @@ export default function AvailableJobsAdmin() {
         <p className="rounded-xl border border-slate-200 bg-white p-6 text-center text-slate-600 shadow-sm">
           {emptyMessage}
         </p>
+      ) : splitAllOpen ? (
+        <div className="space-y-8" key={settingsVersion}>
+          <section className="space-y-3">
+            <div className="flex flex-wrap items-baseline justify-between gap-2">
+              <h3 className="text-sm font-bold text-slate-900">Paid online</h3>
+              <p className="text-xs text-slate-500">Stripe card / deposit · {onlinePaidRows.length}</p>
+            </div>
+            {onlinePaidRows.length ? (
+              <AdminJobListSections
+                jobs={onlinePaidRows}
+                viewMode={viewMode}
+                renderJob={renderAvailableJob}
+              />
+            ) : (
+              <p className="rounded-xl border border-dashed border-slate-200 bg-white px-4 py-5 text-sm text-slate-500">
+                No online-paid jobs right now.
+              </p>
+            )}
+          </section>
+          <section className="space-y-3">
+            <div className="flex flex-wrap items-baseline justify-between gap-2">
+              <h3 className="text-sm font-bold text-slate-900">Offline / phone</h3>
+              <p className="text-xs text-slate-500">
+                Paid separately (not online) · {offlinePhoneRows.length}
+              </p>
+            </div>
+            {offlinePhoneRows.length ? (
+              <AdminJobListSections
+                jobs={offlinePhoneRows}
+                viewMode={viewMode}
+                renderJob={renderAvailableJob}
+              />
+            ) : (
+              <p className="rounded-xl border border-dashed border-amber-200 bg-amber-50/50 px-4 py-5 text-sm text-amber-950">
+                No offline / phone bookings in Available Jobs. Convert a Customer Lead with Create job /
+                Send to Available Jobs.
+              </p>
+            )}
+          </section>
+        </div>
       ) : (
         <AdminJobListSections
           key={settingsVersion}
           jobs={sortedRows}
           viewMode={viewMode}
-          renderJob={(q) => (
-            <JobCard
-              q={q}
-              listVariant="available"
-              layoutMode={viewMode}
-              highlight={highlightIds.has(String(q.id))}
-              secondarySlot={
-                <div className="flex w-full flex-col gap-2">
-                  <JobQuickAssignDriver
-                    quote={q}
-                    jobCountsByDriverId={jobCountsByDriverId}
-                    onApplied={async () => {
-                      const filtered = await fetchFilteredRows()
-                      mergeRows(filtered, { notify: false })
-                    }}
-                  />
-                  <AutoMarketplaceHoldToggle
-                    q={q}
-                    onUpdated={async () => {
-                      const filtered = await fetchFilteredRows()
-                      mergeRows(filtered, { notify: false })
-                    }}
-                  />
-                </div>
-              }
-              selectionCheckbox={
-                <label className="flex cursor-pointer items-center gap-1.5 text-[11px] font-medium text-slate-600">
-                  <input
-                    type="checkbox"
-                    className="h-3.5 w-3.5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
-                    checked={selectedIds.has(String(q.id))}
-                    onChange={() => toggleSelected(q.id)}
-                  />
-                  Journey
-                </label>
-              }
-            />
-          )}
+          renderJob={renderAvailableJob}
         />
       )}
     </div>
