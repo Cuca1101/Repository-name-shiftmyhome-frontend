@@ -255,6 +255,8 @@ export function buildAdminPhoneBookingRow(form) {
   let paid_at = null
   let payment_type = null
   let operational_status = null
+  // amount_paid is NOT NULL — unpaid quote_only bookings store 0.
+  let amount_paid = 0
 
   if (mode === 'paid_full') {
     payment_status = 'paid'
@@ -262,12 +264,14 @@ export function buildAdminPhoneBookingRow(form) {
     payment_type = 'full'
     paid_at = now
     operational_status = 'Assigned'
+    amount_paid = amount ?? 0
   } else if (mode === 'deposit') {
     payment_status = 'deposit_paid'
     status = 'deposit_paid'
     payment_type = 'deposit'
     paid_at = now
     operational_status = 'Assigned'
+    amount_paid = amount ?? 0
   }
 
   const staffNote = form.created_by ? `Created by admin (${form.created_by})` : 'Created by admin (phone booking)'
@@ -295,7 +299,7 @@ export function buildAdminPhoneBookingRow(form) {
     status,
     payment_status,
     payment_type,
-    amount_paid: amount,
+    amount_paid,
     paid_at,
     operational_status,
     inventory: [],

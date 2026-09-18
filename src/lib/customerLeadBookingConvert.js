@@ -174,9 +174,9 @@ function wizardFromLead(lead) {
 
 /**
  * @param {Record<string, unknown>} lead
- * @param {{ createdBy: string, convert?: boolean }} opts
+ * @param {{ createdBy: string, convert?: boolean, freshQuoteRef?: boolean }} opts
  */
-function buildAdminPhoneBookingFormFromLead(lead, { createdBy, convert = true }) {
+function buildAdminPhoneBookingFormFromLead(lead, { createdBy, convert = true, freshQuoteRef = false }) {
   const wizard = wizardFromLead(lead)
   const serviceType =
     resolveServiceLabel(lead.service_type) ||
@@ -220,7 +220,8 @@ function buildAdminPhoneBookingFormFromLead(lead, { createdBy, convert = true })
   const arrival = formatWizardArrivalSummary(wizard) || getWizardArrivalTimePayload(wizard) || ''
 
   return {
-    quote_ref: String(lead.quote_ref || '').trim() || undefined,
+    // Never reuse website quote_ref on insert — avoids unique constraint collisions.
+    quote_ref: freshQuoteRef ? undefined : String(lead.quote_ref || '').trim() || undefined,
     name: wizard.fullName || 'Customer',
     email: wizard.email || 'lead@shiftmyhome.local',
     phone: wizard.phone || '00000000000',
@@ -234,6 +235,87 @@ function buildAdminPhoneBookingFormFromLead(lead, { createdBy, convert = true })
     estimated_total: chargeable ?? calculated,
     created_by: createdBy,
   }
+}
+
+/**
+ * Fields required so an unpaid phone booking appears in Available Jobs.
+ * Clears archive/test/cancel flags that hide rows from production admin inboxes.
+ * @param {{
+ *   summary: ReturnType<typeof getCustomerLeadBookingSummary>,
+ *   chargeable: number,
+ *   calculated: number | null,
+ *   lead: Record<string, unknown>,
+ *   createdBy: string,
+ *   existing?: Record<string, unknown> | null,
+ * }} p
+ */
+function buildLeadUnpaidJobPatch({ summary, chargeable, calculated, lead, createdBy, existing = null }) {
+  const calc = calculated ?? chargeable
+  return {
+    full_name: summary.fullName || existing?.full_name || 'Customer',
+    phone: summary.phone || existing?.phone || '',
+    email: summary.email || existing?.email || 'lead@shiftmyhome.local',
+    pickup_address: summary.pickupAddress || existing?.pickup_address || '',
+    delivery_address: summary.deliveryAddress || existing?.delivery_address || '',
+    move_date: summary.moveDate || existing?.move_date || new Date().toISOString().slice(0, 10),
+    source: ADMIN_PHONE_BOOKING_SOURCE,
+    status: 'Booked',
+    payment_status: 'unpaid',
+    payment_type: null,
+    // amount_paid is NOT NULL in DB — unpaid jobs use 0, never null.
+    amount_paid: 0,
+    paid_at: null,
+    // Released to Available Jobs (not phone_booking_pending).
+    operational_status: null,
+    marketplace_visibility: 'hidden_from_partners',
+    assigned_driver_id: null,
+    assigned_driver_name: null,
+    assigned_partner_id: null,
+    bundled_journey_id: null,
+    // Always persist the chargeable admin price (£250 etc.) on the job.
+    calculated_total: calc,
+    estimated_total: chargeable,
+    agreed_price: chargeable,
+    remaining_balance: chargeable,
+    price_override_reason: String(lead.price_override_reason || '').trim() || null,
+    price_override_by: lead.price_override_by || createdBy || null,
+    price_override_at: lead.price_override_at || new Date().toISOString(),
+    // Production inbox hides archived / test rows — clear so convert is visible.
+    archived_for_go_live: false,
+    is_test: false,
+    cancelled_at: null,
+    completed_at: null,
+    admin_cancellation_reason: null,
+  }
+}
+
+/**
+ * Explain why a quote is not yet in Available Jobs (for admin error messages).
+ * @param {Record<string, unknown> | null | undefined} q
+ */
+export function explainAvailableJobsBlocker(q) {
+  if (!q) return 'Booking row missing after create.'
+  if (!quotePassesAvailableJobsStrict(q)) {
+    const bits = []
+    if (String(q.source || '') !== ADMIN_PHONE_BOOKING_SOURCE && String(q.source || '') !== 'admin_phone_booking') {
+      bits.push(`source=${q.source || 'null'}`)
+    }
+    if (String(q.payment_status || '') !== 'unpaid' && !quoteIsCardPaid(q)) {
+      bits.push(`payment_status=${q.payment_status || 'null'}`)
+    }
+    if (String(q.operational_status || '').toLowerCase() === PHONE_BOOKING_PENDING_OPERATIONAL_STATUS) {
+      bits.push('still phone_booking_pending')
+    }
+    if (q.archived_for_go_live === true) bits.push('archived_for_go_live')
+    if (q.is_test === true) bits.push('is_test')
+    if (q.cancelled_at) bits.push('cancelled_at set')
+    if (q.completed_at) bits.push('completed_at set')
+    if (quoteHasAssignedDriver(q)) bits.push('driver assigned')
+    if (quoteHasAssignedPartner(q)) bits.push('partner assigned')
+    if (q.bundled_journey_id) bits.push('bundled journey')
+    return bits.length ? bits.join(', ') : 'failed Available Jobs eligibility checks'
+  }
+  return ''
 }
 
 /**
@@ -324,11 +406,70 @@ export async function saveCustomerLeadAgreedPrice({
   return { lead: updated, previousSessionId: amountChanged ? previousSessionId : '' }
 }
 
+/**
+ * Resolve an existing quotes row for this lead (by id, then by quote_ref).
+ * Website leads often keep quote_ref but clear/lose quote_id — reusing avoids
+ * unique constraint 23505 on quote_ref inserts.
+ * @param {Record<string, unknown>} lead
+ * @returns {Promise<Record<string, unknown> | null>}
+ */
+async function findExistingQuoteForLead(lead) {
+  if (lead.quote_id) {
+    const byId = await fetchQuoteByIdForAdmin(String(lead.quote_id))
+    if (byId) return byId
+  }
+  const ref = String(lead.quote_ref || '').trim()
+  if (!ref || !supabase) return null
+  const { data, error } = await supabase.from('quotes').select('*').eq('quote_ref', ref).maybeSingle()
+  if (error) throw new Error(error.message || 'Failed to look up existing booking by quote_ref.')
+  return data ?? null
+}
+
+/**
+ * Link lead → quote without marking converted (duplicate-click safety).
+ * @param {Record<string, unknown>} lead
+ * @param {string} quoteId
+ * @param {string} quoteRef
+ */
+async function linkLeadQuoteIds(lead, quoteId, quoteRef) {
+  if (String(lead.quote_id || '') === quoteId && String(lead.quote_ref || '') === quoteRef) {
+    return lead
+  }
+  const updated = await updateCustomerLeadById(String(lead.id), {
+    quote_id: quoteId,
+    quote_ref: quoteRef,
+    last_activity_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  })
+  return updated || { ...lead, quote_id: quoteId, quote_ref: quoteRef }
+}
+
+/**
+ * Create/update unpaid phone booking from lead — does NOT mark the lead converted.
+ * Caller must mark lead only after Available Jobs eligibility is confirmed.
+ * @param {{ lead: Record<string, unknown>, createdBy: string }} params
+ */
 export async function convertCustomerLeadToBooking({ lead, createdBy }) {
   if (!isSupabaseConfigured || !supabase) {
     throw new Error('Supabase is not configured.')
   }
   if (!lead?.id) throw new Error('Lead not found.')
+
+  // Idempotent: already converted with a live Available Jobs booking.
+  if (String(lead.status || '') === 'converted_to_booking' && lead.quote_id) {
+    const existingConverted = await fetchQuoteByIdForAdmin(String(lead.quote_id))
+    if (existingConverted && quotePassesAvailableJobsStrict(existingConverted)) {
+      return {
+        lead,
+        quoteId: String(existingConverted.id),
+        quoteRef: String(existingConverted.quote_ref || lead.quote_ref || ''),
+        alreadyConverted: true,
+        quoteCreatedByConvert: false,
+        quoteBefore: null,
+        quoteIdBefore: String(lead.quote_id),
+      }
+    }
+  }
 
   const summary = getCustomerLeadBookingSummary(lead)
   if (!summary.hasAddresses) {
@@ -346,8 +487,6 @@ export async function convertCustomerLeadToBooking({ lead, createdBy }) {
   }
 
   const calculated = resolveCalculatedTotal(lead)
-  const isOverride =
-    calculated != null && Math.abs(calculated - chargeable) > 0.009
 
   let quoteId = lead.quote_id ? String(lead.quote_id) : null
   let quoteRef = String(lead.quote_ref || '').trim()
@@ -355,54 +494,40 @@ export async function convertCustomerLeadToBooking({ lead, createdBy }) {
   /** @type {Record<string, unknown> | null} */
   let quoteBefore = null
   const quoteIdBefore = quoteId
+  /** @type {Record<string, unknown>} */
+  let workingLead = lead
 
-  if (quoteId) {
-    const existing = await fetchQuoteByIdForAdmin(quoteId)
-    if (!existing) {
-      // Stale quote_id on lead — create a fresh phone booking instead.
-      quoteId = null
-      quoteCreatedByConvert = true
-    } else {
-      quoteBefore = quoteSnapshotFields(existing)
-      quoteCreatedByConvert = false
-      const { error } = await supabase
-        .from('quotes')
-        .update({
-          full_name: summary.fullName || existing.full_name,
-          phone: summary.phone || existing.phone,
-          email: summary.email || existing.email || 'lead@shiftmyhome.local',
-          pickup_address: summary.pickupAddress || existing.pickup_address,
-          delivery_address: summary.deliveryAddress || existing.delivery_address,
-          move_date: summary.moveDate || existing.move_date,
-          source: ADMIN_PHONE_BOOKING_SOURCE,
-          status: 'Booked',
-          payment_status: 'unpaid',
-          // Released immediately so it appears in Available Jobs.
-          operational_status: null,
-          marketplace_visibility: 'hidden_from_partners',
-          assigned_driver_id: null,
-          assigned_partner_id: null,
-          bundled_journey_id: null,
-          calculated_total: calculated,
-          estimated_total: calculated,
-          agreed_price: isOverride ? chargeable : null,
-          remaining_balance: chargeable,
-          price_override_reason: isOverride
-            ? String(lead.price_override_reason || '').trim() || null
-            : null,
-          price_override_by: isOverride ? lead.price_override_by || createdBy : null,
-          price_override_at: isOverride
-            ? lead.price_override_at || new Date().toISOString()
-            : null,
-        })
-        .eq('id', quoteId)
-      if (error) throw new Error(error.message || 'Failed to update booking for Available Jobs.')
-      quoteRef = String(existing.quote_ref || quoteRef)
-    }
+  let existing = await findExistingQuoteForLead(lead)
+  if (existing && (quoteIsCardPaid(existing) || existing.paid_at)) {
+    // Never mutate a card-paid booking into an unpaid phone job — create a fresh unpaid job.
+    existing = null
+    quoteId = null
+    quoteCreatedByConvert = true
+    quoteBefore = null
   }
 
-  if (!quoteId) {
-    const form = buildAdminPhoneBookingFormFromLead(lead, { createdBy, convert: true })
+  if (existing) {
+    quoteId = String(existing.id)
+    quoteRef = String(existing.quote_ref || quoteRef)
+    quoteBefore = quoteSnapshotFields(existing)
+    quoteCreatedByConvert = false
+    const patch = buildLeadUnpaidJobPatch({
+      summary,
+      chargeable,
+      calculated,
+      lead,
+      createdBy,
+      existing,
+    })
+    const { error } = await supabase.from('quotes').update(patch).eq('id', quoteId)
+    if (error) throw new Error(error.message || 'Failed to update booking for Available Jobs.')
+  } else {
+    const form = buildAdminPhoneBookingFormFromLead(lead, {
+      createdBy,
+      convert: true,
+      // Never reuse website quote_ref on insert — unique constraint 23505 if row already exists.
+      freshQuoteRef: true,
+    })
     let created
     try {
       created = await insertAdminPhoneBooking(form)
@@ -417,40 +542,102 @@ export async function convertCustomerLeadToBooking({ lead, createdBy }) {
     quoteRef = String(created.quote_ref)
     quoteCreatedByConvert = true
 
-    // Attach agreed/calculated totals (insertAdminPhoneBooking stores estimated via payment_mode).
-    const { error: priceErr } = await supabase
-      .from('quotes')
-      .update({
-        calculated_total: calculated,
-        estimated_total: calculated,
-        agreed_price: isOverride ? chargeable : null,
-        remaining_balance: chargeable,
-        price_override_reason: isOverride
-          ? String(lead.price_override_reason || '').trim() || null
-          : null,
-        price_override_by: isOverride ? lead.price_override_by || createdBy : null,
-        price_override_at: isOverride ? lead.price_override_at || new Date().toISOString() : null,
-        // null = released to Available Jobs (unpaid phone booking).
-        operational_status: null,
-        marketplace_visibility: 'hidden_from_partners',
-        status: 'Booked',
-        payment_status: 'unpaid',
-      })
-      .eq('id', quoteId)
+    const patch = buildLeadUnpaidJobPatch({
+      summary,
+      chargeable,
+      calculated,
+      lead,
+      createdBy,
+      existing: null,
+    })
+    const { error: priceErr } = await supabase.from('quotes').update(patch).eq('id', quoteId)
     if (priceErr) {
+      // Roll back orphan booking so we do not leave a half-created job.
+      try {
+        await supabase.from('quotes').delete().eq('id', quoteId)
+      } catch {
+        /* best effort */
+      }
       throw new Error(priceErr.message || 'Booking created but price fields failed to save.')
     }
   }
 
-  const wizard_data = buildConvertWizardData(lead, {
+  // Persist quote link before marking converted — second click updates this job instead of inserting another.
+  workingLead = await linkLeadQuoteIds(workingLead, quoteId, quoteRef)
+
+  return {
+    lead: workingLead,
+    quoteId,
+    quoteRef,
+    alreadyConverted: false,
     quoteCreatedByConvert,
     quoteBefore,
     quoteIdBefore,
+  }
+}
+
+/**
+ * Ensure a lead-converted quote can enter Available Jobs as an unpaid phone booking.
+ * @param {string} quoteId
+ * @param {{ lead: Record<string, unknown>, createdBy: string, chargeable: number, calculated: number | null, summary: ReturnType<typeof getCustomerLeadBookingSummary> }} ctx
+ * @returns {Promise<{ alreadyVisible: boolean, quote: Record<string, unknown> }>}
+ */
+async function ensureLeadQuoteReadyForAvailableJobs(quoteId, ctx) {
+  let row = await fetchQuoteByIdForAdmin(quoteId)
+  if (!row) throw new Error('Booking not found after convert.')
+
+  if (quotePassesAvailableJobsStrict(row)) {
+    return { alreadyVisible: true, quote: row }
+  }
+
+  const patch = buildLeadUnpaidJobPatch({
+    summary: ctx.summary,
+    chargeable: ctx.chargeable,
+    calculated: ctx.calculated,
+    lead: ctx.lead,
+    createdBy: ctx.createdBy,
+    existing: row,
+  })
+  const { error } = await supabase.from('quotes').update(patch).eq('id', quoteId)
+  if (error) {
+    throw new Error(error.message || 'Failed to prepare booking for Available Jobs.')
+  }
+
+  row = await fetchQuoteByIdForAdmin(quoteId)
+  if (row && quotePassesAvailableJobsStrict(row)) {
+    return { alreadyVisible: true, quote: row }
+  }
+
+  // Last resort: stage as pending then release (same path as New phone booking).
+  await supabase
+    .from('quotes')
+    .update({ operational_status: PHONE_BOOKING_PENDING_OPERATIONAL_STATUS })
+    .eq('id', quoteId)
+
+  return { alreadyVisible: false, quote: (await fetchQuoteByIdForAdmin(quoteId)) || row }
+}
+
+/**
+ * Mark lead converted only after the unpaid job is confirmed in Available Jobs.
+ * @param {{
+ *   lead: Record<string, unknown>,
+ *   quoteId: string,
+ *   quoteRef: string,
+ *   quoteCreatedByConvert: boolean,
+ *   quoteBefore: Record<string, unknown> | null,
+ *   quoteIdBefore: string | null,
+ * }} p
+ */
+async function markLeadConvertedAfterJobReady(p) {
+  const wizard_data = buildConvertWizardData(p.lead, {
+    quoteCreatedByConvert: p.quoteCreatedByConvert,
+    quoteBefore: p.quoteBefore,
+    quoteIdBefore: p.quoteIdBefore,
   })
 
-  const updated = await updateCustomerLeadById(String(lead.id), {
-    quote_id: quoteId,
-    quote_ref: quoteRef,
+  const updated = await updateCustomerLeadById(String(p.lead.id), {
+    quote_id: p.quoteId,
+    quote_ref: p.quoteRef,
     status: 'converted_to_booking',
     converted_at: new Date().toISOString(),
     recovery_stopped_at: null,
@@ -458,59 +645,13 @@ export async function convertCustomerLeadToBooking({ lead, createdBy }) {
     last_activity_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
   })
-
-  return { lead: updated, quoteId, quoteRef }
+  if (!updated) throw new Error('Job is ready but failed to mark the lead as converted.')
+  return updated
 }
 
 /**
- * Ensure a lead-converted quote can enter Available Jobs as an unpaid phone booking.
- * @param {string} quoteId
- * @returns {Promise<{ alreadyVisible: boolean }>}
- */
-async function ensureLeadQuoteReadyForAvailableJobs(quoteId) {
-  const row = await fetchQuoteByIdForAdmin(quoteId)
-  if (!row) throw new Error('Booking not found after convert.')
-
-  if (quotePassesAvailableJobsStrict(row)) {
-    return { alreadyVisible: true }
-  }
-
-  // Force unpaid phone booking released state (shows in Available Jobs).
-  const { error } = await supabase
-    .from('quotes')
-    .update({
-      source: ADMIN_PHONE_BOOKING_SOURCE,
-      operational_status: null,
-      marketplace_visibility: 'hidden_from_partners',
-      status: String(row.status || '') === 'Cancelled' ? row.status : 'Booked',
-      payment_status: 'unpaid',
-      assigned_driver_id: null,
-      assigned_driver_name: null,
-      assigned_partner_id: null,
-      bundled_journey_id: null,
-    })
-    .eq('id', quoteId)
-  if (error) {
-    throw new Error(error.message || 'Failed to prepare booking for Available Jobs.')
-  }
-
-  const updated = await fetchQuoteByIdForAdmin(quoteId)
-  if (!updated || !quotePassesAvailableJobsStrict(updated)) {
-    // Fall back to pending → release path used by New phone booking.
-    if (!quoteIsAdminPhoneBookingPending(updated || {})) {
-      await supabase
-        .from('quotes')
-        .update({ operational_status: PHONE_BOOKING_PENDING_OPERATIONAL_STATUS })
-        .eq('id', quoteId)
-    }
-    return { alreadyVisible: false }
-  }
-  return { alreadyVisible: true }
-}
-
-/**
- * Convert lead → unpaid phone booking using saved lead details, then optionally
- * release straight to Available Jobs (no re-typing addresses).
+ * Convert lead → unpaid phone booking using saved lead details, then release to Available Jobs.
+ * Atomic: lead is marked converted only after the job passes Available Jobs checks.
  * @param {{
  *   lead: Record<string, unknown>,
  *   createdBy: string,
@@ -522,26 +663,69 @@ export async function convertCustomerLeadToUnpaidJob({
   createdBy,
   releaseToAvailableJobs = true,
 }) {
+  const summary = getCustomerLeadBookingSummary(lead)
+  const chargeable = resolveChargeableTotal(lead)
+  const calculated = resolveCalculatedTotal(lead)
+
   const result = await convertCustomerLeadToBooking({ lead, createdBy })
   if (!releaseToAvailableJobs || !result.quoteId) {
     return { ...result, releasedToAvailableJobs: false }
   }
 
-  const ready = await ensureLeadQuoteReadyForAvailableJobs(result.quoteId)
-  if (ready.alreadyVisible) {
+  if (result.alreadyConverted) {
     return { ...result, releasedToAvailableJobs: true, alreadyReleased: true }
   }
 
+  let ready
   try {
-    await releaseAdminPhoneBookingToAvailableJobs(result.quoteId)
-    return { ...result, releasedToAvailableJobs: true }
+    ready = await ensureLeadQuoteReadyForAvailableJobs(result.quoteId, {
+      lead,
+      createdBy,
+      chargeable: chargeable ?? 0,
+      calculated,
+      summary,
+    })
   } catch (e) {
-    const msg = String(e?.message || e || '')
-    // Already released earlier — treat as success for this admin action.
-    if (/already in Available Jobs/i.test(msg)) {
-      return { ...result, releasedToAvailableJobs: true, alreadyReleased: true }
-    }
     throw e
+  }
+
+  if (!ready.alreadyVisible) {
+    try {
+      await releaseAdminPhoneBookingToAvailableJobs(result.quoteId)
+    } catch (e) {
+      const msg = String(e?.message || e || '')
+      if (!/already in Available Jobs/i.test(msg)) {
+        const finalRow = await fetchQuoteByIdForAdmin(result.quoteId)
+        const why = explainAvailableJobsBlocker(finalRow)
+        throw new Error(
+          `Job ${result.quoteRef} was created but could not enter Available Jobs (${why || msg}). Lead was not marked converted.`,
+        )
+      }
+    }
+  }
+
+  const verified = await fetchQuoteByIdForAdmin(result.quoteId)
+  if (!verified || !quotePassesAvailableJobsStrict(verified)) {
+    const why = explainAvailableJobsBlocker(verified)
+    throw new Error(
+      `Job ${result.quoteRef} was created but is not visible in Available Jobs (${why}). Lead was not marked converted.`,
+    )
+  }
+
+  const updatedLead = await markLeadConvertedAfterJobReady({
+    lead,
+    quoteId: result.quoteId,
+    quoteRef: result.quoteRef,
+    quoteCreatedByConvert: result.quoteCreatedByConvert,
+    quoteBefore: result.quoteBefore,
+    quoteIdBefore: result.quoteIdBefore,
+  })
+
+  return {
+    ...result,
+    lead: updatedLead,
+    releasedToAvailableJobs: true,
+    alreadyReleased: ready.alreadyVisible,
   }
 }
 

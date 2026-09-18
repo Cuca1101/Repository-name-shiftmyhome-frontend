@@ -194,10 +194,10 @@ export default function CustomerLeadsAdmin() {
           releaseToAvailableJobs: true,
         })
         setActionMsg(
-          `Job ${result.quoteRef} created unpaid and sent to Available Jobs.`,
+          `Job ${result.quoteRef} created unpaid (£${Number(resolveChargeableTotal(row) || 0).toFixed(2)}) and sent to Available Jobs.`,
         )
         await load()
-        navigate(`/admin/available-jobs`)
+        navigate(`/admin/available-jobs/${encodeURIComponent(result.quoteId)}`)
       } catch (e) {
         setError(e?.message || 'Failed to create job from lead.')
       } finally {
