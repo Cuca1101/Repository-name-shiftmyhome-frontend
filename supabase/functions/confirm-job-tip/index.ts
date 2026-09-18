@@ -1,7 +1,6 @@
 import 'jsr:@supabase/functions-js/edge-runtime.d.ts'
 import { createClient } from 'npm:@supabase/supabase-js@2'
-import { sendResendEmail } from '../_shared/resendClient.ts'
-import { buildJobCustomerEmailHtml, trackingUrl } from '../_shared/jobCustomerNotify.ts'
+import { applyJobTipPaidFromCheckout } from '../_shared/confirmJobTipPaid.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -39,61 +38,11 @@ Deno.serve(async (req) => {
   }
 
   const tipId = String(session.metadata?.tip_id || '').trim()
-  const quoteId = String(session.metadata?.quote_id || '').trim()
   if (!tipId) return jsonResponse({ error: 'missing tip metadata' }, 400)
 
   const supabase = createClient(supabaseUrl, serviceRole)
-  const { data: tip } = await supabase.from('job_tips').select('*').eq('id', tipId).maybeSingle()
-  if (!tip) return jsonResponse({ error: 'tip_not_found' }, 404)
+  const result = await applyJobTipPaidFromCheckout(supabase, tipId, session)
+  if (!result.ok) return jsonResponse({ error: result.error || 'tip_confirm_failed' }, 400)
 
-  if (tip.status !== 'paid') {
-    const paidAt = new Date().toISOString()
-    await supabase
-      .from('job_tips')
-      .update({
-        status: 'paid',
-        paid_at: paidAt,
-        stripe_payment_intent_id:
-          typeof session.payment_intent === 'string' ? session.payment_intent : tip.stripe_payment_intent_id,
-        updated_at: paidAt,
-      })
-      .eq('id', tipId)
-
-    const qid = quoteId || tip.quote_id
-    const { data: paidTips } = await supabase
-      .from('job_tips')
-      .select('amount_gbp')
-      .eq('quote_id', qid)
-      .eq('status', 'paid')
-    const tipTotal = (paidTips || []).reduce((s, t) => s + Number(t.amount_gbp || 0), 0)
-
-    await supabase
-      .from('quotes')
-      .update({ tip_total_gbp: tipTotal, tip_paid_at: paidAt })
-      .eq('id', qid)
-
-    const { data: quote } = await supabase.from('quotes').select('email, full_name, quote_ref').eq('id', qid).maybeSingle()
-    const email = String(quote?.email || tip.customer_email || '').trim()
-    const token = String(tip.tracking_token || session.metadata?.tracking_token || '')
-    if (email) {
-      const html = buildJobCustomerEmailHtml({
-        title: 'Tip payment received',
-        intro: `Hi ${String(quote?.full_name || 'there')}, thank you — your optional tip of £${Number(tip.amount_gbp).toFixed(2)} has been received.`,
-        rows: [
-          { label: 'Booking', value: String(quote?.quote_ref || '') },
-          { label: 'Tip amount', value: `£${Number(tip.amount_gbp).toFixed(2)}` },
-        ],
-        primaryCta: token ? { label: 'View My Booking', url: trackingUrl(token) } : undefined,
-      })
-      await sendResendEmail({
-        to: email,
-        subject: `[ShiftMyHome] Tip received (${quote?.quote_ref || 'booking'})`,
-        html,
-        text: `Tip of £${Number(tip.amount_gbp).toFixed(2)} received.`,
-        logTag: 'job-tip-confirmation',
-      })
-    }
-  }
-
-  return jsonResponse({ ok: true, tip_id: tipId, amount_gbp: tip.amount_gbp })
+  return jsonResponse({ ok: true, tip_id: result.tip_id, amount_gbp: result.amount_gbp })
 })

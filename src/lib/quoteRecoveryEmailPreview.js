@@ -96,12 +96,12 @@ export function buildQuoteRecoveryEmailPreview(data) {
     <h2 style="font-size:15px;margin:0 0 8px;color:#0f172a;">Inventory</h2>
     <table width="100%" style="font-size:14px;color:#334155;margin-bottom:20px;">${invRows}</table>
     <p style="margin:0 0 12px;">
-      <a href="${esc(resumeUrl)}" style="display:inline-block;background:#0284c7;color:#fff;text-decoration:none;font-weight:700;padding:12px 18px;border-radius:10px;">Resume Quote</a>
+      <a href="${esc(resumeUrl)}" target="_blank" rel="noopener noreferrer" style="display:inline-block;background:#0284c7;color:#fff;text-decoration:none;font-weight:700;padding:12px 18px;border-radius:10px;">Resume Quote</a>
     </p>
     <p style="margin:0 0 16px;">
-      <a href="${esc(payUrl)}" style="display:inline-block;background:#0f172a;color:#fff;text-decoration:none;font-weight:700;padding:12px 18px;border-radius:10px;">${kind === 'payment_failed' ? 'Retry Payment' : 'Pay Now'}</a>
+      <a href="${esc(payUrl)}" target="_blank" rel="noopener noreferrer" style="display:inline-block;background:#0f172a;color:#fff;text-decoration:none;font-weight:700;padding:12px 18px;border-radius:10px;">${kind === 'payment_failed' ? 'Retry Payment' : 'Pay Now'}</a>
     </p>
-    <p style="margin:0;font-size:12px;color:#94a3b8;">ShiftMyHome · <a href="${esc(siteUrl)}" style="color:#64748b;">${esc(siteUrl.replace(/^https?:\/\//, ''))}</a></p>
+    <p style="margin:0;font-size:12px;color:#94a3b8;">ShiftMyHome · <a href="${esc(siteUrl)}" target="_blank" rel="noopener noreferrer" style="color:#64748b;">${esc(siteUrl.replace(/^https?:\/\//, ''))}</a></p>
   </div>
 </body></html>`
 

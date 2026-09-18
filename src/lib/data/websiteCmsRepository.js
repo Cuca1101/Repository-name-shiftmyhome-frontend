@@ -55,6 +55,11 @@ export async function fetchWebsiteCmsPublic() {
       navbar: mergeSection(DEFAULT_NAVBAR, row?.navbar),
       footer: mergeSection(DEFAULT_FOOTER, row?.footer),
       announcement: normalizeAnnouncement(row?.announcement),
+      ops: {
+        google_review_url:
+          String(row?.ops?.google_review_url || '').trim() ||
+          'https://g.page/r/CWmwRUPz2dC7EAE/review',
+      },
       serviceCards: cardsRes.data?.length ? cardsRes.data : null,
       reviews: reviewsRes.data?.length ? reviewsRes.data : null,
       galleryItems: galleryItems?.length ? galleryItems : null,
@@ -93,6 +98,11 @@ export async function fetchWebsiteCmsAdmin() {
       navbar: mergeSection(DEFAULT_NAVBAR, row?.navbar),
       footer: mergeSection(DEFAULT_FOOTER, row?.footer),
       announcement: normalizeAnnouncement(row?.announcement),
+      ops: {
+        google_review_url:
+          String(row?.ops?.google_review_url || '').trim() ||
+          'https://g.page/r/CWmwRUPz2dC7EAE/review',
+      },
     },
     serviceCards: cardsRes.data ?? [],
     reviews: reviewsRes.data ?? [],

@@ -84,6 +84,16 @@ export async function sendJobCustomerNotify(quoteId, eventKey, opts = {}) {
   return data
 }
 
+/** Drain pending job_customer_notify_queue (driver status → email). */
+export async function drainJobCustomerNotifyQueue() {
+  if (!isSupabaseConfigured || !supabase) return null
+  const { data, error } = await supabase.functions.invoke('process-job-customer-notify', {
+    body: { process_queue: true },
+  })
+  if (error) throw new Error(error.message || 'Queue drain failed')
+  return data
+}
+
 /**
  * @param {string} quoteId
  */

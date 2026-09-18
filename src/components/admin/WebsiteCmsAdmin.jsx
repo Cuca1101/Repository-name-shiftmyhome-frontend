@@ -115,6 +115,7 @@ export default function WebsiteCmsAdmin() {
   const [navbar, setNavbar] = useState({})
   const [footer, setFooter] = useState({})
   const [announcement, setAnnouncement] = useState({})
+  const [ops, setOps] = useState({ google_review_url: '' })
   const [serviceCards, setServiceCards] = useState([])
   const [reviews, setReviews] = useState([])
   const [galleryItems, setGalleryItems] = useState([])
@@ -133,6 +134,7 @@ export default function WebsiteCmsAdmin() {
       setNavbar(data.settings.navbar)
       setFooter(data.settings.footer)
       setAnnouncement(data.settings.announcement)
+      setOps(data.settings.ops || { google_review_url: '' })
       setServiceCards(data.serviceCards)
       setReviews(data.reviews)
       setGalleryItems(data.galleryItems ?? [])
@@ -586,6 +588,38 @@ export default function WebsiteCmsAdmin() {
 
       {tab === 'reviews' && (
         <div className="space-y-4">
+          <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm space-y-4">
+            <h3 className="font-bold text-slate-900">Google Business review link</h3>
+            <p className="text-sm text-slate-600">
+              Used on the job-completed thank-you email (“Leave us a Google Review”). Paste your
+              official Google leave-a-review URL — customers go straight to Google, not an internal
+              form.
+            </p>
+            <Field
+              label="Google Review URL"
+              hint="Example: https://g.page/r/.../review or https://search.google.com/local/writereview?placeid=..."
+            >
+              <input
+                className={inputClass}
+                value={ops.google_review_url || ''}
+                onChange={(e) => setOps({ ...ops, google_review_url: e.target.value })}
+                placeholder="https://g.page/r/.../review"
+              />
+            </Field>
+            <button
+              type="button"
+              disabled={saving}
+              onClick={() =>
+                saveSection('ops', {
+                  google_review_url: String(ops.google_review_url || '').trim(),
+                })
+              }
+              className="rounded-xl bg-brand-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-60"
+            >
+              {saving ? 'Saving…' : 'Save Google Review URL'}
+            </button>
+          </div>
+
           <button
             type="button"
             onClick={() =>

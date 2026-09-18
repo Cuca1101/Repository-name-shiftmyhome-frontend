@@ -18,6 +18,7 @@ import { mergedAdminWorkflowForQuote } from '../../lib/quoteAdminWorkflowMerge'
 import { isSupabaseConfigured } from '../../lib/supabase'
 import { loadAvailableJobAdminOverrides, saveAvailableJobAdminOverrides } from '../../lib/availableJobLocalStore'
 import { findLinkedJobForQuote, quoteIsCancelled, quoteIsCompleted } from '../../lib/adminWorkflowFilters'
+import { drainJobCustomerNotifyQueue, sendJobCustomerNotify } from '../../lib/jobCustomerTracking'
 
 const OPS_MARKETPLACE = 'Available / Marketplace'
 
@@ -174,6 +175,17 @@ const AdminJobOverrideActions = forwardRef(function AdminJobOverrideActions(
         const driverId = quote?.assigned_driver_id != null ? String(quote.assigned_driver_id) : ''
         if (driverId) {
           await syncJobAssignmentFromQuoteAssign(id, driverId, quote, { assignmentStatus: 'Completed' })
+        }
+        // Immediate thank-you email (DB also queues status_completed). Idempotent once-only.
+        try {
+          await sendJobCustomerNotify(id, 'status_completed')
+        } catch (notifyErr) {
+          console.warn('[mark-completed] completion email', notifyErr?.message || notifyErr)
+        }
+        try {
+          await drainJobCustomerNotifyQueue()
+        } catch {
+          /* optional */
         }
       } else {
         persistLocal({

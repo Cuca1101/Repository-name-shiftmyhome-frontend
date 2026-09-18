@@ -9,6 +9,7 @@ import {
   trackingClient,
 } from '../lib/jobCustomerTracking'
 import { resolveJobPhotoDisplayMeta } from '../lib/jobPhotoDisplayMeta'
+import { GOOGLE_LEAVE_REVIEW_URL } from '../lib/reviews/externalReviews'
 import 'mapbox-gl/dist/mapbox-gl.css'
 
 const POLL_MS = 15000
@@ -312,20 +313,29 @@ export default function JobTrackingPortalPage() {
 
           {completed ? (
             <Section title="After your move">
-              <div className="flex flex-col gap-2 sm:flex-row">
-                <Link
-                  to={`/track/${token}/feedback`}
+              <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+                <a
+                  href={GOOGLE_LEAVE_REVIEW_URL}
+                  target="_blank"
+                  rel="noopener noreferrer"
                   className="inline-flex min-h-[44px] flex-1 items-center justify-center rounded-xl bg-brand-600 px-4 text-sm font-bold text-white"
                 >
-                  Leave Feedback
-                </Link>
+                  ⭐ Leave us a Google Review
+                </a>
                 <Link
                   to={`/track/${token}/tip`}
                   className="inline-flex min-h-[44px] flex-1 items-center justify-center rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-800"
                 >
-                  Leave a Tip
+                  💷 Leave a Tip
+                </Link>
+                <Link
+                  to={`/track/${token}/feedback`}
+                  className="inline-flex min-h-[44px] flex-1 items-center justify-center rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-800"
+                >
+                  Leave Feedback
                 </Link>
               </div>
+              <p className="text-xs text-slate-500">Tips are optional and separate from your booking payment.</p>
               {data.feedback_submitted ? (
                 <p className="text-sm text-emerald-700">Thanks — feedback received.</p>
               ) : null}

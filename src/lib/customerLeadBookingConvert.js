@@ -1,12 +1,10 @@
-/**
- * Convert a customer lead into a quotes booking using the admin agreed price.
- */
 import {
   resolveCalculatedTotal,
   resolveChargeableTotal,
 } from './adminAgreedPrice'
 import {
   ADMIN_PHONE_BOOKING_SOURCE,
+  ADMIN_PHONE_BOOKING_SOURCES,
   PHONE_BOOKING_PENDING_OPERATIONAL_STATUS,
   insertAdminPhoneBooking,
 } from './data/quotesRepository'
@@ -16,8 +14,12 @@ import {
   releaseAdminPhoneBookingToAvailableJobs,
 } from './data/quotesAdminRepository'
 import {
-  quoteIsAdminPhoneBookingPending,
+  quoteHasAssignedDriver,
+  quoteHasAssignedPartner,
+  quoteIsAdminPhoneBooking,
+  quoteIsCardPaid,
   quotePassesAvailableJobsStrict,
+  quoteIsAdminPhoneBookingPending,
 } from './adminJobListRules'
 import { isSupabaseConfigured, supabase } from './supabase'
 import {
@@ -26,6 +28,118 @@ import {
 } from './emailQuotePayload'
 import { resolveServiceLabel } from './normalizeServiceType'
 
+/** Stored on lead.wizard_data so Undo can restore prior lead + quote shape. */
+const CONVERT_SNAPSHOT_KEY = '_smh_admin_convert'
+
+const RESTORABLE_LEAD_STATUSES = new Set([
+  'new_lead',
+  'quote_started',
+  'quote_viewed',
+  'payment_started',
+  'abandoned',
+  'payment_failed',
+])
+
+/**
+ * @param {Record<string, unknown> | null | undefined} lead
+ * @returns {Record<string, unknown>}
+ */
+function wizardDataObject(lead) {
+  return lead?.wizard_data && typeof lead.wizard_data === 'object' && !Array.isArray(lead.wizard_data)
+    ? { ...lead.wizard_data }
+    : {}
+}
+
+/**
+ * @param {Record<string, unknown> | null | undefined} lead
+ */
+function readConvertSnapshot(lead) {
+  const wd = wizardDataObject(lead)
+  const snap = wd[CONVERT_SNAPSHOT_KEY]
+  return snap && typeof snap === 'object' ? snap : null
+}
+
+/**
+ * @param {Record<string, unknown>} quote
+ */
+function quoteSnapshotFields(quote) {
+  return {
+    source: quote.source ?? null,
+    status: quote.status ?? null,
+    payment_status: quote.payment_status ?? null,
+    operational_status: quote.operational_status ?? null,
+    marketplace_visibility: quote.marketplace_visibility ?? null,
+    calculated_total: quote.calculated_total ?? null,
+    estimated_total: quote.estimated_total ?? null,
+    agreed_price: quote.agreed_price ?? null,
+    remaining_balance: quote.remaining_balance ?? null,
+    price_override_reason: quote.price_override_reason ?? null,
+    price_override_by: quote.price_override_by ?? null,
+    price_override_at: quote.price_override_at ?? null,
+  }
+}
+
+/**
+ * @param {Record<string, unknown>} lead
+ * @param {{ quoteCreatedByConvert: boolean, quoteBefore: Record<string, unknown> | null, quoteIdBefore: string | null }} meta
+ */
+function buildConvertWizardData(lead, meta) {
+  const wd = wizardDataObject(lead)
+  const previousRaw = String(lead.status || 'abandoned')
+  const previousStatus =
+    previousRaw === 'converted_to_booking'
+      ? String(readConvertSnapshot(lead)?.previousStatus || 'abandoned')
+      : previousRaw
+  const safePrevious = RESTORABLE_LEAD_STATUSES.has(previousStatus) ? previousStatus : 'abandoned'
+
+  return {
+    ...wd,
+    [CONVERT_SNAPSHOT_KEY]: {
+      previousStatus: safePrevious,
+      quoteIdBefore: meta.quoteIdBefore,
+      quoteCreatedByConvert: Boolean(meta.quoteCreatedByConvert),
+      quoteBefore: meta.quoteBefore,
+      at: new Date().toISOString(),
+    },
+  }
+}
+
+/**
+ * @param {Record<string, unknown>} lead
+ * @param {Record<string, unknown> | null} [quote]
+ */
+export function canRevertCustomerLeadConversion(lead, quote = null) {
+  if (!lead?.id) return { ok: false, reason: 'Lead not found.' }
+  if (String(lead.status || '') !== 'converted_to_booking') {
+    return { ok: false, reason: 'Lead is not converted.' }
+  }
+  if (!lead.quote_id) {
+    return { ok: true, reason: '' }
+  }
+  if (!quote) {
+    return { ok: true, reason: '' }
+  }
+  if (quoteIsCardPaid(quote)) {
+    return { ok: false, reason: 'This booking was paid by card — cannot undo.' }
+  }
+  if (quoteHasAssignedDriver(quote) || quoteHasAssignedPartner(quote)) {
+    return { ok: false, reason: 'Job is already assigned — unassign first.' }
+  }
+  if (quote.bundled_journey_id) {
+    return { ok: false, reason: 'Job is on a journey bundle — cannot undo.' }
+  }
+  const paidAt = quote.paid_at
+  const stripeSession = String(quote.stripe_session_id || '').trim()
+  const stripePi = String(quote.stripe_payment_intent_id || '').trim()
+  if (paidAt || stripeSession || stripePi) {
+    return { ok: false, reason: 'Booking has card payment records — cannot undo.' }
+  }
+  const ps = String(quote.payment_status || '').trim().toLowerCase()
+  if (ps && ps !== 'unpaid') {
+    return { ok: false, reason: 'Only unpaid (not card-paid) conversions can be undone.' }
+  }
+  return { ok: true, reason: '' }
+}
 /**
  * @param {Record<string, unknown>} lead
  */
@@ -242,13 +356,20 @@ export async function convertCustomerLeadToBooking({ lead, createdBy }) {
 
   let quoteId = lead.quote_id ? String(lead.quote_id) : null
   let quoteRef = String(lead.quote_ref || '').trim()
+  let quoteCreatedByConvert = !quoteId
+  /** @type {Record<string, unknown> | null} */
+  let quoteBefore = null
+  const quoteIdBefore = quoteId
 
   if (quoteId) {
     const existing = await fetchQuoteByIdForAdmin(quoteId)
     if (!existing) {
       // Stale quote_id on lead — create a fresh phone booking instead.
       quoteId = null
+      quoteCreatedByConvert = true
     } else {
+      quoteBefore = quoteSnapshotFields(existing)
+      quoteCreatedByConvert = false
       const { error } = await supabase
         .from('quotes')
         .update({
@@ -299,6 +420,7 @@ export async function convertCustomerLeadToBooking({ lead, createdBy }) {
     }
     quoteId = String(created.id)
     quoteRef = String(created.quote_ref)
+    quoteCreatedByConvert = true
 
     // Attach agreed/calculated totals (insertAdminPhoneBooking stores estimated via payment_mode).
     const { error: priceErr } = await supabase
@@ -325,12 +447,19 @@ export async function convertCustomerLeadToBooking({ lead, createdBy }) {
     }
   }
 
+  const wizard_data = buildConvertWizardData(lead, {
+    quoteCreatedByConvert,
+    quoteBefore,
+    quoteIdBefore,
+  })
+
   const updated = await updateCustomerLeadById(String(lead.id), {
     quote_id: quoteId,
     quote_ref: quoteRef,
     status: 'converted_to_booking',
     converted_at: new Date().toISOString(),
     recovery_stopped_at: null,
+    wizard_data,
     last_activity_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
   })
@@ -418,5 +547,139 @@ export async function convertCustomerLeadToUnpaidJob({
       return { ...result, releasedToAvailableJobs: true, alreadyReleased: true }
     }
     throw e
+  }
+}
+
+/**
+ * Delete an unpaid phone-booking quote created for a lead convert (Available Jobs or pending).
+ * @param {string} quoteId
+ */
+async function deleteUnpaidLeadPhoneBooking(quoteId) {
+  const { error } = await supabase
+    .from('quotes')
+    .delete()
+    .eq('id', quoteId)
+    .in('source', ADMIN_PHONE_BOOKING_SOURCES)
+    .eq('payment_status', 'unpaid')
+    .is('stripe_session_id', null)
+    .is('stripe_payment_intent_id', null)
+    .is('paid_at', null)
+    .is('assigned_driver_id', null)
+    .is('assigned_partner_id', null)
+    .is('bundled_journey_id', null)
+
+  if (error) throw new Error(error.message || 'Failed to remove unpaid job.')
+}
+
+/**
+ * Undo an unpaid (non-card) lead → Available Jobs conversion.
+ * Restores lead status and removes/unreleases the unpaid phone booking.
+ * @param {{ lead: Record<string, unknown> }} params
+ */
+export async function revertCustomerLeadConversion({ lead }) {
+  if (!isSupabaseConfigured || !supabase) {
+    throw new Error('Supabase is not configured.')
+  }
+  if (!lead?.id) throw new Error('Lead not found.')
+
+  const quoteId = lead.quote_id ? String(lead.quote_id) : null
+  let quote = null
+  if (quoteId) {
+    quote = await fetchQuoteByIdForAdmin(quoteId)
+  }
+
+  const gate = canRevertCustomerLeadConversion(lead, quote)
+  if (!gate.ok) throw new Error(gate.reason || 'Cannot undo this conversion.')
+
+  const snap = readConvertSnapshot(lead)
+  const previousStatus = RESTORABLE_LEAD_STATUSES.has(String(snap?.previousStatus || ''))
+    ? String(snap.previousStatus)
+    : 'abandoned'
+
+  let quoteDeleted = false
+  let quoteUnreleased = false
+
+  if (quoteId && quote) {
+    const createdByConvert = snap?.quoteCreatedByConvert === true
+    const hadPriorQuote =
+      Boolean(snap?.quoteIdBefore) && String(snap.quoteIdBefore) === quoteId
+
+    if (createdByConvert && !hadPriorQuote) {
+      await deleteUnpaidLeadPhoneBooking(quoteId)
+      quoteDeleted = true
+    } else if (snap?.quoteBefore && typeof snap.quoteBefore === 'object') {
+      const before = snap.quoteBefore
+      const { error } = await supabase
+        .from('quotes')
+        .update({
+          source: before.source ?? quote.source,
+          status: before.status ?? 'New',
+          payment_status: before.payment_status ?? 'unpaid',
+          operational_status:
+            before.operational_status ?? PHONE_BOOKING_PENDING_OPERATIONAL_STATUS,
+          marketplace_visibility: before.marketplace_visibility ?? 'hidden_from_partners',
+          calculated_total: before.calculated_total ?? quote.calculated_total,
+          estimated_total: before.estimated_total ?? quote.estimated_total,
+          agreed_price: before.agreed_price ?? null,
+          remaining_balance: before.remaining_balance ?? null,
+          price_override_reason: before.price_override_reason ?? null,
+          price_override_by: before.price_override_by ?? null,
+          price_override_at: before.price_override_at ?? null,
+          assigned_driver_id: null,
+          assigned_driver_name: null,
+          assigned_partner_id: null,
+          bundled_journey_id: null,
+        })
+        .eq('id', quoteId)
+      if (error) throw new Error(error.message || 'Failed to restore booking.')
+      quoteUnreleased = true
+    } else if (quoteIsAdminPhoneBooking(quote)) {
+      // No snapshot (older convert) — pull out of Available Jobs to pending staging.
+      const { error } = await supabase
+        .from('quotes')
+        .update({
+          operational_status: PHONE_BOOKING_PENDING_OPERATIONAL_STATUS,
+          marketplace_visibility: 'hidden_from_partners',
+          status: 'New',
+          payment_status: 'unpaid',
+          assigned_driver_id: null,
+          assigned_driver_name: null,
+          assigned_partner_id: null,
+          bundled_journey_id: null,
+        })
+        .eq('id', quoteId)
+      if (error) throw new Error(error.message || 'Failed to unrelease booking.')
+      quoteUnreleased = true
+    } else {
+      throw new Error('Linked booking is not an unpaid phone job — cannot undo safely.')
+    }
+  }
+
+  const wd = wizardDataObject(lead)
+  delete wd[CONVERT_SNAPSHOT_KEY]
+
+  const leadPatch = {
+    status: previousStatus,
+    converted_at: null,
+    recovery_stopped_at: null,
+    wizard_data: wd,
+    last_activity_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  }
+
+  if (quoteDeleted) {
+    leadPatch.quote_id = null
+    leadPatch.quote_ref = null
+  }
+
+  const updated = await updateCustomerLeadById(String(lead.id), leadPatch)
+  if (!updated) throw new Error('Failed to restore lead.')
+
+  return {
+    lead: updated,
+    previousStatus,
+    quoteDeleted,
+    quoteUnreleased,
+    quoteId: quoteDeleted ? null : quoteId,
   }
 }

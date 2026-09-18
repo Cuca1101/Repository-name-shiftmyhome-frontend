@@ -27,11 +27,13 @@ import {
 } from '../lib/adminAgreedPrice'
 import {
   convertCustomerLeadToUnpaidJob,
+  revertCustomerLeadConversion,
   saveCustomerLeadAgreedPrice,
 } from '../lib/customerLeadBookingConvert'
 import { isSupabaseConfigured, supabase } from '../lib/supabase'
 import { formatFloorLabel } from './quote-wizard/FloorSelect'
 import { formatAccessLiftLabel } from '../lib/floorAccess'
+import RecoveryEmailPreviewFrame from './admin/RecoveryEmailPreviewFrame'
 
 function DetailBlock({ title, children }) {
   return (
@@ -276,7 +278,8 @@ export default function CustomerLeadDetailAdmin() {
             `Create unpaid job at ${formatGbp(resolveChargeableTotal(lead))}?`,
             '',
             'Uses the saved lead details (addresses, inventory, date).',
-            'No payment required — job goes to Available Jobs.',
+            'No card payment — job goes to Available Jobs.',
+            'You can Undo convert later if still unpaid and unassigned.',
           ].join('\n'),
         )
       ) {
@@ -296,6 +299,39 @@ export default function CustomerLeadDetailAdmin() {
       navigate(`/admin/available-jobs/${encodeURIComponent(result.quoteId)}`)
     } catch (e) {
       setActionMsg(e?.message || 'Failed to create unpaid job.')
+    } finally {
+      setBusy('')
+    }
+  }
+
+  async function handleUndoConvert() {
+    setBusy('revert')
+    setActionMsg('')
+    try {
+      if (
+        !window.confirm(
+          [
+            'Undo convert?',
+            '',
+            'Lead goes back to how it was (not converted).',
+            'Unpaid job is removed from Available Jobs (only if unpaid and not assigned).',
+          ].join('\n'),
+        )
+      ) {
+        return
+      }
+      const result = await revertCustomerLeadConversion({ lead })
+      setActionMsg(
+        `Lead restored to ${CUSTOMER_LEAD_STATUS_LABELS[result.previousStatus] || result.previousStatus}.` +
+          (result.quoteDeleted
+            ? ' Unpaid job removed.'
+            : result.quoteUnreleased
+              ? ' Job pulled out of Available Jobs.'
+              : ''),
+      )
+      await load()
+    } catch (e) {
+      setActionMsg(e?.message || 'Failed to undo convert.')
     } finally {
       setBusy('')
     }
@@ -613,6 +649,17 @@ export default function CustomerLeadDetailAdmin() {
                 ? 'Send unpaid job to Available Jobs'
                 : 'Create unpaid job → Available Jobs'}
           </button>
+          {isConverted ? (
+            <button
+              type="button"
+              disabled={Boolean(busy)}
+              onClick={() => void handleUndoConvert()}
+              className="inline-flex min-h-[40px] items-center rounded-lg border border-amber-300 bg-amber-50 px-3 text-sm font-semibold text-amber-950 hover:bg-amber-100 disabled:opacity-50"
+              title="Restore lead and remove unpaid job from Available Jobs"
+            >
+              {busy === 'revert' ? 'Undoing…' : 'Undo convert'}
+            </button>
+          ) : null}
           <button
             type="button"
             disabled={Boolean(busy)}
@@ -714,8 +761,12 @@ export default function CustomerLeadDetailAdmin() {
 
       {previewHtml ? (
         <DetailBlock title="Email preview">
+          <p className="mb-2 text-xs text-slate-500">
+            Preview only — Pay Now / Resume open in a new tab. Checkout never loads inside this
+            preview.
+          </p>
           <div className="overflow-hidden rounded-lg border border-slate-200">
-            <iframe title="Recovery email preview" className="h-[480px] w-full bg-white" srcDoc={previewHtml} />
+            <RecoveryEmailPreviewFrame html={previewHtml} />
           </div>
           <button
             type="button"

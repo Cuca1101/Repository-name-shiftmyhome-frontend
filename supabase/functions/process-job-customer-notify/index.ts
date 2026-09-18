@@ -3,11 +3,12 @@ import { createClient } from 'npm:@supabase/supabase-js@2'
 import { sendResendEmail } from '../_shared/resendClient.ts'
 import { formatDateUK } from '../_shared/formatDateUK.ts'
 import {
+  buildJobCompletedThankYouEmailHtml,
   buildJobCustomerEmailHtml,
+  customerFirstName,
   customerStatusLabel,
-  evidenceUrl,
-  feedbackUrl,
   JOB_NOTIFY_EVENT_LABELS,
+  resolveGoogleReviewUrl,
   tipUrl,
   trackingUrl,
   type JobNotifyEventKey,
@@ -140,7 +141,9 @@ async function sendEventEmail(
   if (!bundle) return { ok: false, error: 'quote_not_found' }
 
   const { quote, driver, token } = bundle
-  if (!isPaid(quote.payment_status)) {
+  // Status updates (except completion) still require card payment.
+  // Completion thank-you also covers unpaid phone bookings (pay driver / office).
+  if (!isPaid(quote.payment_status) && eventKey !== 'status_completed' && eventKey !== 'tip_received') {
     return { ok: false, error: 'not_paid' }
   }
 
@@ -219,28 +222,15 @@ async function sendEventEmail(
       { label: 'Status', value: customerStatusLabel(eventKey.replace('status_', '')) },
     )
   } else if (eventKey === 'status_completed') {
-    title = 'Your move is complete'
-    intro = `Hi ${name}, your ShiftMyHome job has been completed successfully. Thank you for choosing us.`
-    subject = `[ShiftMyHome] Job completed — ${quoteRef}`
-    primary = { label: 'View Job Evidence', url: evidenceUrl(token) }
-    secondary = [
-      { label: 'Leave Feedback', url: feedbackUrl(token) },
-      { label: 'Leave a Tip', url: tipUrl(token) },
-    ]
-    const total =
-      quote.estimated_total != null && Number.isFinite(Number(quote.estimated_total))
-        ? `£${Number(quote.estimated_total).toFixed(2)}`
-        : quote.amount_paid != null
-          ? `£${Number(quote.amount_paid).toFixed(2)}`
-          : ''
-    rows.push(
-      { label: 'Customer', value: name },
-      { label: 'Driver', value: driverName },
-      { label: 'Pickup', value: String(quote.pickup_address || '').trim() },
-      { label: 'Delivery', value: String(quote.delivery_address || '').trim() },
-      { label: 'Completed', value: formatDateTimeUK(quote.completed_at || new Date().toISOString()) },
-      { label: 'Final price', value: total },
-    )
+    const first = customerFirstName(quote.full_name)
+    const googleReviewUrl = await resolveGoogleReviewUrl(supabase)
+    title = 'Thank you for choosing ShiftMyHome'
+    intro = `Hi ${first}, thank you for choosing ShiftMyHome for your move.`
+    subject = 'Thank you for choosing ShiftMyHome 🚚'
+    primary = { label: '⭐ Leave us a Google Review', url: googleReviewUrl }
+    secondary = [{ label: '💷 Leave a Tip', url: tipUrl(token) }]
+    // Dedicated HTML below — rows unused for this event
+    rows.length = 0
   } else if (eventKey === 'tip_received') {
     title = 'Tip payment received'
     intro = `Hi ${name}, thank you — your tip has been received.`
@@ -248,16 +238,43 @@ async function sendEventEmail(
     primary = { label: 'View My Booking', url: track }
   }
 
-  const html = buildJobCustomerEmailHtml({
-    title,
-    intro,
-    rows,
-    primaryCta: primary,
-    secondaryCtas: secondary,
-    footerNote: 'This link is private to your booking. Do not share it publicly.',
-  })
+  const html =
+    eventKey === 'status_completed'
+      ? buildJobCompletedThankYouEmailHtml({
+          firstName: customerFirstName(quote.full_name),
+          googleReviewUrl: primary.url,
+          tipPageUrl: tipUrl(token),
+        })
+      : buildJobCustomerEmailHtml({
+          title,
+          intro,
+          rows,
+          primaryCta: primary,
+          secondaryCtas: secondary,
+          footerNote: 'This link is private to your booking. Do not share it publicly.',
+        })
 
-  const text = [title, '', intro, ...rows.map((r) => `${r.label}: ${r.value}`), '', primary.url].join('\n')
+  const text =
+    eventKey === 'status_completed'
+      ? [
+          `Hi ${customerFirstName(quote.full_name)},`,
+          '',
+          'Thank you for choosing ShiftMyHome for your move. We hope everything went smoothly and that you were happy with the service provided by our team.',
+          '',
+          'Your feedback means a lot to us and helps other customers choose a reliable moving company.',
+          '',
+          `Leave us a Google Review: ${primary.url}`,
+          '',
+          'Would you like to thank your moving team?',
+          'If you feel the team did a great job, you can optionally leave them a tip. This is completely optional and there is absolutely no obligation.',
+          '',
+          `Leave a Tip: ${tipUrl(token)}`,
+          '',
+          'Thank you again for trusting ShiftMyHome with your move.',
+          'The ShiftMyHome Team',
+          'Moving made simple.',
+        ].join('\n')
+      : [title, '', intro, ...rows.map((r) => `${r.label}: ${r.value}`), '', primary.url].join('\n')
 
   const result = await sendResendEmail({
     to: email,
@@ -274,13 +291,24 @@ async function sendEventEmail(
     return { ok: false, error: result.error || 'resend_failed' }
   }
 
+  const sentAt = new Date().toISOString()
   await markNotificationResult(supabase, quoteId, eventKey, {
     delivery_status: 'sent',
     recipient_email: email,
     provider_message_id: result.resendId || null,
-    sent_at: new Date().toISOString(),
+    sent_at: sentAt,
     payload: { tracking_token: token, event_key: eventKey },
   })
+
+  if (eventKey === 'status_completed') {
+    await supabase
+      .from('quotes')
+      .update({
+        completion_email_sent: true,
+        completion_email_sent_at: sentAt,
+      })
+      .eq('id', quoteId)
+  }
 
   return { ok: true, resendId: result.resendId, token }
 }

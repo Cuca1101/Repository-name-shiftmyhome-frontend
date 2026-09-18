@@ -3,10 +3,11 @@ import { createClient } from 'npm:@supabase/supabase-js@2'
 import { updateQuoteFromPaymentIntent } from '../_shared/updateQuoteFromPaymentIntent.ts'
 import { sendPaymentConfirmationWithPdfIfNeeded } from '../_shared/paymentConfirmationEmail.ts'
 import { sendExtraChargePaidConfirmationEmail } from '../_shared/extraChargePaidConfirmationEmail.ts'
+import { applyJobTipPaidFromCheckout } from '../_shared/confirmJobTipPaid.ts'
 import { guardStripeSecretKey, respondStripeConfigFailure } from '../_shared/stripeSecretGuard.ts'
 
 /**
- * Stripe webhook for ShiftMyHome (embedded Payment Element + PaymentIntent).
+ * Stripe webhook for ShiftMyHome (embedded Payment Element + PaymentIntent + tip Checkout).
  *
  * Optional for customer-facing payments: quotes/jobs are updated by `verify-payment-intent`
  * when the customer reaches `/payment-success`. Configure this webhook for redundancy, emails,
@@ -20,6 +21,7 @@ import { guardStripeSecretKey, respondStripeConfigFailure } from '../_shared/str
  * Events to send:
  *   - payment_intent.succeeded
  *   - payment_intent.payment_failed
+ *   - checkout.session.completed  (optional tips via create-job-tip-checkout)
  * Copy signing secret → STRIPE_WEBHOOK_SECRET
  */
 
@@ -158,6 +160,21 @@ Deno.serve(async (req) => {
       })
     } else {
       await updateQuoteFromPaymentIntent(supabase, pi, 'failed')
+    }
+  }
+
+  // Optional tip Checkout Sessions (create-job-tip-checkout) — does not touch booking payment fields.
+  if (event.type === 'checkout.session.completed') {
+    const session = event.data.object as Stripe.Checkout.Session
+    if (session.metadata?.payment_type === 'tip' && session.metadata?.tip_id) {
+      const tipResult = await applyJobTipPaidFromCheckout(supabase, session.metadata.tip_id, session)
+      console.log('[stripe-webhook] tip checkout completed', {
+        tip_id: session.metadata.tip_id,
+        quote_id: session.metadata.quote_id || null,
+        ok: tipResult.ok,
+        already_paid: tipResult.alreadyPaid || false,
+        error: tipResult.error || null,
+      })
     }
   }
 

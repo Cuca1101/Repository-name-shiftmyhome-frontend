@@ -34,6 +34,7 @@ import AdminJobQuoteDetailsPanel from './admin-workflow/AdminJobQuoteDetailsPane
 import { buildAdminJobQuoteDetailsViewModel } from '../lib/adminJobQuoteDetailsViewModel'
 import AdminJobDetailsSidebar from './admin-workflow/AdminJobDetailsSidebar'
 import AdminJobCustomerComms from './admin-workflow/AdminJobCustomerComms'
+import AdminJobEmailsSentPanel from './admin-workflow/AdminJobEmailsSentPanel'
 import JobDispatchControlPanel from './admin-workflow/JobDispatchControlPanel'
 import JobDispatchDetailExtras from './admin-workflow/JobDispatchDetailExtras'
 import JobExtraChargesPanel from './admin-workflow/JobExtraChargesPanel'
@@ -557,6 +558,11 @@ export default function AvailableJobDetails() {
               <JobAcceptedPayoutEditor q={q} onUpdated={load} />
             </AdminCard>
           ) : null}
+          {(fullPageDispatch || tab === 'overview') && q?.id ? (
+            <AdminCard title="Emails sent to customer">
+              <AdminJobEmailsSentPanel quoteId={q.id} />
+            </AdminCard>
+          ) : null}
           {fullPageDispatch ? (
             <JobDispatchDetailExtras
               q={q}
@@ -735,7 +741,7 @@ export default function AvailableJobDetails() {
             )}
           </AdminCard>
 
-          <AdminCard title="Customer communication">
+          <AdminCard title="Completion Follow-up & customer communication">
             <AdminJobCustomerComms quote={q} onRefresh={() => void load()} />
           </AdminCard>
 

@@ -3,7 +3,7 @@ import { Link, useParams, useSearchParams } from 'react-router-dom'
 import SeoHead from '../components/seo/SeoHead'
 import { trackingClient } from '../lib/jobCustomerTracking'
 
-const SUGGESTED = [5, 10, 15, 20]
+const SUGGESTED = [5, 10, 20, 30]
 
 export default function JobTipPage() {
   const { token } = useParams()
@@ -65,7 +65,8 @@ export default function JobTipPage() {
         </Link>
         <h1 className="mt-4 text-2xl font-bold text-slate-900">Leave a tip</h1>
         <p className="mt-2 text-sm text-slate-600">
-          Tips are optional and separate from your booking payment. 100% goes to your driver where applicable.
+          Tips are completely optional — there is absolutely no obligation. Tips are separate from
+          your booking payment and do not change your invoice or outstanding balance.
         </p>
 
         {paidMsg ? (
@@ -92,9 +93,23 @@ export default function JobTipPage() {
                   £{n}
                 </button>
               ))}
+              <button
+                type="button"
+                onClick={() => {
+                  setCustom(custom || '')
+                  setAmount(0)
+                }}
+                className={`min-h-[44px] rounded-xl border px-4 text-sm font-semibold ${
+                  custom
+                    ? 'border-brand-600 bg-brand-50 text-brand-800'
+                    : 'border-slate-200 bg-white text-slate-800'
+                }`}
+              >
+                Other amount
+              </button>
             </div>
             <label className="block">
-              <span className="text-sm font-medium text-slate-700">Custom amount (£)</span>
+              <span className="text-sm font-medium text-slate-700">Other amount (£)</span>
               <input
                 type="number"
                 min="1"
@@ -102,7 +117,7 @@ export default function JobTipPage() {
                 className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2.5"
                 value={custom}
                 onChange={(e) => setCustom(e.target.value)}
-                placeholder="e.g. 12.50"
+                placeholder="Enter amount"
               />
             </label>
             {err ? <p className="text-sm text-red-700">{err}</p> : null}
@@ -114,6 +129,7 @@ export default function JobTipPage() {
             >
               {busy ? 'Opening Stripe…' : 'Pay tip securely'}
             </button>
+            <p className="text-center text-xs text-slate-500">Optional · Secured by Stripe · Separate from your booking</p>
           </div>
         )}
       </div>

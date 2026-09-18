@@ -83,12 +83,85 @@ export function evidenceUrl(token: string) {
   return `${siteBaseUrl()}/track/${token}?view=evidence`
 }
 
+/** Default Google Business leave-review URL (overridden by website_settings.ops). */
+export const DEFAULT_GOOGLE_REVIEW_URL = 'https://g.page/r/CWmwRUPz2dC7EAE/review'
+
+/**
+ * Resolve Google review URL from website_settings.ops (admin-editable).
+ * @param supabase service-role client
+ */
+export async function resolveGoogleReviewUrl(
+  // deno-lint-ignore no-explicit-any
+  supabase: any,
+): Promise<string> {
+  try {
+    const { data } = await supabase
+      .from('website_settings')
+      .select('ops')
+      .eq('id', 'default')
+      .maybeSingle()
+    const fromOps = String(data?.ops?.google_review_url || '').trim()
+    if (fromOps.startsWith('http://') || fromOps.startsWith('https://')) return fromOps
+  } catch {
+    /* ignore */
+  }
+  const envUrl = String(Deno.env.get('GOOGLE_REVIEWS_URL') || '').trim()
+  if (envUrl.startsWith('http://') || envUrl.startsWith('https://')) return envUrl
+  return DEFAULT_GOOGLE_REVIEW_URL
+}
+
+export function customerFirstName(fullName: unknown): string {
+  const n = String(fullName || '').trim()
+  if (!n) return 'there'
+  return n.split(/\s+/)[0] || 'there'
+}
+
 function esc(v: unknown) {
   return String(v ?? '')
     .replaceAll('&', '&amp;')
     .replaceAll('<', '&lt;')
     .replaceAll('>', '&gt;')
     .replaceAll('"', '&quot;')
+}
+
+/**
+ * Dedicated thank-you / Google review / optional tip email (job completed).
+ */
+export function buildJobCompletedThankYouEmailHtml(params: {
+  firstName: string
+  googleReviewUrl: string
+  tipPageUrl: string
+}) {
+  const name = esc(params.firstName)
+  const reviewUrl = esc(params.googleReviewUrl)
+  const tipUrlSafe = esc(params.tipPageUrl)
+
+  return `<!doctype html><html><body style="margin:0;background:#f8fafc;font-family:Inter,Segoe UI,Arial,sans-serif;color:#0f172a;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f8fafc;padding:24px 12px;"><tr><td align="center">
+  <table width="560" style="max-width:560px;width:100%;background:#fff;border:1px solid #e2e8f0;border-radius:12px;"><tr><td style="padding:28px 24px;">
+    <p style="margin:0 0 16px;font-size:15px;line-height:1.55;color:#334155;">Hi ${name},</p>
+    <p style="margin:0 0 16px;font-size:15px;line-height:1.55;color:#334155;">
+      Thank you for choosing ShiftMyHome for your move. We hope everything went smoothly and that you were happy with the service provided by our team.
+    </p>
+    <p style="margin:0 0 20px;font-size:15px;line-height:1.55;color:#334155;">
+      Your feedback means a lot to us and helps other customers choose a reliable moving company.
+    </p>
+    <p style="margin:0 0 24px;">
+      <a href="${reviewUrl}" style="display:inline-block;background:#0284c7;color:#ffffff;text-decoration:none;font-weight:700;padding:14px 20px;border-radius:10px;font-size:15px;">⭐ Leave us a Google Review</a>
+    </p>
+    <p style="margin:0 0 8px;font-size:16px;font-weight:700;color:#0f172a;">Would you like to thank your moving team?</p>
+    <p style="margin:0 0 16px;font-size:14px;line-height:1.55;color:#475569;">
+      If you feel the team did a great job, you can optionally leave them a tip. This is completely optional and there is absolutely no obligation.
+    </p>
+    <p style="margin:0 0 24px;">
+      <a href="${tipUrlSafe}" style="display:inline-block;background:#0f172a;color:#ffffff;text-decoration:none;font-weight:700;padding:14px 20px;border-radius:10px;font-size:15px;">💷 Leave a Tip</a>
+    </p>
+    <p style="margin:0 0 8px;font-size:15px;line-height:1.55;color:#334155;">Thank you again for trusting ShiftMyHome with your move.</p>
+    <p style="margin:0 0 4px;font-size:15px;font-weight:600;color:#0f172a;">The ShiftMyHome Team</p>
+    <p style="margin:0;font-size:13px;color:#94a3b8;">Moving made simple.</p>
+  </td></tr></table>
+  </td></tr></table>
+</body></html>`
 }
 
 export function buildJobCustomerEmailHtml(params: {

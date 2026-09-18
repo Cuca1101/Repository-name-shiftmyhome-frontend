@@ -11,6 +11,7 @@ import { formatGbp, resolveChargeableTotal } from '../lib/adminAgreedPrice'
 import {
   convertCustomerLeadToUnpaidJob,
   getCustomerLeadBookingSummary,
+  revertCustomerLeadConversion,
 } from '../lib/customerLeadBookingConvert'
 import { isSupabaseConfigured, supabase } from '../lib/supabase'
 
@@ -86,6 +87,7 @@ export default function CustomerLeadsAdmin() {
   const [error, setError] = useState('')
   const [deletingId, setDeletingId] = useState('')
   const [convertingId, setConvertingId] = useState('')
+  const [revertingId, setRevertingId] = useState('')
   const [actionMsg, setActionMsg] = useState('')
 
   useEffect(() => {
@@ -144,11 +146,6 @@ export default function CustomerLeadsAdmin() {
       setError('')
       setActionMsg('')
 
-      if (row.quote_id) {
-        navigate(`/admin/quote-requests/${row.quote_id}`)
-        return
-      }
-
       const chargeable = resolveChargeableTotal(row)
       if (chargeable == null || chargeable < 1) {
         navigate(`/admin/customer-leads/${row.id}`)
@@ -169,10 +166,11 @@ export default function CustomerLeadsAdmin() {
           '',
           `Pickup: ${summary.pickupAddress}`,
           `Delivery: ${summary.deliveryAddress}`,
-          `Price: ${formatGbp(chargeable)} (unpaid)`,
+          `Price: ${formatGbp(chargeable)} (unpaid — customer pays driver / office)`,
           '',
           'Uses the saved lead details — you do not need to re-enter addresses.',
           'The job will appear in Available Jobs.',
+          'You can Undo convert later if the job is still unpaid and unassigned.',
         ].join('\n'),
       )
       if (!ok) return
@@ -199,6 +197,41 @@ export default function CustomerLeadsAdmin() {
     [load, navigate],
   )
 
+  const handleRevertLead = useCallback(
+    async (row) => {
+      setError('')
+      setActionMsg('')
+      const ok = window.confirm(
+        [
+          `Undo convert for ${row.lead_ref || 'this lead'}?`,
+          '',
+          'Restores the lead as before (not converted).',
+          'Removes the unpaid job from Available Jobs (only if still unpaid and not assigned).',
+        ].join('\n'),
+      )
+      if (!ok) return
+
+      setRevertingId(String(row.id))
+      try {
+        const result = await revertCustomerLeadConversion({ lead: row })
+        setActionMsg(
+          `Lead restored to ${CUSTOMER_LEAD_STATUS_LABELS[result.previousStatus] || result.previousStatus}.` +
+            (result.quoteDeleted
+              ? ' Unpaid job removed.'
+              : result.quoteUnreleased
+                ? ' Job pulled out of Available Jobs.'
+                : ''),
+        )
+        await load()
+      } catch (e) {
+        setError(e?.message || 'Failed to undo convert.')
+      } finally {
+        setRevertingId('')
+      }
+    },
+    [load],
+  )
+
   const emptyMessage = useMemo(() => {
     if (loading) return ''
     if (rows.length > 0) return ''
@@ -212,8 +245,9 @@ export default function CustomerLeadsAdmin() {
           <h2 className="text-2xl font-bold text-slate-900">Customer Leads</h2>
           <p className="mt-1 text-sm text-slate-600">
             Quote wizard and homepage enquiries saved before payment — reference format{' '}
-            <code className="rounded bg-slate-100 px-1">SMH-LEAD-000001</code>. Use Create job to
-            turn a lead into an unpaid Available Job from the saved addresses (no re-typing).
+            <code className="rounded bg-slate-100 px-1">SMH-LEAD-000001</code>. Use Create job for
+            unpaid (no card) leads → Available Jobs. Use Undo convert to put the lead back if the
+            job is still unpaid and unassigned.
           </p>
         </div>
         <button
@@ -356,14 +390,28 @@ export default function CustomerLeadsAdmin() {
                           {eff !== 'converted_to_booking' ? (
                             <button
                               type="button"
-                              disabled={busyConvert || Boolean(convertingId)}
+                              disabled={busyConvert || Boolean(convertingId) || Boolean(revertingId)}
                               onClick={() => void handleConvertLead(row)}
                               title="Create unpaid job from saved lead details (no re-typing)"
                               className="rounded-lg border border-emerald-200 bg-emerald-50 px-2 py-1 text-[11px] font-semibold text-emerald-900 hover:bg-emerald-100 disabled:opacity-50"
                             >
                               {busyConvert ? 'Creating…' : 'Create job'}
                             </button>
-                          ) : null}
+                          ) : (
+                            <button
+                              type="button"
+                              disabled={
+                                revertingId === String(row.id) ||
+                                Boolean(convertingId) ||
+                                Boolean(revertingId)
+                              }
+                              onClick={() => void handleRevertLead(row)}
+                              title="Undo convert — restore lead and remove unpaid job from Available Jobs"
+                              className="rounded-lg border border-amber-200 bg-amber-50 px-2 py-1 text-[11px] font-semibold text-amber-950 hover:bg-amber-100 disabled:opacity-50"
+                            >
+                              {revertingId === String(row.id) ? 'Undoing…' : 'Undo convert'}
+                            </button>
+                          )}
                           <button
                             type="button"
                             disabled={deletingId === String(row.id)}
