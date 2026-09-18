@@ -227,7 +227,7 @@ export default function CustomerLeadDetailAdmin() {
         `Unpaid job ${result.quoteRef} created and sent to Available Jobs. Chargeable: ${formatGbp(resolveChargeableTotal(result.lead || workingLead))}.`,
       )
       await load()
-      navigate('/admin/available-jobs')
+      navigate(`/admin/available-jobs/${result.quoteId}`)
     } catch (e) {
       setActionMsg(e?.message || 'Failed to convert to booking.')
     } finally {
@@ -293,7 +293,7 @@ export default function CustomerLeadDetailAdmin() {
         `Unpaid job ${result.quoteRef} created from this lead and sent to Available Jobs.`,
       )
       await load()
-      navigate('/admin/available-jobs')
+      navigate(`/admin/available-jobs/${encodeURIComponent(result.quoteId)}`)
     } catch (e) {
       setActionMsg(e?.message || 'Failed to create unpaid job.')
     } finally {
@@ -434,7 +434,7 @@ export default function CustomerLeadDetailAdmin() {
   const callHref = telHref(lead.customer_phone)
   const emailHref = mailHref(lead.customer_email)
   const convertHref = lead.quote_id
-    ? `/admin/quote-requests/${lead.quote_id}`
+    ? `/admin/available-jobs/${lead.quote_id}`
     : null
   const isConverted = eff === 'converted_to_booking'
 
@@ -478,7 +478,7 @@ export default function CustomerLeadDetailAdmin() {
               to={convertHref}
               className="inline-flex min-h-[44px] items-center rounded-xl border border-emerald-200 bg-emerald-50 px-4 text-sm font-semibold text-emerald-900 hover:bg-emerald-100"
             >
-              View booking / quote
+              Open in Available Jobs
             </Link>
           ) : null}
           <button

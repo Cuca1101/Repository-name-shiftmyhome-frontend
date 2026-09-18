@@ -80,7 +80,8 @@ export async function fetchQuotesForAdmin(filterKey = 'all', searchTerm = '') {
   if (filterKey === 'all_paid') {
     q = q.or(`payment_status.in.(paid,deposit_paid),${adminPhoneBookingReleasedPostgrestFilter()}`)
   } else if (filterKey === 'unpaid') {
-    q = q.eq('payment_status', 'unpaid')
+    // Unpaid phone bookings (client filter keeps only those released to Available Jobs).
+    q = q.eq('payment_status', 'unpaid').in('source', ADMIN_PHONE_BOOKING_SOURCES)
   } else if (filterKey === 'deposit_paid') {
     q = q.eq('payment_status', 'deposit_paid')
   } else if (filterKey === 'paid') {

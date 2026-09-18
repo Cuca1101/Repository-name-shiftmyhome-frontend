@@ -35,7 +35,8 @@ const HIGHLIGHT_MS = 4_000
 const NOTIFY_DEBOUNCE_MS = 450
 
 const FILTERS = [
-  { key: 'all_paid', label: 'All paid' },
+  { key: 'all_paid', label: 'All open' },
+  { key: 'unpaid', label: 'Unpaid / phone' },
   { key: 'deposit_paid', label: 'Deposit paid' },
   { key: 'paid', label: 'Fully paid' },
 ]
