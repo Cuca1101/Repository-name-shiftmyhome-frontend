@@ -26,7 +26,6 @@ import {
   resolveChargeableTotal,
 } from '../lib/adminAgreedPrice'
 import {
-  convertCustomerLeadToBooking,
   convertCustomerLeadToUnpaidJob,
   saveCustomerLeadAgreedPrice,
 } from '../lib/customerLeadBookingConvert'
@@ -185,7 +184,13 @@ export default function CustomerLeadDetailAdmin() {
             agreed: parsed.amount,
             reason: overrideReason,
           })
-          if (!window.confirm(`${confirmMsg}\n\nThen convert this lead into a booking.`)) return
+          if (
+            !window.confirm(
+              `${confirmMsg}\n\nThen create the unpaid job and send it to Available Jobs.`,
+            )
+          ) {
+            return
+          }
           const adminLabel = await resolveAdminCreatorLabel()
           const saved = await saveCustomerLeadAgreedPrice({
             leadId: String(lead.id),
@@ -202,21 +207,27 @@ export default function CustomerLeadDetailAdmin() {
         return
       } else if (
         !window.confirm(
-          `Convert this lead to a booking at ${formatGbp(resolveChargeableTotal(lead))}?`,
+          [
+            `Convert this lead at ${formatGbp(resolveChargeableTotal(lead))}?`,
+            '',
+            'Creates an unpaid job from the saved lead details and sends it to Available Jobs.',
+          ].join('\n'),
         )
       ) {
         return
       }
 
       const adminLabel = await resolveAdminCreatorLabel()
-      const result = await convertCustomerLeadToBooking({
+      const result = await convertCustomerLeadToUnpaidJob({
         lead: workingLead,
         createdBy: adminLabel,
+        releaseToAvailableJobs: true,
       })
       setActionMsg(
-        `Booking saved (${result.quoteRef}). Chargeable total: ${formatGbp(resolveChargeableTotal(result.lead || workingLead))}. You can send a payment link next, or use “Create unpaid job” to send it to Available Jobs without payment.`,
+        `Unpaid job ${result.quoteRef} created and sent to Available Jobs. Chargeable: ${formatGbp(resolveChargeableTotal(result.lead || workingLead))}.`,
       )
       await load()
+      navigate('/admin/available-jobs')
     } catch (e) {
       setActionMsg(e?.message || 'Failed to convert to booking.')
     } finally {
@@ -584,10 +595,10 @@ export default function CustomerLeadDetailAdmin() {
             className="inline-flex min-h-[40px] items-center rounded-lg bg-brand-600 px-3 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-50"
           >
             {busy === 'convert'
-              ? 'Saving…'
+              ? 'Sending…'
               : isConverted
-                ? 'Update booking price'
-                : 'Save & convert to booking'}
+                ? 'Update & send to Available Jobs'
+                : 'Save & send to Available Jobs'}
           </button>
           <button
             type="button"

@@ -12,7 +12,14 @@ import {
   buildQuoteRowFromTemplateParams,
 } from './data/quotesRepository'
 import { updateCustomerLeadById } from './data/customerLeadsRepository'
-import { releaseAdminPhoneBookingToAvailableJobs } from './data/quotesAdminRepository'
+import {
+  fetchQuoteByIdForAdmin,
+  releaseAdminPhoneBookingToAvailableJobs,
+} from './data/quotesAdminRepository'
+import {
+  quoteIsAdminPhoneBookingPending,
+  quotePassesAvailableJobsStrict,
+} from './adminJobListRules'
 import { isSupabaseConfigured, supabase } from './supabase'
 import {
   buildQuoteEmailTemplateParams,
@@ -343,6 +350,40 @@ export async function convertCustomerLeadToBooking({ lead, createdBy }) {
 }
 
 /**
+ * Ensure a lead-converted quote can enter Available Jobs as an unpaid phone booking.
+ * @param {string} quoteId
+ * @returns {Promise<{ alreadyVisible: boolean }>}
+ */
+async function ensureLeadQuoteReadyForAvailableJobs(quoteId) {
+  const row = await fetchQuoteByIdForAdmin(quoteId)
+  if (!row) throw new Error('Booking not found after convert.')
+
+  if (quotePassesAvailableJobsStrict(row)) {
+    return { alreadyVisible: true }
+  }
+
+  if (quoteIsAdminPhoneBookingPending(row)) {
+    return { alreadyVisible: false }
+  }
+
+  // Website / recovery quotes linked on the lead are not phone bookings yet —
+  // retag so release → Available Jobs works for unpaid admin jobs.
+  const { error } = await supabase
+    .from('quotes')
+    .update({
+      source: ADMIN_PHONE_BOOKING_SOURCE,
+      operational_status: PHONE_BOOKING_PENDING_OPERATIONAL_STATUS,
+      marketplace_visibility: 'hidden_from_partners',
+      // Keep existing payment_status; Available Jobs allows released unpaid phone bookings.
+    })
+    .eq('id', quoteId)
+  if (error) {
+    throw new Error(error.message || 'Failed to prepare booking for Available Jobs.')
+  }
+  return { alreadyVisible: false }
+}
+
+/**
  * Convert lead → unpaid phone booking using saved lead details, then optionally
  * release straight to Available Jobs (no re-typing addresses).
  * @param {{
@@ -360,6 +401,12 @@ export async function convertCustomerLeadToUnpaidJob({
   if (!releaseToAvailableJobs || !result.quoteId) {
     return { ...result, releasedToAvailableJobs: false }
   }
+
+  const ready = await ensureLeadQuoteReadyForAvailableJobs(result.quoteId)
+  if (ready.alreadyVisible) {
+    return { ...result, releasedToAvailableJobs: true, alreadyReleased: true }
+  }
+
   try {
     await releaseAdminPhoneBookingToAvailableJobs(result.quoteId)
     return { ...result, releasedToAvailableJobs: true }
