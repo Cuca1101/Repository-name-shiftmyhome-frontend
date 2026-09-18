@@ -3,6 +3,7 @@ import {
   attachSignedUrlsToJobPhotos,
   fetchJobPhotosForAdminLookup,
 } from '../../lib/data/jobPhotosRepository'
+import { resolveJobPhotoDisplayMeta } from '../../lib/jobPhotoDisplayMeta'
 import { isSupabaseConfigured } from '../../lib/supabase'
 
 const cardShell =
@@ -177,7 +178,10 @@ export default function QuotePhotosAdminSection({
         ) : null}
         <ul className="grid gap-4 p-5 sm:grid-cols-2 sm:p-6 lg:grid-cols-3">
           {photos.map((photo) => {
-            const label = photo.source_label != null ? String(photo.source_label) : 'Added by customer'
+            const meta = resolveJobPhotoDisplayMeta(photo.metadata, photo)
+            const label =
+              meta.displayLine ||
+              (photo.source_label != null ? String(photo.source_label) : 'Added by customer')
             const fileName = photo.file_name != null ? String(photo.file_name) : 'Photo'
             const mimeType = photo.mime_type != null ? String(photo.mime_type) : ''
             const signedUrl = photo.signedUrl != null ? String(photo.signedUrl) : ''
@@ -208,29 +212,65 @@ export default function QuotePhotosAdminSection({
                   )}
                 </button>
                 <div className="flex flex-1 flex-col gap-2 p-3">
-                  <p className="truncate text-sm font-medium text-slate-900" title={fileName}>
-                    {fileName}
+                  <p className="truncate text-sm font-medium text-slate-900" title={meta.displayTitle || fileName}>
+                    {meta.displayTitle || fileName}
                   </p>
+                  {meta.capturedAtDisplay ? (
+                    <p className="text-[11px] text-slate-600">{meta.capturedAtDisplay}</p>
+                  ) : null}
+                  {meta.capturedAtAddress ? (
+                    <p className="text-[11px] leading-snug text-slate-800" title={meta.capturedAtAddress}>
+                      Taken at: {meta.capturedAtAddress}
+                    </p>
+                  ) : meta.addressText ? (
+                    <p className="text-[11px] leading-snug text-slate-700" title={meta.addressText}>
+                      {meta.locationLabel ? `${meta.locationLabel}: ` : ''}
+                      {meta.addressText}
+                    </p>
+                  ) : null}
+                  {meta.jobStopAddress &&
+                  meta.capturedAtAddress &&
+                  meta.jobStopAddress !== meta.capturedAtAddress ? (
+                    <p className="text-[10px] leading-snug text-slate-500" title={meta.jobStopAddress}>
+                      Job stop: {meta.jobStopAddress}
+                    </p>
+                  ) : null}
                   {mimeType ? (
                     <p className="truncate text-[10px] text-slate-500" title={mimeType}>
                       {mimeType}
                     </p>
                   ) : null}
-                  <span className="inline-flex w-fit rounded-md bg-sky-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-sky-900">
-                    {label}
+                  <span
+                    className="inline-flex w-fit max-w-full rounded-md bg-sky-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-sky-900"
+                    title={label}
+                  >
+                    <span className="truncate">{label}</span>
                   </span>
-                  {signedUrl ? (
-                    <a
-                      href={signedUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      download={fileName}
-                      className="mt-auto text-sm font-semibold text-brand-700 hover:underline"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      View / download
-                    </a>
-                  ) : null}
+                  <div className="mt-auto flex flex-wrap gap-x-3 gap-y-1">
+                    {meta.mapUrl ? (
+                      <a
+                        href={meta.mapUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-sm font-semibold text-slate-700 hover:underline"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        Open map
+                      </a>
+                    ) : null}
+                    {signedUrl ? (
+                      <a
+                        href={signedUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        download={fileName}
+                        className="text-sm font-semibold text-brand-700 hover:underline"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        View / download
+                      </a>
+                    ) : null}
+                  </div>
                 </div>
               </li>
             )

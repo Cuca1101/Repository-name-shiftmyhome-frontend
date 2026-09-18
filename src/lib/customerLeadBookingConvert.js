@@ -12,6 +12,7 @@ import {
   buildQuoteRowFromTemplateParams,
 } from './data/quotesRepository'
 import { updateCustomerLeadById } from './data/customerLeadsRepository'
+import { releaseAdminPhoneBookingToAvailableJobs } from './data/quotesAdminRepository'
 import { isSupabaseConfigured, supabase } from './supabase'
 import {
   buildQuoteEmailTemplateParams,
@@ -256,11 +257,35 @@ export async function saveCustomerLeadAgreedPrice({
  *   createdBy: string,
  * }} params
  */
+/**
+ * Addresses / contact already on the lead — used before insert so we never open an empty form.
+ * @param {Record<string, unknown>} lead
+ */
+export function getCustomerLeadBookingSummary(lead) {
+  const wizard = wizardFromLead(lead)
+  return {
+    pickupAddress: wizard.pickupAddress,
+    deliveryAddress: wizard.deliveryAddress,
+    fullName: wizard.fullName,
+    phone: wizard.phone,
+    email: wizard.email,
+    moveDate: wizard.moveDate,
+    hasAddresses: Boolean(wizard.pickupAddress && wizard.deliveryAddress),
+  }
+}
+
 export async function convertCustomerLeadToBooking({ lead, createdBy }) {
   if (!isSupabaseConfigured || !supabase) {
     throw new Error('Supabase is not configured.')
   }
   if (!lead?.id) throw new Error('Lead not found.')
+
+  const summary = getCustomerLeadBookingSummary(lead)
+  if (!summary.hasAddresses) {
+    throw new Error(
+      'This lead is missing pickup or delivery address in the saved quote data. Open Details to check what was captured.',
+    )
+  }
 
   const chargeable = resolveChargeableTotal(lead)
   if (chargeable == null || chargeable < 1) {
@@ -315,4 +340,35 @@ export async function convertCustomerLeadToBooking({ lead, createdBy }) {
   })
 
   return { lead: updated, quoteId, quoteRef }
+}
+
+/**
+ * Convert lead → unpaid phone booking using saved lead details, then optionally
+ * release straight to Available Jobs (no re-typing addresses).
+ * @param {{
+ *   lead: Record<string, unknown>,
+ *   createdBy: string,
+ *   releaseToAvailableJobs?: boolean,
+ * }} params
+ */
+export async function convertCustomerLeadToUnpaidJob({
+  lead,
+  createdBy,
+  releaseToAvailableJobs = true,
+}) {
+  const result = await convertCustomerLeadToBooking({ lead, createdBy })
+  if (!releaseToAvailableJobs || !result.quoteId) {
+    return { ...result, releasedToAvailableJobs: false }
+  }
+  try {
+    await releaseAdminPhoneBookingToAvailableJobs(result.quoteId)
+    return { ...result, releasedToAvailableJobs: true }
+  } catch (e) {
+    const msg = String(e?.message || e || '')
+    // Already released earlier — treat as success for this admin action.
+    if (/already in Available Jobs/i.test(msg)) {
+      return { ...result, releasedToAvailableJobs: true, alreadyReleased: true }
+    }
+    throw e
+  }
 }

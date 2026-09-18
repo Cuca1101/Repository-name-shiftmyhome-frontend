@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import AdminRecordsSearchRow from './admin/AdminRecordsSearchRow'
 import {
   deleteCustomerLeadById,
@@ -7,6 +7,12 @@ import {
 } from '../lib/data/customerLeadsRepository'
 import { CUSTOMER_LEAD_STATUS_LABELS } from '../lib/customerLeadStatus'
 import { formatDateTimeUK } from '../lib/formatDateDisplay'
+import { formatGbp, resolveChargeableTotal } from '../lib/adminAgreedPrice'
+import {
+  convertCustomerLeadToUnpaidJob,
+  getCustomerLeadBookingSummary,
+} from '../lib/customerLeadBookingConvert'
+import { isSupabaseConfigured, supabase } from '../lib/supabase'
 
 const FILTERS = [
   { id: 'all', label: 'All' },
@@ -60,7 +66,18 @@ function mailHref(email) {
   return e ? `mailto:${e}` : null
 }
 
+async function resolveAdminCreatorLabel() {
+  if (!isSupabaseConfigured || !supabase) return 'admin'
+  try {
+    const { data } = await supabase.auth.getSession()
+    return String(data.session?.user?.email || '').trim() || 'admin'
+  } catch {
+    return 'admin'
+  }
+}
+
 export default function CustomerLeadsAdmin() {
+  const navigate = useNavigate()
   const [searchInput, setSearchInput] = useState('')
   const [activeSearch, setActiveSearch] = useState('')
   const [filter, setFilter] = useState('all')
@@ -68,6 +85,8 @@ export default function CustomerLeadsAdmin() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [deletingId, setDeletingId] = useState('')
+  const [convertingId, setConvertingId] = useState('')
+  const [actionMsg, setActionMsg] = useState('')
 
   useEffect(() => {
     const t = setTimeout(() => setActiveSearch(searchInput.trim()), 300)
@@ -107,6 +126,7 @@ export default function CustomerLeadsAdmin() {
 
       setDeletingId(String(row.id))
       setError('')
+      setActionMsg('')
       try {
         await deleteCustomerLeadById(String(row.id))
         setRows((prev) => prev.filter((r) => String(r.id) !== String(row.id)))
@@ -117,6 +137,66 @@ export default function CustomerLeadsAdmin() {
       }
     },
     [],
+  )
+
+  const handleConvertLead = useCallback(
+    async (row) => {
+      setError('')
+      setActionMsg('')
+
+      if (row.quote_id) {
+        navigate(`/admin/quote-requests/${row.quote_id}`)
+        return
+      }
+
+      const chargeable = resolveChargeableTotal(row)
+      if (chargeable == null || chargeable < 1) {
+        navigate(`/admin/customer-leads/${row.id}`)
+        return
+      }
+
+      const summary = getCustomerLeadBookingSummary(row)
+      if (!summary.hasAddresses) {
+        setError(
+          `Lead ${row.lead_ref || ''} is missing pickup/delivery address. Open Details to check what was captured.`,
+        )
+        return
+      }
+
+      const ok = window.confirm(
+        [
+          `Create unpaid job from lead ${row.lead_ref || ''}?`,
+          '',
+          `Pickup: ${summary.pickupAddress}`,
+          `Delivery: ${summary.deliveryAddress}`,
+          `Price: ${formatGbp(chargeable)} (unpaid)`,
+          '',
+          'Uses the saved lead details — you do not need to re-enter addresses.',
+          'The job will appear in Available Jobs.',
+        ].join('\n'),
+      )
+      if (!ok) return
+
+      setConvertingId(String(row.id))
+      try {
+        const adminLabel = await resolveAdminCreatorLabel()
+        const result = await convertCustomerLeadToUnpaidJob({
+          lead: row,
+          createdBy: adminLabel,
+          releaseToAvailableJobs: true,
+        })
+        setActionMsg(
+          `Job ${result.quoteRef} created unpaid and sent to Available Jobs.`,
+        )
+        await load()
+        navigate(`/admin/available-jobs`)
+      } catch (e) {
+        setError(e?.message || 'Failed to create job from lead.')
+      } finally {
+        setConvertingId('')
+      }
+    },
+    [load, navigate],
   )
 
   const emptyMessage = useMemo(() => {
@@ -132,7 +212,8 @@ export default function CustomerLeadsAdmin() {
           <h2 className="text-2xl font-bold text-slate-900">Customer Leads</h2>
           <p className="mt-1 text-sm text-slate-600">
             Quote wizard and homepage enquiries saved before payment — reference format{' '}
-            <code className="rounded bg-slate-100 px-1">SMH-LEAD-000001</code>.
+            <code className="rounded bg-slate-100 px-1">SMH-LEAD-000001</code>. Use Create job to
+            turn a lead into an unpaid Available Job from the saved addresses (no re-typing).
           </p>
         </div>
         <button
@@ -170,6 +251,11 @@ export default function CustomerLeadsAdmin() {
       {error && (
         <p className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{error}</p>
       )}
+      {actionMsg ? (
+        <p className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
+          {actionMsg}
+        </p>
+      ) : null}
 
       <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-card">
         {loading ? (
@@ -202,9 +288,7 @@ export default function CustomerLeadsAdmin() {
                   const email = row.customer_email
                   const callHref = telHref(phone)
                   const emailHref = mailHref(email)
-                  const convertHref = row.quote_id
-                    ? `/admin/quote-requests/${row.quote_id}`
-                    : '/admin/new-phone-booking'
+                  const busyConvert = convertingId === String(row.id)
 
                   return (
                     <tr key={row.id} className="align-top text-slate-800">
@@ -270,12 +354,15 @@ export default function CustomerLeadsAdmin() {
                             Details
                           </Link>
                           {eff !== 'converted_to_booking' ? (
-                            <Link
-                              to={convertHref}
-                              className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-50"
+                            <button
+                              type="button"
+                              disabled={busyConvert || Boolean(convertingId)}
+                              onClick={() => void handleConvertLead(row)}
+                              title="Create unpaid job from saved lead details (no re-typing)"
+                              className="rounded-lg border border-emerald-200 bg-emerald-50 px-2 py-1 text-[11px] font-semibold text-emerald-900 hover:bg-emerald-100 disabled:opacity-50"
                             >
-                              Convert
-                            </Link>
+                              {busyConvert ? 'Creating…' : 'Create job'}
+                            </button>
                           ) : null}
                           <button
                             type="button"

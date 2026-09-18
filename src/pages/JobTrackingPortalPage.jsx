@@ -8,6 +8,7 @@ import {
   photoSectionForType,
   trackingClient,
 } from '../lib/jobCustomerTracking'
+import { resolveJobPhotoDisplayMeta } from '../lib/jobPhotoDisplayMeta'
 import 'mapbox-gl/dist/mapbox-gl.css'
 
 const POLL_MS = 15000
@@ -267,7 +268,9 @@ export default function JobTrackingPortalPage() {
             photoGroups[key]?.length ? (
               <Section key={key} title={title}>
                 <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-                  {photoGroups[key].map((p) => (
+                  {photoGroups[key].map((p) => {
+                    const meta = resolveJobPhotoDisplayMeta(p.metadata, p)
+                    return (
                     <figure key={p.id} className="overflow-hidden rounded-xl border border-slate-100 bg-slate-50">
                       {p.signed_url ? (
                         <a href={p.signed_url} target="_blank" rel="noreferrer">
@@ -277,11 +280,31 @@ export default function JobTrackingPortalPage() {
                         <div className="flex aspect-square items-center justify-center text-xs text-slate-400">No preview</div>
                       )}
                       <figcaption className="space-y-0.5 p-2 text-[11px] text-slate-600">
-                        <div>{p.created_at ? formatDateTimeUK(p.created_at) : ''}</div>
-                        <div className="capitalize">{String(p.photo_type || '').replace(/_/g, ' ')}</div>
+                        <div>{meta.capturedAtDisplay || (p.created_at ? formatDateTimeUK(p.created_at) : '')}</div>
+                        <div className="capitalize">{meta.displayTitle || String(p.photo_type || '').replace(/_/g, ' ')}</div>
+                        {meta.capturedAtAddress ? (
+                          <div className="leading-snug text-slate-800" title={meta.capturedAtAddress}>
+                            Taken at: {meta.capturedAtAddress}
+                          </div>
+                        ) : meta.addressText ? (
+                          <div className="leading-snug text-slate-700" title={meta.addressText}>
+                            {meta.addressText}
+                          </div>
+                        ) : null}
+                        {meta.mapUrl ? (
+                          <a
+                            href={meta.mapUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="font-semibold text-brand-700 hover:underline"
+                          >
+                            Open map
+                          </a>
+                        ) : null}
                       </figcaption>
                     </figure>
-                  ))}
+                    )
+                  })}
                 </div>
               </Section>
             ) : null,

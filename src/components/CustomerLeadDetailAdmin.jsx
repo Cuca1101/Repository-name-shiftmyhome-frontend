@@ -27,6 +27,7 @@ import {
 } from '../lib/adminAgreedPrice'
 import {
   convertCustomerLeadToBooking,
+  convertCustomerLeadToUnpaidJob,
   saveCustomerLeadAgreedPrice,
 } from '../lib/customerLeadBookingConvert'
 import { isSupabaseConfigured, supabase } from '../lib/supabase'
@@ -213,11 +214,77 @@ export default function CustomerLeadDetailAdmin() {
         createdBy: adminLabel,
       })
       setActionMsg(
-        `Booking saved (${result.quoteRef}). Chargeable total: ${formatGbp(resolveChargeableTotal(result.lead || workingLead))}. You can send a payment link next.`,
+        `Booking saved (${result.quoteRef}). Chargeable total: ${formatGbp(resolveChargeableTotal(result.lead || workingLead))}. You can send a payment link next, or use “Create unpaid job” to send it to Available Jobs without payment.`,
       )
       await load()
     } catch (e) {
       setActionMsg(e?.message || 'Failed to convert to booking.')
+    } finally {
+      setBusy('')
+    }
+  }
+
+  async function handleCreateUnpaidJob() {
+    setBusy('job')
+    setActionMsg('')
+    try {
+      const parsed = parseAdminAgreedPriceInput(agreedPriceInput)
+      let workingLead = lead
+      if (parsed.ok) {
+        const currentAgreed = lead.agreed_price != null ? Number(lead.agreed_price) : null
+        if (currentAgreed == null || Math.abs(currentAgreed - parsed.amount) > 0.009) {
+          const confirmMsg = buildPriceOverrideConfirmMessage({
+            calculated,
+            agreed: parsed.amount,
+            reason: overrideReason,
+          })
+          if (
+            !window.confirm(
+              `${confirmMsg}\n\nThen create an unpaid job and send it to Available Jobs.`,
+            )
+          ) {
+            return
+          }
+          const adminLabel = await resolveAdminCreatorLabel()
+          const saved = await saveCustomerLeadAgreedPrice({
+            leadId: String(lead.id),
+            agreedPrice: parsed.amount,
+            reason: overrideReason,
+            adminLabel,
+            currentLead: lead,
+          })
+          workingLead = saved.lead
+        }
+      } else if (resolveChargeableTotal(lead) == null) {
+        setActionMsg(parsed.error || 'Set a custom price before creating the job.')
+        setPricePanelOpen(true)
+        return
+      } else if (
+        !window.confirm(
+          [
+            `Create unpaid job at ${formatGbp(resolveChargeableTotal(lead))}?`,
+            '',
+            'Uses the saved lead details (addresses, inventory, date).',
+            'No payment required — job goes to Available Jobs.',
+          ].join('\n'),
+        )
+      ) {
+        return
+      }
+
+      const adminLabel = await resolveAdminCreatorLabel()
+      const result = await convertCustomerLeadToUnpaidJob({
+        lead: workingLead,
+        createdBy: adminLabel,
+        releaseToAvailableJobs: true,
+      })
+      setActionMsg(
+        `Unpaid job ${result.quoteRef} created from this lead and sent to Available Jobs.`,
+      )
+      await load()
+      navigate('/admin/available-jobs')
+    } catch (e) {
+      setActionMsg(e?.message || 'Failed to create unpaid job.')
     } finally {
       setBusy('')
     }
@@ -521,6 +588,19 @@ export default function CustomerLeadDetailAdmin() {
               : isConverted
                 ? 'Update booking price'
                 : 'Save & convert to booking'}
+          </button>
+          <button
+            type="button"
+            disabled={Boolean(busy)}
+            onClick={() => void handleCreateUnpaidJob()}
+            className="inline-flex min-h-[40px] items-center rounded-lg border border-emerald-300 bg-emerald-50 px-3 text-sm font-semibold text-emerald-950 hover:bg-emerald-100 disabled:opacity-50"
+            title="Uses saved lead details — no need to re-enter addresses"
+          >
+            {busy === 'job'
+              ? 'Creating…'
+              : isConverted
+                ? 'Send unpaid job to Available Jobs'
+                : 'Create unpaid job → Available Jobs'}
           </button>
           <button
             type="button"
