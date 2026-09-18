@@ -253,7 +253,8 @@ function buildLeadUnpaidJobPatch({ summary, chargeable, calculated, lead, create
   const calc = calculated ?? chargeable
   return {
     full_name: summary.fullName || existing?.full_name || 'Customer',
-    phone: summary.phone || existing?.phone || '',
+    // quotes.phone is NOT NULL — placeholder when lead has email only.
+    phone: summary.phone || existing?.phone || '00000000000',
     email: summary.email || existing?.email || 'lead@shiftmyhome.local',
     pickup_address: summary.pickupAddress || existing?.pickup_address || '',
     delivery_address: summary.deliveryAddress || existing?.delivery_address || '',
@@ -477,8 +478,13 @@ export async function convertCustomerLeadToBooking({ lead, createdBy }) {
       'This lead is missing pickup or delivery address in the saved quote data. Open Details to check what was captured.',
     )
   }
-  if (!summary.fullName || !summary.phone) {
-    throw new Error('This lead is missing customer name or phone. Open Details and check contact details.')
+  if (!summary.fullName) {
+    throw new Error('This lead is missing customer name. Open Details and check contact details.')
+  }
+  if (!summary.phone && !summary.email) {
+    throw new Error(
+      'This lead needs a phone number or email before converting. Open Details and add at least one contact method.',
+    )
   }
 
   const chargeable = resolveChargeableTotal(lead)
