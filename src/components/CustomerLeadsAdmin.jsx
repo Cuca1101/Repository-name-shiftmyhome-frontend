@@ -218,9 +218,11 @@ export default function CustomerLeadsAdmin() {
           `Lead restored to ${CUSTOMER_LEAD_STATUS_LABELS[result.previousStatus] || result.previousStatus}.` +
             (result.quoteDeleted
               ? ' Unpaid job removed.'
-              : result.quoteUnreleased
-                ? ' Job pulled out of Available Jobs.'
-                : ''),
+              : result.quoteCancelled
+                ? ' Unpaid job cancelled and removed from Available Jobs.'
+                : result.quoteUnreleased
+                  ? ' Job pulled out of Available Jobs.'
+                  : ''),
         )
         await load()
       } catch (e) {

@@ -119,7 +119,8 @@ export function canRevertCustomerLeadConversion(lead, quote = null) {
   if (!quote) {
     return { ok: true, reason: '' }
   }
-  if (quoteIsCardPaid(quote)) {
+  // Only block real card payment — abandoned Stripe sessions on unpaid quotes are OK.
+  if (quoteIsCardPaid(quote) || quote.paid_at) {
     return { ok: false, reason: 'This booking was paid by card — cannot undo.' }
   }
   if (quoteHasAssignedDriver(quote) || quoteHasAssignedPartner(quote)) {
@@ -127,12 +128,6 @@ export function canRevertCustomerLeadConversion(lead, quote = null) {
   }
   if (quote.bundled_journey_id) {
     return { ok: false, reason: 'Job is on a journey bundle — cannot undo.' }
-  }
-  const paidAt = quote.paid_at
-  const stripeSession = String(quote.stripe_session_id || '').trim()
-  const stripePi = String(quote.stripe_payment_intent_id || '').trim()
-  if (paidAt || stripeSession || stripePi) {
-    return { ok: false, reason: 'Booking has card payment records — cannot undo.' }
   }
   const ps = String(quote.payment_status || '').trim().toLowerCase()
   if (ps && ps !== 'unpaid') {
@@ -551,24 +546,69 @@ export async function convertCustomerLeadToUnpaidJob({
 }
 
 /**
- * Delete an unpaid phone-booking quote created for a lead convert (Available Jobs or pending).
+ * Stage unpaid phone booking as pending, then delete (RLS only allows pending deletes).
+ * Falls back to cancelling so it leaves Available Jobs.
  * @param {string} quoteId
+ * @returns {Promise<{ deleted: boolean, cancelled: boolean }>}
  */
-async function deleteUnpaidLeadPhoneBooking(quoteId) {
-  const { error } = await supabase
+async function removeUnpaidConvertedJob(quoteId) {
+  // RLS delete requires operational_status = phone_booking_pending (released jobs use null).
+  const { error: stageErr } = await supabase
+    .from('quotes')
+    .update({
+      source: ADMIN_PHONE_BOOKING_SOURCE,
+      operational_status: PHONE_BOOKING_PENDING_OPERATIONAL_STATUS,
+      marketplace_visibility: 'hidden_from_partners',
+      payment_status: 'unpaid',
+      assigned_driver_id: null,
+      assigned_driver_name: null,
+      assigned_partner_id: null,
+      bundled_journey_id: null,
+      // Clear abandoned checkout refs so pending-delete RLS can match.
+      stripe_session_id: null,
+      stripe_payment_intent_id: null,
+      paid_at: null,
+    })
+    .eq('id', quoteId)
+    .eq('payment_status', 'unpaid')
+  if (stageErr) {
+    throw new Error(stageErr.message || 'Failed to stage job for undo.')
+  }
+
+  const { data: deletedRows, error: delErr } = await supabase
     .from('quotes')
     .delete()
     .eq('id', quoteId)
     .in('source', ADMIN_PHONE_BOOKING_SOURCES)
+    .eq('operational_status', PHONE_BOOKING_PENDING_OPERATIONAL_STATUS)
     .eq('payment_status', 'unpaid')
-    .is('stripe_session_id', null)
-    .is('stripe_payment_intent_id', null)
-    .is('paid_at', null)
-    .is('assigned_driver_id', null)
-    .is('assigned_partner_id', null)
-    .is('bundled_journey_id', null)
+    .select('id')
 
-  if (error) throw new Error(error.message || 'Failed to remove unpaid job.')
+  if (delErr) {
+    throw new Error(delErr.message || 'Failed to remove unpaid job.')
+  }
+  if (Array.isArray(deletedRows) && deletedRows.length > 0) {
+    return { deleted: true, cancelled: false }
+  }
+
+  // Soft remove if RLS still blocks delete (e.g. residual Stripe columns).
+  const { error: cancelErr } = await supabase
+    .from('quotes')
+    .update({
+      status: 'Cancelled',
+      operational_status: 'Cancelled',
+      marketplace_visibility: 'cancelled',
+      payment_status: 'unpaid',
+      assigned_driver_id: null,
+      assigned_driver_name: null,
+      assigned_partner_id: null,
+      bundled_journey_id: null,
+    })
+    .eq('id', quoteId)
+  if (cancelErr) {
+    throw new Error(cancelErr.message || 'Failed to cancel unpaid job after undo.')
+  }
+  return { deleted: false, cancelled: true }
 }
 
 /**
@@ -598,6 +638,7 @@ export async function revertCustomerLeadConversion({ lead }) {
 
   let quoteDeleted = false
   let quoteUnreleased = false
+  let quoteCancelled = false
 
   if (quoteId && quote) {
     const createdByConvert = snap?.quoteCreatedByConvert === true
@@ -605,8 +646,9 @@ export async function revertCustomerLeadConversion({ lead }) {
       Boolean(snap?.quoteIdBefore) && String(snap.quoteIdBefore) === quoteId
 
     if (createdByConvert && !hadPriorQuote) {
-      await deleteUnpaidLeadPhoneBooking(quoteId)
-      quoteDeleted = true
+      const removed = await removeUnpaidConvertedJob(quoteId)
+      quoteDeleted = removed.deleted
+      quoteCancelled = removed.cancelled
     } else if (snap?.quoteBefore && typeof snap.quoteBefore === 'object') {
       const before = snap.quoteBefore
       const { error } = await supabase
@@ -623,7 +665,7 @@ export async function revertCustomerLeadConversion({ lead }) {
           agreed_price: before.agreed_price ?? null,
           remaining_balance: before.remaining_balance ?? null,
           price_override_reason: before.price_override_reason ?? null,
-          price_override_by: before.price_override_by ?? null,
+          price_override_by: before.price_override_by || null,
           price_override_at: before.price_override_at ?? null,
           assigned_driver_id: null,
           assigned_driver_name: null,
@@ -633,23 +675,33 @@ export async function revertCustomerLeadConversion({ lead }) {
         .eq('id', quoteId)
       if (error) throw new Error(error.message || 'Failed to restore booking.')
       quoteUnreleased = true
-    } else if (quoteIsAdminPhoneBooking(quote)) {
-      // No snapshot (older convert) — pull out of Available Jobs to pending staging.
-      const { error } = await supabase
-        .from('quotes')
-        .update({
-          operational_status: PHONE_BOOKING_PENDING_OPERATIONAL_STATUS,
-          marketplace_visibility: 'hidden_from_partners',
-          status: 'New',
-          payment_status: 'unpaid',
-          assigned_driver_id: null,
-          assigned_driver_name: null,
-          assigned_partner_id: null,
-          bundled_journey_id: null,
-        })
-        .eq('id', quoteId)
-      if (error) throw new Error(error.message || 'Failed to unrelease booking.')
-      quoteUnreleased = true
+    } else if (quoteIsAdminPhoneBooking(quote) || String(quote.payment_status || '') === 'unpaid') {
+      // No usable snapshot — pull out of Available Jobs (or remove if phone booking).
+      if (quoteIsAdminPhoneBooking(quote)) {
+        const removed = await removeUnpaidConvertedJob(quoteId)
+        quoteDeleted = removed.deleted
+        quoteCancelled = removed.cancelled
+        if (!removed.deleted) {
+          quoteUnreleased = true
+        }
+      } else {
+        const { error } = await supabase
+          .from('quotes')
+          .update({
+            operational_status: PHONE_BOOKING_PENDING_OPERATIONAL_STATUS,
+            marketplace_visibility: 'hidden_from_partners',
+            source: ADMIN_PHONE_BOOKING_SOURCE,
+            status: 'New',
+            payment_status: 'unpaid',
+            assigned_driver_id: null,
+            assigned_driver_name: null,
+            assigned_partner_id: null,
+            bundled_journey_id: null,
+          })
+          .eq('id', quoteId)
+        if (error) throw new Error(error.message || 'Failed to unrelease booking.')
+        quoteUnreleased = true
+      }
     } else {
       throw new Error('Linked booking is not an unpaid phone job — cannot undo safely.')
     }
@@ -667,6 +719,7 @@ export async function revertCustomerLeadConversion({ lead }) {
     updated_at: new Date().toISOString(),
   }
 
+  // Only clear quote link when the booking row was actually deleted.
   if (quoteDeleted) {
     leadPatch.quote_id = null
     leadPatch.quote_ref = null
@@ -680,6 +733,7 @@ export async function revertCustomerLeadConversion({ lead }) {
     previousStatus,
     quoteDeleted,
     quoteUnreleased,
+    quoteCancelled,
     quoteId: quoteDeleted ? null : quoteId,
   }
 }
