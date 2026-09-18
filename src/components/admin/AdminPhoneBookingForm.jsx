@@ -678,7 +678,7 @@ export default function AdminPhoneBookingForm({
           {step === 2 ? (
             <AdminSection
               title="Step 2 — Inventory & customer"
-              description="Crew size, items, quantities, and customer contact."
+              description="Crew size, items, quantities, and customer contact (phone or email)."
             >
               {loadingSettings ? (
                 <p className="text-sm text-slate-600">Loading pricing settings…</p>

@@ -11,7 +11,6 @@ import {
 } from './emailQuotePayload'
 import { isWizardArrivalValid, wizardArrivalErrorMessage } from './arrivalWizardValidation'
 import { isMoveDateOnOrAfterToday, moveDatePastErrorMessage } from './moveDateLocal'
-import { step3ContactDetailsError, step3ContactDetailsValid } from './quoteWizardStep3ContactScroll'
 import { isSupabaseConfigured, supabase } from './supabase'
 import {
   ADMIN_PHONE_BOOKING_SOURCE,
@@ -48,9 +47,20 @@ export function collectAdminPhoneBookingFieldErrors(wizard, opts = {}) {
   const name = String(wizard.fullName || '').trim()
   const phone = String(wizard.phone || '').trim()
   const email = String(wizard.email || '').trim()
+  const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
   if (!name) errors.push({ field: 'fullName', message: 'Customer full name is required.', step: 2 })
-  if (!phone) errors.push({ field: 'phone', message: 'Customer phone is required.', step: 2 })
-  if (!email) errors.push({ field: 'email', message: 'Customer email is required.', step: 2 })
+  // Admin can save with phone only, email only, or both (DB phone is NOT NULL — placeholder applied on save).
+  if (!phone && !emailOk) {
+    errors.push({
+      field: 'email',
+      message: 'Enter a phone number or a valid email (at least one contact method).',
+      step: 2,
+    })
+  } else if (email && !emailOk) {
+    errors.push({ field: 'email', message: 'Enter a valid email address.', step: 2 })
+  } else if (phone && phone.length <= 5) {
+    errors.push({ field: 'phone', message: 'Enter a valid phone number (or leave blank if email is set).', step: 2 })
+  }
 
   const pickup = String(wizard.pickupAddress || '').trim()
   const delivery = String(wizard.deliveryAddress || '').trim()
@@ -119,15 +129,6 @@ export function collectAdminPhoneBookingFieldErrors(wizard, opts = {}) {
     errors.push({
       field: 'inventoryLines',
       message: 'Add at least one inventory item.',
-      step: 2,
-    })
-  }
-
-  if (!step3ContactDetailsValid(wizard)) {
-    const contactErr = step3ContactDetailsError(wizard)
-    errors.push({
-      field: contactErr.field || 'contact',
-      message: contactErr.message,
       step: 2,
     })
   }
@@ -256,8 +257,8 @@ export function buildAdminPhoneBookingQuoteRow({
 
   const templateParams = buildQuoteEmailTemplateParams({
     name: wizard.fullName,
-    email: wizard.email,
-    phone: wizard.phone,
+    email: String(wizard.email || '').trim() || 'phone-booking@shiftmyhome.local',
+    phone: String(wizard.phone || '').trim() || '00000000000',
     service: serviceType,
     pickup: wizard.pickupAddress,
     delivery: wizard.deliveryAddress,

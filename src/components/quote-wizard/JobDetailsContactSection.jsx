@@ -17,6 +17,7 @@ const mobileCard =
  *   pricingSettings?: import('../../lib/pricingCalculator.js').PricingSettings | null,
  *   breakdown?: import('../../lib/pricingCalculator.js').QuoteBreakdown | null,
  *   priceWithoutPromo?: number | null,
+ *   flexibleContact?: boolean,
  * }} props
  */
 export default function JobDetailsContactSection({
@@ -26,10 +27,15 @@ export default function JobDetailsContactSection({
   pricingSettings = null,
   breakdown = null,
   priceWithoutPromo = null,
+  flexibleContact = false,
 }) {
   function set(k, v) {
     applyWizardPatch(onChange, { [k]: v })
   }
+
+  const contactHint = flexibleContact
+    ? 'Name plus phone or email (at least one contact method).'
+    : "We'll only use your details for this quote."
 
   return (
     <>
@@ -37,9 +43,7 @@ export default function JobDetailsContactSection({
         <h2 className="text-base font-bold text-slate-900 md:text-lg">
           Job details &amp; contact
         </h2>
-        <p className="mt-1 text-[10px] leading-snug text-slate-600 md:text-sm">
-          We&apos;ll only use your details for this quote.
-        </p>
+        <p className="mt-1 text-[10px] leading-snug text-slate-600 md:text-sm">{contactHint}</p>
       </div>
 
       <div
@@ -61,10 +65,12 @@ export default function JobDetailsContactSection({
             />
           </label>
           <label className="block">
-            <span className={quoteMobileLabel}>Phone</span>
+            <span className={quoteMobileLabel}>
+              Phone{flexibleContact ? ' (optional if email set)' : ''}
+            </span>
             <input
               id="quote-wizard-phone-mobile"
-              required
+              required={!flexibleContact}
               type="tel"
               autoComplete="tel"
               value={String(data.phone ?? '')}
@@ -73,10 +79,12 @@ export default function JobDetailsContactSection({
             />
           </label>
           <label className="block">
-            <span className={quoteMobileLabel}>Email</span>
+            <span className={quoteMobileLabel}>
+              Email{flexibleContact ? ' (optional if phone set)' : ''}
+            </span>
             <input
               id="quote-wizard-email-mobile"
-              required
+              required={!flexibleContact}
               type="email"
               autoComplete="email"
               value={String(data.email ?? '')}
@@ -115,10 +123,12 @@ export default function JobDetailsContactSection({
             />
           </label>
           <label className="block">
-            <span className={desktopLabel}>Phone</span>
+            <span className={desktopLabel}>
+              Phone{flexibleContact ? ' (optional if email set)' : ''}
+            </span>
             <input
               id="quote-wizard-phone-desktop"
-              required
+              required={!flexibleContact}
               type="tel"
               autoComplete="tel"
               value={String(data.phone ?? '')}
@@ -127,10 +137,12 @@ export default function JobDetailsContactSection({
             />
           </label>
           <label className="block sm:col-span-2">
-            <span className={desktopLabel}>Email</span>
+            <span className={desktopLabel}>
+              Email{flexibleContact ? ' (optional if phone set)' : ''}
+            </span>
             <input
               id="quote-wizard-email-desktop"
-              required
+              required={!flexibleContact}
               type="email"
               autoComplete="email"
               value={String(data.email ?? '')}

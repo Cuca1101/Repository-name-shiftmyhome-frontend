@@ -723,6 +723,7 @@ export default function Step2Inventory({
           breakdown={breakdown}
           priceWithoutPromo={priceWithoutPromo}
           validationMessage={contactValidationMessage}
+          flexibleContact={isAdminLayout}
         />
       ) : null}
     </>

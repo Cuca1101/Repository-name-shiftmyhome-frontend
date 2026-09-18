@@ -284,7 +284,7 @@ export function buildAdminPhoneBookingRow(form) {
     quote_ref: ref,
     full_name: (form.name || '').trim(),
     email: (form.email || '').trim() || 'phone-booking@shiftmyhome.local',
-    phone: (form.phone || '').trim(),
+    phone: (form.phone || '').trim() || '00000000000',
     service: serviceLabel,
     service_type: serviceLabel,
     pickup_address: (form.pickup || '').trim(),
