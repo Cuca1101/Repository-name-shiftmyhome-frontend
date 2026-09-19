@@ -431,11 +431,29 @@ export default function PricingEngineAdmin() {
                 Apply volume multiplier to floors &amp; no-lift
               </span>
               <span className="mt-0.5 block text-xs leading-relaxed text-slate-500">
-                When on, floor and no-lift £ rise with the same volume band as inventory (small m³ jobs stay
-                cheap; large loads up stairs cost more). Stairs, parking, and other access lines are unchanged.
+                When on, stairs (floor, no-lift, and with-lift %) scale by volume-band × (m³ ÷ reference).
+                More cubes upstairs = clearly higher access — with or without lift. Small jobs at/under the
+                reference m³ only get the band multiplier.
               </span>
             </span>
           </label>
+          <div className="mt-3 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <Field label="Access volume reference (m³)">
+              <input
+                type="number"
+                step="0.5"
+                min="0.5"
+                className={inputClass}
+                value={settings.accessVolumeReferenceM3 ?? 8}
+                onChange={(e) => setNum('accessVolumeReferenceM3', e.target.value)}
+                disabled={!settings.applyVolumeMultiplierToAccessCharges}
+              />
+              <p className="mt-1.5 text-xs leading-relaxed text-slate-500">
+                Stairs grow with cubes above this point. Example: reference 8 → at 16 m³ access gets an extra
+                ×2 on top of the volume band (16÷8). Lower = steeper growth.
+              </p>
+            </Field>
+          </div>
           <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             <Field label="Floor charge per floor (£)">
               <input

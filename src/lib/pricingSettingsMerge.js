@@ -20,6 +20,7 @@ const CORE_PRICING_KEYS = [
   'floorChargePerFloor',
   'noLiftCharge',
   'applyVolumeMultiplierToAccessCharges',
+  'accessVolumeReferenceM3',
   'withLiftAccessPercentOfNoLift',
   'yesLiftChargePerEnd',
   'fuelSurchargeEnabled',
@@ -156,6 +157,11 @@ export function mergePricingSettingsWithDefaults(raw, opts = {}) {
     merged.withLiftAccessPercentOfNoLift = Number.isFinite(pct)
       ? Math.max(0, Math.min(100, pct))
       : defaults.withLiftAccessPercentOfNoLift
+  }
+  {
+    const ref = Number(merged.accessVolumeReferenceM3)
+    merged.accessVolumeReferenceM3 =
+      Number.isFinite(ref) && ref > 0 ? ref : defaults.accessVolumeReferenceM3
   }
 
   const legacyWeekendPct = Number(merged.weekendSurchargePercent)

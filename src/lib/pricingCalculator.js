@@ -17,6 +17,7 @@ import {
   effectiveFloorLevelsForPricing,
   floorNeedsLiftQuestion,
   fullNoLiftStairsAccessAmount,
+  resolveAccessVolumeScale,
   resolveWithLiftAccessPercentOfNoLift,
 } from './floorAccess'
 import { mergePricingSettingsWithDefaults } from './pricingSettingsMerge'
@@ -77,7 +78,8 @@ export {
  * @property {number} [crewSurchargePerExtraMember] — legacy fallback for tiered crew fees
  * @property {number} floorChargePerFloor
  * @property {number} noLiftCharge
- * @property {boolean} [applyVolumeMultiplierToAccessCharges] — scale floor + no-lift by volume band
+ * @property {boolean} [applyVolumeMultiplierToAccessCharges] — scale floor + no-lift by volume band × m³
+ * @property {number} [accessVolumeReferenceM3] — m³ reference for stairs growth (default 8)
  * @property {number} [withLiftAccessPercentOfNoLift] — lift Yes = this % of full no-lift stairs £ (50 = half)
  * @property {number} longWalkingDistanceCharge
  * @property {number} parkingCharge
@@ -413,11 +415,9 @@ export function calculateQuote(settings, input) {
   /** Volume band applies to inventory £; optionally also floors / no-lift when admin toggle is on. */
   const volumePrice = money(baseVolumePrice * volumeMultiplier)
   const volumeScalingAmount = money(volumePrice - baseVolumePrice)
-  const applyVolumeMultToAccess = Boolean(s.applyVolumeMultiplierToAccessCharges)
-  const accessVolumeMultiplier =
-    applyVolumeMultToAccess && Number.isFinite(volumeMultiplier) && volumeMultiplier > 0
-      ? volumeMultiplier
-      : 1
+  const accessVolScale = resolveAccessVolumeScale(s, volumeMultiplier, totalCubicMetres)
+  const applyVolumeMultToAccess = accessVolScale.enabled
+  const accessVolumeMultiplier = accessVolScale.scale
   const volAccessSuffix =
     Math.abs(accessVolumeMultiplier - 1) > 0.0005
       ? ` × vol ×${money(accessVolumeMultiplier)}`
@@ -871,6 +871,8 @@ export function calculateQuote(settings, input) {
     volumeMultiplier,
     applyToAccess: applyVolumeMultToAccess,
     accessVolumeMultiplier,
+    accessM3Factor: accessVolScale.m3Factor,
+    accessVolumeReferenceM3: accessVolScale.referenceM3,
   })
   logPricingDebug('MINIMUM APPLIED', minimumApplied)
 

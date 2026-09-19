@@ -50,6 +50,35 @@ export function resolveWithLiftAccessPercentOfNoLift(settings) {
 }
 
 /**
+ * Scale factor for floor / no-lift / with-lift stairs when volume×access is on.
+ * bandMult × max(1, totalM3 / referenceM3) so access rises clearly as cubes grow.
+ *
+ * @param {Record<string, unknown>|null|undefined} settings
+ * @param {number} volumeMultiplier — inventory volume-band multiplier
+ * @param {number} totalCubicMetres
+ * @returns {{ scale: number, bandMult: number, m3Factor: number, referenceM3: number, enabled: boolean }}
+ */
+export function resolveAccessVolumeScale(settings, volumeMultiplier, totalCubicMetres) {
+  const enabled = Boolean(settings?.applyVolumeMultiplierToAccessCharges)
+  const band =
+    Number.isFinite(Number(volumeMultiplier)) && Number(volumeMultiplier) > 0
+      ? Number(volumeMultiplier)
+      : 1
+  const refRaw = Number(settings?.accessVolumeReferenceM3)
+  const referenceM3 = Number.isFinite(refRaw) && refRaw > 0 ? refRaw : 8
+  const m3 = Math.max(0, Number(totalCubicMetres) || 0)
+  const m3Factor = enabled ? Math.max(1, m3 / referenceM3) : 1
+  const scale = enabled ? band * m3Factor : 1
+  return {
+    enabled,
+    scale: Number.isFinite(scale) && scale > 0 ? scale : 1,
+    bandMult: band,
+    m3Factor,
+    referenceM3,
+  }
+}
+
+/**
  * Full no-lift stairs £ for one end (before with-lift %).
  * @param {number} floorLevels
  * @param {number} perFloorRate

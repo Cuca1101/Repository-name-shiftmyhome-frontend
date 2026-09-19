@@ -13,6 +13,7 @@ import {
   effectiveFloorLevelsForPricing,
   floorNeedsLiftQuestion,
   fullNoLiftStairsAccessAmount,
+  resolveAccessVolumeScale,
   resolveWithLiftAccessPercentOfNoLift,
 } from './floorAccess'
 import { resolveAccessChargeRates } from './pricingSettingValue'
@@ -100,12 +101,12 @@ export function buildPricingDebugDetail(breakdown, ctx) {
   const pickupNeedsLiftAccess = floorNeedsLiftQuestion(access.pickupFloor)
   const deliveryNeedsLiftAccess = floorNeedsLiftQuestion(access.deliveryFloor)
   const { perFloorRate: perFloor, noLiftFlat, yesLiftPerEnd } = resolveAccessChargeRates(s)
-  const accessVolMult =
-    Boolean(s.applyVolumeMultiplierToAccessCharges) &&
-    Number.isFinite(Number(breakdown.volumeMultiplier)) &&
-    Number(breakdown.volumeMultiplier) > 0
-      ? Number(breakdown.volumeMultiplier)
-      : 1
+  const accessVolScale = resolveAccessVolumeScale(
+    s,
+    Number(breakdown.volumeMultiplier) || 1,
+    Number(breakdown.totalCubicMetres) || 0,
+  )
+  const accessVolMult = accessVolScale.scale
   const accessVolNote =
     Math.abs(accessVolMult - 1) > 0.0005 ? ` × vol ×${money(accessVolMult)}` : ''
   const withLiftPercent = resolveWithLiftAccessPercentOfNoLift(s)

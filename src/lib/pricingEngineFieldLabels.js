@@ -12,6 +12,7 @@ export const PRICING_SETTING_FIELD_LABELS = {
   floorChargePerFloor: 'Floor charge per floor',
   noLiftCharge: 'No lift charge',
   applyVolumeMultiplierToAccessCharges: 'Apply volume multiplier to floors / no-lift',
+  accessVolumeReferenceM3: 'Access volume reference (m³)',
   withLiftAccessPercentOfNoLift: 'With-lift access (% of no-lift stairs)',
   yesLiftChargePerEnd: 'Yes lift charge per end',
   fuelSurchargeEnabled: 'Fuel surcharge enabled',
