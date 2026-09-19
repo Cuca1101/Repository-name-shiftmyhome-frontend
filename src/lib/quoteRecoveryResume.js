@@ -21,12 +21,19 @@ export function wizardStateFromCustomerLeadData(wizardData) {
   const s3 = wd.step3 && typeof wd.step3 === 'object' ? wd.step3 : {}
 
   // Prefer first defined crewSize — null in step3 must not wipe a good step2 value.
-  const crewSize =
+  // Engine defaults missing crew to 2 (often £85); resume must keep 1-man quotes at 1.
+  let crewSize =
     s3.crewSize != null && s3.crewSize !== ''
       ? s3.crewSize
       : s2.crewSize != null && s2.crewSize !== ''
         ? s2.crewSize
         : null
+  if (crewSize == null || crewSize === '') {
+    crewSize = 1
+  } else {
+    const n = Number(crewSize)
+    crewSize = Number.isFinite(n) && n >= 1 && n <= 4 ? Math.round(n) : 1
+  }
 
   const merged = {
     ...initialWizardState(),

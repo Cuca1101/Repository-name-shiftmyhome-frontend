@@ -6,6 +6,12 @@
  * resume and must not unlock the saved email/Pay Now total.
  */
 
+function normFloor(v) {
+  if (v == null || v === '') return null
+  const n = Number(v)
+  return Number.isFinite(n) ? n : null
+}
+
 /**
  * Customer-controlled inputs only (not auto route recalculation).
  * @param {{
@@ -17,26 +23,32 @@ export function buildPriceAffectingFingerprint({ serviceType, wizard }) {
   const w = wizard && typeof wizard === 'object' ? wizard : {}
   const lines = Array.isArray(w.inventoryLines)
     ? w.inventoryLines.map((l) => ({
-        name: l?.name ?? '',
+        name: String(l?.name ?? ''),
         quantity: Number(l?.quantity) || 0,
         m3: Number(l?.m3) || 0,
         mult: Number(l?.mult) || 1,
-        weightType: l?.weightType ?? '',
+        weightType: String(l?.weightType ?? ''),
         heavyFee: Boolean(l?.heavyFee),
         isCustom: Boolean(l?.isCustom),
       }))
     : []
 
+  const crewRaw = w.crewSize != null && w.crewSize !== '' ? Number(w.crewSize) : null
+  const crewSize =
+    crewRaw != null && Number.isFinite(crewRaw) && crewRaw >= 1 && crewRaw <= 4
+      ? Math.round(crewRaw)
+      : null
+
   const payload = {
     serviceType: String(serviceType || w.serviceType || '').trim(),
     pickupAddress: String(w.pickupAddress || '').trim(),
     deliveryAddress: String(w.deliveryAddress || '').trim(),
-    pickupFloor: w.pickupFloor ?? null,
-    deliveryFloor: w.deliveryFloor ?? null,
-    pickupLift: w.pickupLift ?? null,
-    deliveryLift: w.deliveryLift ?? null,
-    parkingDistance: w.parkingDistance ?? '',
-    walkingDistance: w.walkingDistance ?? '',
+    pickupFloor: normFloor(w.pickupFloor),
+    deliveryFloor: normFloor(w.deliveryFloor),
+    pickupLift: w.pickupLift == null || w.pickupLift === '' ? null : Boolean(w.pickupLift),
+    deliveryLift: w.deliveryLift == null || w.deliveryLift === '' ? null : Boolean(w.deliveryLift),
+    parkingDistance: String(w.parkingDistance ?? ''),
+    walkingDistance: String(w.walkingDistance ?? ''),
     stairsFlights: Number(w.stairsFlights) || 0,
     moveDate: String(w.moveDate || '').trim(),
     arrivalWindow: String(w.arrivalWindow || '').trim(),
@@ -50,9 +62,7 @@ export function buildPriceAffectingFingerprint({ serviceType, wizard }) {
     reassembly: Boolean(w.reassembly),
     reassemblyItemCount: Number(w.reassemblyItemCount) || 0,
     reassemblySameAsDismantling: Boolean(w.reassemblySameAsDismantling),
-    // null and missing both mean "unchanged crew from resume" — do not treat as 2
-    crewSize:
-      w.crewSize != null && w.crewSize !== '' ? Number(w.crewSize) : null,
+    crewSize,
     promoCode: String(w.promoCode || '').trim().toUpperCase(),
     packageTier: String(w.packageTier || 'standard').trim(),
     inventoryLines: lines,
@@ -106,4 +116,43 @@ export function activeLockedQuoteTotal(lockedTotal, lockedFingerprint, current) 
   const fp = buildPriceAffectingFingerprint(current)
   if (fp !== lockedFingerprint) return null
   return Math.round(Number(lockedTotal) * 100) / 100
+}
+
+/**
+ * Shift calendar option prices so the selected day matches the locked resume total.
+ * @template {{ estimatedTotal?: number|null, estimatedTotalWithoutPromo?: number|null }} T
+ * @param {T[]} options
+ * @param {number|null|undefined} lockedTotal
+ * @param {string|null|undefined} selectedOptionId
+ * @returns {T[]}
+ */
+export function alignReviewOptionsToLockedTotal(options, lockedTotal, selectedOptionId) {
+  if (lockedTotal == null || !Number.isFinite(Number(lockedTotal)) || !Array.isArray(options) || !options.length) {
+    return options
+  }
+  const locked = Math.round(Number(lockedTotal) * 100) / 100
+  const selected =
+    options.find((o) => o.id === selectedOptionId) || options.find((o) => o.selected) || options[0]
+  const liveSelected = Number(selected?.estimatedTotal)
+  if (!Number.isFinite(liveSelected)) {
+    return options.map((o) => ({
+      ...o,
+      estimatedTotal: locked,
+      estimatedTotalWithoutPromo:
+        o.estimatedTotalWithoutPromo != null ? locked : o.estimatedTotalWithoutPromo,
+    }))
+  }
+  const delta = locked - liveSelected
+  if (Math.abs(delta) < 0.009) return options
+  return options.map((o) => {
+    const t = Number(o.estimatedTotal)
+    const without = Number(o.estimatedTotalWithoutPromo)
+    return {
+      ...o,
+      estimatedTotal: Number.isFinite(t) ? Math.round((t + delta) * 100) / 100 : locked,
+      estimatedTotalWithoutPromo: Number.isFinite(without)
+        ? Math.round((without + delta) * 100) / 100
+        : o.estimatedTotalWithoutPromo,
+    }
+  })
 }

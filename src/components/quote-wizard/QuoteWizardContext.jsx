@@ -145,6 +145,14 @@ export function QuoteWizardProvider({ children, serviceType: serviceTypeProp, al
           })
       : null,
   )
+  /** Absorb hydrate noise once settings load — do not unlock before this. */
+  const lockRebasedRef = useRef(false)
+  const [resumeLockedTotal, setResumeLockedTotal] = useState(
+    () =>
+      bootstrap.isResumed && bootstrap.lockedTotal != null && Number.isFinite(Number(bootstrap.lockedTotal))
+        ? Number(bootstrap.lockedTotal)
+        : null,
+  )
   const addressBaselineRef = useRef(
     isResumedRef.current
       ? {
@@ -398,18 +406,21 @@ export function QuoteWizardProvider({ children, serviceType: serviceTypeProp, al
 
   useEffect(() => {
     // Never bump crew while a recovered quote total is locked — that caused £65→£85.
-    if (
-      activeLockedQuoteTotal(lockedTotalRef.current, lockedFingerprintRef.current, {
-        serviceType,
-        wizard,
-      }) != null
-    ) {
-      return
-    }
+    if (resumeLockedTotal != null) return
     if (!crewRestrictions.oneManAllowed && Number(wizard.crewSize) === 1) {
       setWizard((w) => ({ ...w, crewSize: 2 }))
     }
-  }, [crewRestrictions.oneManAllowed, wizard.crewSize, serviceType, wizard])
+  }, [crewRestrictions.oneManAllowed, wizard.crewSize, resumeLockedTotal])
+
+  // After pricing settings load, re-baseline the fingerprint to the hydrated wizard so
+  // Mapbox/arrival/floor coercion cannot immediately unlock the saved email total.
+  useEffect(() => {
+    if (lockedTotalRef.current == null || !settings) return
+    if (lockRebasedRef.current) return
+    lockRebasedRef.current = true
+    lockedFingerprintRef.current = buildPriceAffectingFingerprint({ serviceType, wizard })
+    setResumeLockedTotal(Number(lockedTotalRef.current))
+  }, [settings, serviceType, wizard])
 
   const breakdown = useMemo(() => {
     if (step < 2 || !settings) return null
@@ -417,6 +428,16 @@ export function QuoteWizardProvider({ children, serviceType: serviceTypeProp, al
       settings,
       buildQuoteEngineInput({ serviceType, wizard, lineItems, heavyItemCount }),
     )
+    if (lockedTotalRef.current == null) return live
+
+    const lockedAmount = Math.round(Number(lockedTotalRef.current) * 100) / 100
+
+    // Until rebase runs, always show the saved total (prevents £65→£85 flash).
+    if (!lockRebasedRef.current) {
+      if (Math.abs(Number(live.estimatedTotal) - lockedAmount) < 0.009) return live
+      return { ...live, estimatedTotal: lockedAmount }
+    }
+
     const locked = activeLockedQuoteTotal(lockedTotalRef.current, lockedFingerprintRef.current, {
       serviceType,
       wizard,
@@ -425,13 +446,21 @@ export function QuoteWizardProvider({ children, serviceType: serviceTypeProp, al
       if (Math.abs(Number(live.estimatedTotal) - locked) < 0.009) return live
       return { ...live, estimatedTotal: locked }
     }
+
     // Customer changed a price-affecting option — drop the lock permanently for this session.
-    if (lockedTotalRef.current != null) {
-      lockedTotalRef.current = null
-      lockedFingerprintRef.current = null
-    }
+    lockedTotalRef.current = null
+    lockedFingerprintRef.current = null
     return live
   }, [step, settings, serviceType, wizard, lineItems, heavyItemCount])
+
+  // Keep React state in sync when lock clears inside breakdown useMemo.
+  useEffect(() => {
+    const next =
+      lockedTotalRef.current != null && Number.isFinite(lockedTotalRef.current)
+        ? Number(lockedTotalRef.current)
+        : null
+    setResumeLockedTotal((prev) => (prev === next ? prev : next))
+  }, [breakdown, wizard, serviceType])
 
   const priceWithoutPromo = useMemo(() => {
     if (step < 2 || !settings) return null
@@ -1147,6 +1176,8 @@ export function QuoteWizardProvider({ children, serviceType: serviceTypeProp, al
     isResumedRef.current = false
     lockedTotalRef.current = null
     lockedFingerprintRef.current = null
+    lockRebasedRef.current = false
+    setResumeLockedTotal(null)
     addressBaselineRef.current = null
     savedDraftTrackedRef.current = false
     funnelTrackedRef.current = false
@@ -1199,6 +1230,7 @@ export function QuoteWizardProvider({ children, serviceType: serviceTypeProp, al
     totalM3,
     crewRestrictions,
     breakdown,
+    resumeLockedTotal,
     priceWithoutPromo,
     depositAmountGbp: settings ? resolveDepositAmountGbp(settings) : 50,
     customSizeM3,

@@ -10,9 +10,11 @@ import {
   getQuoteReviewSelectedOptionId,
   parseIsoDateParts,
 } from '../../lib/quoteReviewPriceOptions'
+import { alignReviewOptionsToLockedTotal } from '../../lib/quoteResumePriceLock'
 import { useQuoteMoveWeather } from '../../hooks/useQuoteMoveWeather'
 import QuotePromoPriceReduction from './QuotePromoPriceReduction'
 import QuoteReviewPriceCard from './QuoteReviewPriceCard'
+import { useQuoteWizard } from './QuoteWizardContext'
 
 /** Calendar-style date/time price cards for Step 3 review. */
 export default function QuoteReviewPriceCalendar({
@@ -29,6 +31,7 @@ export default function QuoteReviewPriceCalendar({
   showSelectedTotal = true,
 }) {
   const scrollRef = useRef(null)
+  const { resumeLockedTotal } = useQuoteWizard()
   const { byDate: weatherByDate } = useQuoteMoveWeather(wizard?.pickupLat, wizard?.pickupLng)
 
   const compactMonthLabel = useMemo(() => {
@@ -75,27 +78,42 @@ export default function QuoteReviewPriceCalendar({
   const options = useMemo(() => {
     if (!pricingSettings) return []
     try {
-      if (compact) {
-        return buildQuoteReviewPriceOptionsForCompact({
-          settings: pricingSettings,
-          serviceType,
-          wizard,
-          lineItems,
-          heavyItemCount,
-        })
-      }
-      return buildQuoteReviewPriceOptions({
-        settings: pricingSettings,
-        serviceType,
-        wizard,
-        lineItems,
-        heavyItemCount,
-      })
+      const raw = compact
+        ? buildQuoteReviewPriceOptionsForCompact({
+            settings: pricingSettings,
+            serviceType,
+            wizard,
+            lineItems,
+            heavyItemCount,
+          })
+        : buildQuoteReviewPriceOptions({
+            settings: pricingSettings,
+            serviceType,
+            wizard,
+            lineItems,
+            heavyItemCount,
+          })
+      return alignReviewOptionsToLockedTotal(
+        raw,
+        resumeLockedTotal != null && Number.isFinite(resumeLockedTotal)
+          ? resumeLockedTotal
+          : null,
+        getQuoteReviewSelectedOptionId(wizard),
+      )
     } catch (err) {
       if (import.meta.env?.DEV) console.error('[QuoteReviewPriceCalendar]', err)
       return []
     }
-  }, [compact, pricingSettings, serviceType, lineItems, heavyItemCount, calendarPricingKey])
+  }, [
+    compact,
+    pricingSettings,
+    serviceType,
+    lineItems,
+    heavyItemCount,
+    calendarPricingKey,
+    resumeLockedTotal,
+    wizard,
+  ])
 
   const selectedOptionId = useMemo(() => getQuoteReviewSelectedOptionId(wizard), [wizard])
 

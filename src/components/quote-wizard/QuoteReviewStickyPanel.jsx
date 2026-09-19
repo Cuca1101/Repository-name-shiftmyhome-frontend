@@ -15,7 +15,9 @@ import {
   getQuoteReviewSelectedOptionId,
 
 } from '../../lib/quoteReviewPriceOptions'
+import { alignReviewOptionsToLockedTotal } from '../../lib/quoteResumePriceLock'
 import QuotePromoPriceReduction from './QuotePromoPriceReduction'
+import { useQuoteWizard } from './QuoteWizardContext'
 const panel =
 
   'rounded-xl border border-slate-200 bg-white p-3 shadow-sm ring-1 ring-slate-100/80 md:rounded-2xl md:p-4'
@@ -55,26 +57,28 @@ function useSelectedSlot({
   heavyItemCount,
   priceWithoutPromo = null,
 }) {
+  const { resumeLockedTotal } = useQuoteWizard()
 
   const options = useMemo(
 
-    () =>
-
-      buildQuoteReviewPriceOptions({
-
+    () => {
+      const raw = buildQuoteReviewPriceOptions({
         settings: pricingSettings,
-
         serviceType,
-
         wizard,
-
         lineItems,
-
         heavyItemCount,
+      })
+      return alignReviewOptionsToLockedTotal(
+        raw,
+        resumeLockedTotal != null && Number.isFinite(resumeLockedTotal)
+          ? resumeLockedTotal
+          : null,
+        getQuoteReviewSelectedOptionId(wizard),
+      )
+    },
 
-      }),
-
-    [pricingSettings, serviceType, wizard, lineItems, heavyItemCount],
+    [pricingSettings, serviceType, wizard, lineItems, heavyItemCount, resumeLockedTotal],
 
   )
 
