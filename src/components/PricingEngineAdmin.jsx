@@ -389,8 +389,9 @@ export default function PricingEngineAdmin() {
         <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-card">
           <h3 className="text-lg font-semibold text-slate-900">Volume scaling multipliers</h3>
           <p className="mt-1 text-sm leading-relaxed text-slate-600">
-            Applied to <strong className="font-semibold text-slate-800">inventory volume £</strong> (raw m³ ×
-            £/m³). Optionally also scales floor and no-lift charges when the Access toggle below is on — never
+            Same band multipliers for <strong className="font-semibold text-slate-800">inventory volume £</strong>{' '}
+            (raw m³ × £/m³) and — when the Access toggle is on — for{' '}
+            <strong className="font-semibold text-slate-800">floor / no-lift / with-lift stairs</strong>. Never
             mileage, labour, or the whole quote. Use values ≥ 1.0 (e.g. 1.2 = +20% for that band). Values below
             1.0 are ignored as misconfiguration.
           </p>
@@ -431,29 +432,11 @@ export default function PricingEngineAdmin() {
                 Apply volume multiplier to floors &amp; no-lift
               </span>
               <span className="mt-0.5 block text-xs leading-relaxed text-slate-500">
-                When on, stairs (floor, no-lift, and with-lift %) scale by volume-band × (m³ ÷ reference).
-                More cubes upstairs = clearly higher access — with or without lift. Small jobs at/under the
-                reference m³ only get the band multiplier.
+                When on, floor, no-lift, and with-lift % use the <em>same</em> Volume scaling multipliers as
+                inventory (0–3, 3–8, 8–15, …). With-lift stays at your % of that scaled no-lift stairs total.
               </span>
             </span>
           </label>
-          <div className="mt-3 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            <Field label="Access volume reference (m³)">
-              <input
-                type="number"
-                step="0.5"
-                min="0.5"
-                className={inputClass}
-                value={settings.accessVolumeReferenceM3 ?? 8}
-                onChange={(e) => setNum('accessVolumeReferenceM3', e.target.value)}
-                disabled={!settings.applyVolumeMultiplierToAccessCharges}
-              />
-              <p className="mt-1.5 text-xs leading-relaxed text-slate-500">
-                Stairs grow with cubes above this point. Example: reference 8 → at 16 m³ access gets an extra
-                ×2 on top of the volume band (16÷8). Lower = steeper growth.
-              </p>
-            </Field>
-          </div>
           <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             <Field label="Floor charge per floor (£)">
               <input

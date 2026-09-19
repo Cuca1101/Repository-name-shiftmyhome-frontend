@@ -301,18 +301,12 @@ const largeStairsOn = calculateQuote(
 )
 assert(largeStairsOff.accessVolumeMultiplier === 1, 'toggle off → access vol mult is 1')
 assert(
-  largeStairsOn.accessVolumeMultiplier > largeStairsOn.volumeMultiplier,
-  'toggle on → access scale includes m³ growth above reference (not band alone)',
+  Math.abs(largeStairsOn.accessVolumeMultiplier - largeStairsOn.volumeMultiplier) < 0.001,
+  'toggle on → access uses same volume band as inventory',
 )
 assert(largeStairsOn.accessTotal > largeStairsOff.accessTotal + 1, 'toggle on raises floor+no-lift on large job')
-const expectedAccessOn =
-  Math.round(
-    largeStairsOff.accessTotal *
-      largeStairsOn.volumeMultiplier *
-      Math.max(1, largeStairsOn.totalCubicMetres / (settings.accessVolumeReferenceM3 || 8)) *
-      100,
-  ) / 100
-approx(largeStairsOn.accessTotal, expectedAccessOn, 0.05, 'access total = unscaled × band × m³/ref')
+const expectedAccessOn = Math.round(largeStairsOff.accessTotal * largeStairsOn.volumeMultiplier * 100) / 100
+approx(largeStairsOn.accessTotal, expectedAccessOn, 0.02, 'access total = unscaled access × volume band')
 
 const smallStairsOff = calculateQuote(settings, {
   serviceType: 'Furniture Delivery',
@@ -340,27 +334,28 @@ const smallStairsOn = calculateQuote(
 approx(
   smallStairsOn.accessTotal / Math.max(smallStairsOff.accessTotal, 0.01),
   smallStairsOn.volumeMultiplier,
-  0.05,
-  'small m³ (under reference) stairs access scales by band only',
+  0.02,
+  'small m³ stairs access scales by same band as inventory',
 )
 assert(
-  smallStairsOn.accessTotal - smallStairsOff.accessTotal < 15,
-  'small m³ stairs uplift stays modest',
+  smallStairsOn.accessTotal - smallStairsOff.accessTotal < 8,
+  'small m³ stairs uplift stays modest (< £8)',
 )
 assert(
   largeStairsOn.accessTotal - largeStairsOff.accessTotal >
-    (smallStairsOn.accessTotal - smallStairsOff.accessTotal) * 3,
-  'large load stairs uplift much bigger than small job',
+    (smallStairsOn.accessTotal - smallStairsOff.accessTotal) * 2,
+  'large load stairs uplift bigger than small job',
 )
 
-console.log('\n=== Stairs access grows with m³ (with lift too) ===')
+console.log('\n=== Stairs access same bands as inventory (lift + no-lift) ===')
 const liftGrowSettings = {
   ...settings,
   applyVolumeMultiplierToAccessCharges: true,
-  accessVolumeReferenceM3: 8,
   withLiftAccessPercentOfNoLift: 60,
+  volumeMultiplier8To15M3: 1.3,
+  volumeMultiplier15To20M3: 1.4,
 }
-function accessAt(m3, lift) {
+function quoteAccess(m3, lift) {
   return calculateQuote(liftGrowSettings, {
     serviceType: 'Furniture Delivery',
     distanceMiles: 1,
@@ -370,11 +365,17 @@ function accessAt(m3, lift) {
     lineItems: [{ name: 'Load', quantity: 1, volumePerUnitM3: m3, weightType: 'large', handlingMultiplier: 1 }],
     access: { ...stairsAccess, pickupLift: lift },
     extras: {},
-  }).accessTotal
+  })
 }
-assert(accessAt(16, true) > accessAt(8, true) + 5, 'with-lift access rises as m³ rises past reference')
-assert(accessAt(16, false) > accessAt(8, false) + 10, 'no-lift access rises as m³ rises past reference')
-assert(accessAt(14.5, true) < accessAt(14.5, false), 'with-lift stays below no-lift at same m³')
+const a8 = quoteAccess(8, false)
+const a16 = quoteAccess(16, false)
+const w8 = quoteAccess(8, true)
+const w16 = quoteAccess(16, true)
+assert(Math.abs(a8.accessVolumeMultiplier - a8.volumeMultiplier) < 0.001, '8 m³ no-lift access mult = volume band')
+assert(Math.abs(a16.accessVolumeMultiplier - 1.4) < 0.001, '16 m³ no-lift access mult = 15–20 band')
+assert(Math.abs(w16.accessTotal - a16.accessTotal * 0.6) < 0.05, 'with-lift = 60% of no-lift at same m³')
+assert(w16.accessTotal > w8.accessTotal, 'with-lift rises when volume band rises')
+assert(a16.accessTotal > a8.accessTotal, 'no-lift rises when volume band rises')
 
 console.log('\n=== With-lift = % of no-lift stairs stack ===')
 assert(settings.withLiftAccessPercentOfNoLift === 50, 'default with-lift is 50% of no-lift stack')

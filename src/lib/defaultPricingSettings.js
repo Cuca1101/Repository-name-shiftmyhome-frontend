@@ -37,15 +37,9 @@ export function getDefaultPricingSettings() {
      */
     applyVolumeMultiplierToAccessCharges: false,
     /**
-     * When volume×access is on: stairs scale by bandMult × max(1, m³ / reference).
-     * At reference m³ the extra factor is ×1; above it, stairs grow with cubes
-     * (e.g. 16 m³ / 8 = ×2 on top of the volume band).
-     */
-    accessVolumeReferenceM3: 8,
-    /**
      * When lift = Yes above ground: charge this % of the full no-lift stairs stack
-     * (floor £ + no-lift £, incl. volume×access if enabled). 50 = half, 40 = 40%.
-     * 0 = legacy (floor £ only + optional yesLiftChargePerEnd).
+     * (floor £ + no-lift £, scaled by the same volume-band multipliers as inventory when toggle on).
+     * 50 = half, 40 = 40%. 0 = legacy (floor £ only + optional yesLiftChargePerEnd).
      */
     withLiftAccessPercentOfNoLift: 50,
     longWalkingDistanceCharge: 28,

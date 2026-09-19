@@ -78,8 +78,7 @@ export {
  * @property {number} [crewSurchargePerExtraMember] — legacy fallback for tiered crew fees
  * @property {number} floorChargePerFloor
  * @property {number} noLiftCharge
- * @property {boolean} [applyVolumeMultiplierToAccessCharges] — scale floor + no-lift by volume band × m³
- * @property {number} [accessVolumeReferenceM3] — m³ reference for stairs growth (default 8)
+ * @property {boolean} [applyVolumeMultiplierToAccessCharges] — scale floor + no-lift by same volume bands
  * @property {number} [withLiftAccessPercentOfNoLift] — lift Yes = this % of full no-lift stairs £ (50 = half)
  * @property {number} longWalkingDistanceCharge
  * @property {number} parkingCharge
@@ -871,8 +870,6 @@ export function calculateQuote(settings, input) {
     volumeMultiplier,
     applyToAccess: applyVolumeMultToAccess,
     accessVolumeMultiplier,
-    accessM3Factor: accessVolScale.m3Factor,
-    accessVolumeReferenceM3: accessVolScale.referenceM3,
   })
   logPricingDebug('MINIMUM APPLIED', minimumApplied)
 
