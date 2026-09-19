@@ -3,6 +3,7 @@
  */
 import { initialWizardState, QUOTE_WIZARD_MAX_STEP } from './quoteWizardDefaults'
 import { hydrateWizardFromDraft, pathForServiceType, saveQuoteDraft } from './quoteDraftStorage'
+import { resolveSavedQuoteTotal, buildPriceAffectingFingerprint } from './quoteResumePriceLock'
 import { markResumeSavedQuote } from './quoteSessionMode'
 import { step3ContactDetailsValid } from './quoteWizardStep3ContactScroll'
 import { bindWebsiteLeadSessionId, getWebsiteLeadSessionId } from './websiteLeadSession'
@@ -19,13 +20,32 @@ export function wizardStateFromCustomerLeadData(wizardData) {
   const s2 = wd.step2 && typeof wd.step2 === 'object' ? wd.step2 : {}
   const s3 = wd.step3 && typeof wd.step3 === 'object' ? wd.step3 : {}
 
+  // Prefer first defined crewSize — null in step3 must not wipe a good step2 value.
+  const crewSize =
+    s3.crewSize != null && s3.crewSize !== ''
+      ? s3.crewSize
+      : s2.crewSize != null && s2.crewSize !== ''
+        ? s2.crewSize
+        : null
+
   const merged = {
     ...initialWizardState(),
     ...s1,
     ...s2,
     ...s3,
+    crewSize,
     serviceType: s1.serviceType || s3.serviceType || '',
     inventoryLines: Array.isArray(s2.inventoryLines) ? s2.inventoryLines.map((l) => ({ ...l })) : [],
+    mapboxRouteDurationSeconds:
+      s1.mapboxRouteDurationSeconds != null && s1.mapboxRouteDurationSeconds !== ''
+        ? s1.mapboxRouteDurationSeconds
+        : s3.mapboxRouteDurationSeconds != null && s3.mapboxRouteDurationSeconds !== ''
+          ? s3.mapboxRouteDurationSeconds
+          : null,
+    pickupLng: s1.pickupLng ?? null,
+    pickupLat: s1.pickupLat ?? null,
+    deliveryLng: s1.deliveryLng ?? null,
+    deliveryLat: s1.deliveryLat ?? null,
   }
 
   return hydrateWizardFromDraft(merged)
@@ -38,6 +58,8 @@ export function wizardStateFromCustomerLeadData(wizardData) {
  *   wizard_step?: number|null,
  *   wizard_data?: Record<string, unknown>|null,
  *   estimated_total?: number|null,
+ *   agreed_price?: number|null,
+ *   calculated_total?: number|null,
  *   source_page_url?: string|null,
  * }} lead
  */
@@ -55,10 +77,7 @@ export function draftPayloadFromCustomerLead(lead) {
     step = inventoryReady && step3ContactDetailsValid(wizard) ? 3 : inventoryReady ? 3 : 2
   }
 
-  const estimatedTotal =
-    lead?.estimated_total != null && Number.isFinite(Number(lead.estimated_total))
-      ? Number(lead.estimated_total)
-      : s3Estimated(lead?.wizard_data)
+  const estimatedTotal = resolveSavedQuoteTotal(lead)
 
   const returnPath =
     (typeof lead?.source_page_url === 'string' && lead.source_page_url.startsWith('/')
@@ -72,15 +91,12 @@ export function draftPayloadFromCustomerLead(lead) {
     returnPath,
     wizard,
     estimatedTotal,
+    lockedTotal: estimatedTotal,
+    lockedPriceFingerprint:
+      estimatedTotal != null
+        ? buildPriceAffectingFingerprint({ serviceType, wizard })
+        : null,
   }
-}
-
-/** @param {unknown} wizardData */
-function s3Estimated(wizardData) {
-  const wd = wizardData && typeof wizardData === 'object' ? wizardData : {}
-  const s3 = wd.step3 && typeof wd.step3 === 'object' ? wd.step3 : {}
-  const n = Number(s3.estimatedTotal)
-  return Number.isFinite(n) ? n : null
 }
 
 /**

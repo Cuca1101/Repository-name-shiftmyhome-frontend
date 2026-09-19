@@ -89,6 +89,14 @@ export function loadQuoteDraft() {
       typeof data.estimatedTotal === 'number' && Number.isFinite(data.estimatedTotal)
         ? data.estimatedTotal
         : null
+    const lockedTotal =
+      typeof data.lockedTotal === 'number' && Number.isFinite(data.lockedTotal)
+        ? data.lockedTotal
+        : estimatedTotal
+    const lockedPriceFingerprint =
+      typeof data.lockedPriceFingerprint === 'string' && data.lockedPriceFingerprint
+        ? data.lockedPriceFingerprint
+        : null
 
     const sanitized = sanitizeDraftMoveDate(wizard, step)
     wizard = sanitized.wizard
@@ -107,6 +115,8 @@ export function loadQuoteDraft() {
         returnPath,
         wizard,
         estimatedTotal,
+        lockedTotal,
+        lockedPriceFingerprint,
         leadSessionId,
       })
     }
@@ -120,6 +130,8 @@ export function loadQuoteDraft() {
       returnPath,
       wizard,
       estimatedTotal,
+      lockedTotal,
+      lockedPriceFingerprint,
       leadSessionId,
       dateWasReset: sanitized.dateWasReset,
     }
@@ -146,6 +158,14 @@ export function saveQuoteDraft(payload) {
       returnPath: payload.returnPath,
       wizard: payload.wizard,
       estimatedTotal: payload.estimatedTotal,
+      lockedTotal:
+        typeof payload.lockedTotal === 'number' && Number.isFinite(payload.lockedTotal)
+          ? payload.lockedTotal
+          : null,
+      lockedPriceFingerprint:
+        typeof payload.lockedPriceFingerprint === 'string' && payload.lockedPriceFingerprint
+          ? payload.lockedPriceFingerprint
+          : null,
       leadSessionId,
     }
     window.localStorage.setItem(QUOTE_DRAFT_STORAGE_KEY, JSON.stringify(body))
@@ -180,6 +200,8 @@ export function hasQuoteDraft() {
  * @property {string} returnPath
  * @property {ReturnType<typeof initialWizardState>} wizard
  * @property {number | null} estimatedTotal
+ * @property {number | null} [lockedTotal]
+ * @property {string | null} [lockedPriceFingerprint]
  * @property {string | null} [leadSessionId]
  * @property {boolean} [dateWasReset]
  */

@@ -6,6 +6,7 @@ import {
   isResumeSavedQuote,
 } from './quoteSessionMode'
 import { resolveServiceLabel } from './normalizeServiceType'
+import { buildPriceAffectingFingerprint } from './quoteResumePriceLock'
 import {
   bindWebsiteLeadSessionId,
   rotateWebsiteLeadSessionId,
@@ -37,14 +38,32 @@ export function resolveWizardBootstrap(serviceTypeProp) {
       if (draft.leadSessionId) {
         bindWebsiteLeadSessionId(draft.leadSessionId)
       }
+      const serviceType = resolveServiceLabel(draft.serviceType) || propLabel
+      const lockedTotal =
+        draft.lockedTotal != null && Number.isFinite(Number(draft.lockedTotal))
+          ? Number(draft.lockedTotal)
+          : draft.estimatedTotal != null && Number.isFinite(Number(draft.estimatedTotal))
+            ? Number(draft.estimatedTotal)
+            : null
+      // Past move dates are cleared on load — rebuild fingerprint so the saved total
+      // stays locked until the customer picks a new date or other price inputs.
+      const lockedPriceFingerprint =
+        lockedTotal != null
+          ? draft.dateWasReset
+            ? buildPriceAffectingFingerprint({ serviceType, wizard: draft.wizard })
+            : draft.lockedPriceFingerprint ||
+              buildPriceAffectingFingerprint({ serviceType, wizard: draft.wizard })
+          : null
       return {
         step: draft.step,
         quoteRef: draft.quoteRef,
         wizard: draft.wizard,
-        serviceType: resolveServiceLabel(draft.serviceType) || propLabel,
+        serviceType,
         isResumed: true,
         dateWasReset: Boolean(draft.dateWasReset),
         leadSessionId: draft.leadSessionId || bindWebsiteLeadSessionId(),
+        lockedTotal,
+        lockedPriceFingerprint,
       }
     }
     clearResumeSavedQuote()
@@ -62,5 +81,7 @@ export function resolveWizardBootstrap(serviceTypeProp) {
     isResumed: false,
     dateWasReset: false,
     leadSessionId,
+    lockedTotal: null,
+    lockedPriceFingerprint: null,
   }
 }

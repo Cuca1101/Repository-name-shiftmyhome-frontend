@@ -29,14 +29,142 @@ function round2(n: number) {
   return Math.round(n * 100) / 100
 }
 
+/** Stripe Checkout rejects metadata keys whose values are empty strings. */
+function stripeMetadata(entries: Record<string, string>): Record<string, string> {
+  const out: Record<string, string> = {}
+  for (const [key, value] of Object.entries(entries)) {
+    const trimmed = value.trim()
+    if (!trimmed) continue
+    out[key] = trimmed.slice(0, 500)
+  }
+  return out
+}
+
+function uuidLike(v: string) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(v)
+}
+
 function resolveChargeAmount(lead: Record<string, unknown>): number {
-  const agreed = Number(lead.agreed_price)
-  if (Number.isFinite(agreed) && agreed >= 0) return round2(agreed)
-  const estimated = Number(lead.estimated_total)
-  if (Number.isFinite(estimated) && estimated >= 0) return round2(estimated)
-  const calculated = Number(lead.calculated_total)
-  if (Number.isFinite(calculated) && calculated >= 0) return round2(calculated)
+  if (lead.agreed_price != null && lead.agreed_price !== '') {
+    const agreed = Number(lead.agreed_price)
+    if (Number.isFinite(agreed) && agreed >= 0) return round2(agreed)
+  }
+  if (lead.estimated_total != null && lead.estimated_total !== '') {
+    const estimated = Number(lead.estimated_total)
+    if (Number.isFinite(estimated) && estimated >= 0) return round2(estimated)
+  }
+  if (lead.calculated_total != null && lead.calculated_total !== '') {
+    const calculated = Number(lead.calculated_total)
+    if (Number.isFinite(calculated) && calculated >= 0) return round2(calculated)
+  }
+  const wd =
+    lead.wizard_data && typeof lead.wizard_data === 'object' && !Array.isArray(lead.wizard_data)
+      ? (lead.wizard_data as Record<string, unknown>)
+      : {}
+  const s3 =
+    wd.step3 && typeof wd.step3 === 'object' && !Array.isArray(wd.step3)
+      ? (wd.step3 as Record<string, unknown>)
+      : {}
+  if (s3.estimatedTotal != null && s3.estimatedTotal !== '') {
+    const fromWizard = Number(s3.estimatedTotal)
+    if (Number.isFinite(fromWizard) && fromWizard >= 0) return round2(fromWizard)
+  }
   return NaN
+}
+
+function wizardFromLead(lead: Record<string, unknown>): Record<string, unknown> {
+  const wd =
+    lead.wizard_data && typeof lead.wizard_data === 'object' && !Array.isArray(lead.wizard_data)
+      ? (lead.wizard_data as Record<string, unknown>)
+      : {}
+  const s1 =
+    wd.step1 && typeof wd.step1 === 'object' && !Array.isArray(wd.step1)
+      ? (wd.step1 as Record<string, unknown>)
+      : {}
+  const s2 =
+    wd.step2 && typeof wd.step2 === 'object' && !Array.isArray(wd.step2)
+      ? (wd.step2 as Record<string, unknown>)
+      : {}
+  const s3 =
+    wd.step3 && typeof wd.step3 === 'object' && !Array.isArray(wd.step3)
+      ? (wd.step3 as Record<string, unknown>)
+      : {}
+  return { ...s1, ...s2, ...s3 }
+}
+
+/**
+ * Ensure a quotes row exists so Stripe webhook can mark the booking paid.
+ * Abandoned recovery leads often have quote_ref but no quote_id yet.
+ */
+async function ensureQuoteForRecoveryLead(
+  supabase: ReturnType<typeof createClient>,
+  lead: Record<string, unknown>,
+  amount: number,
+): Promise<string | null> {
+  const existingId = lead.quote_id ? String(lead.quote_id).trim() : ''
+  if (existingId && uuidLike(existingId)) return existingId
+
+  const quoteRef = String(lead.quote_ref || lead.lead_ref || '').trim()
+  if (quoteRef) {
+    const { data: byRef } = await supabase
+      .from('quotes')
+      .select('id')
+      .eq('quote_ref', quoteRef)
+      .maybeSingle()
+    if (byRef?.id) {
+      const id = String(byRef.id)
+      await supabase
+        .from('customer_leads')
+        .update({ quote_id: id, updated_at: new Date().toISOString() })
+        .eq('id', String(lead.id))
+      return id
+    }
+  }
+
+  const wizard = wizardFromLead(lead)
+  const crewRaw = Number(wizard.crewSize ?? wizard.crew_size)
+  const crewSize = Number.isFinite(crewRaw) && crewRaw >= 1 ? Math.round(crewRaw) : null
+  const distanceMiles =
+    Number.isFinite(Number(wizard.distanceMiles)) ? Number(wizard.distanceMiles) : null
+
+  const insertRow: Record<string, unknown> = {
+    quote_ref: quoteRef || `SMH-REC-${String(lead.id).slice(0, 8)}`,
+    full_name: String(lead.customer_name || wizard.fullName || 'Customer').trim() || 'Customer',
+    email: String(lead.customer_email || wizard.email || '').trim() || 'recovery@shiftmyhome.local',
+    phone: String(lead.customer_phone || wizard.phone || '').trim() || '00000000000',
+    service: String(lead.service_type || wizard.serviceType || 'Removals').trim() || 'Removals',
+    service_type: String(lead.service_type || wizard.serviceType || 'Removals').trim() || 'Removals',
+    pickup_address: String(lead.pickup_address || wizard.pickupAddress || '').trim(),
+    delivery_address: String(lead.delivery_address || wizard.deliveryAddress || '').trim(),
+    move_date: String(lead.move_date || wizard.moveDate || '').trim() || null,
+    arrival_window: String(wizard.arrivalWindow || wizard.arrivalSummary || '').trim() || null,
+    distance_miles: distanceMiles,
+    crew_size: crewSize,
+    details: 'Created from quote recovery Pay Now',
+    status: 'New',
+    payment_status: 'unpaid',
+    amount_paid: 0,
+    estimated_total: amount,
+    calculated_total: Number.isFinite(Number(lead.calculated_total))
+      ? Number(lead.calculated_total)
+      : amount,
+    agreed_price: Number.isFinite(Number(lead.agreed_price)) ? Number(lead.agreed_price) : amount,
+    remaining_balance: amount,
+    source: 'quote_recovery',
+  }
+
+  const { data: inserted, error } = await supabase.from('quotes').insert(insertRow).select('id').single()
+  if (error || !inserted?.id) {
+    console.error('[create-recovery-checkout] ensure quote insert failed', error?.message || error)
+    return null
+  }
+
+  const id = String(inserted.id)
+  await supabase
+    .from('customer_leads')
+    .update({ quote_id: id, updated_at: new Date().toISOString() })
+    .eq('id', String(lead.id))
+  return id
 }
 
 async function expireCheckoutSession(stripe: Stripe, sessionId: string | null | undefined) {
@@ -123,6 +251,11 @@ Deno.serve(async (req) => {
   const resumeToken = String(lead.resume_token || '')
   const { resumeUrl } = recoveryUrls(resumeToken)
 
+  const ensuredQuoteId = await ensureQuoteForRecoveryLead(supabase, lead, amount)
+  if (ensuredQuoteId) {
+    lead.quote_id = ensuredQuoteId
+  }
+
   // Invalidate previous checkout if amount changed or regenerating.
   const previousSessionId = String(lead.stripe_checkout_session_id || '').trim()
   const previousAmount = Number(lead.stripe_payment_link_amount)
@@ -134,9 +267,18 @@ Deno.serve(async (req) => {
   }
 
   const amountPence = Math.round(round2(amount) * 100)
-  const calculated = Number(lead.calculated_total ?? lead.estimated_total)
-  const agreed = Number(lead.agreed_price)
-  const hasOverride = Number.isFinite(agreed) && Number.isFinite(calculated) && Math.abs(agreed - calculated) > 0.009
+  const calculatedRaw =
+    lead.calculated_total != null && lead.calculated_total !== ''
+      ? Number(lead.calculated_total)
+      : lead.estimated_total != null && lead.estimated_total !== ''
+        ? Number(lead.estimated_total)
+        : NaN
+  const agreedRaw =
+    lead.agreed_price != null && lead.agreed_price !== '' ? Number(lead.agreed_price) : NaN
+  const calculated = Number.isFinite(calculatedRaw) ? calculatedRaw : NaN
+  const agreed = Number.isFinite(agreedRaw) ? agreedRaw : NaN
+  const hasOverride =
+    Number.isFinite(agreed) && Number.isFinite(calculated) && Math.abs(agreed - calculated) > 0.009
 
   let session: Stripe.Checkout.Session
   try {
@@ -165,17 +307,17 @@ Deno.serve(async (req) => {
       cancel_url: `${siteUrl}/payment-cancelled?resume=${encodeURIComponent(resumeToken)}${
         quoteRef ? `&quote_ref=${encodeURIComponent(quoteRef)}` : ''
       }`,
-      metadata: {
-        quote_ref: quoteRef.slice(0, 500),
+      metadata: stripeMetadata({
+        quote_ref: quoteRef,
         quote_id: lead.quote_id ? String(lead.quote_id) : '',
         customer_lead_id: String(lead.id),
         payment_type: 'full',
         recovery: '1',
-        customer_name: name.slice(0, 200),
+        customer_name: name,
         agreed_price: Number.isFinite(agreed) ? String(agreed) : '',
         calculated_total: Number.isFinite(calculated) ? String(calculated) : '',
         admin_price_override: hasOverride ? '1' : '0',
-      },
+      }),
     })
   } catch (stripeErr) {
     const message = stripeErr instanceof Error ? stripeErr.message : String(stripeErr)
@@ -196,6 +338,7 @@ Deno.serve(async (req) => {
         stripe_checkout_session_id: session.id,
         stripe_payment_link_url: session.url,
         stripe_payment_link_amount: amount,
+        quote_id: lead.quote_id || null,
         updated_at: new Date().toISOString(),
       })
       .eq('id', String(lead.id))
@@ -211,6 +354,7 @@ Deno.serve(async (req) => {
         .update({
           remaining_balance: amount,
           agreed_price: Number.isFinite(agreed) ? agreed : amount,
+          estimated_total: amount,
           stripe_session_id: session.id,
         })
         .eq('id', String(lead.quote_id))

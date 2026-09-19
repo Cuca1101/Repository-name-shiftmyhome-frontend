@@ -10,6 +10,18 @@ function functionsClient() {
   return null
 }
 
+/** Prefer Edge Function JSON error over generic FunctionsHttpError message. */
+function recoveryCheckoutErrorMessage(fnErr, data) {
+  const fromBody =
+    (data && typeof data.error === 'string' && data.error.trim()) ||
+    (data && typeof data.detail === 'string' && data.detail.trim()) ||
+    ''
+  if (fromBody) return fromBody
+  const raw = fnErr?.message || ''
+  if (raw && !/non-2xx status code/i.test(raw)) return raw
+  return 'Payment could not be started. Try resuming your quote instead.'
+}
+
 export default function QuotePayRecoveryPage() {
   const { token } = useParams()
   const [searchParams] = useSearchParams()
@@ -46,7 +58,7 @@ export default function QuotePayRecoveryPage() {
           body: { token: t },
         })
         if (cancelled) return
-        if (fnErr) throw fnErr
+        if (fnErr) throw new Error(recoveryCheckoutErrorMessage(fnErr, data))
         const url = data?.url
         if (!url) throw new Error(data?.error || 'Could not create payment session.')
         window.location.href = url

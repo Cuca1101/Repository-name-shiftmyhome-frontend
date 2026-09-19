@@ -70,6 +70,10 @@ import {
   QUOTE_WIZARD_MAX_STEP,
 } from '../../lib/quoteWizardDefaults'
 import { clearResumeSavedQuote } from '../../lib/quoteSessionMode'
+import {
+  activeLockedQuoteTotal,
+  buildPriceAffectingFingerprint,
+} from '../../lib/quoteResumePriceLock'
 import { trackQuoteWizardSnapshot, trackWebsiteLeadEvent } from '../../lib/websiteLeadTracker'
 import {
   clearCustomerLeadCache,
@@ -127,6 +131,20 @@ export function QuoteWizardProvider({ children, serviceType: serviceTypeProp, al
   const skipAutosaveRef = useRef(false)
   const [bootstrap] = useState(() => resolveWizardBootstrap(serviceTypeProp))
   const isResumedRef = useRef(bootstrap.isResumed)
+  const lockedTotalRef = useRef(
+    bootstrap.isResumed && bootstrap.lockedTotal != null && Number.isFinite(Number(bootstrap.lockedTotal))
+      ? Number(bootstrap.lockedTotal)
+      : null,
+  )
+  const lockedFingerprintRef = useRef(
+    lockedTotalRef.current != null
+      ? bootstrap.lockedPriceFingerprint ||
+          buildPriceAffectingFingerprint({
+            serviceType: bootstrap.serviceType,
+            wizard: bootstrap.wizard,
+          })
+      : null,
+  )
   const addressBaselineRef = useRef(
     isResumedRef.current
       ? {
@@ -185,11 +203,18 @@ export function QuoteWizardProvider({ children, serviceType: serviceTypeProp, al
   useEffect(() => {
     if (!bootstrap.isResumed) return
     if (!consumeWelcomeBackFlag()) return
+    const locked =
+      bootstrap.lockedTotal != null && Number.isFinite(Number(bootstrap.lockedTotal))
+        ? Number(bootstrap.lockedTotal)
+        : null
     setFeedback({
       type: 'success',
-      text: "Welcome back! We've restored your quote exactly where you left it.",
+      text:
+        locked != null
+          ? `Welcome back! We've restored your quote at £${locked.toFixed(2)} — unchanged unless you edit move details.`
+          : "Welcome back! We've restored your quote exactly where you left it.",
     })
-  }, [bootstrap.isResumed])
+  }, [bootstrap.isResumed, bootstrap.lockedTotal])
 
   const addQuotePhotos = useCallback((fileList) => {
     const incoming = Array.from(fileList).filter(
@@ -238,6 +263,10 @@ export function QuoteWizardProvider({ children, serviceType: serviceTypeProp, al
       quoteRef,
       serviceType: bootstrap.serviceType,
       wizard,
+      estimatedTotal:
+        lockedTotalRef.current != null && Number.isFinite(lockedTotalRef.current)
+          ? lockedTotalRef.current
+          : undefined,
       landingPath: location.pathname || '/quote',
       currentStatus: customerLeadStatusRef.current,
       totalM3: 0,
@@ -368,21 +397,49 @@ export function QuoteWizardProvider({ children, serviceType: serviceTypeProp, al
   )
 
   useEffect(() => {
+    // Never bump crew while a recovered quote total is locked — that caused £65→£85.
+    if (
+      activeLockedQuoteTotal(lockedTotalRef.current, lockedFingerprintRef.current, {
+        serviceType,
+        wizard,
+      }) != null
+    ) {
+      return
+    }
     if (!crewRestrictions.oneManAllowed && Number(wizard.crewSize) === 1) {
       setWizard((w) => ({ ...w, crewSize: 2 }))
     }
-  }, [crewRestrictions.oneManAllowed, wizard.crewSize])
+  }, [crewRestrictions.oneManAllowed, wizard.crewSize, serviceType, wizard])
 
   const breakdown = useMemo(() => {
     if (step < 2 || !settings) return null
-    return calculateQuote(
+    const live = calculateQuote(
       settings,
       buildQuoteEngineInput({ serviceType, wizard, lineItems, heavyItemCount }),
     )
+    const locked = activeLockedQuoteTotal(lockedTotalRef.current, lockedFingerprintRef.current, {
+      serviceType,
+      wizard,
+    })
+    if (locked != null) {
+      if (Math.abs(Number(live.estimatedTotal) - locked) < 0.009) return live
+      return { ...live, estimatedTotal: locked }
+    }
+    // Customer changed a price-affecting option — drop the lock permanently for this session.
+    if (lockedTotalRef.current != null) {
+      lockedTotalRef.current = null
+      lockedFingerprintRef.current = null
+    }
+    return live
   }, [step, settings, serviceType, wizard, lineItems, heavyItemCount])
 
   const priceWithoutPromo = useMemo(() => {
     if (step < 2 || !settings) return null
+    const locked = activeLockedQuoteTotal(lockedTotalRef.current, lockedFingerprintRef.current, {
+      serviceType,
+      wizard,
+    })
+    if (locked != null) return locked
     const result = calculateQuote(
       settings,
       buildQuoteEngineInput({
@@ -399,7 +456,9 @@ export function QuoteWizardProvider({ children, serviceType: serviceTypeProp, al
   const estimatedTotalForDraft =
     breakdown?.estimatedTotal != null && Number.isFinite(breakdown.estimatedTotal)
       ? breakdown.estimatedTotal
-      : null
+      : lockedTotalRef.current != null && Number.isFinite(lockedTotalRef.current)
+        ? lockedTotalRef.current
+        : null
 
   useEffect(() => {
     if (skipAutosaveRef.current) return undefined
@@ -412,6 +471,11 @@ export function QuoteWizardProvider({ children, serviceType: serviceTypeProp, al
 
     const returnPath =
       location.pathname && location.pathname !== '/' ? location.pathname : '/quote'
+    const lockedStillActive = activeLockedQuoteTotal(
+      lockedTotalRef.current,
+      lockedFingerprintRef.current,
+      { serviceType, wizard },
+    )
     const timer = window.setTimeout(() => {
       saveQuoteDraft({
         step,
@@ -420,6 +484,8 @@ export function QuoteWizardProvider({ children, serviceType: serviceTypeProp, al
         returnPath,
         wizard,
         estimatedTotal: estimatedTotalForDraft,
+        lockedTotal: lockedStillActive,
+        lockedPriceFingerprint: lockedStillActive != null ? lockedFingerprintRef.current : null,
       })
       if (!savedDraftTrackedRef.current) {
         savedDraftTrackedRef.current = true
@@ -440,6 +506,7 @@ export function QuoteWizardProvider({ children, serviceType: serviceTypeProp, al
         status: step > 1 ? 'step_completed' : 'quote_started',
         allowContactInLead: false,
       })
+      // Never sync a null total while resumed — that wipes the email/Pay Now amount.
       void syncCustomerLeadFromWizard({
         step,
         quoteRef,
@@ -1078,6 +1145,8 @@ export function QuoteWizardProvider({ children, serviceType: serviceTypeProp, al
     skipAutosaveRef.current = true
     clearResumeSavedQuote()
     isResumedRef.current = false
+    lockedTotalRef.current = null
+    lockedFingerprintRef.current = null
     addressBaselineRef.current = null
     savedDraftTrackedRef.current = false
     funnelTrackedRef.current = false

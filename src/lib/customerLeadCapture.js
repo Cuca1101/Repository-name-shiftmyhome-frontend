@@ -47,6 +47,11 @@ function buildStep1Snapshot(wizard) {
     pickupLift: wizard.pickupLift ?? null,
     deliveryLift: wizard.deliveryLift ?? null,
     distanceMiles: wizard.distanceMiles ?? null,
+    mapboxRouteDurationSeconds: wizard.mapboxRouteDurationSeconds ?? null,
+    pickupLng: wizard.pickupLng ?? null,
+    pickupLat: wizard.pickupLat ?? null,
+    deliveryLng: wizard.deliveryLng ?? null,
+    deliveryLat: wizard.deliveryLat ?? null,
     moveDate: wizard.moveDate ?? '',
     arrivalWindow: wizard.arrivalWindow ?? '',
     exactArrivalTime: wizard.exactArrivalTime ?? '',
@@ -146,7 +151,8 @@ export function buildCustomerLeadUpsertPayload({
     paymentPhase,
   })
 
-  return {
+  /** @type {Record<string, unknown>} */
+  const payload = {
     quote_ref: String(quoteRef || '').trim() || null,
     quote_id: quoteId ? String(quoteId).trim() : null,
     status,
@@ -160,10 +166,6 @@ export function buildCustomerLeadUpsertPayload({
     delivery_address: delivery || null,
     move_date: String(w.moveDate || '').trim() || null,
     route_label: routeLabel || null,
-    estimated_total:
-      estimatedTotal != null && Number.isFinite(Number(estimatedTotal))
-        ? Number(estimatedTotal)
-        : null,
     total_volume_m3:
       totalM3 != null && Number.isFinite(Number(totalM3)) ? Number(totalM3) : null,
     wizard_step: Math.max(1, Number(step) || 1),
@@ -174,6 +176,13 @@ export function buildCustomerLeadUpsertPayload({
       capturedAt: new Date().toISOString(),
     },
   }
+
+  // Omit estimated_total when unknown so upsert does not NULL out the saved email/Pay Now total.
+  if (estimatedTotal != null && Number.isFinite(Number(estimatedTotal))) {
+    payload.estimated_total = Number(estimatedTotal)
+  }
+
+  return payload
 }
 
 /**

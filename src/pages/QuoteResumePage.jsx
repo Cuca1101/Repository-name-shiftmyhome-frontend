@@ -61,6 +61,8 @@ export default function QuoteResumePage() {
           wizard_step: data.wizard_step,
           wizard_data: data.wizard_data,
           estimated_total: data.estimated_total,
+          agreed_price: data.agreed_price,
+          calculated_total: data.calculated_total,
           source_page_url: data.source_page_url,
         })
         const path = applyCustomerLeadResumeDraft(draft, {
