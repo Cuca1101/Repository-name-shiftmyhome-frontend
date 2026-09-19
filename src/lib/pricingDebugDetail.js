@@ -9,7 +9,12 @@ import {
   resolveCrewLabourDistanceRates,
   resolveTravelHoursForCrewLabour,
 } from './crewPricingRules'
-import { effectiveFloorLevelsForPricing, floorNeedsLiftQuestion } from './floorAccess'
+import {
+  effectiveFloorLevelsForPricing,
+  floorNeedsLiftQuestion,
+  fullNoLiftStairsAccessAmount,
+  resolveWithLiftAccessPercentOfNoLift,
+} from './floorAccess'
 import { resolveAccessChargeRates } from './pricingSettingValue'
 
 const money = (n) => Math.round((Number(n) || 0) * 100) / 100
@@ -95,6 +100,15 @@ export function buildPricingDebugDetail(breakdown, ctx) {
   const pickupNeedsLiftAccess = floorNeedsLiftQuestion(access.pickupFloor)
   const deliveryNeedsLiftAccess = floorNeedsLiftQuestion(access.deliveryFloor)
   const { perFloorRate: perFloor, noLiftFlat, yesLiftPerEnd } = resolveAccessChargeRates(s)
+  const accessVolMult =
+    Boolean(s.applyVolumeMultiplierToAccessCharges) &&
+    Number.isFinite(Number(breakdown.volumeMultiplier)) &&
+    Number(breakdown.volumeMultiplier) > 0
+      ? Number(breakdown.volumeMultiplier)
+      : 1
+  const accessVolNote =
+    Math.abs(accessVolMult - 1) > 0.0005 ? ` × vol ×${money(accessVolMult)}` : ''
+  const withLiftPercent = resolveWithLiftAccessPercentOfNoLift(s)
 
   /** @type {object[]} */
   const accessChargeDetail = []
@@ -110,51 +124,48 @@ export function buildPricingDebugDetail(breakdown, ctx) {
     })
   }
 
-  if (pickupFloor > 0 && perFloor > 0) {
-    pushAccess(
-      'floor',
-      'pickup',
-      `${pickupFloor} floor level(s) × £${perFloor.toFixed(2)} per floor (per job, not × crew)`,
-      pickupFloor * perFloor,
-    )
-  }
-  if (deliveryFloor > 0 && perFloor > 0) {
-    pushAccess(
-      'floor',
-      'delivery',
-      `${deliveryFloor} floor level(s) × £${perFloor.toFixed(2)} per floor (per job, not × crew)`,
-      deliveryFloor * perFloor,
-    )
-  }
   const pickupLiftExplicit = access.pickupLift !== undefined && access.pickupLift !== null
   const deliveryLiftExplicit = access.deliveryLift !== undefined && access.deliveryLift !== null
   const pickupLift = pickupLiftExplicit ? Boolean(access.pickupLift) : Boolean(access.hasLift)
   const deliveryLift = deliveryLiftExplicit ? Boolean(access.deliveryLift) : Boolean(access.hasLift)
 
-  if (pickupNeedsLiftAccess && pickupLiftExplicit && !pickupLift && noLiftFlat > 0) {
-    pushAccess(
-      'no_lift',
-      'pickup',
-      `£${noLiftFlat.toFixed(2)} × ${pickupFloor} floor${pickupFloor === 1 ? '' : 's'} (per job, not × crew)`,
-      pickupFloor * noLiftFlat,
-    )
-  }
-  if (deliveryNeedsLiftAccess && deliveryLiftExplicit && !deliveryLift && noLiftFlat > 0) {
-    pushAccess(
-      'no_lift',
-      'delivery',
-      `£${noLiftFlat.toFixed(2)} × ${deliveryFloor} floor${deliveryFloor === 1 ? '' : 's'} (per job, not × crew)`,
-      deliveryFloor * noLiftFlat,
-    )
-  }
-  if (yesLiftPerEnd > 0) {
-    if (pickupNeedsLiftAccess && pickupLiftExplicit && pickupLift) {
-      pushAccess('lift', 'pickup', 'Lift Yes (per end, per job)', yesLiftPerEnd)
+  function pushStairsDebug(side, floors, needsLift, liftExplicit, liftYes) {
+    if (floors <= 0) return
+    if (needsLift && liftExplicit && liftYes && withLiftPercent > 0) {
+      const fullAmt = fullNoLiftStairsAccessAmount(floors, perFloor, noLiftFlat, accessVolMult)
+      const amt = fullAmt * (withLiftPercent / 100)
+      pushAccess(
+        'lift',
+        side,
+        `${floors} floor level(s) @ ${withLiftPercent}% of no-lift stairs (per job)${accessVolNote}`,
+        amt,
+      )
+      return
     }
-    if (deliveryNeedsLiftAccess && deliveryLiftExplicit && deliveryLift) {
-      pushAccess('lift', 'delivery', 'Lift Yes (per end, per job)', yesLiftPerEnd)
+    if (perFloor > 0) {
+      pushAccess(
+        'floor',
+        side,
+        `${floors} floor level(s) × £${perFloor.toFixed(2)} per floor (per job, not × crew)${accessVolNote}`,
+        floors * perFloor * accessVolMult,
+      )
+    }
+    if (needsLift && liftExplicit && !liftYes && noLiftFlat > 0) {
+      pushAccess(
+        'no_lift',
+        side,
+        `£${noLiftFlat.toFixed(2)} × ${floors} floor${floors === 1 ? '' : 's'} (per job, not × crew)${accessVolNote}`,
+        floors * noLiftFlat * accessVolMult,
+      )
+    }
+    if (needsLift && liftExplicit && liftYes && withLiftPercent <= 0 && yesLiftPerEnd > 0) {
+      pushAccess('lift', side, 'Lift Yes (per end, per job) — legacy flat', yesLiftPerEnd)
     }
   }
+
+  pushStairsDebug('pickup', pickupFloor, pickupNeedsLiftAccess, pickupLiftExplicit, pickupLift)
+  pushStairsDebug('delivery', deliveryFloor, deliveryNeedsLiftAccess, deliveryLiftExplicit, deliveryLift)
+
   if (access.longWalk && Number(s.longWalkingDistanceCharge) > 0) {
     pushAccess('long_walk', 'job', 'Long walking distance selected', Number(s.longWalkingDistanceCharge))
   }

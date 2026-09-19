@@ -13,7 +13,12 @@ import {
   usesDistanceBasedCrewLabour,
 } from './crewPricingRules'
 import { buildStandardPricingDisplayRows } from './pricingBreakdownDisplay'
-import { effectiveFloorLevelsForPricing, floorNeedsLiftQuestion } from './floorAccess'
+import {
+  effectiveFloorLevelsForPricing,
+  floorNeedsLiftQuestion,
+  fullNoLiftStairsAccessAmount,
+  resolveWithLiftAccessPercentOfNoLift,
+} from './floorAccess'
 import { mergePricingSettingsWithDefaults } from './pricingSettingsMerge'
 import { buildPricingDebugDetail } from './pricingDebugDetail'
 import { resolveVolumePricingMultiplier } from './volumePricingMultiplier'
@@ -72,6 +77,8 @@ export {
  * @property {number} [crewSurchargePerExtraMember] — legacy fallback for tiered crew fees
  * @property {number} floorChargePerFloor
  * @property {number} noLiftCharge
+ * @property {boolean} [applyVolumeMultiplierToAccessCharges] — scale floor + no-lift by volume band
+ * @property {number} [withLiftAccessPercentOfNoLift] — lift Yes = this % of full no-lift stairs £ (50 = half)
  * @property {number} longWalkingDistanceCharge
  * @property {number} parkingCharge
  * @property {number} waitingTimePricePerHour
@@ -202,8 +209,10 @@ export {
  * @property {Record<string, 'admin'|'defaults'>} [volumeMultiplierSources]
  * @property {number} [baseVolumePrice] — raw m³ × £/m³ before volume-band multiplier
  * @property {number} [calculatedSubtotalBeforeMultiplier]
- * @property {number} [scaledSubtotal] — after date surcharges (volume band already applied to volume £ only)
+ * @property {number} [scaledSubtotal] — after date surcharges (volume band on volume £; access if enabled)
  * @property {number} [volumeScalingAmount] — volume-band uplift on inventory £ only
+ * @property {boolean} [applyVolumeMultiplierToAccessCharges]
+ * @property {number} [accessVolumeMultiplier] — factor applied to floor/no-lift when toggle on (else 1)
  * @property {number} distancePrice
  * @property {number} volumePrice
  * @property {number} totalCubicMetres
@@ -401,9 +410,18 @@ export function calculateQuote(settings, input) {
     bandLabel: volumeMultiplierBand,
     multiplierSource: volumeMultiplierSource,
   } = resolveVolumePricingMultiplier(s, totalCubicMetres)
-  /** Volume band applies ONLY to inventory £ — never the whole quote. */
+  /** Volume band applies to inventory £; optionally also floors / no-lift when admin toggle is on. */
   const volumePrice = money(baseVolumePrice * volumeMultiplier)
   const volumeScalingAmount = money(volumePrice - baseVolumePrice)
+  const applyVolumeMultToAccess = Boolean(s.applyVolumeMultiplierToAccessCharges)
+  const accessVolumeMultiplier =
+    applyVolumeMultToAccess && Number.isFinite(volumeMultiplier) && volumeMultiplier > 0
+      ? volumeMultiplier
+      : 1
+  const volAccessSuffix =
+    Math.abs(accessVolumeMultiplier - 1) > 0.0005
+      ? ` × vol ×${money(accessVolumeMultiplier)}`
+      : ''
 
   const crewRaw = Number(input.crewSize)
   const selectedCrew =
@@ -460,65 +478,79 @@ export function calculateQuote(settings, input) {
   const accessLines = []
 
   const { perFloorRate, noLiftFlat, yesLiftPerEnd } = resolveAccessChargeRates(s)
+  const withLiftPercent = resolveWithLiftAccessPercentOfNoLift(s)
 
-  if (pickupFloor > 0 && perFloorRate > 0) {
-    const amt = money(pickupFloor * perFloorRate)
-    if (amt > 0) {
-      accessLines.push({
-        label: `Floor/access (collection): ${pickupFloor} floor level(s)`,
-        amount: amt,
-      })
-    }
-  }
-  if (deliveryFloor > 0 && perFloorRate > 0) {
-    const amt = money(deliveryFloor * perFloorRate)
-    if (amt > 0) {
-      accessLines.push({
-        label: `Floor/access (delivery): ${deliveryFloor} floor level(s)`,
-        amount: amt,
-      })
-    }
-  }
+  /**
+   * @param {'collection'|'delivery'} sideLabel
+   * @param {number} floors
+   * @param {boolean} needsLift
+   * @param {boolean} liftExplicit
+   * @param {boolean} liftYes
+   */
+  function pushStairsAccessForEnd(sideLabel, floors, needsLift, liftExplicit, liftYes) {
+    if (floors <= 0) return
 
-  if (pickupNeedsLiftAccess && pickupLiftExplicit && !pickupLift && noLiftFlat > 0) {
-    const amt = money(pickupFloor * noLiftFlat)
-    if (amt > 0) {
-      accessLines.push({
-        label: `No lift supplement (pickup): £${noLiftFlat.toFixed(2)} × ${pickupFloor} floor${pickupFloor === 1 ? '' : 's'} = £${amt.toFixed(2)}`,
-        amount: amt,
-      })
-    }
-  }
-  if (deliveryNeedsLiftAccess && deliveryLiftExplicit && !deliveryLift && noLiftFlat > 0) {
-    const amt = money(deliveryFloor * noLiftFlat)
-    if (amt > 0) {
-      accessLines.push({
-        label: `No lift supplement (delivery): £${noLiftFlat.toFixed(2)} × ${deliveryFloor} floor${deliveryFloor === 1 ? '' : 's'} = £${amt.toFixed(2)}`,
-        amount: amt,
-      })
-    }
-  }
-
-  if (yesLiftPerEnd > 0) {
-    if (pickupNeedsLiftAccess && pickupLiftExplicit && pickupLift) {
-      const amt = money(yesLiftPerEnd)
+    const useWithLiftPercent = needsLift && liftExplicit && liftYes && withLiftPercent > 0
+    if (useWithLiftPercent) {
+      const fullAmt = money(
+        fullNoLiftStairsAccessAmount(floors, perFloorRate, noLiftFlat, accessVolumeMultiplier),
+      )
+      const amt = money(fullAmt * (withLiftPercent / 100))
       if (amt > 0) {
         accessLines.push({
-          label: 'Lift access charge (collection)',
+          label: `Lift access (${sideLabel}): ${floors} floor level(s) @ ${withLiftPercent}% of no-lift stairs${volAccessSuffix} = £${amt.toFixed(2)}`,
+          amount: amt,
+        })
+      }
+      return
+    }
+
+    if (perFloorRate > 0) {
+      const amt = money(floors * perFloorRate * accessVolumeMultiplier)
+      if (amt > 0) {
+        accessLines.push({
+          label: `Floor/access (${sideLabel}): ${floors} floor level(s)${volAccessSuffix}`,
           amount: amt,
         })
       }
     }
-    if (deliveryNeedsLiftAccess && deliveryLiftExplicit && deliveryLift) {
+
+    if (needsLift && liftExplicit && !liftYes && noLiftFlat > 0) {
+      const amt = money(floors * noLiftFlat * accessVolumeMultiplier)
+      if (amt > 0) {
+        accessLines.push({
+          label: `No lift supplement (${sideLabel}): £${noLiftFlat.toFixed(2)} × ${floors} floor${floors === 1 ? '' : 's'}${volAccessSuffix} = £${amt.toFixed(2)}`,
+          amount: amt,
+        })
+      }
+    }
+
+    // Legacy: percent 0 → optional flat yes-lift fee (floors already charged above).
+    if (needsLift && liftExplicit && liftYes && withLiftPercent <= 0 && yesLiftPerEnd > 0) {
       const amt = money(yesLiftPerEnd)
       if (amt > 0) {
         accessLines.push({
-          label: 'Lift access charge (delivery)',
+          label: `Lift access charge (${sideLabel})`,
           amount: amt,
         })
       }
     }
   }
+
+  pushStairsAccessForEnd(
+    'collection',
+    pickupFloor,
+    pickupNeedsLiftAccess,
+    pickupLiftExplicit,
+    pickupLift,
+  )
+  pushStairsAccessForEnd(
+    'delivery',
+    deliveryFloor,
+    deliveryNeedsLiftAccess,
+    deliveryLiftExplicit,
+    deliveryLift,
+  )
 
   if (access.longWalk) {
     const w = Number(s.longWalkingDistanceCharge) || 0
@@ -835,7 +867,11 @@ export function calculateQuote(settings, input) {
   logPricingDebug('CREW LABOUR', crewLabourTotal)
   logPricingDebug('ACCESS BREAKDOWN', accessLines)
   logPricingDebug('MINIMUM BASE THRESHOLD', minimumBaseThreshold)
-  logPricingDebug('VOLUME MULTIPLIER (volume £ only)', volumeMultiplier)
+  logPricingDebug('VOLUME MULTIPLIER', {
+    volumeMultiplier,
+    applyToAccess: applyVolumeMultToAccess,
+    accessVolumeMultiplier,
+  })
   logPricingDebug('MINIMUM APPLIED', minimumApplied)
 
   /** @type {PriceBreakdown} */
@@ -848,6 +884,8 @@ export function calculateQuote(settings, input) {
     volumeMultiplier,
     volumeMultiplierBand,
     volumeMultiplierSource,
+    applyVolumeMultiplierToAccessCharges: applyVolumeMultToAccess,
+    accessVolumeMultiplier,
     baseVolumePrice,
     calculatedSubtotalBeforeMultiplier,
     scaledSubtotal,

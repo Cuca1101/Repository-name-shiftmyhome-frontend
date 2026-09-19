@@ -201,7 +201,10 @@ export default function PricingEngineAdmin() {
           </p>
           <ol className="mt-3 list-decimal space-y-1 pl-5 text-sm text-emerald-950/90">
             <li>Mileage × price/mile (fuel is optional and off by default — do not enable unless you want a second distance charge).</li>
-            <li>Raw inventory m³ × £/m³, then volume-band multiplier on that volume £ only (never the whole quote).</li>
+            <li>
+              Raw inventory m³ × £/m³, then volume-band multiplier on that volume £ (and optionally floors /
+              no-lift when that toggle is on — never the whole quote).
+            </li>
             <li>Access &amp; extras (floors, lift, stairs, parking, packing, etc.).</li>
             <li>Crew hourly travel labour (Mapbox duration or miles ÷ fallback speed). Crew/service bases are floors only.</li>
             <li>Date surcharge once (same-day / Saturday / Sunday / bank holiday).</li>
@@ -386,9 +389,10 @@ export default function PricingEngineAdmin() {
         <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-card">
           <h3 className="text-lg font-semibold text-slate-900">Volume scaling multipliers</h3>
           <p className="mt-1 text-sm leading-relaxed text-slate-600">
-            Applied <strong className="font-semibold text-slate-800">only to inventory volume £</strong> (raw m³ ×
-            £/m³), never to mileage, labour, access, or the whole quote. Use values ≥ 1.0 (e.g. 1.2 = +20% on volume
-            £ for that band). Values below 1.0 are ignored as misconfiguration.
+            Applied to <strong className="font-semibold text-slate-800">inventory volume £</strong> (raw m³ ×
+            £/m³). Optionally also scales floor and no-lift charges when the Access toggle below is on — never
+            mileage, labour, or the whole quote. Use values ≥ 1.0 (e.g. 1.2 = +20% for that band). Values below
+            1.0 are ignored as misconfiguration.
           </p>
           <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {[...VOLUME_MULTIPLIER_BANDS].reverse().map((band) => (
@@ -415,6 +419,23 @@ export default function PricingEngineAdmin() {
           <p className="mt-1 text-sm text-slate-600">
             Used on the quote form for floors, lift access, stairs, parking, and heavy items.
           </p>
+          <label className="mt-3 flex cursor-pointer items-start gap-2 text-sm text-slate-700">
+            <input
+              type="checkbox"
+              className="mt-0.5 h-4 w-4 rounded border-slate-300 text-brand-600"
+              checked={Boolean(settings.applyVolumeMultiplierToAccessCharges)}
+              onChange={(e) => setBool('applyVolumeMultiplierToAccessCharges', e.target.checked)}
+            />
+            <span>
+              <span className="font-medium text-slate-900">
+                Apply volume multiplier to floors &amp; no-lift
+              </span>
+              <span className="mt-0.5 block text-xs leading-relaxed text-slate-500">
+                When on, floor and no-lift £ rise with the same volume band as inventory (small m³ jobs stay
+                cheap; large loads up stairs cost more). Stairs, parking, and other access lines are unchanged.
+              </span>
+            </span>
+          </label>
           <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             <Field label="Floor charge per floor (£)">
               <input
@@ -436,11 +457,30 @@ export default function PricingEngineAdmin() {
                 onChange={(e) => setNum('noLiftCharge', e.target.value)}
               />
               <p className="mt-1.5 text-xs leading-relaxed text-slate-500">
-                One-off supplement per end when the customer is above ground floor and selects lift{' '}
-                <strong className="font-medium text-slate-700">No</strong>. Not applied on ground floor.
+                Per floor when above ground and lift is{' '}
+                <strong className="font-medium text-slate-700">No</strong>. Together with floor charge this is
+                the full stairs stack. Not applied on ground floor.
               </p>
             </Field>
-            <Field label="Yes lift charge per end (£)">
+            <Field label="With lift — % of no-lift stairs">
+              <input
+                type="number"
+                step="1"
+                min="0"
+                max="100"
+                className={inputClass}
+                value={settings.withLiftAccessPercentOfNoLift ?? 50}
+                onChange={(e) => setNum('withLiftAccessPercentOfNoLift', e.target.value)}
+              />
+              <p className="mt-1.5 text-xs leading-relaxed text-slate-500">
+                When lift is <strong className="font-medium text-slate-700">Yes</strong>, charge this % of the
+                full no-lift stairs total (floor + no-lift, incl. volume scaling if enabled).{' '}
+                <strong className="font-medium text-slate-700">50</strong> = half,{' '}
+                <strong className="font-medium text-slate-700">40</strong> = 40%. Set{' '}
+                <strong className="font-medium text-slate-700">0</strong> for legacy floors-only pricing.
+              </p>
+            </Field>
+            <Field label="Yes lift charge per end (£) — legacy">
               <input
                 type="number"
                 step="0.01"
@@ -450,8 +490,8 @@ export default function PricingEngineAdmin() {
                 onChange={(e) => setNum('yesLiftChargePerEnd', e.target.value)}
               />
               <p className="mt-1.5 text-xs leading-relaxed text-slate-500">
-                Per end when floor is above ground and customer explicitly selects lift{' '}
-                <strong className="font-medium text-slate-700">Yes</strong>. £0 = disabled.
+                Only used when with-lift % is <strong className="font-medium text-slate-700">0</strong>{' '}
+                (legacy). Otherwise leave at £0.
               </p>
             </Field>
             <Field label="Stairs charge per flight (£)">

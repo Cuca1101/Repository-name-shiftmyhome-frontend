@@ -31,6 +31,17 @@ export function getDefaultPricingSettings() {
     minimumJobPriceThreeMen: 90,
     floorChargePerFloor: 13,
     noLiftCharge: 30,
+    /**
+     * When true, floor + no-lift access £ are multiplied by the same volume-band factor
+     * as inventory (protects small m³ jobs; scales stairs work on large loads).
+     */
+    applyVolumeMultiplierToAccessCharges: false,
+    /**
+     * When lift = Yes above ground: charge this % of the full no-lift stairs stack
+     * (floor £ + no-lift £, incl. volume×access if enabled). 50 = half, 40 = 40%.
+     * 0 = legacy (floor £ only + optional yesLiftChargePerEnd).
+     */
+    withLiftAccessPercentOfNoLift: 50,
     longWalkingDistanceCharge: 28,
     parkingCharge: 15,
     waitingTimePricePerHour: 40,
@@ -96,7 +107,7 @@ export function getDefaultPricingSettings() {
     depositAmount: 50,
     promoCodesEnabled: false,
     promoCodes: [],
-    /** Applied to inventory volume £ only. Smooth below 15 m³; flat bands from 15+. */
+    /** Applied to inventory volume £; optionally floors/no-lift when applyVolumeMultiplierToAccessCharges. */
     volumeMultiplier0To3M3: 1,
     volumeMultiplier3To8M3: 1.1,
     volumeMultiplier8To15M3: 1.2,

@@ -1,5 +1,6 @@
 /**
- * Volume scaling multipliers — applied to inventory volume £ only (never the whole quote).
+ * Volume scaling multipliers — applied to inventory volume £ (and optionally floors/no-lift).
+ * Never scales the whole quote.
  * Below 15 m³: smooth piecewise-linear interpolation between anchors.
  * From 15 m³ up: flat bands — 15–20 (under 20), 20–30, 30+.
  */

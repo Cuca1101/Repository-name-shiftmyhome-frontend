@@ -19,6 +19,8 @@ const CORE_PRICING_KEYS = [
   'minimumJobPriceThreeMen',
   'floorChargePerFloor',
   'noLiftCharge',
+  'applyVolumeMultiplierToAccessCharges',
+  'withLiftAccessPercentOfNoLift',
   'yesLiftChargePerEnd',
   'fuelSurchargeEnabled',
   'fuelSurchargePerMile',
@@ -65,7 +67,9 @@ export function detectMissingPricingSettingKeys(raw) {
     if (key === 'basePriceByService') {
       return !value || typeof value !== 'object' || !Object.keys(value).length
     }
-    if (key === 'fuelSurchargeEnabled') return value === undefined || value === null
+    if (key === 'fuelSurchargeEnabled' || key === 'applyVolumeMultiplierToAccessCharges') {
+      return value === undefined || value === null
+    }
     return value === undefined || value === null || value === ''
   })
 }
@@ -146,6 +150,13 @@ export function mergePricingSettingsWithDefaults(raw, opts = {}) {
 
   // Service base is always a floor, never × crew.
   merged.basePricePerMan = false
+  merged.applyVolumeMultiplierToAccessCharges = Boolean(merged.applyVolumeMultiplierToAccessCharges)
+  {
+    const pct = Number(merged.withLiftAccessPercentOfNoLift)
+    merged.withLiftAccessPercentOfNoLift = Number.isFinite(pct)
+      ? Math.max(0, Math.min(100, pct))
+      : defaults.withLiftAccessPercentOfNoLift
+  }
 
   const legacyWeekendPct = Number(merged.weekendSurchargePercent)
   const legacyWeekend =

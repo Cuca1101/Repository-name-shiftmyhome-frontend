@@ -261,6 +261,146 @@ for (const [name, b] of [
 
 console.log('\n=== Fuel default ===')
 assert(settings.fuelSurchargeEnabled === false, 'fuel surcharge disabled in defaults')
+assert(
+  settings.applyVolumeMultiplierToAccessCharges === false,
+  'volume×access toggle off by default (legacy floor/no-lift behaviour)',
+)
+
+console.log('\n=== Volume multiplier on floors / no-lift (optional) ===')
+const stairsAccess = {
+  pickupFloor: 3,
+  deliveryFloor: 0,
+  pickupLift: false,
+  deliveryLift: null,
+  longWalk: false,
+  parking: false,
+  stairsFlights: 0,
+}
+const largeStairsOff = calculateQuote(settings, {
+  serviceType: 'Furniture Delivery',
+  distanceMiles: 1,
+  mapboxRouteDurationSeconds: 360,
+  crewSize: 2,
+  moveDate: '2026-09-18',
+  lineItems: [{ name: 'Load', quantity: 1, volumePerUnitM3: 14.5, weightType: 'large', handlingMultiplier: 1 }],
+  access: stairsAccess,
+  extras: {},
+})
+const largeStairsOn = calculateQuote(
+  { ...settings, applyVolumeMultiplierToAccessCharges: true },
+  {
+    serviceType: 'Furniture Delivery',
+    distanceMiles: 1,
+    mapboxRouteDurationSeconds: 360,
+    crewSize: 2,
+    moveDate: '2026-09-18',
+    lineItems: [{ name: 'Load', quantity: 1, volumePerUnitM3: 14.5, weightType: 'large', handlingMultiplier: 1 }],
+    access: stairsAccess,
+    extras: {},
+  },
+)
+assert(largeStairsOff.accessVolumeMultiplier === 1, 'toggle off → access vol mult is 1')
+assert(
+  Math.abs(largeStairsOn.accessVolumeMultiplier - largeStairsOn.volumeMultiplier) < 0.001,
+  'toggle on → access uses same volume band as inventory',
+)
+assert(largeStairsOn.accessTotal > largeStairsOff.accessTotal + 1, 'toggle on raises floor+no-lift on large job')
+const expectedAccessOn = Math.round(largeStairsOff.accessTotal * largeStairsOn.volumeMultiplier * 100) / 100
+approx(largeStairsOn.accessTotal, expectedAccessOn, 0.02, 'access total = unscaled access × volume mult')
+
+const smallStairsOff = calculateQuote(settings, {
+  serviceType: 'Furniture Delivery',
+  distanceMiles: 3,
+  mapboxRouteDurationSeconds: 720,
+  crewSize: 2,
+  moveDate: '2026-09-18',
+  lineItems: [{ name: 'Sofa', quantity: 1, volumePerUnitM3: 1.5, weightType: 'large', handlingMultiplier: 1 }],
+  access: { ...stairsAccess, pickupFloor: 2 },
+  extras: {},
+})
+const smallStairsOn = calculateQuote(
+  { ...settings, applyVolumeMultiplierToAccessCharges: true },
+  {
+    serviceType: 'Furniture Delivery',
+    distanceMiles: 3,
+    mapboxRouteDurationSeconds: 720,
+    crewSize: 2,
+    moveDate: '2026-09-18',
+    lineItems: [{ name: 'Sofa', quantity: 1, volumePerUnitM3: 1.5, weightType: 'large', handlingMultiplier: 1 }],
+    access: { ...stairsAccess, pickupFloor: 2 },
+    extras: {},
+  },
+)
+approx(
+  smallStairsOn.accessTotal / Math.max(smallStairsOff.accessTotal, 0.01),
+  smallStairsOn.volumeMultiplier,
+  0.02,
+  'small m³ stairs access scales only by its small volume mult',
+)
+assert(
+  smallStairsOn.accessTotal - smallStairsOff.accessTotal < 8,
+  'small m³ stairs uplift stays modest (< £8)',
+)
+assert(
+  largeStairsOn.accessTotal - largeStairsOff.accessTotal >
+    (smallStairsOn.accessTotal - smallStairsOff.accessTotal) * 5,
+  'large load stairs uplift much bigger than small job',
+)
+
+console.log('\n=== With-lift = % of no-lift stairs stack ===')
+assert(settings.withLiftAccessPercentOfNoLift === 50, 'default with-lift is 50% of no-lift stack')
+const noLift3 = calculateQuote(settings, {
+  serviceType: 'Furniture Delivery',
+  distanceMiles: 1,
+  mapboxRouteDurationSeconds: 360,
+  crewSize: 2,
+  moveDate: '2026-09-18',
+  lineItems: [{ name: 'Load', quantity: 1, volumePerUnitM3: 2, weightType: 'large', handlingMultiplier: 1 }],
+  access: stairsAccess,
+  extras: {},
+})
+const withLift50 = calculateQuote(settings, {
+  serviceType: 'Furniture Delivery',
+  distanceMiles: 1,
+  mapboxRouteDurationSeconds: 360,
+  crewSize: 2,
+  moveDate: '2026-09-18',
+  lineItems: [{ name: 'Load', quantity: 1, volumePerUnitM3: 2, weightType: 'large', handlingMultiplier: 1 }],
+  access: { ...stairsAccess, pickupLift: true },
+  extras: {},
+})
+const withLift40 = calculateQuote(
+  { ...settings, withLiftAccessPercentOfNoLift: 40 },
+  {
+    serviceType: 'Furniture Delivery',
+    distanceMiles: 1,
+    mapboxRouteDurationSeconds: 360,
+    crewSize: 2,
+    moveDate: '2026-09-18',
+    lineItems: [{ name: 'Load', quantity: 1, volumePerUnitM3: 2, weightType: 'large', handlingMultiplier: 1 }],
+    access: { ...stairsAccess, pickupLift: true },
+    extras: {},
+  },
+)
+approx(noLift3.accessTotal, 129, 0.02, '3 floors no-lift = £39+£90')
+approx(withLift50.accessTotal, 64.5, 0.02, 'with lift @ 50% = half of no-lift stairs')
+approx(withLift40.accessTotal, 51.6, 0.02, 'with lift @ 40% of no-lift stairs')
+assert(
+  withLift50.accessLines.some((l) => /50% of no-lift/i.test(l.label)),
+  'breakdown labels with-lift percent',
+)
+const ground = calculateQuote(settings, {
+  serviceType: 'Furniture Delivery',
+  distanceMiles: 1,
+  mapboxRouteDurationSeconds: 360,
+  crewSize: 2,
+  moveDate: '2026-09-18',
+  lineItems: [{ name: 'Load', quantity: 1, volumePerUnitM3: 2, weightType: 'large', handlingMultiplier: 1 }],
+  access: { pickupFloor: 0, deliveryFloor: 0, pickupLift: null, deliveryLift: null },
+  extras: {},
+})
+assert(ground.accessTotal === 0, 'ground floor still £0 access')
+assert(withLift50.accessTotal > ground.accessTotal, 'etaj + lift is not free like ground')
 
 if (failed > 0) {
   console.error(`\n${failed} assertion(s) failed`)

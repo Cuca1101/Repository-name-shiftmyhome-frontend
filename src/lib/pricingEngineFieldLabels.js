@@ -11,6 +11,8 @@ export const PRICING_SETTING_FIELD_LABELS = {
   minimumJobPriceThreeMen: 'Minimum — 3+ Men',
   floorChargePerFloor: 'Floor charge per floor',
   noLiftCharge: 'No lift charge',
+  applyVolumeMultiplierToAccessCharges: 'Apply volume multiplier to floors / no-lift',
+  withLiftAccessPercentOfNoLift: 'With-lift access (% of no-lift stairs)',
   yesLiftChargePerEnd: 'Yes lift charge per end',
   fuelSurchargeEnabled: 'Fuel surcharge enabled',
   fuelSurchargePerMile: 'Fuel surcharge per mile',
