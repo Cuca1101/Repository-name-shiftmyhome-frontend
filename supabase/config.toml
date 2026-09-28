@@ -12,6 +12,9 @@ verify_jwt = false
 [functions.create-recovery-checkout]
 verify_jwt = false
 
+[functions.lookup-uk-postcode]
+verify_jwt = false
+
 [functions.process-job-customer-notify]
 verify_jwt = false
 

@@ -4,12 +4,14 @@ import {
   addressPlacePatch,
   createAddressSessionToken,
   emptyAddressPlacePatch,
+  findUkAddressByText,
   hasGoogleMapsKey,
   isUkPostcodeQuery,
   placeFromPrediction,
   suggestUkAddresses,
 } from '../../lib/googlePlaces'
 import { hasIdealPostcodesKey, lookupUkPostcode } from '../../lib/idealPostcodes'
+import { hasSnapPostcodeLookup, lookupSnapPostcode } from '../../lib/snapAddress'
 import { applyWizardPatch } from '../../lib/wizardStateUpdate'
 
 const PROPERTY_TYPES = ['House', 'Flat / apartment', 'Bungalow', 'Commercial', 'Other']
@@ -91,7 +93,9 @@ export default function QuoteStepAddressCard({
   quotePage = false,
 }) {
   const prefix = addressPrefix(addressKey)
-  const selected = lng != null && lat != null
+  const [accepted, setAccepted] = useState(() => lng != null && lat != null)
+  const selected = (lng != null && lat != null) || (accepted && Boolean(String(address || '').trim()))
+  const doorList = hasSnapPostcodeLookup() || hasIdealPostcodesKey()
   const [query, setQuery] = useState(() => (selected ? '' : address || ''))
   const [manual, setManual] = useState(false)
   const [searching, setSearching] = useState(false)
@@ -118,6 +122,7 @@ export default function QuoteStepAddressCard({
   }
 
   function clearSelection(nextAddress) {
+    setAccepted(false)
     patch({
       [addressKey]: nextAddress,
       [lngKey]: null,
@@ -142,12 +147,21 @@ export default function QuoteStepAddressCard({
     const typed = query.trim()
     setNotice('')
     setOpen(false)
-    if (postcodeOnly && hasIdealPostcodesKey()) {
+    if (postcodeOnly && doorList) {
       const requestId = requestRef.current + 1
       requestRef.current = requestId
       setSearching(true)
       try {
-        const list = await lookupUkPostcode(typed)
+        let list = []
+        if (hasSnapPostcodeLookup()) {
+          try {
+            list = await lookupSnapPostcode(typed)
+          } catch {
+            list = hasIdealPostcodesKey() ? await lookupUkPostcode(typed) : []
+          }
+        } else {
+          list = await lookupUkPostcode(typed)
+        }
         if (requestRef.current !== requestId) return
         setResults(list)
         setNotice(list.length ? '' : EMPTY_MESSAGE)
@@ -198,10 +212,11 @@ export default function QuoteStepAddressCard({
   }
 
   function applyPlace(place, keepFormatted) {
-    if (!place.formattedAddress || place.lng == null || place.lat == null) {
+    if (!place.formattedAddress || ((place.lng == null || place.lat == null) && !keepFormatted)) {
       setNotice(EMPTY_MESSAGE)
       return false
     }
+    setAccepted(true)
     patch({
       ...addressPlacePatch(
         prefix,
@@ -226,9 +241,16 @@ export default function QuoteStepAddressCard({
     setSearching(true)
     setNotice('')
     try {
-      if (item.source === 'ideal') {
+      if (item.source === 'ideal' || item.source === 'snap') {
         sessionRef.current = null
-        applyPlace(item.place, true)
+        let place = item.place
+        if (place.lng == null || place.lat == null) {
+          const hit = await findUkAddressByText(place.formattedAddress)
+          if (hit?.lng != null && hit?.lat != null) {
+            place = { ...place, lng: hit.lng, lat: hit.lat }
+          }
+        }
+        applyPlace(place, true)
         return
       }
       const place = await placeFromPrediction(item.prediction)
@@ -274,6 +296,7 @@ export default function QuoteStepAddressCard({
     : 'border-slate-200 bg-white shadow-sm'
 
   function resultLabel(item) {
+    if (item.source === 'snap') return item.place?.formattedAddress || item.main
     if (item.source === 'ideal') return [item.door, item.main, item.secondary].filter(Boolean).join(', ')
     const lines = suggestionLines(item, postcodeOnly ? door : '')
     return [lines.door, lines.main, lines.secondary].filter(Boolean).join(', ')
@@ -341,7 +364,7 @@ export default function QuoteStepAddressCard({
                 }
               }}
             />
-            {postcodeOnly && !hasIdealPostcodesKey() ? (
+            {postcodeOnly && !doorList ? (
               <div className="grid grid-cols-[96px_minmax(0,1fr)] gap-2">
                 <input
                   type="text"
@@ -418,7 +441,7 @@ export default function QuoteStepAddressCard({
               </select>
               {results.length > 0 ? (
                 <div className="mt-1 flex justify-end">
-                  {results[0]?.source === 'ideal' ? (
+                  {results[0]?.source === 'ideal' || results[0]?.source === 'snap' ? (
                     <span className="text-[10px] leading-none text-slate-400">© Royal Mail</span>
                   ) : (
                     <img src={GOOGLE_ATTRIBUTION_SRC} alt="Powered by Google" className="h-4 w-auto" />
@@ -434,7 +457,12 @@ export default function QuoteStepAddressCard({
               className="z-30 mt-1 max-h-64 w-full overflow-y-auto rounded-2xl border border-slate-200 bg-white shadow-lg"
             >
               {results.map((item) => {
-                const lines = item.source === 'ideal' ? item : suggestionLines(item, postcodeOnly ? door : '')
+                const lines =
+                  item.source === 'snap'
+                    ? { ...item, door: '' }
+                    : item.source === 'ideal'
+                      ? item
+                      : suggestionLines(item, postcodeOnly ? door : '')
                 return (
                   <button
                     key={item.id}
@@ -456,7 +484,7 @@ export default function QuoteStepAddressCard({
                 )
               })}
               <div className="flex justify-end border-t border-slate-100 bg-white px-3 py-1.5">
-                {results[0]?.source === 'ideal' ? (
+                {results[0]?.source === 'ideal' || results[0]?.source === 'snap' ? (
                   <span className="text-[10px] leading-none text-slate-400">© Royal Mail</span>
                 ) : (
                   <img src={GOOGLE_ATTRIBUTION_SRC} alt="Powered by Google" className="h-4 w-auto" />
