@@ -11,7 +11,7 @@ import {
   suggestUkAddresses,
 } from '../../lib/googlePlaces'
 import { hasIdealPostcodesKey, lookupUkPostcode } from '../../lib/idealPostcodes'
-import { hasSnapPostcodeLookup, lookupSnapPostcode } from '../../lib/snapAddress'
+import { hasSnapPostcodeLookup, lookupSnapPostcode, suggestSnapAddresses } from '../../lib/snapAddress'
 import { applyWizardPatch } from '../../lib/wizardStateUpdate'
 
 const PROPERTY_TYPES = ['House', 'Flat / apartment', 'Bungalow', 'Commercial', 'Other']
@@ -147,21 +147,45 @@ export default function QuoteStepAddressCard({
     const typed = query.trim()
     setNotice('')
     setOpen(false)
-    if (postcodeOnly && doorList) {
+    if (hasSnapPostcodeLookup() && typed.length >= 2) {
       const requestId = requestRef.current + 1
       requestRef.current = requestId
       setSearching(true)
       try {
         let list = []
-        if (hasSnapPostcodeLookup()) {
-          try {
-            list = await lookupSnapPostcode(typed)
-          } catch {
-            list = hasIdealPostcodesKey() ? await lookupUkPostcode(typed) : []
-          }
-        } else {
-          list = await lookupUkPostcode(typed)
+        try {
+          list = postcodeOnly ? await lookupSnapPostcode(typed) : await suggestSnapAddresses(typed)
+        } catch {
+          list = postcodeOnly && hasIdealPostcodesKey() ? await lookupUkPostcode(typed) : []
         }
+        if (!postcodeOnly && list.length === 0) {
+          if (requestRef.current === requestId) setSearching(false)
+        } else {
+          if (requestRef.current !== requestId) return
+          setResults(list)
+          setNotice(list.length ? '' : EMPTY_MESSAGE)
+          setOpen(list.length > 0)
+          if (requestRef.current === requestId) setSearching(false)
+          return
+        }
+      } catch {
+        if (requestRef.current !== requestId) return
+        if (postcodeOnly) {
+          setResults([])
+          setNotice(EMPTY_MESSAGE)
+          setSearching(false)
+          return
+        }
+        setSearching(false)
+      }
+    }
+
+    if (postcodeOnly && hasIdealPostcodesKey()) {
+      const requestId = requestRef.current + 1
+      requestRef.current = requestId
+      setSearching(true)
+      try {
+        const list = await lookupUkPostcode(typed)
         if (requestRef.current !== requestId) return
         setResults(list)
         setNotice(list.length ? '' : EMPTY_MESSAGE)
@@ -241,6 +265,13 @@ export default function QuoteStepAddressCard({
     setSearching(true)
     setNotice('')
     try {
+      if (item.source === 'snap-group' && item.postcode) {
+        const list = await lookupSnapPostcode(item.postcode)
+        setResults(list)
+        setNotice(list.length ? '' : EMPTY_MESSAGE)
+        setOpen(list.length > 0)
+        return
+      }
       if (item.source === 'ideal' || item.source === 'snap') {
         sessionRef.current = null
         let place = item.place
@@ -296,6 +327,7 @@ export default function QuoteStepAddressCard({
     : 'border-slate-200 bg-white shadow-sm'
 
   function resultLabel(item) {
+    if (item.source === 'snap-group') return item.secondary ? `${item.main} (${item.secondary})` : item.main
     if (item.source === 'snap') return item.place?.formattedAddress || item.main
     if (item.source === 'ideal') return [item.door, item.main, item.secondary].filter(Boolean).join(', ')
     const lines = suggestionLines(item, postcodeOnly ? door : '')
@@ -441,7 +473,7 @@ export default function QuoteStepAddressCard({
               </select>
               {results.length > 0 ? (
                 <div className="mt-1 flex justify-end">
-                  {results[0]?.source === 'ideal' || results[0]?.source === 'snap' ? (
+                  {results[0]?.source === 'ideal' || results[0]?.source === 'snap' || results[0]?.source === 'snap-group' ? (
                     <span className="text-[10px] leading-none text-slate-400">© Royal Mail</span>
                   ) : (
                     <img src={GOOGLE_ATTRIBUTION_SRC} alt="Powered by Google" className="h-4 w-auto" />
@@ -460,7 +492,7 @@ export default function QuoteStepAddressCard({
                 const lines =
                   item.source === 'snap'
                     ? { ...item, door: '' }
-                    : item.source === 'ideal'
+                    : item.source === 'ideal' || item.source === 'snap-group'
                       ? item
                       : suggestionLines(item, postcodeOnly ? door : '')
                 return (
@@ -484,7 +516,7 @@ export default function QuoteStepAddressCard({
                 )
               })}
               <div className="flex justify-end border-t border-slate-100 bg-white px-3 py-1.5">
-                {results[0]?.source === 'ideal' || results[0]?.source === 'snap' ? (
+                {results[0]?.source === 'ideal' || results[0]?.source === 'snap' || results[0]?.source === 'snap-group' ? (
                   <span className="text-[10px] leading-none text-slate-400">© Royal Mail</span>
                 ) : (
                   <img src={GOOGLE_ATTRIBUTION_SRC} alt="Powered by Google" className="h-4 w-auto" />

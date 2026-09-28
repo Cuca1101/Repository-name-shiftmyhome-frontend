@@ -66,6 +66,58 @@ export function hasSnapPostcodeLookup() {
 }
 
 /**
+ * Partial postcode, street, or building search. Postcode groups are expanded
+ * by a later full postcode lookup so the customer can still pick a door.
+ * @param {string} query
+ */
+export async function suggestSnapAddresses(query) {
+  if (!supabase) throw new Error('Address lookup failed.')
+  const text = String(query || '').trim()
+  if (text.length < 2) return []
+  const { data, error } = await supabase.functions.invoke('lookup-uk-postcode', {
+    body: { q: text },
+  })
+  if (error || data?.error) throw new Error('Address lookup failed.')
+  return (data?.suggestions || []).map((item, index) => {
+    const postcode = String(item.postcode || '').trim()
+    const summary = String(item.summary || postcode).trim()
+    const count = Number(item.address_count) || 0
+    if (count > 1) {
+      return {
+        id: `group:${postcode}:${index}`,
+        source: 'snap-group',
+        door: '',
+        main: summary,
+        secondary: `${count} addresses`,
+        postcode,
+        place: null,
+      }
+    }
+    const door = doorNumber({ formatted_address: summary })
+    return {
+      id: `addr:${postcode}:${index}`,
+      source: 'snap',
+      door,
+      main: summary,
+      secondary: '',
+      place: {
+        source: 'snap',
+        formattedAddress: summary,
+        houseNumber: door,
+        subpremise: '',
+        street: streetName({ formatted_address: summary, line_1: '', line_2: '' }, door),
+        town: '',
+        postcode,
+        country: 'United Kingdom',
+        placeId: '',
+        lat: null,
+        lng: null,
+      },
+    }
+  })
+}
+
+/**
  * Every address on a UK postcode, including the building number.
  * @param {string} postcode
  */
