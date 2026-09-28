@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { applyWizardPatch } from '../../lib/wizardStateUpdate'
 import { getLocalDateYYYYMMDD } from '../../lib/moveDateLocal'
+import QuoteMoveDateCalendar from './QuoteMoveDateCalendar'
 import MapboxAddressField from './MapboxAddressField'
 import QuoteStepAddressCard from './QuoteStepAddressCard'
 import FloorSelect, { floorNeedsLiftQuestion } from './FloorSelect'
@@ -513,18 +514,26 @@ export default function MobileStep1AddressCards({
 
       {show.moveDate ? (
         <MobileCardRow>
-          <label className="block" data-quote-field="move-date">
+          <div className="block" data-quote-field="move-date">
             <span className={mobileLabel}>Move date</span>
-            <input
-              id="quote-mobile-move-date"
-              type="date"
-              required
-              min={getLocalDateYYYYMMDD()}
-              value={data.moveDate}
-              onChange={onMoveDateChange}
-              className={mobileInput}
-            />
-          </label>
+            {quotePage ? (
+              <QuoteMoveDateCalendar
+                id="quote-mobile-move-date"
+                value={data.moveDate}
+                onChange={(next) => onMoveDateChange({ target: { value: next } })}
+              />
+            ) : (
+              <input
+                id="quote-mobile-move-date"
+                type="date"
+                required
+                min={getLocalDateYYYYMMDD()}
+                value={data.moveDate}
+                onChange={onMoveDateChange}
+                className={mobileInput}
+              />
+            )}
+          </div>
         </MobileCardRow>
       ) : null}
 

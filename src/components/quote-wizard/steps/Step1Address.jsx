@@ -8,6 +8,7 @@ import { getLocalDateYYYYMMDD } from '../../../lib/moveDateLocal'
 import MobileStepTitleWithRef from '../MobileStepTitleWithRef'
 import MobileStep1AddressCards from '../MobileStep1AddressCards'
 import Step1ArrivalFields from '../Step1ArrivalFields'
+import QuoteMoveDateCalendar from '../QuoteMoveDateCalendar'
 import useMobileQuoteLayout from '../../../hooks/useMobileQuoteLayout'
 
 const PROPERTY_TYPES = ['House', 'Flat / apartment', 'Bungalow', 'Commercial', 'Other']
@@ -379,17 +380,21 @@ export default function Step1Address({
           </div>
         ) : null}
 
-        <label className={field} data-quote-field="move-date">
+        <div className={field} data-quote-field="move-date">
           <span className={label}>Move date</span>
-          <input
-            type="date"
-            required
-            min={getLocalDateYYYYMMDD()}
-            value={data.moveDate}
-            onChange={(e) => set('moveDate', e.target.value)}
-            className={input}
-          />
-        </label>
+          {quotePage ? (
+            <QuoteMoveDateCalendar value={data.moveDate} onChange={(next) => set('moveDate', next)} />
+          ) : (
+            <input
+              type="date"
+              required
+              min={getLocalDateYYYYMMDD()}
+              value={data.moveDate}
+              onChange={(e) => set('moveDate', e.target.value)}
+              className={input}
+            />
+          )}
+        </div>
 
         <div className={`${field} ${quotePage ? '' : 'col-span-2'}`} data-quote-field="arrival">
           <Step1ArrivalFields data={data} onChange={onChange} error={arrivalError} />
