@@ -314,8 +314,9 @@ function QuoteWizardInner({
         {loadingSettings ? (
           <p className="text-center text-slate-600">Loading…</p>
         ) : pageChrome ? (
-          <div className="mx-auto w-full max-w-3xl space-y-4 md:max-w-5xl">
-            <div className="quote-wizard-form-card rounded-2xl border border-slate-200/80 bg-white p-4 shadow-[0_10px_30px_rgba(15,23,42,0.06)] sm:p-6">
+          <>
+          <div className="grid items-start gap-4 md:grid-cols-[minmax(0,1fr)_minmax(260px,min(100%,340px))] md:gap-6">
+            <div className="quote-wizard-form-card min-w-0 rounded-2xl border border-slate-200/80 bg-white p-4 shadow-[0_10px_30px_rgba(15,23,42,0.06)] sm:p-6">
               <div className="mb-4 text-center">
                 {titleTag === 'h2' ? (
                   <h2 id={titleId} className="text-[1.65rem] font-extrabold tracking-tight text-slate-900 sm:text-3xl">
@@ -340,16 +341,17 @@ function QuoteWizardInner({
               </p>
             </div>
             <MoveSummary {...summaryProps} />
-            {isMobileLayout ? (
-              <MobileQuoteStickyActions
-                step={step}
-                onBack={back}
-                onNext={next}
-                nextDisabled={quoteStepTransitionLoading}
-                nextLoading={quoteStepTransitionLoading && step === 2}
-              />
-            ) : null}
           </div>
+          {isMobileLayout ? (
+            <MobileQuoteStickyActions
+              step={step}
+              onBack={back}
+              onNext={next}
+              nextDisabled={quoteStepTransitionLoading}
+              nextLoading={quoteStepTransitionLoading && step === 2}
+            />
+          ) : null}
+          </>
         ) : isMobileLayout ? (
           <div className="quote-wizard-mobile-stack block min-w-0 max-w-full space-y-1.5">
             <div
