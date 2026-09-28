@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react'
-import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
+import { Check, ChevronLeft, ChevronRight } from 'lucide-react'
 import { getLocalDateYYYYMMDD } from '../../lib/moveDateLocal'
 
 const WEEKDAYS = ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su']
@@ -41,17 +41,53 @@ function monthCells(view) {
 /**
  * Month grid for the quote move date. Stores YYYY-MM-DD, same as the old date input.
  */
+function formatChosenDate(date) {
+  return date.toLocaleDateString('en-GB', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  })
+}
+
 export default function QuoteMoveDateCalendar({ value, onChange, id = 'quote-move-date' }) {
   const today = getLocalDateYYYYMMDD()
   const selected = parseIso(value)
+  const [open, setOpen] = useState(() => !selected)
   const [view, setView] = useState(() => startOfMonth(selected || parseIso(today)))
   const cells = useMemo(() => monthCells(view), [view])
   const monthLabel = view.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })
   const thisMonth = startOfMonth(parseIso(today))
   const canGoBack = view > thisMonth
 
+  useEffect(() => {
+    if (!value) setOpen(true)
+  }, [value])
+
+  if (!open && selected) {
+    return (
+      <div id={id} tabIndex={-1} className="rounded-2xl border border-emerald-200 bg-emerald-50 px-3 py-3 shadow-sm">
+        <div className="flex items-start gap-2">
+          <Check className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" aria-hidden />
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-medium leading-snug text-slate-900">
+              We have availability on {formatChosenDate(selected)}.
+            </p>
+            <button
+              type="button"
+              onClick={() => setOpen(true)}
+              className="mt-1 text-xs font-semibold text-slate-600 underline-offset-2 hover:text-slate-900 hover:underline"
+            >
+              Change date
+            </button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
+    <div id={id} tabIndex={-1} className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
       <div className="mb-2 flex items-center justify-between gap-2">
         <button
           type="button"
@@ -87,11 +123,13 @@ export default function QuoteMoveDateCalendar({ value, onChange, id = 'quote-mov
           return (
             <button
               key={iso}
-              id={isSelected ? id : undefined}
               type="button"
               disabled={disabled}
               aria-pressed={isSelected}
-              onClick={() => onChange(iso)}
+              onClick={() => {
+                onChange(iso)
+                setOpen(false)
+              }}
               className={`mx-auto flex h-9 w-9 items-center justify-center rounded-full text-sm font-medium transition ${
                 isSelected
                   ? 'bg-blue-600 text-white shadow-sm'
