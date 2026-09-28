@@ -370,6 +370,7 @@ export default function QuoteStepAddressCard({
       ) : (
         <div className="relative mt-3">
           <div className="flex flex-col gap-2">
+            <div className="flex flex-col gap-2 md:flex-row md:items-center">
             <input
               id={addressKey}
               type="text"
@@ -378,7 +379,7 @@ export default function QuoteStepAddressCard({
               spellCheck={false}
               placeholder={placeholder}
               aria-expanded={open}
-              className={`${control} ${focusRing}`}
+              className={`${control} md:min-w-0 md:flex-1 ${focusRing}`}
               onChange={(e) => {
                 setQuery(e.target.value)
                 setGoogleFallback(false)
@@ -393,6 +394,16 @@ export default function QuoteStepAddressCard({
                 }
               }}
             />
+            <button
+              type="button"
+              disabled={searching}
+              onClick={() => void runSearch()}
+              className={`inline-flex h-[52px] w-full shrink-0 items-center justify-center gap-2 px-4 text-sm font-semibold text-white shadow-sm transition focus-visible:outline-none focus-visible:ring-2 disabled:cursor-wait disabled:opacity-70 md:w-auto md:px-5 ${quotePage ? 'rounded-xl' : 'rounded-2xl'} ${buttonClass}`}
+            >
+              {searching ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : quotePage ? <Search className="h-4 w-4" aria-hidden /> : null}
+              Find my address
+            </button>
+            </div>
             {googleFallback ? (
               <label className="block">
                 <span className="mb-1 block text-xs font-medium text-slate-600">House number</span>
@@ -461,16 +472,6 @@ export default function QuoteStepAddressCard({
                 />
               </div>
             ) : null}
-            <button
-              type="button"
-              disabled={searching}
-              onClick={() => void runSearch()}
-              className={`inline-flex h-[52px] w-full shrink-0 items-center justify-center gap-2 px-4 text-sm font-semibold text-white shadow-sm transition focus-visible:outline-none focus-visible:ring-2 disabled:cursor-wait disabled:opacity-70 ${quotePage ? 'rounded-xl' : 'rounded-2xl'} ${buttonClass}`}
-            >
-              {searching ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : quotePage ? <Search className="h-4 w-4" aria-hidden /> : null}
-              Find my address
-            </button>
-          </div>
 
           {quotePage ? (
             <>
@@ -551,6 +552,7 @@ export default function QuoteStepAddressCard({
               {notice}
             </p>
           ) : null}
+          </div>
         </div>
       )}
 

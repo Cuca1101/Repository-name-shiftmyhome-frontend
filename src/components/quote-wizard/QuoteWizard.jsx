@@ -314,7 +314,7 @@ function QuoteWizardInner({
         {loadingSettings ? (
           <p className="text-center text-slate-600">Loading…</p>
         ) : pageChrome ? (
-          <div className="mx-auto w-full max-w-3xl space-y-4">
+          <div className="mx-auto w-full max-w-3xl space-y-4 md:max-w-5xl">
             <div className="quote-wizard-form-card rounded-2xl border border-slate-200/80 bg-white p-4 shadow-[0_10px_30px_rgba(15,23,42,0.06)] sm:p-6">
               <div className="mb-4 text-center">
                 {titleTag === 'h2' ? (
