@@ -8,7 +8,7 @@ import {
   hasGoogleMapsKey,
   isUkPostcodeQuery,
   placeFromPrediction,
-  suggestUkAddresses,
+  suggestUkStreets,
 } from '../../lib/googlePlaces'
 import { hasIdealPostcodesKey, lookupUkPostcode } from '../../lib/idealPostcodes'
 import { hasSnapPostcodeLookup, lookupSnapPostcode, suggestSnapAddresses } from '../../lib/snapAddress'
@@ -20,6 +20,7 @@ const GOOGLE_ATTRIBUTION_SRC =
   'https://maps.gstatic.com/mapfiles/api-3/images/powered-by-google-on-white3.png'
 
 const EMPTY_MESSAGE = "We couldn't find that address. Try again or enter it manually."
+const HOUSE_NUMBER_MESSAGE = 'Google finds the street, not the house number. Enter your house number, then choose the street.'
 
 /**
  * @param {string} addressKey
@@ -104,6 +105,7 @@ export default function QuoteStepAddressCard({
   const [notice, setNotice] = useState('')
   const [door, setDoor] = useState('')
   const [street, setStreet] = useState('')
+  const [googleFallback, setGoogleFallback] = useState(false)
   const sessionRef = useRef(null)
   const requestRef = useRef(0)
 
@@ -134,79 +136,29 @@ export default function QuoteStepAddressCard({
 
   const postcodeOnly = isUkPostcodeQuery(query)
 
-  function searchText() {
-    const typed = query.trim()
-    if (!postcodeOnly) return typed
+  async function searchGoogle(typed, requestId) {
+    const text = String(typed || '').trim()
+    if (!hasGoogleMapsKey() || text.length < 3) {
+      setResults([])
+      setNotice(EMPTY_MESSAGE)
+      return
+    }
+    setGoogleFallback(true)
     const doorText = door.trim()
-    const streetText = street.trim()
-    if (!doorText || streetText.length < 2) return ''
-    return `${doorText} ${streetText}, ${typed}`
+    const queryText = doorText ? `${doorText} ${text}` : text
+    sessionRef.current = await createAddressSessionToken()
+    const list = await suggestUkStreets(queryText, sessionRef.current)
+    if (requestRef.current !== requestId) return
+    setResults(list)
+    setOpen(list.length > 0)
+    setNotice(list.length ? (doorText ? '' : HOUSE_NUMBER_MESSAGE) : EMPTY_MESSAGE)
   }
 
   async function runSearch() {
     const typed = query.trim()
     setNotice('')
     setOpen(false)
-    if (hasSnapPostcodeLookup() && typed.length >= 2) {
-      const requestId = requestRef.current + 1
-      requestRef.current = requestId
-      setSearching(true)
-      try {
-        let list = []
-        try {
-          list = postcodeOnly ? await lookupSnapPostcode(typed) : await suggestSnapAddresses(typed)
-        } catch {
-          list = postcodeOnly && hasIdealPostcodesKey() ? await lookupUkPostcode(typed) : []
-        }
-        if (!postcodeOnly && list.length === 0) {
-          if (requestRef.current === requestId) setSearching(false)
-        } else {
-          if (requestRef.current !== requestId) return
-          setResults(list)
-          setNotice(list.length ? '' : EMPTY_MESSAGE)
-          setOpen(list.length > 0)
-          if (requestRef.current === requestId) setSearching(false)
-          return
-        }
-      } catch {
-        if (requestRef.current !== requestId) return
-        if (postcodeOnly) {
-          setResults([])
-          setNotice(EMPTY_MESSAGE)
-          setSearching(false)
-          return
-        }
-        setSearching(false)
-      }
-    }
-
-    if (postcodeOnly && hasIdealPostcodesKey()) {
-      const requestId = requestRef.current + 1
-      requestRef.current = requestId
-      setSearching(true)
-      try {
-        const list = await lookupUkPostcode(typed)
-        if (requestRef.current !== requestId) return
-        setResults(list)
-        setNotice(list.length ? '' : EMPTY_MESSAGE)
-        setOpen(list.length > 0)
-      } catch {
-        if (requestRef.current !== requestId) return
-        setResults([])
-        setNotice(EMPTY_MESSAGE)
-      } finally {
-        if (requestRef.current === requestId) setSearching(false)
-      }
-      return
-    }
-
-    const text = searchText()
-    if (postcodeOnly && !text) {
-      setResults([])
-      setNotice('Enter the house number and street for this postcode.')
-      return
-    }
-    if (!hasGoogleMapsKey() || text.length < 3) {
+    if (typed.length < 2) {
       setResults([])
       setNotice(EMPTY_MESSAGE)
       return
@@ -216,16 +168,34 @@ export default function QuoteStepAddressCard({
     requestRef.current = requestId
     setSearching(true)
     try {
-      sessionRef.current = await createAddressSessionToken()
-      const list = await suggestUkAddresses(text, sessionRef.current)
-      if (requestRef.current !== requestId) return
-      setResults(list)
-      if (list.length === 0) {
-        setNotice(EMPTY_MESSAGE)
-        setOpen(false)
-      } else {
-        setOpen(true)
+      if (!googleFallback && (hasSnapPostcodeLookup() || (postcodeOnly && hasIdealPostcodesKey()))) {
+        let list = []
+        try {
+          if (hasSnapPostcodeLookup()) {
+            list = postcodeOnly ? await lookupSnapPostcode(typed) : await suggestSnapAddresses(typed)
+          }
+        } catch {
+          list = []
+        }
+        if (requestRef.current !== requestId) return
+        if (list.length === 0 && postcodeOnly && hasIdealPostcodesKey()) {
+          try {
+            list = await lookupUkPostcode(typed)
+          } catch {
+            list = []
+          }
+        }
+        if (requestRef.current !== requestId) return
+        if (list.length > 0) {
+          setGoogleFallback(false)
+          setResults(list)
+          setNotice('')
+          setOpen(true)
+          return
+        }
       }
+
+      await searchGoogle(typed, requestId)
     } catch {
       if (requestRef.current !== requestId) return
       setResults([])
@@ -266,10 +236,23 @@ export default function QuoteStepAddressCard({
     setNotice('')
     try {
       if (item.source === 'snap-group' && item.postcode) {
-        const list = await lookupSnapPostcode(item.postcode)
-        setResults(list)
-        setNotice(list.length ? '' : EMPTY_MESSAGE)
-        setOpen(list.length > 0)
+        let list = []
+        try {
+          list = await lookupSnapPostcode(item.postcode)
+        } catch {
+          list = []
+        }
+        if (list.length > 0) {
+          setGoogleFallback(false)
+          setResults(list)
+          setNotice('')
+          setOpen(true)
+          return
+        }
+        const requestId = requestRef.current + 1
+        requestRef.current = requestId
+        setQuery(item.postcode)
+        await searchGoogle(item.postcode, requestId)
         return
       }
       if (item.source === 'ideal' || item.source === 'snap') {
@@ -285,12 +268,22 @@ export default function QuoteStepAddressCard({
         return
       }
       const place = await placeFromPrediction(item.prediction)
+      const typedDoor = door.trim()
       if (!place.houseNumber && !place.subpremise) {
-        const typedDoor = suggestionLines(item, postcodeOnly ? door : '').door
-        if (typedDoor) place.houseNumber = typedDoor
+        if (!typedDoor) {
+          setGoogleFallback(true)
+          setNotice(HOUSE_NUMBER_MESSAGE)
+          return
+        }
+        place.houseNumber = typedDoor
+        const formatted = String(place.formattedAddress || '').trim()
+        const escaped = typedDoor.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+        if (!new RegExp(`^${escaped}\\b`, 'i').test(formatted)) {
+          place.formattedAddress = `${typedDoor} ${formatted}`.trim()
+        }
       }
       sessionRef.current = null
-      applyPlace(place, false)
+      applyPlace(place, Boolean(typedDoor))
     } catch {
       sessionRef.current = null
       setNotice(EMPTY_MESSAGE)
@@ -300,6 +293,7 @@ export default function QuoteStepAddressCard({
   }
 
   function startChange() {
+    setGoogleFallback(false)
     setQuery(address || '')
     setManual(false)
     setNotice('')
@@ -309,6 +303,7 @@ export default function QuoteStepAddressCard({
   }
 
   function startManual() {
+    setGoogleFallback(false)
     setManual(true)
     setOpen(false)
     setResults([])
@@ -330,7 +325,7 @@ export default function QuoteStepAddressCard({
     if (item.source === 'snap-group') return item.secondary ? `${item.main} (${item.secondary})` : item.main
     if (item.source === 'snap') return item.place?.formattedAddress || item.main
     if (item.source === 'ideal') return [item.door, item.main, item.secondary].filter(Boolean).join(', ')
-    const lines = suggestionLines(item, postcodeOnly ? door : '')
+    const lines = suggestionLines(item, door)
     return [lines.door, lines.main, lines.secondary].filter(Boolean).join(', ')
   }
 
@@ -386,8 +381,10 @@ export default function QuoteStepAddressCard({
               className={`${control} ${focusRing}`}
               onChange={(e) => {
                 setQuery(e.target.value)
+                setGoogleFallback(false)
                 setNotice('')
                 setOpen(false)
+                setResults([])
               }}
               onKeyDown={(e) => {
                 if (e.key === 'Enter') {
@@ -396,7 +393,31 @@ export default function QuoteStepAddressCard({
                 }
               }}
             />
-            {postcodeOnly && !doorList ? (
+            {googleFallback ? (
+              <label className="block">
+                <span className="mb-1 block text-xs font-medium text-slate-600">House number</span>
+                <input
+                  type="text"
+                  value={door}
+                  autoComplete="off"
+                  spellCheck={false}
+                  placeholder="e.g. 12"
+                  aria-label="House number"
+                  className={`${control} ${focusRing}`}
+                  onChange={(e) => {
+                    setDoor(e.target.value)
+                    setNotice('')
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault()
+                      void runSearch()
+                    }
+                  }}
+                />
+              </label>
+            ) : null}
+            {postcodeOnly && !doorList && !googleFallback ? (
               <div className="grid grid-cols-[96px_minmax(0,1fr)] gap-2">
                 <input
                   type="text"
@@ -494,7 +515,7 @@ export default function QuoteStepAddressCard({
                     ? { ...item, door: '' }
                     : item.source === 'ideal' || item.source === 'snap-group'
                       ? item
-                      : suggestionLines(item, postcodeOnly ? door : '')
+                      : suggestionLines(item, door)
                 return (
                   <button
                     key={item.id}

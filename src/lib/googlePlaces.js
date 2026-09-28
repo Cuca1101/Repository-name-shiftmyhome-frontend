@@ -160,6 +160,20 @@ export async function suggestUkAddresses(input, sessionToken) {
   return list.filter(hasHouseNumber)
 }
 
+function isPostalCodeOnly(item) {
+  const types = item.prediction?.types || []
+  return types.includes('postal_code') && !types.some((type) => type === 'route' || ADDRESS_RESULT_TYPES.includes(type))
+}
+
+/** Street matches, including ones with no door number. The form asks for that number. */
+export async function suggestUkStreets(input, sessionToken) {
+  const query = String(input || '').trim()
+  if (query.length < MIN_QUERY_LENGTH || !sessionToken) return []
+  const list = await fetchAddressSuggestions(query, sessionToken)
+  const streets = list.filter((item) => !isPostalCodeOnly(item))
+  return streets.length > 0 ? streets : list
+}
+
 export function isUkPostcodeQuery(value) {
   return UK_POSTCODE.test(String(value || '').trim())
 }
