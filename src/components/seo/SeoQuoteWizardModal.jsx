@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 import { createPortal } from 'react-dom'
+import Navbar from '../Navbar'
 import QuoteWizard from '../quote-wizard/QuoteWizard'
 import { preloadStripeJs } from '../../lib/stripePromise'
 import { resolveServiceLabel } from '../../lib/normalizeServiceType'
@@ -36,37 +37,33 @@ export default function SeoQuoteWizardModal({ open, onClose, serviceType = '', s
   const modal = (
     <div
       id="seo-quote"
-      className="quote-flow-layout fixed inset-0 z-[220] flex min-h-0 min-w-0 flex-col overflow-hidden bg-slate-50"
+      className="quote-flow-layout quote-page-shell fixed inset-0 z-[220] flex min-h-0 min-w-0 flex-col overflow-hidden bg-[#e7eef6]"
       data-quote-flow
       role="dialog"
       aria-modal="true"
       aria-labelledby="seo-quote-flow-title"
     >
-      <div className="shrink-0 border-b border-slate-200/80 bg-white px-3 py-3 sm:px-6 sm:py-6">
-        <button
-          type="button"
-          onClick={onClose}
-          className="inline-flex min-h-[36px] items-center gap-2 text-xs font-semibold text-slate-600 transition hover:text-brand-700 sm:min-h-[44px] sm:text-sm"
-        >
-          <span aria-hidden>←</span> Back to page
-        </button>
-        <h1
-          id="seo-quote-flow-title"
-          className="mt-1.5 text-xl font-extrabold tracking-tight text-navy sm:mt-2 sm:text-3xl"
-        >
-          Get your instant quote
-        </h1>
-        <p className="mt-1 max-w-2xl text-xs leading-snug text-slate-600 sm:text-base">
-          Four quick steps — your price appears when you review and submit.
-        </p>
+      <div className="shrink-0">
+        <Navbar />
+        <div className="border-b border-slate-200/70 bg-[#e7eef6] px-3 py-2 sm:px-4">
+          <button
+            type="button"
+            onClick={onClose}
+            className="inline-flex min-h-[36px] items-center gap-2 text-xs font-semibold text-slate-600 transition hover:text-brand-700 sm:min-h-[40px] sm:text-sm"
+          >
+            <span aria-hidden>←</span> Back to page
+          </button>
+        </div>
       </div>
 
-      <div className="quote-flow-main quote-flow-scope min-h-0 flex-1 overflow-y-auto overscroll-contain pb-24 md:pb-0">
+      <div className="quote-flow-main quote-page-shell min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-4 pb-24 sm:px-4 sm:py-8 md:pb-8">
         <QuoteWizard
           key={sessionKey}
           serviceType={resolvedServiceType}
           allowServiceChange
           servicePreSelected={Boolean(resolvedServiceType)}
+          pageChrome
+          titleId="seo-quote-flow-title"
         />
       </div>
     </div>

@@ -18,7 +18,7 @@ export default function PublicLayout({ children }) {
   const paymentFlow = pathname.startsWith('/payment')
   const showQuoteModal = pathUsesPublicQuoteModal(pathname)
 
-  const hideFooter = quoteFlow || paymentFlow
+  const hideFooter = paymentFlow
 
   const layoutBody = (
     <div className="flex min-h-screen min-w-0 w-full max-w-full flex-col clip-x">
@@ -28,7 +28,7 @@ export default function PublicLayout({ children }) {
       <Navbar />
       <main
         className={`box-border min-w-0 flex-1 w-full max-w-full md:pb-0 ${
-          quoteFlow ? 'quote-flow-main pb-[4.25rem]' : 'overflow-x-hidden pb-24'
+          quoteFlow ? 'quote-flow-main bg-[#e7eef6]' : 'overflow-x-hidden pb-24'
         }`}
       >
         {children}

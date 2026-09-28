@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { applyWizardPatch } from '../../../lib/wizardStateUpdate'
 import MapboxAddressField from '../MapboxAddressField'
+import QuoteStepAddressCard from '../QuoteStepAddressCard'
 import FloorSelect, { floorNeedsLiftQuestion } from '../FloorSelect'
 import { liftClearPatchForWizard } from '../../../lib/floorAccess'
 import { getLocalDateYYYYMMDD } from '../../../lib/moveDateLocal'
@@ -12,6 +13,7 @@ import useMobileQuoteLayout from '../../../hooks/useMobileQuoteLayout'
 const PROPERTY_TYPES = ['House', 'Flat / apartment', 'Bungalow', 'Commercial', 'Other']
 
 const HAS_MAPBOX = Boolean(import.meta.env.VITE_MAPBOX_TOKEN)
+const HAS_ADDRESS_SEARCH = Boolean(import.meta.env.VITE_GOOGLE_MAPS_API_KEY)
 
 const input =
   'box-border min-h-[34px] w-full min-w-0 max-w-full rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-sm leading-snug text-slate-900 shadow-sm outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/25 sm:min-h-[48px] sm:rounded-xl sm:px-4 sm:text-base'
@@ -64,6 +66,8 @@ export default function Step1Address({
   onServiceTypeChange,
   servicePreSelected = false,
   arrivalError = '',
+  customerAddressCards = false,
+  quotePage = false,
 }) {
   function set(k, v) {
     const patch = { [k]: v }
@@ -113,24 +117,28 @@ export default function Step1Address({
   const isMobileLayout = useMobileQuoteLayout()
 
   return (
-    <div data-quote-step="1" className="box-border w-full min-w-0 space-y-2 sm:space-y-8">
+    <div data-quote-step="1" className={`box-border w-full min-w-0 ${quotePage ? 'space-y-4' : 'space-y-2 sm:space-y-8'}`}>
       <div>
         <MobileStepTitleWithRef
           title="Address & access"
           quoteRef={quoteRef}
-          titleClassName="whitespace-nowrap md:whitespace-normal"
+          titleClassName={quotePage ? '!text-xl font-bold' : 'whitespace-nowrap md:whitespace-normal'}
         />
-        <p className="mt-1 text-sm leading-snug text-slate-600 md:hidden">Pickup, delivery and access details.</p>
+        <p className={`mt-1 text-sm leading-snug text-slate-500 ${quotePage ? '' : 'md:hidden'}`}>
+          Pickup, delivery and access details.
+        </p>
+        {quotePage ? null : (
         <p className="mt-1 hidden text-sm text-slate-600 md:block">
           Where we’re collecting from and delivering to, plus access for planning.
         </p>
-        {HAS_MAPBOX && (
+        )}
+        {HAS_ADDRESS_SEARCH && !customerAddressCards && (
           <p className="mt-2 hidden text-sm text-slate-600 md:block">
             Use the address search and <strong className="font-semibold text-slate-800">select a suggestion</strong>{' '}
             for each location so we can plot the route and distance.
           </p>
         )}
-        {HAS_MAPBOX && (
+        {HAS_ADDRESS_SEARCH && !customerAddressCards && (
           <p className="mt-2 text-sm leading-snug text-slate-600 md:hidden">
             Use address search and <strong className="font-semibold text-slate-800">select a suggestion</strong> for
             each location to plot the route.
@@ -153,7 +161,7 @@ export default function Step1Address({
       )}
 
       {showFullServicePicker && (
-        <div className="rounded-xl border border-brand-100 bg-brand-50/60 p-3 sm:rounded-2xl sm:p-5">
+        <div className={quotePage ? 'rounded-xl border border-slate-200 bg-slate-50 p-3 sm:p-4' : 'rounded-xl border border-brand-100 bg-brand-50/60 p-3 sm:rounded-2xl sm:p-5'}>
           <label className={label} htmlFor="quote-service-type">
             Service type
           </label>
@@ -180,14 +188,53 @@ export default function Step1Address({
           data={data}
           onChange={onChange}
           set={set}
-          hasMapbox={HAS_MAPBOX}
+          hasMapbox={HAS_ADDRESS_SEARCH}
           arrivalError={arrivalError}
           showPickupLift={showPickupLift}
           showDeliveryLift={showDeliveryLift}
+          customerAddressCards={customerAddressCards}
+          quotePage={quotePage}
         />
       ) : (
-        <div className="grid md:grid-cols-2 md:gap-x-8 md:gap-y-6 md:items-start">
-        {HAS_MAPBOX ? (
+        <div className={quotePage ? 'grid grid-cols-1 gap-4' : 'grid md:grid-cols-2 md:gap-x-8 md:gap-y-6 md:items-start'}>
+        {customerAddressCards ? (
+          <>
+            <QuoteStepAddressCard
+              tone="pickup"
+              title="Pickup address"
+              helper={quotePage ? 'Where we collect from.' : 'Include the house number and street.'}
+              placeholder={quotePage ? 'Enter pickup postcode' : 'Enter pickup postcode or address'}
+              quotePage={quotePage}
+              address={data.pickupAddress}
+              lng={data.pickupLng}
+              lat={data.pickupLat}
+              addressKey="pickupAddress"
+              lngKey="pickupLng"
+              latKey="pickupLat"
+              confirmedKey="pickupAddressConfirmed"
+              propertyValue={data.pickupPropertyType}
+              onChange={onChange}
+              onPropertyChange={(value) => set('pickupPropertyType', value)}
+            />
+            <QuoteStepAddressCard
+              tone="delivery"
+              title="Delivery address"
+              helper={quotePage ? 'Where we deliver to.' : 'Include the house number and street.'}
+              placeholder={quotePage ? 'Enter delivery postcode' : 'Enter delivery postcode or address'}
+              quotePage={quotePage}
+              address={data.deliveryAddress}
+              lng={data.deliveryLng}
+              lat={data.deliveryLat}
+              addressKey="deliveryAddress"
+              lngKey="deliveryLng"
+              latKey="deliveryLat"
+              confirmedKey="deliveryAddressConfirmed"
+              propertyValue={data.deliveryPropertyType}
+              onChange={onChange}
+              onPropertyChange={(value) => set('deliveryPropertyType', value)}
+            />
+          </>
+        ) : HAS_ADDRESS_SEARCH ? (
           <>
             <MapboxAddressField
               label="Pickup address"
@@ -263,6 +310,8 @@ export default function Step1Address({
           </>
         )}
 
+        {!customerAddressCards ? (
+        <>
         <label className={field}>
           <span className={label}>Pickup property type</span>
           <select
@@ -291,6 +340,8 @@ export default function Step1Address({
             ))}
           </select>
         </label>
+        </>
+        ) : null}
 
         <div className={field} data-quote-field="pickup-access">
           <FloorSelect
@@ -340,11 +391,11 @@ export default function Step1Address({
           />
         </label>
 
-        <div className={`${field} col-span-2`} data-quote-field="arrival">
+        <div className={`${field} ${quotePage ? '' : 'col-span-2'}`} data-quote-field="arrival">
           <Step1ArrivalFields data={data} onChange={onChange} error={arrivalError} />
         </div>
 
-        <label className={`${field} col-span-2`}>
+        <label className={`${field} ${quotePage ? '' : 'col-span-2'}`}>
           <span className={label}>Distance (miles)</span>
           <input
             type="number"

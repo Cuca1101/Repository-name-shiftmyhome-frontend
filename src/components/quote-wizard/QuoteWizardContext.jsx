@@ -89,6 +89,7 @@ import {
   resolveWizardMissingAddressCoords,
 } from '../../lib/addressConfirmation'
 import { fetchDrivingRoute, metersToMiles } from '../../lib/mapboxRouteApi'
+import { hasGoogleMapsKey } from '../../lib/googlePlaces'
 
 const QuoteWizardContext = createContext(null)
 
@@ -638,19 +639,15 @@ export function QuoteWizardProvider({ children, serviceType: serviceTypeProp, al
 
     let currentWizard = wizard
 
-    if (step === 1 && HAS_MAPBOX_TOKEN) {
+    if (step === 1 && (hasGoogleMapsKey() || HAS_MAPBOX_TOKEN)) {
       const needsGeocode =
         currentWizard.pickupLng == null ||
         currentWizard.pickupLat == null ||
         currentWizard.deliveryLng == null ||
         currentWizard.deliveryLat == null
 
-      if (needsGeocode) {
-        const token = import.meta.env.VITE_MAPBOX_TOKEN
-        const { ok, wizard: resolved, errors } = await resolveWizardMissingAddressCoords(
-          currentWizard,
-          token,
-        )
+      if (needsGeocode && hasGoogleMapsKey()) {
+        const { ok, wizard: resolved, errors } = await resolveWizardMissingAddressCoords(currentWizard)
         if (!ok) {
           const first = errors[0]
           setFeedback({ type: 'error', text: first?.message ?? 'Please check your addresses.' })
@@ -667,31 +664,33 @@ export function QuoteWizardProvider({ children, serviceType: serviceTypeProp, al
           currentWizard = resolved
           setWizard(resolved)
         }
+      }
 
-        if (
-          !(Number(currentWizard.distanceMiles) > 0) &&
-          currentWizard.pickupLng != null &&
-          currentWizard.pickupLat != null &&
-          currentWizard.deliveryLng != null &&
-          currentWizard.deliveryLat != null
-        ) {
+      const token = import.meta.env.VITE_MAPBOX_TOKEN
+      if (
+        token &&
+        !(Number(currentWizard.distanceMiles) > 0) &&
+        currentWizard.pickupLng != null &&
+        currentWizard.pickupLat != null &&
+        currentWizard.deliveryLng != null &&
+        currentWizard.deliveryLat != null
+      ) {
           const route = await fetchDrivingRoute(
             { lng: currentWizard.pickupLng, lat: currentWizard.pickupLat },
             { lng: currentWizard.deliveryLng, lat: currentWizard.deliveryLat },
             token,
           )
-          if (route) {
-            const durationSeconds =
-              typeof route.durationSeconds === 'number' && route.durationSeconds > 0
-                ? route.durationSeconds
-                : null
-            currentWizard = {
-              ...currentWizard,
-              distanceMiles: metersToMiles(route.distanceMeters),
-              mapboxRouteDurationSeconds: durationSeconds,
-            }
-            setWizard(currentWizard)
+        if (route) {
+          const durationSeconds =
+            typeof route.durationSeconds === 'number' && route.durationSeconds > 0
+              ? route.durationSeconds
+              : null
+          currentWizard = {
+            ...currentWizard,
+            distanceMiles: metersToMiles(route.distanceMeters),
+            mapboxRouteDurationSeconds: durationSeconds,
           }
+          setWizard(currentWizard)
         }
       }
     }

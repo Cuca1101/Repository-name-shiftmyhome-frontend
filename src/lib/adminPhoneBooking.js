@@ -30,7 +30,6 @@ import { hydrateWizardFromDraft } from './quoteDraftStorage'
 
 const QUOTES_TABLE = 'quotes'
 
-const HAS_MAPBOX_TOKEN = Boolean(import.meta.env.VITE_MAPBOX_TOKEN)
 
 /** @typedef {{ field: string, message: string, step: 1 | 2 | 3 }} AdminPhoneBookingFieldError */
 
@@ -69,23 +68,6 @@ export function collectAdminPhoneBookingFieldErrors(wizard, opts = {}) {
   }
   if (delivery.length <= 2) {
     errors.push({ field: 'deliveryAddress', message: 'Delivery address is required.', step: 1 })
-  }
-
-  if (HAS_MAPBOX_TOKEN) {
-    if (wizard.pickupLng == null || wizard.pickupLat == null) {
-      errors.push({
-        field: 'pickupAddress',
-        message: 'Select pickup address from Mapbox suggestions.',
-        step: 1,
-      })
-    }
-    if (wizard.deliveryLng == null || wizard.deliveryLat == null) {
-      errors.push({
-        field: 'deliveryAddress',
-        message: 'Select delivery address from Mapbox suggestions.',
-        step: 1,
-      })
-    }
   }
 
   if (wizard.pickupFloor == null) {

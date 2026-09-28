@@ -12,7 +12,31 @@ const SHORT_LABELS = {
   4: 'Pay',
 }
 
-export default function WizardProgress({ step }) {
+export default function WizardProgress({ step, variant = 'default' }) {
+  if (variant === 'page') {
+    return (
+      <ol className="quote-page-steps mb-5 flex w-full items-center justify-between gap-0.5 text-[10px] font-semibold leading-tight sm:justify-center sm:gap-1 sm:text-sm">
+        {STEPS.map((s, index) => (
+          <li key={s.n} className="flex min-w-0 items-center gap-0.5 sm:gap-1">
+            {index > 0 ? <span className="px-0.5 font-normal text-slate-300">—</span> : null}
+            <span
+              className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[11px] tabular-nums sm:h-7 sm:w-7 sm:text-xs ${
+                step === s.n
+                  ? 'bg-blue-600 text-white'
+                  : step > s.n
+                    ? 'bg-emerald-500 text-white'
+                    : 'bg-slate-200 text-slate-500'
+              }`}
+            >
+              {step > s.n ? '✓' : s.n}
+            </span>
+            <span className={step >= s.n ? 'text-blue-700' : 'text-slate-400'}>{s.label}</span>
+          </li>
+        ))}
+      </ol>
+    )
+  }
+
   const progressPct = Math.min(100, Math.max(0, (step / STEPS.length) * 100))
 
   return (

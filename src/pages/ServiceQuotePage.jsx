@@ -6,7 +6,6 @@ import SeoHead from '../components/seo/SeoHead'
 import SeoServiceJsonLd from '../components/seo/SeoServiceJsonLd'
 import ServicePageSeoSections from '../components/seo/ServicePageSeoSections'
 import SeoQuickBookSteps from '../components/seo/SeoQuickBookSteps'
-import SeoQuoteSectionHeader from '../components/seo/SeoQuoteSectionHeader'
 import QuoteWizard from '../components/quote-wizard/QuoteWizard'
 import { normalizePublicPath } from '../lib/normalizePublicPath'
 import { normalizeSeoFaqs } from '../lib/seoStructuredData'
@@ -81,12 +80,12 @@ export default function ServiceQuotePage() {
 
       <SeoQuickBookSteps cityName="Scotland" />
 
-      <section id="service-quote" className="seo-quote-wrap scroll-mt-[76px]" aria-label="Instant quote">
-        <SeoQuoteSectionHeader
-          title={`Get your instant ${page.title.toLowerCase()} quote`}
-          subtitle="Enter pickup and delivery addresses, add your items, and see a live price — no phone call needed."
-        />
-        <QuoteWizard serviceType={page.serviceType} compact />
+      <section
+        id="service-quote"
+        className="quote-page-shell seo-quote-wrap scroll-mt-[76px] bg-[#e7eef6] px-3 py-4 sm:px-4 sm:py-8"
+        aria-label="Instant quote"
+      >
+        <QuoteWizard serviceType={page.serviceType} pageChrome titleTag="h2" />
       </section>
 
       {seoContent ? (

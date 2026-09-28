@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { applyWizardPatch } from '../../lib/wizardStateUpdate'
 import { getLocalDateYYYYMMDD } from '../../lib/moveDateLocal'
 import MapboxAddressField from './MapboxAddressField'
+import QuoteStepAddressCard from './QuoteStepAddressCard'
 import FloorSelect, { floorNeedsLiftQuestion } from './FloorSelect'
 import { liftClearPatchForWizard } from '../../lib/floorAccess'
 import MobileStep1ArrivalWindow from './MobileStep1ArrivalWindow'
@@ -144,6 +145,8 @@ export default function MobileStep1AddressCards({
   arrivalError = '',
   showPickupLift,
   showDeliveryLift,
+  customerAddressCards = false,
+  quotePage = false,
 }) {
   const [openSections, setOpenSections] = useState(() => computeInitialSections(data))
   const [activeDropdown, setActiveDropdown] = useState(null)
@@ -293,7 +296,27 @@ export default function MobileStep1AddressCards({
   return (
     <div className="quote-mobile-step1-flow overflow-visible">
       <MobileCardRow>
-          {hasMapbox ? (
+          {customerAddressCards ? (
+            <QuoteStepAddressCard
+              tone="pickup"
+              title="Pickup address"
+              helper={quotePage ? 'Where we collect from.' : 'Include the house number and street.'}
+              placeholder={quotePage ? 'Enter pickup postcode' : 'Enter pickup postcode or address'}
+              quotePage={quotePage}
+              address={data.pickupAddress}
+              lng={data.pickupLng}
+              lat={data.pickupLat}
+              addressKey="pickupAddress"
+              lngKey="pickupLng"
+              latKey="pickupLat"
+              confirmedKey="pickupAddressConfirmed"
+              propertyValue={data.pickupPropertyType}
+              propertySelectId="quote-mobile-pickup-property-type"
+              onChange={onChange}
+              onPropertyChange={onPickupPropertyChange}
+              onAddressSelected={onPickupAddressSelected}
+            />
+          ) : hasMapbox ? (
             <MapboxAddressField
               label="Pickup address"
               markerLetter="A"
@@ -334,6 +357,7 @@ export default function MobileStep1AddressCards({
           )}
         </MobileCardRow>
 
+        {!customerAddressCards ? (
         <MobileCardRow>
           <MobileOptionBottomSheet
             id="quote-mobile-pickup-property-type"
@@ -348,6 +372,7 @@ export default function MobileStep1AddressCards({
             }}
           />
         </MobileCardRow>
+        ) : null}
 
         {show.pickupFloor ? (
           <MobileCardRow>
@@ -379,7 +404,27 @@ export default function MobileStep1AddressCards({
         ) : null}
 
         <MobileCardRow>
-          {hasMapbox ? (
+          {customerAddressCards ? (
+            <QuoteStepAddressCard
+              tone="delivery"
+              title="Delivery address"
+              helper={quotePage ? 'Where we deliver to.' : 'Include the house number and street.'}
+              placeholder={quotePage ? 'Enter delivery postcode' : 'Enter delivery postcode or address'}
+              quotePage={quotePage}
+              address={data.deliveryAddress}
+              lng={data.deliveryLng}
+              lat={data.deliveryLat}
+              addressKey="deliveryAddress"
+              lngKey="deliveryLng"
+              latKey="deliveryLat"
+              confirmedKey="deliveryAddressConfirmed"
+              propertyValue={data.deliveryPropertyType}
+              propertySelectId="quote-mobile-delivery-property-type"
+              onChange={onChange}
+              onPropertyChange={onDeliveryPropertyChange}
+              onAddressSelected={onDeliveryAddressSelected}
+            />
+          ) : hasMapbox ? (
             <MapboxAddressField
               label="Delivery address"
                 markerLetter="B"
@@ -420,6 +465,7 @@ export default function MobileStep1AddressCards({
             )}
         </MobileCardRow>
 
+        {!customerAddressCards ? (
         <MobileCardRow>
           <MobileOptionBottomSheet
             id="quote-mobile-delivery-property-type"
@@ -434,6 +480,7 @@ export default function MobileStep1AddressCards({
             }}
           />
         </MobileCardRow>
+        ) : null}
 
           {show.deliveryFloor ? (
             <MobileCardRow>

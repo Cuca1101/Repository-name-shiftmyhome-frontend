@@ -38,6 +38,7 @@ Deno.serve(async (req) => {
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? ''
     const anonKey = Deno.env.get('SUPABASE_ANON_KEY') ?? ''
+    const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     if (!supabaseUrl || !anonKey) {
       return jsonResponse({ ok: false, error: 'server_misconfigured' }, 503)
     }
@@ -50,8 +51,9 @@ Deno.serve(async (req) => {
       return jsonResponse({ ok: false, error: 'unauthorized' }, 401)
     }
 
+    const adminClient = serviceKey ? createClient(supabaseUrl, serviceKey) : null
     const userId = userData.user.id
-    const result = await sendAdminAvailableJobTestEmail(userId)
+    const result = await sendAdminAvailableJobTestEmail(userId, adminClient)
 
     return jsonResponse(result, result.ok ? 200 : 500)
   } catch (e) {

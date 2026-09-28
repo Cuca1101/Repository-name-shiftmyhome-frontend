@@ -2,6 +2,7 @@ import Stripe from 'npm:stripe@14.21.0'
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import { updateQuoteFromPaymentIntent } from '../_shared/updateQuoteFromPaymentIntent.ts'
 import { sendPaymentConfirmationWithPdfIfNeeded } from '../_shared/paymentConfirmationEmail.ts'
+import { runAfterPaymentVerifiedHooks } from '../_shared/afterPaymentVerifiedHooks.ts'
 import { guardStripeSecretKey, respondStripeConfigFailure } from '../_shared/stripeSecretGuard.ts'
 
 /**
@@ -117,6 +118,22 @@ Deno.serve(async (req) => {
     })
   }
 
+  let admin_notify: unknown
+  try {
+    admin_notify = await runAfterPaymentVerifiedHooks({
+      supabase,
+      paymentIntent: pi,
+      quoteId: result.quote_id ?? null,
+    })
+    console.log('[verify-payment-intent] admin booking notify', admin_notify)
+  } catch (e) {
+    console.error('[verify-payment-intent] admin booking notify error', {
+      message: e instanceof Error ? e.message : String(e),
+      payment_intent_id: payment_intent_id,
+      quote_id: result.quote_id ?? null,
+    })
+  }
+
   const amount_gbp =
     typeof pi.amount === 'number' && pi.amount > 0
       ? Math.round((pi.amount / 100) * 100) / 100
@@ -138,5 +155,6 @@ Deno.serve(async (req) => {
     email_reason,
     email_debug,
     email_error,
+    admin_notify,
   })
 })

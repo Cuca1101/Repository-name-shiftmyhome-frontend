@@ -1,11 +1,13 @@
 ﻿import { useEffect, useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import Logo from '../Logo'
+import NavSloganBar from '../NavSloganBar'
 import HomeSectionLink from '../HomeSectionLink'
 import QuoteNavCta from '../QuoteNavCta'
 import CoverageLink from '../CoverageLink'
 import { CONTACT } from '../../config'
 import { useWebsiteCms } from '../../context/WebsiteCmsContext'
+import { pathUsesDedicatedQuotePage } from '../../lib/quoteModalRoutes'
 
 const navItems = [
   { sectionId: 'about', label: 'About us' },
@@ -131,6 +133,7 @@ export default function DesktopNavbar() {
           </QuoteNavCta>
         </div>
       </nav>
+      {pathUsesDedicatedQuotePage(pathname) ? <NavSloganBar /> : null}
     </header>
   )
 }

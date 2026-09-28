@@ -10,6 +10,7 @@ import Step4Review from './steps/Step4Review'
 import MobileQuoteStickyActions from '../mobile/MobileQuoteStickyActions'
 import QuoteStep2TransitionLoading from './QuoteStep2TransitionLoading'
 import useMobileQuoteLayout from '../../hooks/useMobileQuoteLayout'
+import { Lock } from 'lucide-react'
 
 function step1ArrivalErrorMessage(feedback) {
   if (feedback.type !== 'error' || !feedback.text) return ''
@@ -18,7 +19,13 @@ function step1ArrivalErrorMessage(feedback) {
     : ''
 }
 
-function QuoteWizardInner({ compact = false, servicePreSelected = false }) {
+function QuoteWizardInner({
+  compact = false,
+  servicePreSelected = false,
+  pageChrome = false,
+  titleTag = 'h1',
+  titleId,
+}) {
   const {
     step,
     quoteRef,
@@ -158,6 +165,8 @@ function QuoteWizardInner({ compact = false, servicePreSelected = false }) {
           onServiceTypeChange={allowServiceChange ? setServiceType : undefined}
           servicePreSelected={servicePreSelected}
           arrivalError={step1ArrivalErrorMessage(feedback)}
+          customerAddressCards
+          quotePage={pageChrome}
         />
       )}
       {step === 2 && (
@@ -248,16 +257,20 @@ function QuoteWizardInner({ compact = false, servicePreSelected = false }) {
     <section
       id="quote"
       className={
-        compact
-          ? 'quote-flow-scope quote-wizard-section quote-wizard-section--embedded scroll-mt-20 py-1.5 md:py-5'
-          : 'quote-flow-scope quote-wizard-section scroll-mt-24 border-t border-slate-200 bg-slate-50 py-1.5 md:border-t md:py-14'
+        pageChrome
+          ? 'quote-flow-scope quote-wizard-section scroll-mt-24 bg-transparent py-0'
+          : compact
+            ? 'quote-flow-scope quote-wizard-section quote-wizard-section--embedded scroll-mt-20 py-1.5 md:py-5'
+            : 'quote-flow-scope quote-wizard-section scroll-mt-24 border-t border-slate-200 bg-slate-50 py-1.5 md:border-t md:py-14'
       }
     >
       {quoteStepTransitionLoading && step === 2 ? <QuoteStep2TransitionLoading /> : null}
-      <div className="mx-auto box-border min-w-0 w-full max-w-6xl px-2 md:px-6 lg:px-8">
-        <div id="quote-wizard-top">
-          <WizardProgress step={step} />
-        </div>
+      <div className={`mx-auto box-border min-w-0 w-full max-w-6xl ${pageChrome ? 'px-0' : 'px-2 md:px-6 lg:px-8'}`}>
+        {pageChrome ? null : (
+          <div id="quote-wizard-top">
+            <WizardProgress step={step} />
+          </div>
+        )}
 
         {feedback.text && (
           <div
@@ -300,6 +313,43 @@ function QuoteWizardInner({ compact = false, servicePreSelected = false }) {
 
         {loadingSettings ? (
           <p className="text-center text-slate-600">Loading…</p>
+        ) : pageChrome ? (
+          <div className="mx-auto w-full max-w-3xl space-y-4">
+            <div className="quote-wizard-form-card rounded-2xl border border-slate-200/80 bg-white p-4 shadow-[0_10px_30px_rgba(15,23,42,0.06)] sm:p-6">
+              <div className="mb-4 text-center">
+                {titleTag === 'h2' ? (
+                  <h2 id={titleId} className="text-[1.65rem] font-extrabold tracking-tight text-slate-900 sm:text-3xl">
+                    Get your instant quote
+                  </h2>
+                ) : (
+                  <h1 id={titleId} className="text-[1.65rem] font-extrabold tracking-tight text-slate-900 sm:text-3xl">
+                    Get your instant quote
+                  </h1>
+                )}
+                <p className="mt-1.5 text-sm leading-snug text-slate-500">
+                  Four quick steps — your price appears when you review and submit.
+                </p>
+              </div>
+              <div id="quote-wizard-top">
+                <WizardProgress step={step} variant="page" />
+              </div>
+              {stepPanel}
+              <p className="mt-6 flex items-center justify-center gap-1.5 text-xs text-slate-400">
+                <Lock className="h-3.5 w-3.5" aria-hidden />
+                Your details are secure
+              </p>
+            </div>
+            <MoveSummary {...summaryProps} />
+            {isMobileLayout ? (
+              <MobileQuoteStickyActions
+                step={step}
+                onBack={back}
+                onNext={next}
+                nextDisabled={quoteStepTransitionLoading}
+                nextLoading={quoteStepTransitionLoading && step === 2}
+              />
+            ) : null}
+          </div>
         ) : isMobileLayout ? (
           <div className="quote-wizard-mobile-stack block min-w-0 max-w-full space-y-1.5">
             <div
@@ -336,12 +386,26 @@ function QuoteWizardInner({ compact = false, servicePreSelected = false }) {
 }
 
 /**
- * @param {{ serviceType: string, allowServiceChange?: boolean, servicePreSelected?: boolean, compact?: boolean }} props
+ * @param {{ serviceType: string, allowServiceChange?: boolean, servicePreSelected?: boolean, compact?: boolean, pageChrome?: boolean, titleTag?: 'h1' | 'h2', titleId?: string }} props
  */
-export default function QuoteWizard({ serviceType, allowServiceChange = false, servicePreSelected = false, compact = false }) {
+export default function QuoteWizard({
+  serviceType,
+  allowServiceChange = false,
+  servicePreSelected = false,
+  compact = false,
+  pageChrome = false,
+  titleTag = 'h1',
+  titleId,
+}) {
   return (
     <QuoteWizardProvider serviceType={serviceType} allowServiceChange={allowServiceChange}>
-      <QuoteWizardInner compact={compact} servicePreSelected={servicePreSelected} />
+      <QuoteWizardInner
+        compact={compact}
+        servicePreSelected={servicePreSelected}
+        pageChrome={pageChrome}
+        titleTag={titleTag}
+        titleId={titleId}
+      />
     </QuoteWizardProvider>
   )
 }

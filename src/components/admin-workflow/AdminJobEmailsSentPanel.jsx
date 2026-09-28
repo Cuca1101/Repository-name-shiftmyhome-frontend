@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useState } from 'react'
 import { formatDateTimeUK } from '../../lib/formatDateDisplay'
-import { fetchJobCustomerNotifications } from '../../lib/jobCustomerTracking'
+import {
+  fetchCustomerLeadNotifications,
+  fetchJobCustomerNotifications,
+} from '../../lib/jobCustomerTracking'
 import { isSupabaseConfigured } from '../../lib/supabase'
 
 const EVENT_LABELS = {
@@ -13,6 +16,8 @@ const EVENT_LABELS = {
   status_arrived_delivery: 'Arrived at delivery',
   status_completed: 'Completion thank-you',
   tip_received: 'Tip received confirmation',
+  admin_booking_confirmed: 'Admin: new booking confirmed',
+  admin_abandoned_quote: 'Admin: abandoned quote',
 }
 
 function statusTone(status) {
@@ -24,17 +29,23 @@ function statusTone(status) {
 }
 
 /**
- * Read-only list of customer emails logged for a booking.
- * @param {{ quoteId: string, compact?: boolean, refreshKey?: number|string }} props
+ * Read-only Email History for a booking (quote) and/or customer lead.
+ * @param {{ quoteId?: string, customerLeadId?: string, compact?: boolean, refreshKey?: number|string }} props
  */
-export default function AdminJobEmailsSentPanel({ quoteId, compact = false, refreshKey = 0 }) {
-  const id = String(quoteId || '').trim()
+export default function AdminJobEmailsSentPanel({
+  quoteId,
+  customerLeadId,
+  compact = false,
+  refreshKey = 0,
+}) {
+  const qid = String(quoteId || '').trim()
+  const lid = String(customerLeadId || '').trim()
   const [rows, setRows] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
   const load = useCallback(async () => {
-    if (!id || !isSupabaseConfigured) {
+    if ((!qid && !lid) || !isSupabaseConfigured) {
       setRows([])
       setLoading(false)
       return
@@ -42,27 +53,36 @@ export default function AdminJobEmailsSentPanel({ quoteId, compact = false, refr
     setLoading(true)
     setError('')
     try {
-      const data = await fetchJobCustomerNotifications(id)
-      setRows(Array.isArray(data) ? data : [])
+      const [jobRows, leadRows] = await Promise.all([
+        qid ? fetchJobCustomerNotifications(qid) : Promise.resolve([]),
+        lid ? fetchCustomerLeadNotifications(lid) : Promise.resolve([]),
+      ])
+      const merged = [...(Array.isArray(jobRows) ? jobRows : []), ...(Array.isArray(leadRows) ? leadRows : [])]
+      merged.sort((a, b) => {
+        const ta = new Date(a?.sent_at || a?.created_at || 0).getTime()
+        const tb = new Date(b?.sent_at || b?.created_at || 0).getTime()
+        return tb - ta
+      })
+      setRows(merged)
     } catch (e) {
       setError(e?.message || 'Could not load emails.')
       setRows([])
     } finally {
       setLoading(false)
     }
-  }, [id])
+  }, [qid, lid])
 
   useEffect(() => {
     void load()
   }, [load, refreshKey])
 
-  if (!id) return null
+  if (!qid && !lid) return null
 
   return (
     <div className={compact ? 'space-y-2' : 'space-y-3'}>
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-          Emails sent to customer
+          Email History
           {!loading ? (
             <span className="ml-2 rounded-md bg-slate-100 px-1.5 py-0.5 text-[10px] font-bold normal-case text-slate-600">
               {rows.length}
@@ -84,7 +104,7 @@ export default function AdminJobEmailsSentPanel({ quoteId, compact = false, refr
         <p className="text-sm text-red-700">{error}</p>
       ) : rows.length === 0 ? (
         <p className="rounded-lg border border-dashed border-slate-200 bg-slate-50 px-3 py-3 text-sm text-slate-600">
-          No customer emails logged for this job yet.
+          No emails logged yet.
         </p>
       ) : (
         <ul className={`space-y-2 ${compact ? 'max-h-48 overflow-auto' : 'max-h-80 overflow-auto'}`}>

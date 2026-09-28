@@ -2,6 +2,7 @@ import 'jsr:@supabase/functions-js/edge-runtime.d.ts'
 import Stripe from 'npm:stripe@14.21.0'
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import { updateQuoteFromCheckoutSession } from '../_shared/updateQuoteFromCheckoutSession.ts'
+import { sendAdminBookingNotificationIfNeeded } from '../_shared/adminAvailableJobNotification.ts'
 import { guardStripeSecretKey, respondStripeConfigFailure } from '../_shared/stripeSecretGuard.ts'
 
 const corsHeaders = {
@@ -72,10 +73,32 @@ Deno.serve(async (req) => {
   const supabase = createClient(supabaseUrl, serviceRole)
   const result = await updateQuoteFromCheckoutSession(supabase, session, 'paid')
 
+  let admin_notify: unknown
+  if (result.ok && result.quote_id) {
+    try {
+      admin_notify = await sendAdminBookingNotificationIfNeeded({
+        supabase,
+        quoteId: result.quote_id,
+        paymentIntentId:
+          typeof session.payment_intent === 'string'
+            ? session.payment_intent
+            : session.payment_intent && typeof session.payment_intent === 'object'
+              ? session.payment_intent.id
+              : null,
+      })
+    } catch (e) {
+      console.error('[verify-checkout-session] admin booking notify error', {
+        message: e instanceof Error ? e.message : String(e),
+        quote_id: result.quote_id,
+      })
+    }
+  }
+
   return jsonResponse({
     ok: result.ok,
     updated: result.ok,
     error: result.error,
     payment_status: session.payment_status,
+    admin_notify,
   })
 })

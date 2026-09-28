@@ -15,13 +15,20 @@ function resolveServiceFromParam(param) {
   return byPartial || null
 }
 
-/** Homepage quote section — same 4-step wizard as service pages, with service type dropdown on step 1. */
-export default function CustomerQuoteCalculator() {
+/** Customer /quote page — same 4-step wizard, with the quote-page layout when pageChrome is set. */
+export default function CustomerQuoteCalculator({ pageChrome = false }) {
   const [params] = useSearchParams()
   const serviceParam = params.get('service')
 
   const resolved = useMemo(() => resolveServiceFromParam(serviceParam), [serviceParam])
   const serviceType = resolved || SERVICE_TYPES[0]
 
-  return <QuoteWizard serviceType={serviceType} allowServiceChange servicePreSelected={Boolean(resolved)} />
+  return (
+    <QuoteWizard
+      serviceType={serviceType}
+      allowServiceChange
+      servicePreSelected={Boolean(resolved)}
+      pageChrome={pageChrome}
+    />
+  )
 }

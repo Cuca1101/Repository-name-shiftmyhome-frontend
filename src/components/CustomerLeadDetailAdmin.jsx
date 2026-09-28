@@ -34,6 +34,7 @@ import { isSupabaseConfigured, supabase } from '../lib/supabase'
 import { formatFloorLabel } from './quote-wizard/FloorSelect'
 import { formatAccessLiftLabel } from '../lib/floorAccess'
 import RecoveryEmailPreviewFrame from './admin/RecoveryEmailPreviewFrame'
+import AdminJobEmailsSentPanel from './admin-workflow/AdminJobEmailsSentPanel'
 
 function DetailBlock({ title, children }) {
   return (
@@ -802,6 +803,13 @@ export default function CustomerLeadDetailAdmin() {
           </button>
         </DetailBlock>
       ) : null}
+
+      <DetailBlock title="Email History">
+        <AdminJobEmailsSentPanel
+          customerLeadId={lead.id}
+          quoteId={lead.quote_id || undefined}
+        />
+      </DetailBlock>
 
       <DetailBlock title="Summary">
         <Row label="Name" value={lead.customer_name} />

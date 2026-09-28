@@ -559,7 +559,7 @@ export default function AvailableJobDetails() {
             </AdminCard>
           ) : null}
           {(fullPageDispatch || tab === 'overview') && q?.id ? (
-            <AdminCard title="Emails sent to customer">
+            <AdminCard title="Email History">
               <AdminJobEmailsSentPanel quoteId={q.id} />
             </AdminCard>
           ) : null}

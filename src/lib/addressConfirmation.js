@@ -2,7 +2,7 @@
  * Pickup/delivery address confirmation helpers (quote wizard + admin phone booking).
  */
 
-import { geocodeAddress } from './mapboxRouteApi'
+import { findUkAddressByText, hasGoogleMapsKey } from './googlePlaces'
 
 const HAS_MAPBOX_TOKEN = Boolean(import.meta.env.VITE_MAPBOX_TOKEN)
 
@@ -84,25 +84,29 @@ export function autoConfirmGeocodedAddresses(wizard) {
 }
 
 /**
- * Geocode a single typed address (no autocomplete selection required).
+ * Look up a typed address with Google Places. Returns null when Places has no match.
+ * A missing match must not block a booking — the caller keeps the typed text.
  * @param {string} addressText
- * @param {string} token
- * @returns {Promise<{ lng: number, lat: number } | null>}
+ * @returns {Promise<import('./googlePlaces.js').parseGooglePlace | null>}
  */
-export async function geocodeTypedWizardAddress(addressText, token) {
+export async function geocodeTypedWizardAddress(addressText) {
   const text = String(addressText || '').trim()
-  if (!token || text.length < MIN_MANUAL_ADDRESS_LENGTH) return null
-  return geocodeAddress(text, token)
+  if (!hasGoogleMapsKey() || text.length < MIN_MANUAL_ADDRESS_LENGTH) return null
+  try {
+    return await findUkAddressByText(text)
+  } catch {
+    return null
+  }
 }
 
 /**
- * Resolve missing pickup/delivery coordinates from typed addresses via Mapbox geocoding.
+ * Fill missing pickup/delivery coordinates from typed addresses via Google Places.
+ * If Places cannot find an address, the typed text is kept and the step can continue.
  * @param {Record<string, unknown>} wizard
- * @param {string} token
  * @returns {Promise<{ ok: boolean, wizard: Record<string, unknown>, errors: { field: string, message: string }[] }>}
  */
-export async function resolveWizardMissingAddressCoords(wizard, token) {
-  if (!token) return { ok: true, wizard, errors: [] }
+export async function resolveWizardMissingAddressCoords(wizard) {
+  if (!hasGoogleMapsKey()) return { ok: true, wizard, errors: [] }
 
   /** @type {Record<string, unknown>} */
   const patch = {}
@@ -133,16 +137,18 @@ export async function resolveWizardMissingAddressCoords(wizard, token) {
       })
       return
     }
-    const hit = await geocodeAddress(trimmed, token)
-    if (!hit) {
-      errors.push({
-        field,
-        message: `We could not verify this ${label.toLowerCase()}. Please check the spelling or try a nearby postcode.`,
-      })
-      return
-    }
+    const hit = await geocodeTypedWizardAddress(trimmed)
+    if (!hit || hit.lng == null || hit.lat == null) return
+    const side = field === 'deliveryAddress' ? 'delivery' : 'pickup'
+    patch[`${side}Address`] = trimmed
     patch[lngKey] = hit.lng
     patch[latKey] = hit.lat
+    patch[`${side}PlaceId`] = hit.placeId
+    patch[`${side}HouseNumber`] = hit.houseNumber
+    patch[`${side}Street`] = hit.street
+    patch[`${side}Town`] = hit.town
+    patch[`${side}Postcode`] = hit.postcode
+    patch[`${side}Country`] = hit.country
     patch[confirmedKey] = true
   }
 

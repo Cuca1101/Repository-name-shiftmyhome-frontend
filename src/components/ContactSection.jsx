@@ -5,6 +5,7 @@ import { EMAILJS_CONFIG, EMAILJS_TEMPLATE_ID_GUIDE, isEmailJsReady } from '../em
 import { insertHomePageQuoteLead } from '../lib/data/quotesRepository'
 import { syncCustomerLeadFromHomePageForm } from '../lib/customerLeadTracker'
 import { MOVE_DATE_PAST_ERROR, getLocalDateYYYYMMDD, isMoveDateOnOrAfterToday } from '../lib/moveDateLocal'
+import GoogleAddressInput from './address/GoogleAddressInput'
 
 const inputClass =
   'mt-1.5 w-full max-w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-base text-slate-900 shadow-sm outline-none transition placeholder:text-slate-400 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/25 sm:px-4 sm:py-3 sm:text-sm'
@@ -29,6 +30,36 @@ export default function ContactSection() {
 
   function setField(key, value) {
     setForm((prev) => ({ ...prev, [key]: value }))
+  }
+
+  function clearAddressSide(side, value) {
+    setForm((prev) => ({
+      ...prev,
+      [side]: value,
+      [`${side}Lng`]: null,
+      [`${side}Lat`]: null,
+      [`${side}PlaceId`]: '',
+      [`${side}HouseNumber`]: '',
+      [`${side}Street`]: '',
+      [`${side}Town`]: '',
+      [`${side}Postcode`]: '',
+      [`${side}Country`]: '',
+    }))
+  }
+
+  function applyAddressSide(side, place) {
+    setForm((prev) => ({
+      ...prev,
+      [side]: place.formattedAddress || prev[side],
+      [`${side}Lng`]: place.lng,
+      [`${side}Lat`]: place.lat,
+      [`${side}PlaceId`]: place.placeId,
+      [`${side}HouseNumber`]: place.houseNumber,
+      [`${side}Street`]: place.street,
+      [`${side}Town`]: place.town,
+      [`${side}Postcode`]: place.postcode,
+      [`${side}Country`]: place.country,
+    }))
   }
 
   async function handleSubmit(e) {
@@ -75,6 +106,22 @@ export default function ContactSection() {
         move_date: form.move_date,
         details: form.details,
         quote_ref: quoteRefForEmail,
+        pickupLng: form.pickupLng,
+        pickupLat: form.pickupLat,
+        deliveryLng: form.deliveryLng,
+        deliveryLat: form.deliveryLat,
+        pickupPlaceId: form.pickupPlaceId,
+        pickupHouseNumber: form.pickupHouseNumber,
+        pickupStreet: form.pickupStreet,
+        pickupTown: form.pickupTown,
+        pickupPostcode: form.pickupPostcode,
+        pickupCountry: form.pickupCountry,
+        deliveryPlaceId: form.deliveryPlaceId,
+        deliveryHouseNumber: form.deliveryHouseNumber,
+        deliveryStreet: form.deliveryStreet,
+        deliveryTown: form.deliveryTown,
+        deliveryPostcode: form.deliveryPostcode,
+        deliveryCountry: form.deliveryCountry,
       })
     } catch (err) {
       const msg = err?.message || 'Could not save your request.'
@@ -188,11 +235,29 @@ export default function ContactSection() {
               <div className="grid gap-4 sm:grid-cols-2">
                 <div>
                   <label className={labelClass} htmlFor="quote-pickup">Pickup</label>
-                  <input id="quote-pickup" name="pickup" type="text" required className={inputClass} placeholder="Pickup address or postcode" value={form.pickup} onChange={(e) => setField('pickup', e.target.value)} />
+                  <GoogleAddressInput
+                    id="quote-pickup"
+                    name="pickup"
+                    required
+                    className={inputClass}
+                    placeholder="Pickup address or postcode"
+                    value={form.pickup}
+                    onValueChange={(value) => clearAddressSide('pickup', value)}
+                    onPlace={(place) => applyAddressSide('pickup', place)}
+                  />
                 </div>
                 <div>
                   <label className={labelClass} htmlFor="quote-delivery">Delivery</label>
-                  <input id="quote-delivery" name="delivery" type="text" required className={inputClass} placeholder="Delivery address or postcode" value={form.delivery} onChange={(e) => setField('delivery', e.target.value)} />
+                  <GoogleAddressInput
+                    id="quote-delivery"
+                    name="delivery"
+                    required
+                    className={inputClass}
+                    placeholder="Delivery address or postcode"
+                    value={form.delivery}
+                    onValueChange={(value) => clearAddressSide('delivery', value)}
+                    onPlace={(place) => applyAddressSide('delivery', place)}
+                  />
                 </div>
               </div>
 

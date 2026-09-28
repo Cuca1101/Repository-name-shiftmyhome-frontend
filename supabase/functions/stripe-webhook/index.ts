@@ -4,6 +4,7 @@ import { updateQuoteFromPaymentIntent } from '../_shared/updateQuoteFromPaymentI
 import { sendPaymentConfirmationWithPdfIfNeeded } from '../_shared/paymentConfirmationEmail.ts'
 import { sendExtraChargePaidConfirmationEmail } from '../_shared/extraChargePaidConfirmationEmail.ts'
 import { applyJobTipPaidFromCheckout } from '../_shared/confirmJobTipPaid.ts'
+import { runAfterPaymentVerifiedHooks } from '../_shared/afterPaymentVerifiedHooks.ts'
 import { guardStripeSecretKey, respondStripeConfigFailure } from '../_shared/stripeSecretGuard.ts'
 
 /**
@@ -144,6 +145,25 @@ Deno.serve(async (req) => {
         console.error('[stripe-webhook] payment email error', {
           message: e instanceof Error ? e.message : String(e),
           stack: e instanceof Error ? e.stack || '' : '',
+          payment_intent_id: pi.id,
+          quote_id: result.quote_id ?? null,
+        })
+      }
+
+      try {
+        const adminNotify = await runAfterPaymentVerifiedHooks({
+          supabase,
+          paymentIntent: pi,
+          quoteId: result.quote_id ?? null,
+        })
+        console.log('[stripe-webhook] admin booking notify', {
+          payment_intent_id: pi.id,
+          quote_id: result.quote_id ?? null,
+          admin_notify: adminNotify,
+        })
+      } catch (e) {
+        console.error('[stripe-webhook] admin booking notify error', {
+          message: e instanceof Error ? e.message : String(e),
           payment_intent_id: pi.id,
           quote_id: result.quote_id ?? null,
         })

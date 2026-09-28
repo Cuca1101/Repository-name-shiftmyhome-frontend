@@ -1,7 +1,16 @@
 import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { searchGeocodingSuggestions } from '../../lib/mapboxRouteApi'
-import { geocodeTypedWizardAddress, MIN_MANUAL_ADDRESS_LENGTH } from '../../lib/addressConfirmation'
+import { MIN_MANUAL_ADDRESS_LENGTH } from '../../lib/addressConfirmation'
+import {
+  GOOGLE_ADDRESS_MIN_QUERY,
+  addressPlacePatch,
+  createAddressSessionToken,
+  emptyAddressPlacePatch,
+  findUkAddressByText,
+  hasGoogleMapsKey,
+  placeFromPrediction,
+  suggestUkAddresses,
+} from '../../lib/googlePlaces'
 import { applyWizardPatch } from '../../lib/wizardStateUpdate'
 import { useFloatingPanelBelow } from './useFloatingPanelBelow'
 
@@ -11,14 +20,17 @@ const inputClass =
 const mobileCardInputClass =
   'box-border min-h-11 w-full min-w-0 max-w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-base leading-snug text-slate-900 shadow-sm outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/25'
 
-const SEARCH_DEBOUNCE_MS = 200
+const SEARCH_DEBOUNCE_MS = 300
 
 const mobileSuggestionRow =
   'flex min-h-[56px] w-full min-w-0 items-center gap-3 border-b border-slate-100 px-4 py-3 text-left text-base text-slate-900 transition last:border-b-0 active:bg-brand-50'
 
+const GOOGLE_ATTRIBUTION_SRC =
+  'https://maps.gstatic.com/mapfiles/api-3/images/powered-by-google-on-white3.png'
+
 /**
- * @param {string} [nextFocusId] — element id to focus after a suggestion is picked
- * @param {'move-date'} [nextFocusTarget] — focus first visible quote move-date input
+ * @param {string} [nextFocusId]
+ * @param {'move-date'} [nextFocusTarget]
  */
 function focusNextField({ nextFocusId, nextFocusTarget }) {
   if (nextFocusId) {
@@ -44,7 +56,16 @@ function focusNextField({ nextFocusId, nextFocusTarget }) {
 }
 
 /**
- * Mapbox Geocoding autocomplete. Saves full address text + lng/lat when user picks a suggestion.
+ * @param {string} addressKey
+ * @returns {'pickup' | 'delivery'}
+ */
+function addressPrefix(addressKey) {
+  return String(addressKey).startsWith('delivery') ? 'delivery' : 'pickup'
+}
+
+/**
+ * Google Places autocomplete for pickup and delivery. Keeps the existing field layout.
+ * Coordinates are written onto the wizard so Mapbox can still calculate the route.
  *
  * @param {{
  *   label: React.ReactNode,
@@ -57,7 +78,6 @@ function focusNextField({ nextFocusId, nextFocusTarget }) {
  *   addressKey: string,
  *   lngKey: string,
  *   latKey: string,
- *   data: object,
  *   onChange: (next: object) => void,
  *   confirmedKey?: string,
  *   nextFocusId?: string,
@@ -84,19 +104,22 @@ export default function MapboxAddressField({
   onAddressSelected,
   variant = 'default',
 }) {
-  const token = import.meta.env.VITE_MAPBOX_TOKEN
   const listId = useId()
   const rootRef = useRef(null)
   const inputRef = useRef(null)
   const pickingRef = useRef(false)
+  const sessionRef = useRef(null)
+  const requestRef = useRef(0)
   const [open, setOpen] = useState(false)
   const [suggestions, setSuggestions] = useState([])
   const [searching, setSearching] = useState(false)
+  const [searchNote, setSearchNote] = useState('')
   const debounceRef = useRef(0)
   const panelRef = useRef(null)
   const geocodeBlurRef = useRef(0)
 
   const selectedFromList = lng != null && lat != null
+  const prefix = addressPrefix(addressKey)
 
   const applyPatch = useCallback(
     (patch) => {
@@ -105,80 +128,105 @@ export default function MapboxAddressField({
     [onChange],
   )
 
+  const endSession = useCallback(() => {
+    sessionRef.current = null
+  }, [])
+
+  const ensureSession = useCallback(async () => {
+    if (!sessionRef.current) {
+      sessionRef.current = await createAddressSessionToken()
+    }
+    return sessionRef.current
+  }, [])
+
   const handleInputChange = (e) => {
     const v = e.target.value
     const patch = {
       [addressKey]: v,
       [lngKey]: null,
       [latKey]: null,
+      ...emptyAddressPlacePatch(prefix),
     }
     if (confirmedKey) patch[confirmedKey] = false
     applyPatch(patch)
+    setSearchNote('')
+    if (selectedFromList) endSession()
     setOpen(true)
   }
 
   const pickSuggestion = useCallback(
-    (s) => {
+    async (item) => {
       pickingRef.current = true
+      setSearching(true)
+      setSearchNote('')
+      try {
+        const place = await placeFromPrediction(item.prediction)
+        endSession()
+        if (!place.formattedAddress || place.lng == null || place.lat == null) {
+          setSearchNote('Address search is unavailable. You can type the full address.')
+          return
+        }
+        const patch = {
+          ...addressPlacePatch(prefix, place),
+          [lngKey]: place.lng,
+          [latKey]: place.lat,
+        }
+        if (confirmedKey) patch[confirmedKey] = true
+        applyPatch(patch)
+        setSuggestions([])
+        setOpen(false)
+        window.requestAnimationFrame(() => {
+          onAddressSelected?.()
+          focusNextField({ nextFocusId, nextFocusTarget })
+        })
+      } catch {
+        endSession()
+        setSearchNote('Address search is unavailable. You can type the full address.')
+      } finally {
+        setSearching(false)
+        window.setTimeout(() => {
+          pickingRef.current = false
+        }, 0)
+      }
+    },
+    [prefix, lngKey, latKey, confirmedKey, applyPatch, endSession, nextFocusId, nextFocusTarget, onAddressSelected],
+  )
 
+  const geocodeManualAddress = useCallback(async () => {
+    const trimmed = (address || '').trim()
+    if (!hasGoogleMapsKey() || selectedFromList || trimmed.length < MIN_MANUAL_ADDRESS_LENGTH) return
+
+    try {
+      const place = await findUkAddressByText(trimmed)
+      if (!place || place.lng == null || place.lat == null || !rootRef.current) return
       const patch = {
-        [addressKey]: s.placeName,
-        [lngKey]: s.lng,
-        [latKey]: s.lat,
+        ...addressPlacePatch(prefix, place, { keepTypedAddress: true, typedAddress: trimmed }),
+        [lngKey]: place.lng,
+        [latKey]: place.lat,
       }
       if (confirmedKey) patch[confirmedKey] = true
       applyPatch(patch)
       setSuggestions([])
       setOpen(false)
-
-      window.requestAnimationFrame(() => {
-        onAddressSelected?.()
-        focusNextField({ nextFocusId, nextFocusTarget })
-        pickingRef.current = false
-      })
-    },
-    [addressKey, lngKey, latKey, confirmedKey, applyPatch, nextFocusId, nextFocusTarget, onAddressSelected],
-  )
-
-  const geocodeManualAddress = useCallback(async () => {
-    const trimmed = (address || '').trim()
-    if (!token || selectedFromList || trimmed.length < MIN_MANUAL_ADDRESS_LENGTH) return
-
-    const hit = await geocodeTypedWizardAddress(trimmed, token)
-    if (!hit || !rootRef.current) return
-
-    const patch = {
-      [lngKey]: hit.lng,
-      [latKey]: hit.lat,
+      onAddressSelected?.()
+    } catch {
+      setSearchNote('')
     }
-    if (confirmedKey) patch[confirmedKey] = true
-    applyPatch(patch)
-    setSuggestions([])
-    setOpen(false)
-    onAddressSelected?.()
-  }, [
-    address,
-    token,
-    selectedFromList,
-    lngKey,
-    latKey,
-    confirmedKey,
-    applyPatch,
-    onAddressSelected,
-  ])
+  }, [address, selectedFromList, prefix, lngKey, latKey, confirmedKey, applyPatch, onAddressSelected])
 
   const handleBlur = useCallback(() => {
     window.clearTimeout(geocodeBlurRef.current)
     geocodeBlurRef.current = window.setTimeout(() => {
       void geocodeManualAddress()
-    }, 150)
+    }, 200)
   }, [geocodeManualAddress])
 
   useEffect(() => {
-    if (!token || !address?.trim() || address.trim().length < 2) {
+    const query = (address || '').trim()
+    if (!hasGoogleMapsKey() || query.length < GOOGLE_ADDRESS_MIN_QUERY) {
       setSuggestions([])
       setSearching(false)
-      setOpen(false)
+      if (query.length < GOOGLE_ADDRESS_MIN_QUERY) setOpen(false)
       return undefined
     }
 
@@ -188,34 +236,40 @@ export default function MapboxAddressField({
     }
 
     window.clearTimeout(debounceRef.current)
+    const requestId = requestRef.current + 1
+    requestRef.current = requestId
     setSearching(true)
 
     debounceRef.current = window.setTimeout(async () => {
       try {
-        const results = await searchGeocodingSuggestions(address, token)
-        if (!rootRef.current) return
+        const token = await ensureSession()
+        if (requestRef.current !== requestId || !rootRef.current) return
+        const results = await suggestUkAddresses(query, token)
+        if (requestRef.current !== requestId || !rootRef.current) return
         setSuggestions(results)
-        setOpen(results.length > 0)
+        setOpen(true)
+        setSearchNote(results.length === 0 ? 'No matching addresses. You can keep what you typed.' : '')
       } catch {
+        if (requestRef.current !== requestId) return
         setSuggestions([])
         setOpen(false)
+        setSearchNote('Address search is unavailable. You can type the full address.')
       } finally {
-        setSearching(false)
+        if (requestRef.current === requestId) setSearching(false)
       }
     }, SEARCH_DEBOUNCE_MS)
 
     return () => window.clearTimeout(debounceRef.current)
-  }, [address, token, selectedFromList, variant])
+  }, [address, selectedFromList, ensureSession])
 
   const isMobileCard = variant === 'mobile-card'
-  const hasQuery = (address || '').trim().length >= 2
-  const showDesktopList = open && suggestions.length > 0 && !isMobileCard
-  const showMobileList =
-    isMobileCard && open && !selectedFromList && hasQuery && (searching || suggestions.length > 0)
+  const hasQuery = (address || '').trim().length >= GOOGLE_ADDRESS_MIN_QUERY
+  const showDesktopList = open && (searching || suggestions.length > 0) && !isMobileCard && !selectedFromList
+  const showMobileList = isMobileCard && open && !selectedFromList && hasQuery && (searching || suggestions.length > 0)
   const showSuggestionsPanel = isMobileCard ? showMobileList : showDesktopList
 
   const panelStyle = useFloatingPanelBelow(inputRef, showSuggestionsPanel, {
-    maxHeight: 280,
+    maxHeight: 320,
     preferBelow: true,
     autoReveal: true,
     revealMode: 'panel-only',
@@ -239,7 +293,7 @@ export default function MapboxAddressField({
     }
   }, [])
 
-  if (!token) {
+  if (!hasGoogleMapsKey()) {
     return null
   }
 
@@ -251,18 +305,13 @@ export default function MapboxAddressField({
         : undefined
 
   const resolvedInputClass = isMobileCard ? mobileCardInputClass : inputClass
-  const labelClass =
-    isMobileCard
-      ? 'mb-1 block text-xs font-medium leading-snug text-slate-700'
-      : 'mb-1 block text-xs font-medium leading-snug text-slate-700 sm:mb-1.5 sm:text-sm'
+  const labelClass = isMobileCard
+    ? 'mb-1 block text-xs font-medium leading-snug text-slate-700'
+    : 'mb-1 block text-xs font-medium leading-snug text-slate-700 sm:mb-1.5 sm:text-sm'
 
   return (
-    <div
-      ref={rootRef}
-      data-quote-field={quoteField}
-      className="relative box-border min-w-0 w-full"
-    >
-      <label className={labelClass}>
+    <div ref={rootRef} data-quote-field={quoteField} className="relative box-border min-w-0 w-full">
+      <label className={labelClass} htmlFor={addressKey}>
         <span className="inline-flex items-center gap-1.5 sm:gap-2">
           <span
             className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-[10px] font-bold text-white sm:h-7 sm:w-7 sm:rounded-lg sm:text-xs ${markerClassName}`}
@@ -288,7 +337,7 @@ export default function MapboxAddressField({
           onChange={handleInputChange}
           onBlur={handleBlur}
           onFocus={() => {
-            if (!selectedFromList && (address || '').trim().length >= 2) {
+            if (!selectedFromList && (address || '').trim().length >= GOOGLE_ADDRESS_MIN_QUERY) {
               setOpen(true)
             }
           }}
@@ -304,6 +353,12 @@ export default function MapboxAddressField({
 
       {!searching && selectedFromList ? (
         <p className="mt-1.5 text-xs text-emerald-700">Address verified.</p>
+      ) : null}
+
+      {!searching && searchNote ? (
+        <p className="mt-1.5 text-xs text-slate-600" aria-live="polite">
+          {searchNote}
+        </p>
       ) : null}
 
       {showSuggestionsPanel && panelStyle && typeof document !== 'undefined'
@@ -335,7 +390,7 @@ export default function MapboxAddressField({
                     onPointerDown={(e) => {
                       e.preventDefault()
                       e.stopPropagation()
-                      pickSuggestion(s)
+                      void pickSuggestion(s)
                     }}
                   >
                     <span
@@ -344,7 +399,7 @@ export default function MapboxAddressField({
                     >
                       {markerLetter}
                     </span>
-                    <span className="min-w-0 flex-1 leading-snug">{s.placeName}</span>
+                    <span className="min-w-0 flex-1 leading-snug">{s.label}</span>
                   </button>
                 ))
               ) : (
@@ -358,13 +413,16 @@ export default function MapboxAddressField({
                     onPointerDown={(e) => {
                       e.preventDefault()
                       e.stopPropagation()
-                      pickSuggestion(s)
+                      void pickSuggestion(s)
                     }}
                   >
-                    {s.placeName}
+                    {s.label}
                   </button>
                 ))
               )}
+              <div className="flex justify-end border-t border-slate-100 bg-white px-3 py-1.5">
+                <img src={GOOGLE_ATTRIBUTION_SRC} alt="Powered by Google" className="h-4 w-auto" />
+              </div>
             </div>,
             document.body,
           )

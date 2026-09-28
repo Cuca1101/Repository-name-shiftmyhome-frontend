@@ -1,11 +1,13 @@
 ﻿import { useEffect, useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import Logo from '../Logo'
+import NavSloganBar from '../NavSloganBar'
 import HomeSectionLink from '../HomeSectionLink'
 import QuoteNavCta from '../QuoteNavCta'
 import CoverageLink from '../CoverageLink'
 import { CONTACT } from '../../config'
 import { useWebsiteCms } from '../../context/WebsiteCmsContext'
+import { pathUsesDedicatedQuotePage } from '../../lib/quoteModalRoutes'
 
 const navItems = [
   { sectionId: 'about', label: 'About' },
@@ -70,6 +72,7 @@ export default function MobileNavbar() {
           </button>
         </div>
       </nav>
+      {pathUsesDedicatedQuotePage(pathname) ? <NavSloganBar /> : null}
 
       {open ? (
         <div className="border-t border-white/10 bg-navy-800">

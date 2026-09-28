@@ -6,6 +6,7 @@ import {
   type LeadLike,
   type RecoveryEmailKind,
 } from '../_shared/quoteRecoveryEmail.ts'
+import { processAdminAbandonedLeadNotifications } from '../_shared/adminAbandonedLeadNotification.ts'
 
 /**
  * Cron / admin batch processor for abandoned quote + payment recovery emails.
@@ -117,7 +118,7 @@ Deno.serve(async (req) => {
       return jsonResponse(result, result.ok ? 200 : 500)
     }
 
-    // Batch: mark stale → send due emails
+    // Batch: mark stale → admin abandoned notify (30 min) → customer recovery emails
     const { data: markedCount, error: markErr } = await supabase.rpc(
       'mark_stale_customer_leads_abandoned',
       { p_inactive_minutes: 15 },
@@ -126,6 +127,20 @@ Deno.serve(async (req) => {
       console.error(LOG, 'mark_stale failed', markErr.message)
     } else {
       console.log(LOG, 'mark_stale ok', { marked: markedCount })
+    }
+
+    let adminAbandoned: unknown
+    try {
+      adminAbandoned = await processAdminAbandonedLeadNotifications({
+        supabase,
+        inactiveMinutes: 30,
+        limit: 40,
+      })
+      console.log(LOG, 'admin abandoned notify', adminAbandoned)
+    } catch (adminErr) {
+      console.error(LOG, 'admin abandoned notify failed', {
+        message: adminErr instanceof Error ? adminErr.message : String(adminErr),
+      })
     }
 
     const nowIso = new Date().toISOString()
@@ -210,6 +225,7 @@ Deno.serve(async (req) => {
       sent: results.filter((r) => r.ok && !r.skipped).length,
       failed: results.filter((r) => !r.ok).length,
       elapsed_ms: Date.now() - started,
+      admin_abandoned: adminAbandoned,
       results,
     }
     console.log(LOG, 'complete', summary)

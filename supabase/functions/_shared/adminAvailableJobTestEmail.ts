@@ -1,10 +1,10 @@
-/**
- * Sample admin Available Jobs email — no quotes/jobs/DB writes.
- */
-
+import type { SupabaseClient } from 'npm:@supabase/supabase-js@2'
 import { sendResendEmail } from './resendClient.ts'
-import { renderAdminAvailableJobEmail } from './transactionalEmailTemplates.ts'
-import { adminSiteOrigin, getAdminNotificationRecipients } from './adminAvailableJobNotification.ts'
+import { renderAdminAvailableJobEmail } from './adminNotificationEmailTemplates.ts'
+import {
+  adminSiteOrigin,
+  resolveAdminNotificationRecipients,
+} from './adminAvailableJobNotification.ts'
 import { formatDateUK } from './formatDateUK.ts'
 
 export type AdminTestEmailResult = {
@@ -27,7 +27,6 @@ function testBannerHtml(): string {
 }
 
 function todayUk(): string {
-  // Today in Europe/London as DD/MM/YYYY (display only).
   const ymd = new Intl.DateTimeFormat('en-CA', {
     timeZone: 'Europe/London',
     year: 'numeric',
@@ -38,13 +37,13 @@ function todayUk(): string {
 }
 
 /**
- * Sends a fixed sample email to admin recipients. Does not touch quotes or jobs.
- * @param idempotencySuffix — e.g. admin user id + minute bucket (anti-spam).
+ * Sends a fixed sample email to all admin recipients. Does not touch quotes or jobs.
  */
 export async function sendAdminAvailableJobTestEmail(
   idempotencySuffix: string,
+  supabase?: SupabaseClient | null,
 ): Promise<AdminTestEmailResult> {
-  const recipients = getAdminNotificationRecipients()
+  const recipients = await resolveAdminNotificationRecipients(supabase ?? null)
   if (!recipients.length) {
     return { ok: false, error: 'no_admin_recipients' }
   }

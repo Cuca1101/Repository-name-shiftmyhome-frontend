@@ -388,3 +388,9 @@ export function renderTransactionalEmailTemplate(params: {
   const html = baseLayout({ subject: built.subject, data: built.data, brand })
   return { subject: built.subject, html, text: built.text }
 }
+
+export {
+  renderAdminAvailableJobEmail,
+  renderAdminBookingConfirmedEmail,
+  renderAdminAbandonedQuoteEmail,
+} from './adminNotificationEmailTemplates.ts'

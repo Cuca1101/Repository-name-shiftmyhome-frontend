@@ -119,6 +119,23 @@ export async function fetchJobCustomerNotifications(quoteId) {
 }
 
 /**
+ * Email History rows for a customer lead (admin abandoned notify, etc.).
+ * @param {string} customerLeadId
+ */
+export async function fetchCustomerLeadNotifications(customerLeadId) {
+  if (!isSupabaseConfigured || !supabase) return []
+  const id = String(customerLeadId || '').trim()
+  if (!id) return []
+  const { data, error } = await supabase
+    .from('customer_lead_notifications')
+    .select('*')
+    .eq('customer_lead_id', id)
+    .order('sent_at', { ascending: false })
+  if (error) return []
+  return data || []
+}
+
+/**
  * @param {string} quoteId
  */
 export async function fetchJobTrackingTokenRow(quoteId) {
