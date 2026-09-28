@@ -459,6 +459,83 @@ function buildQuoteReviewPriceOptionsForDates({
 }
 
 /**
+ * Monday of the week that contains `isoDate` (local calendar, week starts Monday).
+ * @param {string} isoDate
+ * @returns {string}
+ */
+export function mondayOnOrBeforeIso(isoDate) {
+  const parts = parseIsoDateParts(isoDate)
+  if (!parts) return ''
+  const dt = new Date(parts.year, parts.month, parts.day)
+  const day = dt.getDay()
+  const delta = day === 0 ? -6 : 1 - day
+  dt.setDate(dt.getDate() + delta)
+  const yy = dt.getFullYear()
+  const mm = String(dt.getMonth() + 1).padStart(2, '0')
+  const dd = String(dt.getDate()).padStart(2, '0')
+  return `${yy}-${mm}-${dd}`
+}
+
+/**
+ * @param {string} startIso
+ * @param {number} count
+ * @returns {string[]}
+ */
+export function listIsoDatesFrom(startIso, count) {
+  const dates = []
+  let cursor = String(startIso || '')
+  const total = Math.max(0, Number(count) || 0)
+  for (let i = 0; i < total; i += 1) {
+    if (!cursor) break
+    dates.push(cursor)
+    cursor = addDaysToIsoDate(cursor, 1)
+  }
+  return dates
+}
+
+/** @param {string} isoDate */
+export function isReviewWeekendIso(isoDate) {
+  const parts = parseIsoDateParts(isoDate)
+  if (!parts) return false
+  const day = new Date(parts.year, parts.month, parts.day).getDay()
+  return day === 0 || day === 6
+}
+
+/**
+ * Price an explicit list of bookable dates with the same engine path as the review calendar.
+ * @param {{
+ *   settings: import('./pricingCalculator.js').PricingSettings,
+ *   serviceType: string,
+ *   wizard: Record<string, unknown>,
+ *   lineItems: Array<Record<string, unknown>>,
+ *   heavyItemCount: number,
+ *   dates: string[],
+ * }} params
+ */
+export function buildQuoteReviewPriceOptionsForIsoDates({
+  settings,
+  serviceType,
+  wizard,
+  lineItems,
+  heavyItemCount,
+  dates,
+}) {
+  if (!settings || !wizard?.moveDate || !isMoveDateOnOrAfterToday(wizard.moveDate)) {
+    return []
+  }
+  const safeDates = (dates || []).filter((d) => isMoveDateOnOrAfterToday(d))
+  if (safeDates.length === 0) return []
+  return buildQuoteReviewPriceOptionsForDates({
+    settings,
+    serviceType,
+    wizard,
+    lineItems,
+    heavyItemCount,
+    dates: safeDates,
+  })
+}
+
+/**
  * Apply a Step 3 calendar card selection — updates move date only; keeps Step 1 arrival choice.
  * @param {Record<string, unknown>} wizard
  * @param {{ moveDate?: string }} arrivalPatch

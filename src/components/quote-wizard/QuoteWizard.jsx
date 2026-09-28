@@ -3,6 +3,7 @@ import { SERVICE_TYPES } from '../../constants/serviceTypes'
 import { generateQuotePdf } from '../../utils/generateQuotePdf'
 import WizardProgress from './WizardProgress'
 import MoveSummary from './MoveSummary'
+import QuoteReviewYourMoveCard from './QuoteReviewYourMoveCard'
 import Step1Address from './steps/Step1Address'
 import Step2Inventory from './steps/Step2Inventory'
 import Step3ReviewLayout from './Step3ReviewLayout'
@@ -126,6 +127,17 @@ function QuoteWizardInner({
           Back
         </button>
       </div>
+    ) : step === 3 ? (
+      <div className="mt-4 hidden md:block">
+        <button
+          type="button"
+          onClick={back}
+          className="inline-flex items-center gap-1 text-sm font-semibold text-slate-600 hover:text-slate-900"
+        >
+          <span aria-hidden>←</span>
+          Back to items
+        </button>
+      </div>
     ) : step < 4 ? (
       <div className="mt-4 hidden flex-row flex-wrap justify-between gap-2 sm:mt-10 md:flex">
         <button
@@ -146,9 +158,7 @@ function QuoteWizardInner({
             ? 'Finding your price…'
             : step === 2
               ? 'Get a quote'
-              : step === 3
-                ? 'Continue to payment →'
-                : 'Continue →'}
+              : 'Continue →'}
         </button>
       </div>
     ) : null
@@ -216,6 +226,8 @@ function QuoteWizardInner({
           heavyItemCount={heavyItemCount}
           priceWithoutPromo={priceWithoutPromo}
           onGoToStep={goToStep}
+          totalM3={totalM3}
+          onContinueToPayment={next}
         />
       )}
       {step === 4 && (
@@ -315,8 +327,27 @@ function QuoteWizardInner({
           <p className="text-center text-slate-600">Loading…</p>
         ) : pageChrome ? (
           <>
-          <div className="grid items-start gap-4 md:grid-cols-[minmax(0,1fr)_minmax(260px,min(100%,340px))] md:gap-6">
+          {step === 3 ? (
+            <div className="mb-4 overflow-hidden rounded-2xl bg-gradient-to-br from-[#0f2c6b] via-[#1d4ed8] to-[#2563eb] px-4 py-7 text-center text-white shadow-md sm:py-9">
+              {titleTag === 'h2' ? (
+                <h2 id={titleId} className="text-2xl font-extrabold tracking-tight sm:text-4xl">
+                  Get your instant removal quote
+                </h2>
+              ) : (
+                <h1 id={titleId} className="text-2xl font-extrabold tracking-tight sm:text-4xl">
+                  Get your instant removal quote
+                </h1>
+              )}
+              <p className="mt-2 flex items-center justify-center gap-3 text-sm text-blue-100 sm:text-base">
+                <span className="h-px w-8 bg-white/60" aria-hidden />
+                Simple pricing. No hidden fees.
+                <span className="h-px w-8 bg-white/60" aria-hidden />
+              </p>
+            </div>
+          ) : null}
+          <div className={`grid items-start gap-4 ${step === 3 ? 'md:grid-cols-[minmax(0,1fr)_minmax(240px,30%)]' : 'md:grid-cols-[minmax(0,1fr)_minmax(260px,min(100%,340px))]'} md:gap-6`}>
             <div className="quote-wizard-form-card min-w-0 rounded-2xl border border-slate-200/80 bg-white p-4 shadow-[0_10px_30px_rgba(15,23,42,0.06)] sm:p-6">
+              {step === 3 ? null : (
               <div className="mb-4 text-center">
                 {titleTag === 'h2' ? (
                   <h2 id={titleId} className="text-[1.65rem] font-extrabold tracking-tight text-slate-900 sm:text-3xl">
@@ -331,16 +362,32 @@ function QuoteWizardInner({
                   Four quick steps — your price appears when you review and submit.
                 </p>
               </div>
+              )}
               <div id="quote-wizard-top">
                 <WizardProgress step={step} variant="page" />
               </div>
               {stepPanel}
+              {step === 3 ? null : (
               <p className="mt-6 flex items-center justify-center gap-1.5 text-xs text-slate-400">
                 <Lock className="h-3.5 w-3.5" aria-hidden />
                 Your details are secure
               </p>
+              )}
             </div>
-            <MoveSummary {...summaryProps} />
+            {step === 3 ? (
+              <QuoteReviewYourMoveCard
+                wizard={wizard}
+                breakdown={breakdown}
+                pricingSettings={settings}
+                totalM3={totalM3}
+                priceWithoutPromo={priceWithoutPromo}
+                onContinueToPayment={next}
+                sticky
+                className="hidden md:block"
+              />
+            ) : (
+              <MoveSummary {...summaryProps} />
+            )}
           </div>
           {isMobileLayout ? (
             <MobileQuoteStickyActions
@@ -359,7 +406,7 @@ function QuoteWizardInner({
             >
               {stepPanel}
             </div>
-            <MoveSummary {...summaryProps} />
+            {step === 3 ? null : <MoveSummary {...summaryProps} />}
             <MobileQuoteStickyActions
               step={step}
               onBack={back}
@@ -379,7 +426,20 @@ function QuoteWizardInner({
                 {stepPanel}
               </div>
             </div>
-            <MoveSummary {...summaryProps} />
+            {step === 3 ? (
+              <QuoteReviewYourMoveCard
+                wizard={wizard}
+                breakdown={breakdown}
+                pricingSettings={settings}
+                totalM3={totalM3}
+                priceWithoutPromo={priceWithoutPromo}
+                onContinueToPayment={next}
+                sticky
+                className="hidden md:block"
+              />
+            ) : (
+              <MoveSummary {...summaryProps} />
+            )}
           </div>
         )}
       </div>

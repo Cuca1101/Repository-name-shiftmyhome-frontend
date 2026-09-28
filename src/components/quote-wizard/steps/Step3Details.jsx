@@ -1,5 +1,11 @@
-﻿import { applyWizardPatch } from '../../../lib/wizardStateUpdate'
+﻿import { MapPin, Plus, User } from 'lucide-react'
+import { applyWizardPatch } from '../../../lib/wizardStateUpdate'
 import MobileStep3Details from '../MobileStep3Details'
+import {
+  isQuoteAddressesConfirmed,
+  isQuoteContactComplete,
+  ReviewGroup,
+} from '../QuoteReviewAccordion'
 import PackageSelector from '../PackageSelector'
 import AddressConfirmationSection from '../AddressConfirmationSection'
 import PickupDeliveryContactsSection from '../PickupDeliveryContactsSection'
@@ -18,8 +24,11 @@ export default function Step3Details({
   fieldErrors = {},
   /** Admin phone booking — always show full extras form (not mobile-only / md:hidden split). */
   layoutVariant = 'quote',
+  accordionLayout = false,
 }) {
   const isAdminLayout = layoutVariant === 'admin'
+  const contactConfirmed = isQuoteContactComplete(data)
+  const addressesConfirmed = isQuoteAddressesConfirmed(data)
   const input =
     'w-full max-w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-base text-slate-900 shadow-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/25 sm:px-4 sm:py-3'
   const label = 'mb-1.5 block text-sm font-medium text-slate-700'
@@ -39,10 +48,17 @@ export default function Step3Details({
         validationMessage={validationMessage}
         hideContactSection={hideContactSection}
         fieldErrors={fieldErrors}
+        accordionLayout={accordionLayout}
       />
 
       <div
-        className={`hidden md:block${hideContactSection ? ' mt-2 space-y-4 border-t border-slate-200 pt-4' : ' mt-6 space-y-10 border-t border-slate-200 pt-6'}`}
+        className={`hidden md:block${
+          accordionLayout
+            ? ' mt-4 space-y-2'
+            : hideContactSection
+              ? ' mt-2 space-y-4 border-t border-slate-200 pt-4'
+              : ' mt-6 space-y-10 border-t border-slate-200 pt-6'
+        }`}
       >
       {/* PackageSelector temporarily hidden — re-enable when ready
       <PackageSelector
@@ -51,7 +67,7 @@ export default function Step3Details({
       />
       */}
 
-      {hideContactSection ? (
+      {hideContactSection && !accordionLayout ? (
         <div>
           <h2 className="text-sm font-bold text-slate-900 md:text-base">Additional details</h2>
           <p className="mt-0.5 text-xs text-slate-600">
@@ -60,6 +76,29 @@ export default function Step3Details({
         </div>
       ) : null}
 
+      <ReviewGroup
+        accordion={accordionLayout}
+        title="Contact details"
+        confirmed={contactConfirmed}
+        icon={User}
+        defaultOpen={!contactConfirmed}
+      >
+      {accordionLayout && hideContactSection ? (
+        <div className="space-y-1.5 text-sm text-slate-800">
+          <p><span className="text-slate-500">Name · </span>{data.fullName || '—'}</p>
+          <p><span className="text-slate-500">Phone · </span>{data.phone || '—'}</p>
+          <p><span className="text-slate-500">Email · </span>{data.email || '—'}</p>
+          {typeof onGoToStep === 'function' ? (
+            <button
+              type="button"
+              onClick={() => onGoToStep(2)}
+              className="text-xs font-semibold text-blue-700 underline-offset-2 hover:underline"
+            >
+              Edit contact details
+            </button>
+          ) : null}
+        </div>
+      ) : null}
       {!hideContactSection ? (
         <>
           <div>
@@ -127,7 +166,15 @@ export default function Step3Details({
       ) : null}
 
       <PickupDeliveryContactsSection data={data} onChange={onChange} variant="desktop" />
+      </ReviewGroup>
 
+      <ReviewGroup
+        accordion={accordionLayout}
+        title="Pickup & delivery addresses"
+        confirmed={addressesConfirmed}
+        icon={MapPin}
+        defaultOpen={!addressesConfirmed}
+      >
       <AddressConfirmationSection
         data={data}
         onChange={onChange}
@@ -135,7 +182,9 @@ export default function Step3Details({
         variant="desktop"
         fieldErrors={fieldErrors}
       />
+      </ReviewGroup>
 
+      <ReviewGroup accordion={accordionLayout} title="Optional extras" icon={Plus} defaultOpen={false}>
       <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
         <h3 className="text-sm font-bold text-slate-900">Special instructions</h3>
         <label className="mt-3 block">
@@ -184,6 +233,7 @@ export default function Step3Details({
           />
         </label>
       </div>
+      </ReviewGroup>
     </div>
     </>
   )

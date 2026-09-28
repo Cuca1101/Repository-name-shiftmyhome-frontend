@@ -10,7 +10,34 @@ export default function MobileQuoteStickyActions({
 }) {
   if (step > 4) return null
 
-  if (step === 3 || step === 4) {
+  if (step === 3) {
+    return (
+      <div
+        className="sticky bottom-0 z-30 mt-3 border-t border-slate-200 bg-white/95 px-1 py-2 backdrop-blur md:hidden"
+        role="group"
+        aria-label="Review navigation"
+      >
+        <button
+          type="button"
+          onClick={onNext}
+          disabled={nextDisabled}
+          className="flex min-h-[48px] w-full items-center justify-center rounded-xl bg-blue-600 px-3 text-sm font-bold text-white shadow-md disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          Continue to payment →
+        </button>
+        <button
+          type="button"
+          onClick={onBack}
+          className="mt-1 flex min-h-[40px] w-full items-center justify-center gap-1 text-sm font-semibold text-slate-600"
+        >
+          <span aria-hidden>←</span>
+          Back to items
+        </button>
+      </div>
+    )
+  }
+
+  if (step === 4) {
     return (
       <div
         className="mt-2 border-t border-slate-200 pt-2 md:hidden"

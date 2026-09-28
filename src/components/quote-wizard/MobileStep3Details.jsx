@@ -1,4 +1,9 @@
-﻿import { Minus, Plus, Wrench } from 'lucide-react'
+﻿import { MapPin, Minus, Plus, User, Wrench } from 'lucide-react'
+import {
+  isQuoteAddressesConfirmed,
+  isQuoteContactComplete,
+  ReviewGroup,
+} from './QuoteReviewAccordion'
 import MobileStepTitleWithRef from './MobileStepTitleWithRef'
 import PackageSelector from './PackageSelector'
 import { reassemblySameAsDismantlingPatch } from '../../lib/quoteWizardReassembly'
@@ -76,6 +81,7 @@ export default function MobileStep3Details({
   validationMessage,
   hideContactSection = false,
   fieldErrors = {},
+  accordionLayout = false,
 }) {
   const input = quoteMobileInput
   const label = quoteMobileLabel
@@ -121,18 +127,25 @@ export default function MobileStep3Details({
     set({ dismantling: true })
   }
 
+  const contactConfirmed = isQuoteContactComplete(data)
+  const addressesConfirmed = isQuoteAddressesConfirmed(data)
+
   return (
     <div
       data-quote-step="3"
-      className={`box-border min-w-0 w-full max-w-full space-y-1.5 md:hidden${hideContactSection ? ' mt-2 border-t border-slate-200 pt-3' : ''}`}
+      className={`box-border min-w-0 w-full max-w-full space-y-2 md:hidden${
+        accordionLayout ? ' mt-4' : hideContactSection ? ' mt-2 border-t border-slate-200 pt-3' : ''
+      }`}
     >
-      {hideContactSection ? (
+      {accordionLayout || hideContactSection ? (
+        accordionLayout ? null : (
         <div className="px-0.5">
           <h2 className="text-sm font-bold text-slate-900">Additional details</h2>
           <p className="mt-0.5 text-[10px] leading-snug text-slate-600">
             Optional contacts, access notes, and extras.
           </p>
         </div>
+        )
       ) : (
         <div className="px-0.5">
           <MobileStepTitleWithRef title="Details" quoteRef={quoteRef} titleClassName="md:text-lg" />
@@ -151,6 +164,29 @@ export default function MobileStep3Details({
       </div>
       */}
 
+      <ReviewGroup
+        accordion={accordionLayout}
+        title="Contact details"
+        confirmed={contactConfirmed}
+        icon={User}
+        defaultOpen={!contactConfirmed}
+      >
+      {accordionLayout && hideContactSection ? (
+        <div className="space-y-2 text-sm text-slate-800">
+          <p><span className="text-slate-500">Name · </span>{data.fullName || '—'}</p>
+          <p><span className="text-slate-500">Phone · </span>{data.phone || '—'}</p>
+          <p><span className="text-slate-500">Email · </span>{data.email || '—'}</p>
+          {typeof onGoToStep === 'function' ? (
+            <button
+              type="button"
+              onClick={() => onGoToStep(2)}
+              className="text-xs font-semibold text-blue-700 underline-offset-2 hover:underline"
+            >
+              Edit contact details
+            </button>
+          ) : null}
+        </div>
+      ) : null}
       {!hideContactSection ? (
         <div
           id="quote-wizard-contact-details-mobile"
@@ -199,7 +235,15 @@ export default function MobileStep3Details({
       ) : null}
 
       <PickupDeliveryContactsSection data={data} onChange={onChange} variant="mobile" />
+      </ReviewGroup>
 
+      <ReviewGroup
+        accordion={accordionLayout}
+        title="Pickup & delivery addresses"
+        confirmed={addressesConfirmed}
+        icon={MapPin}
+        defaultOpen={!addressesConfirmed}
+      >
       <AddressConfirmationSection
         data={data}
         onChange={onChange}
@@ -207,7 +251,7 @@ export default function MobileStep3Details({
         variant="mobile"
         fieldErrors={fieldErrors}
       />
-
+      </ReviewGroup>
 
       {validationMessage ? (
         <p
@@ -219,6 +263,7 @@ export default function MobileStep3Details({
         </p>
       ) : null}
 
+      <ReviewGroup accordion={accordionLayout} title="Optional extras" icon={Plus} defaultOpen={false}>
       <div className={`${card} p-2.5 md:p-3`}>
         <label className="block">
           <span className="text-xs font-bold text-slate-900 md:text-sm">Special instructions</span>
@@ -360,6 +405,7 @@ export default function MobileStep3Details({
           />
         </label>
       </div>
+      </ReviewGroup>
 
     </div>
   )
