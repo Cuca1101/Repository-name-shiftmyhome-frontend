@@ -1,14 +1,14 @@
 import MobileNavbar from './mobile/MobileNavbar'
 import DesktopNavbar from './mobile/DesktopNavbar'
 
-export default function Navbar() {
+export default function Navbar({ showSlogan } = {}) {
   return (
     <>
-      <div className="block lg:hidden">
-        <MobileNavbar />
+      <div className="sticky top-0 z-50 block lg:hidden">
+        <MobileNavbar showSlogan={showSlogan} />
       </div>
-      <div className="hidden lg:block">
-        <DesktopNavbar />
+      <div className="sticky top-0 z-50 hidden lg:block">
+        <DesktopNavbar showSlogan={showSlogan} />
       </div>
     </>
   )

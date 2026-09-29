@@ -327,27 +327,8 @@ function QuoteWizardInner({
           <p className="text-center text-slate-600">Loading…</p>
         ) : pageChrome ? (
           <>
-          {step === 3 ? (
-            <div className="mb-4 overflow-hidden rounded-2xl bg-gradient-to-br from-[#0f2c6b] via-[#1d4ed8] to-[#2563eb] px-4 py-7 text-center text-white shadow-md sm:py-9">
-              {titleTag === 'h2' ? (
-                <h2 id={titleId} className="text-2xl font-extrabold tracking-tight sm:text-4xl">
-                  Get your instant removal quote
-                </h2>
-              ) : (
-                <h1 id={titleId} className="text-2xl font-extrabold tracking-tight sm:text-4xl">
-                  Get your instant removal quote
-                </h1>
-              )}
-              <p className="mt-2 flex items-center justify-center gap-3 text-sm text-blue-100 sm:text-base">
-                <span className="h-px w-8 bg-white/60" aria-hidden />
-                Simple pricing. No hidden fees.
-                <span className="h-px w-8 bg-white/60" aria-hidden />
-              </p>
-            </div>
-          ) : null}
           <div className={`grid items-start gap-4 ${step === 3 ? 'md:grid-cols-[minmax(0,1fr)_minmax(240px,30%)]' : 'md:grid-cols-[minmax(0,1fr)_minmax(260px,min(100%,340px))]'} md:gap-6`}>
             <div className="quote-wizard-form-card min-w-0 rounded-2xl border border-slate-200/80 bg-white p-4 shadow-[0_10px_30px_rgba(15,23,42,0.06)] sm:p-6">
-              {step === 3 ? null : (
               <div className="mb-4 text-center">
                 {titleTag === 'h2' ? (
                   <h2 id={titleId} className="text-[1.65rem] font-extrabold tracking-tight text-slate-900 sm:text-3xl">
@@ -362,7 +343,6 @@ function QuoteWizardInner({
                   Four quick steps — your price appears when you review and submit.
                 </p>
               </div>
-              )}
               <div id="quote-wizard-top">
                 <WizardProgress step={step} variant="page" />
               </div>

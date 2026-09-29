@@ -8,7 +8,7 @@ export default function MobileStepRefBadge({ quoteRef, className = '' }) {
 
   return (
     <span
-      className={`quote-step-ref-badge inline-flex max-w-none shrink-0 items-center whitespace-nowrap rounded-lg border border-blue-200/90 bg-blue-50 px-2.5 py-1.5 font-mono text-base leading-none tracking-tight ${className}`}
+      className={`quote-step-ref-badge inline-flex max-w-none shrink-0 items-center whitespace-nowrap rounded-md border border-blue-200/90 bg-blue-50 px-1.5 py-0.5 font-mono text-[11px] leading-none tracking-tight ${className}`}
       aria-label={`Booking reference ${ref}`}
     >
       <span className="font-semibold text-blue-600">REF:</span>

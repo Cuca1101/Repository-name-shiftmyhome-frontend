@@ -7,7 +7,7 @@ import QuoteNavCta from '../QuoteNavCta'
 import CoverageLink from '../CoverageLink'
 import { CONTACT } from '../../config'
 import { useWebsiteCms } from '../../context/WebsiteCmsContext'
-import { pathUsesDedicatedQuotePage } from '../../lib/quoteModalRoutes'
+import { pathShowsNavSlogan } from '../../lib/quoteModalRoutes'
 
 const navItems = [
   { sectionId: 'about', label: 'About us' },
@@ -24,7 +24,7 @@ function navLinkClass(isActive) {
 }
 
 /** Full desktop navbar (md+) ÔÇö unchanged. */
-export default function DesktopNavbar() {
+export default function DesktopNavbar({ showSlogan } = {}) {
   const { navbar } = useWebsiteCms()
   const phoneDisplay = navbar.phoneDisplay || CONTACT.phoneDisplay
   const phoneTel = navbar.phoneTel || CONTACT.phoneTel
@@ -133,7 +133,7 @@ export default function DesktopNavbar() {
           </QuoteNavCta>
         </div>
       </nav>
-      {pathUsesDedicatedQuotePage(pathname) ? <NavSloganBar /> : null}
+      {(showSlogan ?? pathShowsNavSlogan(pathname)) ? <NavSloganBar /> : null}
     </header>
   )
 }

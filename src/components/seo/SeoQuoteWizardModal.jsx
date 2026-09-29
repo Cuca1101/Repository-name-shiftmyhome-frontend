@@ -44,7 +44,7 @@ export default function SeoQuoteWizardModal({ open, onClose, serviceType = '', s
       aria-labelledby="seo-quote-flow-title"
     >
       <div className="shrink-0">
-        <Navbar />
+        <Navbar showSlogan />
         <div className="border-b border-slate-200/70 bg-[#e7eef6] px-3 py-2 sm:px-4">
           <button
             type="button"

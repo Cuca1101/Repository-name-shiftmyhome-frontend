@@ -21,7 +21,7 @@ export default function PublicLayout({ children }) {
   const hideFooter = paymentFlow
 
   const layoutBody = (
-    <div className="flex min-h-screen min-w-0 w-full max-w-full flex-col clip-x">
+    <div className="flex min-h-screen min-w-0 w-full max-w-full flex-col">
       <HomeHashScroll />
       <HomePageSeo />
       <WebsiteAnnouncementBar />

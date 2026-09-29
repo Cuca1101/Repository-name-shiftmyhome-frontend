@@ -7,7 +7,7 @@ import QuoteNavCta from '../QuoteNavCta'
 import CoverageLink from '../CoverageLink'
 import { CONTACT } from '../../config'
 import { useWebsiteCms } from '../../context/WebsiteCmsContext'
-import { pathUsesDedicatedQuotePage } from '../../lib/quoteModalRoutes'
+import { pathShowsNavSlogan } from '../../lib/quoteModalRoutes'
 
 const navItems = [
   { sectionId: 'about', label: 'About' },
@@ -17,7 +17,7 @@ const navItems = [
 ]
 
 /** Compact mobile/tablet navbar (&lt; lg) ÔÇö logo, phone icon, hamburger only; CTA in drawer. */
-export default function MobileNavbar() {
+export default function MobileNavbar({ showSlogan } = {}) {
   const { navbar } = useWebsiteCms()
   const phoneTel = navbar.phoneTel || CONTACT.phoneTel
   const ctaText = navbar.ctaText || 'Get a Quote'
@@ -72,7 +72,7 @@ export default function MobileNavbar() {
           </button>
         </div>
       </nav>
-      {pathUsesDedicatedQuotePage(pathname) ? <NavSloganBar /> : null}
+      {(showSlogan ?? pathShowsNavSlogan(pathname)) ? <NavSloganBar /> : null}
 
       {open ? (
         <div className="border-t border-white/10 bg-navy-800">

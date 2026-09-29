@@ -12,6 +12,12 @@ import { isSupabasePublicConfigured, supabasePublic } from './supabasePublicClie
 
 const CACHE_KEY = 'shiftmyhome_customer_lead_cache_v1'
 
+/** A lead is real only when name, phone, and email are all present. */
+function hasCustomerContact({ name, phone, email }) {
+  const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email || '').trim())
+  return String(name || '').trim().length > 1 && String(phone || '').trim().length > 5 && emailOk
+}
+
 /**
  * @returns {{ leadRef?: string, id?: string } | null}
  */
@@ -71,6 +77,10 @@ export function clearCustomerLeadCache() {
  */
 export async function syncCustomerLeadFromWizard(opts) {
   if (typeof window === 'undefined') return null
+  const wizard = opts.wizard || {}
+  if (!hasCustomerContact({ name: wizard.fullName, phone: wizard.phone, email: wizard.email })) {
+    return null
+  }
   const landingPath =
     opts.landingPath ||
     (typeof window !== 'undefined' ? window.location.pathname || '/quote' : '/quote')
@@ -115,6 +125,9 @@ export async function syncCustomerLeadFromWizard(opts) {
  */
 export async function syncCustomerLeadFromHomePageForm(form) {
   if (typeof window === 'undefined') return null
+  if (!hasCustomerContact({ name: form?.name, phone: form?.phone, email: form?.email })) {
+    return null
+  }
   const source_page_url =
     typeof window !== 'undefined'
       ? `${window.location.origin}${window.location.pathname || '/'}`

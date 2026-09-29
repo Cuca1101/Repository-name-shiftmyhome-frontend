@@ -102,7 +102,14 @@ export async function fetchCustomerLeadsForAdmin(opts = {}) {
     throw new Error(error.message || 'Failed to load customer leads.')
   }
 
-  let rows = (data ?? []).map((row) => ({
+  let rows = (data ?? [])
+    .filter((row) => {
+      const name = String(row.customer_name || '').trim()
+      const phone = String(row.customer_phone || '').trim()
+      const email = String(row.customer_email || '').trim()
+      return Boolean(name || phone || email)
+    })
+    .map((row) => ({
     ...row,
     effective_status: effectiveCustomerLeadStatus(row),
     status_label: CUSTOMER_LEAD_STATUS_LABELS[effectiveCustomerLeadStatus(row)] || row.status,
