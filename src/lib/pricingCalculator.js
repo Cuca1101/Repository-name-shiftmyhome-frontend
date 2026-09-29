@@ -725,69 +725,9 @@ export function calculateQuote(settings, input) {
     distancePrice + volumePrice + accessTotal + extrasTotal,
   )
 
-  /** @type {BreakdownLine[]} */
-  const surchargeLines = []
-  const sameDayPct = Number(s.sameDaySurchargePercent) || 0
-  const bankHolidayPct = Number(s.bankHolidaySurchargePercent) || 0
-  const weekendForDate = resolveWeekendSurchargeForDate(s, input.moveDate)
-
-  if (extras.sameDay && sameDayPct > 0) {
-    const amt = money((calculatedSubtotalBeforeSurcharges * sameDayPct) / 100)
-    if (amt > 0) {
-      surchargeLines.push({
-        label: `Same-day booking (${sameDayPct}%)`,
-        amount: amt,
-      })
-    }
-  }
-
-  const applyBankHoliday =
-    extras.bankHoliday !== undefined && extras.bankHoliday !== null
-      ? Boolean(extras.bankHoliday)
-      : isBankHolidayDate(input.moveDate)
-
-  if (applyBankHoliday && bankHolidayPct > 0) {
-    const holidayName = getBankHolidayName(input.moveDate)
-    const label = holidayName
-      ? `Bank holiday — ${holidayName} (${bankHolidayPct}%)`
-      : `Bank holiday (${bankHolidayPct}%)`
-    const amt = money((calculatedSubtotalBeforeSurcharges * bankHolidayPct) / 100)
-    if (amt > 0) {
-      surchargeLines.push({ label, amount: amt })
-    }
-  } else {
-    const applyWeekend =
-      extras.weekend !== undefined && extras.weekend !== null
-        ? Boolean(extras.weekend)
-        : weekendForDate.apply
-
-    const weekendPct = applyWeekend
-      ? weekendForDate.apply
-        ? weekendForDate.percent
-        : Number(s.weekendSurchargePercent) ||
-          Math.max(resolveSaturdaySurchargePercent(s), resolveSundaySurchargePercent(s))
-      : 0
-    const weekendLabel = applyWeekend
-      ? weekendForDate.apply
-        ? weekendForDate.label
-        : `Weekend (${weekendPct}%)`
-      : ''
-
-    if (applyWeekend && weekendPct > 0) {
-      const amt = money((calculatedSubtotalBeforeSurcharges * weekendPct) / 100)
-      if (amt > 0) {
-        surchargeLines.push({
-          label: weekendLabel || `Weekend (${weekendPct}%)`,
-          amount: amt,
-        })
-      }
-    }
-  }
-
-  const surchargesTotal = money(surchargeLines.reduce((sum, l) => sum + l.amount, 0))
-  const calculatedSubtotalBeforeMultiplier = money(
-    calculatedSubtotalBeforeSurcharges + surchargesTotal,
-  )
+  // Date surcharges are applied after the minimum floor so each calendar day
+  // shows a different price (peak % of the price the customer would otherwise pay).
+  const calculatedSubtotalBeforeMultiplier = calculatedSubtotalBeforeSurcharges
   const scaledSubtotal = calculatedSubtotalBeforeMultiplier
 
   /** @type {BreakdownLine[]} */
@@ -845,12 +785,74 @@ export function calculateQuote(settings, input) {
   const afterBaseThreshold = money(Math.max(subtotalAfterDiscount, minimumBaseThreshold))
 
   const minimumJobPrice = resolveMinimumJobPriceForCrew(s, effectiveCrewSize)
-  const estimatedTotal = money(Math.max(afterBaseThreshold, minimumJobPrice))
-  const minimumJobAdjustment = money(estimatedTotal - afterBaseThreshold)
-  const minimumApplied = money(estimatedTotal - subtotalAfterDiscount)
+  const priceBeforePeak = money(Math.max(afterBaseThreshold, minimumJobPrice))
+  const minimumJobAdjustment = money(priceBeforePeak - afterBaseThreshold)
+  const minimumApplied = money(priceBeforePeak - subtotalAfterDiscount)
+
+  /** @type {BreakdownLine[]} */
+  const surchargeLines = []
+  const sameDayPct = Number(s.sameDaySurchargePercent) || 0
+  const bankHolidayPct = Number(s.bankHolidaySurchargePercent) || 0
+  const weekendForDate = resolveWeekendSurchargeForDate(s, input.moveDate)
+
+  if (extras.sameDay && sameDayPct > 0) {
+    const amt = money((priceBeforePeak * sameDayPct) / 100)
+    if (amt > 0) {
+      surchargeLines.push({
+        label: `Same-day booking (${sameDayPct}%)`,
+        amount: amt,
+      })
+    }
+  }
+
+  const applyBankHoliday =
+    extras.bankHoliday !== undefined && extras.bankHoliday !== null
+      ? Boolean(extras.bankHoliday)
+      : isBankHolidayDate(input.moveDate)
+
+  if (applyBankHoliday && bankHolidayPct > 0) {
+    const holidayName = getBankHolidayName(input.moveDate)
+    const label = holidayName
+      ? `Bank holiday — ${holidayName} (${bankHolidayPct}%)`
+      : `Bank holiday (${bankHolidayPct}%)`
+    const amt = money((priceBeforePeak * bankHolidayPct) / 100)
+    if (amt > 0) {
+      surchargeLines.push({ label, amount: amt })
+    }
+  } else {
+    const applyWeekend =
+      extras.weekend !== undefined && extras.weekend !== null
+        ? Boolean(extras.weekend)
+        : weekendForDate.apply
+
+    const weekendPct = applyWeekend
+      ? weekendForDate.apply
+        ? weekendForDate.percent
+        : Number(s.weekendSurchargePercent) ||
+          Math.max(resolveSaturdaySurchargePercent(s), resolveSundaySurchargePercent(s))
+      : 0
+    const weekendLabel = applyWeekend
+      ? weekendForDate.apply
+        ? weekendForDate.label
+        : `Weekend (${weekendPct}%)`
+      : ''
+
+    if (applyWeekend && weekendPct > 0) {
+      const amt = money((priceBeforePeak * weekendPct) / 100)
+      if (amt > 0) {
+        surchargeLines.push({
+          label: weekendLabel || `Weekend (${weekendPct}%)`,
+          amount: amt,
+        })
+      }
+    }
+  }
+
+  const surchargesTotal = money(surchargeLines.reduce((sum, l) => sum + l.amount, 0))
+  const estimatedTotal = money(priceBeforePeak + surchargesTotal)
 
   const subtotalBeforeSurcharges = calculatedSubtotalBeforeSurcharges
-  const subtotalAfterSurchargesBeforeMinimum = calculatedSubtotalBeforeMultiplier
+  const subtotalAfterSurchargesBeforeMinimum = priceBeforePeak
 
   logPricingDebug('PRICING SETTINGS USED', s)
   logPricingDebug('DISTANCE MILES', distanceMiles)

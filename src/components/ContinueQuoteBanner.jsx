@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { FileText, X } from 'lucide-react'
 import {
@@ -8,6 +8,7 @@ import {
 } from '../lib/quoteDraftStorage'
 import {
   dismissQuoteBannerForSession,
+  getActiveQuoteWizardRef,
   isQuoteBannerDismissed,
   markNewQuoteFromServiceCard,
   markResumeSavedQuote,
@@ -23,11 +24,17 @@ export default function ContinueQuoteBanner() {
   const navigate = useNavigate()
   const [draft, setDraft] = useState(() => loadQuoteDraft())
   const [dismissed, setDismissed] = useState(() => isQuoteBannerDismissed())
+  const [activeQuoteRef, setActiveQuoteRef] = useState(() => getActiveQuoteWizardRef())
 
   const refresh = useCallback(() => {
     setDraft(loadQuoteDraft())
     setDismissed(isQuoteBannerDismissed())
+    setActiveQuoteRef(getActiveQuoteWizardRef())
   }, [])
+
+  useLayoutEffect(() => {
+    setActiveQuoteRef(getActiveQuoteWizardRef())
+  }, [draft?.quoteRef])
 
   useEffect(() => {
     window.addEventListener('shiftmyhome-quote-draft', refresh)
@@ -39,6 +46,7 @@ export default function ContinueQuoteBanner() {
   }, [refresh])
 
   if (!draft || dismissed) return null
+  if (activeQuoteRef && activeQuoteRef === draft.quoteRef) return null
 
   const continuePath =
     draft.returnPath && draft.returnPath !== '/'
@@ -58,6 +66,10 @@ export default function ContinueQuoteBanner() {
       serviceType: draft.serviceType,
       returnPath: continuePath,
     })
+    if (window.location.pathname === continuePath) {
+      window.location.assign(continuePath)
+      return
+    }
     navigate(continuePath)
     requestAnimationFrame(() => {
       document.querySelector('#quote')?.scrollIntoView({ behavior: 'smooth', block: 'start' })

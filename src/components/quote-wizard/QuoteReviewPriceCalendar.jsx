@@ -165,9 +165,30 @@ export default function QuoteReviewPriceCalendar({
   }, [weekGrid, compact, selectedOptionId, options.length])
 
   const selectedTotal =
-    breakdown?.estimatedTotal != null && Number.isFinite(breakdown.estimatedTotal)
-      ? breakdown.estimatedTotal
-      : null
+    breakdown?.quoteBaseTotal != null && Number.isFinite(breakdown.quoteBaseTotal)
+      ? breakdown.quoteBaseTotal
+      : breakdown?.estimatedTotal != null && Number.isFinite(breakdown.estimatedTotal)
+        ? breakdown.estimatedTotal
+        : null
+
+  const bestPriceDates = useMemo(() => {
+    if (pricingSettings?.showCalendarBestPrice === false) return new Set()
+    const priced = []
+    for (const option of options) {
+      if (!option?.moveDate || option.moveDate < todayIso) continue
+      const selected = option.id === selectedOptionId
+      const price = selected && selectedTotal != null ? selectedTotal : option.estimatedTotal
+      if (price == null || !Number.isFinite(price)) continue
+      priced.push({ moveDate: option.moveDate, price })
+    }
+    if (priced.length < 2) return new Set()
+    const min = Math.min(...priced.map((row) => row.price))
+    const max = Math.max(...priced.map((row) => row.price))
+    if (max - min < 0.009) return new Set()
+    return new Set(
+      priced.filter((row) => Math.abs(row.price - min) < 0.009).map((row) => row.moveDate),
+    )
+  }, [options, pricingSettings?.showCalendarBestPrice, selectedOptionId, selectedTotal, todayIso])
   const totalFormatted =
     selectedTotal != null ? `£${selectedTotal.toFixed(2)}` : breakdown ? 'Calculating…' : '—'
 
@@ -245,6 +266,7 @@ export default function QuoteReviewPriceCalendar({
               const selected = Boolean(option && option.id === selectedOptionId)
               const weekend = isReviewWeekendIso(iso)
               const price = selected && selectedTotal != null ? selectedTotal : option?.estimatedTotal
+              const isBest = bestPriceDates.has(iso)
               const disabled = past || !option
               return (
                 <button
@@ -258,9 +280,11 @@ export default function QuoteReviewPriceCalendar({
                   className={`relative flex min-h-[52px] min-w-0 flex-col items-center justify-center overflow-hidden rounded-xl border px-0.5 py-1 text-center transition md:min-h-[108px] md:rounded-2xl md:px-1.5 md:py-2 ${
                     selected
                       ? 'border-blue-600 bg-blue-50 shadow-sm ring-1 ring-blue-600'
-                      : weekend
-                        ? 'border-slate-200 bg-slate-50 hover:border-blue-200'
-                        : 'border-slate-200 bg-white hover:border-blue-200'
+                      : isBest
+                        ? 'border-emerald-300 bg-emerald-50/70 hover:border-emerald-400'
+                        : weekend
+                          ? 'border-slate-200 bg-slate-50 hover:border-blue-200'
+                          : 'border-slate-200 bg-white hover:border-blue-200'
                   } ${disabled ? 'cursor-not-allowed opacity-50 hover:border-slate-200' : ''}`}
                 >
                   {selected ? (
@@ -274,6 +298,12 @@ export default function QuoteReviewPriceCalendar({
                   </span>
                   <span className="mt-0.5 hidden text-[11px] font-medium text-slate-500 md:block">{parts.monthShort}</span>
                   <span className="mt-1 hidden text-[10px] leading-tight text-slate-500 md:block">{arrivalLabel}</span>
+                  {isBest ? (
+                    <span className="mt-1 max-w-full truncate rounded bg-emerald-600 px-1 text-[8px] font-bold uppercase leading-tight tracking-wide text-white md:text-[9px]">
+                      <span className="md:hidden">Best</span>
+                      <span className="hidden md:inline">Best price</span>
+                    </span>
+                  ) : null}
                   {price != null && Number.isFinite(price) ? (
                     <span className="mt-1 w-full">
                       {selected ? (

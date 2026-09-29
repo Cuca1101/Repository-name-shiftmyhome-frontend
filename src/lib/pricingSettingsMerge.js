@@ -1,4 +1,5 @@
 import { getDefaultPricingSettings } from './defaultPricingSettings'
+import { resolveServicePackages } from './servicePackages'
 import {
   copyWebsiteRatesToDriverAppExtraCharge,
   getDriverAppExtraChargeMode,
@@ -166,6 +167,12 @@ export function mergePricingSettingsWithDefaults(raw, opts = {}) {
   }
   if (merged.sundaySurchargePercent == null || merged.sundaySurchargePercent === '') {
     merged.sundaySurchargePercent = legacyWeekend
+  }
+
+  const resolvedPackages = resolveServicePackages(merged)
+  merged.servicePackages = {
+    premium: resolvedPackages.premium,
+    platinum: resolvedPackages.platinum,
   }
 
   if (opts.warnOnFallback !== false && missingBeforeMerge.length > 0) {

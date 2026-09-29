@@ -8,6 +8,7 @@ import { formatDateTimeUK, formatDateUK } from '../lib/formatDateDisplay'
 import { stripeDashboardSearchUrl } from '../lib/stripeDashboardUrl'
 import { formatWizardServiceExtrasBlock } from '../lib/emailQuotePayload'
 import AdminInventoryTable from './admin-workflow/AdminInventoryTable'
+import ServicePackageAllowanceCard from './admin-workflow/ServicePackageAllowanceCard'
 
 function money(n) {
   if (n == null || n === '') return '—'
@@ -474,6 +475,10 @@ export default function JobCardDetails() {
           <AdminInventoryTable rows={inventoryDisplayRows} emptyLabel="No line items stored." />
         </div>
       </div>
+
+      <ServicePackageAllowanceCard
+        snapshot={job.price_breakdown?.servicePackageSnapshot || job.service_package_snapshot}
+      />
 
       <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-card">
         <h3 className="text-lg font-semibold text-slate-900">Price breakdown</h3>

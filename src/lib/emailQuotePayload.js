@@ -54,6 +54,15 @@ export function formatQuoteBreakdownLines(b) {
     lines.push(`Volume band on inventory (×${b.volumeMultiplier ?? 1}): £${b.volumeScalingAmount.toFixed(2)}`)
   }
   if (b.minimumApplied > 0) lines.push(`Minimum price adjustment: £${b.minimumApplied.toFixed(2)}`)
+  if (b.quoteBaseTotal != null && Number.isFinite(b.quoteBaseTotal)) {
+    lines.push(`Move price: £${Number(b.quoteBaseTotal).toFixed(2)}`)
+  }
+  if (b.servicePackageFee > 0) {
+    lines.push(`${b.servicePackageUpgradeLabel || 'Package upgrade'}: £${Number(b.servicePackageFee).toFixed(2)}`)
+  }
+  if (b.servicePackageSnapshot?.service_package) {
+    lines.push(`Service package: ${b.servicePackageSnapshot.display_name || b.servicePackageSnapshot.service_package}`)
+  }
   lines.push(`Estimated total: £${b.estimatedTotal.toFixed(2)}`)
   return lines.join('\n')
 }

@@ -6,7 +6,6 @@ import {
   isQuoteContactComplete,
   ReviewGroup,
 } from '../QuoteReviewAccordion'
-import PackageSelector from '../PackageSelector'
 import AddressConfirmationSection from '../AddressConfirmationSection'
 import PickupDeliveryContactsSection from '../PickupDeliveryContactsSection'
 import PackingMaterialsSection from '../PackingMaterialsSection'

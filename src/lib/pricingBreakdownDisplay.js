@@ -187,11 +187,8 @@ export function buildStandardPricingDisplayRows(b) {
     { label: 'Packing', amount: packing },
     { label: 'Dismantling', amount: dismantling },
     { label: 'Reassembly', amount: reassembly },
-    { label: 'Same Day Surcharge', amount: sameDay },
-    { label: 'Weekend Surcharge', amount: weekend },
-    { label: 'Bank Holiday Surcharge', amount: bankHoliday },
     { label: 'Exact Arrival Premium', amount: exactArrival },
-    { label: 'Subtotal (after date surcharges)', amount: calculatedBeforeMultiplier },
+    { label: 'Subtotal (before peak-date surcharge)', amount: calculatedBeforeMultiplier },
   )
 
   rows.push({ label: 'Scaled Subtotal', amount: scaledSubtotal })
@@ -202,7 +199,19 @@ export function buildStandardPricingDisplayRows(b) {
   if (minimumJobAdjustment > 0) {
     rows.push({ label: 'Minimum Job Price Adjustment (floor)', amount: minimumJobAdjustment })
   }
-  rows.push({ label: 'Discounts', amount: discountAmount, isDiscount: true })
+  rows.push(
+    { label: 'Same Day Surcharge', amount: sameDay },
+    { label: 'Weekend Surcharge', amount: weekend },
+    { label: 'Bank Holiday Surcharge', amount: bankHoliday },
+    { label: 'Discounts', amount: discountAmount, isDiscount: true },
+  )
+
+  if (b.servicePackageFee > 0) {
+    rows.push({
+      label: b.servicePackageUpgradeLabel || 'Package upgrade',
+      amount: money(b.servicePackageFee),
+    })
+  }
 
   const filtered = rows.filter((row) => row.amount !== 0)
 
@@ -233,7 +242,13 @@ export function verifyBreakdownReconcilesWithTotal(b) {
 
   const scaled = money(b.scaledSubtotal ?? 0)
 
-  const computed = money(scaled - (b.discountTotal || 0) + (b.minimumApplied || 0))
+  const computed = money(
+    scaled -
+      (b.discountTotal || 0) +
+      (b.minimumApplied || 0) +
+      (b.surchargesTotal || 0) +
+      (b.servicePackageFee || 0),
+  )
 
   const delta = money(b.estimatedTotal - computed)
 
@@ -290,6 +305,13 @@ export function collectBreakdownDisplayLines(b) {
 
     rows.push({ label: 'Minimum price adjustment', amount: b.minimumApplied })
 
+  }
+
+  if (b.servicePackageFee > 0) {
+    rows.push({
+      label: b.servicePackageUpgradeLabel || 'Package upgrade',
+      amount: b.servicePackageFee,
+    })
   }
 
   return rows

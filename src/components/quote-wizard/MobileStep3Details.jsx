@@ -5,7 +5,6 @@ import {
   ReviewGroup,
 } from './QuoteReviewAccordion'
 import MobileStepTitleWithRef from './MobileStepTitleWithRef'
-import PackageSelector from './PackageSelector'
 import { reassemblySameAsDismantlingPatch } from '../../lib/quoteWizardReassembly'
 import AddressConfirmationSection from './AddressConfirmationSection'
 import PickupDeliveryContactsSection from './PickupDeliveryContactsSection'

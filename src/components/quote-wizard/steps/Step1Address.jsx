@@ -197,7 +197,7 @@ export default function Step1Address({
           quotePage={quotePage}
         />
       ) : (
-        <div className={quotePage ? 'grid grid-cols-1 gap-4 md:grid-cols-2 md:gap-5' : 'grid md:grid-cols-2 md:gap-x-8 md:gap-y-6 md:items-start'}>
+        <div className={quotePage ? 'grid grid-cols-1 gap-4 xl:grid-cols-2 xl:gap-5' : 'grid xl:grid-cols-2 xl:gap-x-8 xl:gap-y-6 xl:items-start'}>
         {customerAddressCards ? (
           <>
             <QuoteStepAddressCard

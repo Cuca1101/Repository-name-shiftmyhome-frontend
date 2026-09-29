@@ -3,6 +3,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -69,7 +70,7 @@ import {
   makeQuoteRef,
   QUOTE_WIZARD_MAX_STEP,
 } from '../../lib/quoteWizardDefaults'
-import { clearResumeSavedQuote } from '../../lib/quoteSessionMode'
+import { clearResumeSavedQuote, setActiveQuoteWizardRef } from '../../lib/quoteSessionMode'
 import {
   activeLockedQuoteTotal,
   buildPriceAffectingFingerprint,
@@ -81,6 +82,8 @@ import {
   syncCustomerLeadFromWizard,
 } from '../../lib/customerLeadTracker'
 import { rotateWebsiteLeadSessionId } from '../../lib/websiteLeadSession'
+import { applyServicePackageToQuote } from '../../lib/servicePackages'
+import { JOURNEY_VAN_CAPACITY_M3 } from '../../lib/journeySummary'
 import { trackMarketingQuoteSubmit } from '../../lib/marketingPixels'
 import { useLocation } from 'react-router-dom'
 import {
@@ -130,6 +133,7 @@ const HAS_MAPBOX_TOKEN = Boolean(import.meta.env.VITE_MAPBOX_TOKEN)
 export function QuoteWizardProvider({ children, serviceType: serviceTypeProp, allowServiceChange = false }) {
   const location = useLocation()
   const skipAutosaveRef = useRef(false)
+  const draftSnapshotRef = useRef(null)
   const [bootstrap] = useState(() => resolveWizardBootstrap(serviceTypeProp))
   const isResumedRef = useRef(bootstrap.isResumed)
   const lockedTotalRef = useRef(
@@ -429,14 +433,34 @@ export function QuoteWizardProvider({ children, serviceType: serviceTypeProp, al
       settings,
       buildQuoteEngineInput({ serviceType, wizard, lineItems, heavyItemCount }),
     )
-    if (lockedTotalRef.current == null) return live
+    const withPackage = (source, baseTotal) => {
+      const applied = applyServicePackageToQuote({
+        baseTotal,
+        packageId: wizard.packageTier || 'standard',
+        settings,
+        declaredVolumeM3: totalM3,
+        vehicleCapacityM3: JOURNEY_VAN_CAPACITY_M3,
+      })
+      return {
+        ...source,
+        quoteBaseTotal: applied.baseTotal,
+        servicePackageId: applied.packageId,
+        servicePackageName: applied.displayName,
+        servicePackageFee: applied.fee,
+        servicePackageUpgradeLabel: applied.upgradeLabel,
+        servicePackageSnapshot: applied.snapshot,
+        servicePackageBlockedReason: applied.blockedReason,
+        estimatedTotal: applied.finalTotal,
+      }
+    }
+    if (lockedTotalRef.current == null) return withPackage(live, live.estimatedTotal)
 
     const lockedAmount = Math.round(Number(lockedTotalRef.current) * 100) / 100
 
     // Until rebase runs, always show the saved total (prevents £65→£85 flash).
     if (!lockRebasedRef.current) {
-      if (Math.abs(Number(live.estimatedTotal) - lockedAmount) < 0.009) return live
-      return { ...live, estimatedTotal: lockedAmount }
+      const base = Math.abs(Number(live.estimatedTotal) - lockedAmount) < 0.009 ? live.estimatedTotal : lockedAmount
+      return withPackage({ ...live, estimatedTotal: base }, base)
     }
 
     const locked = activeLockedQuoteTotal(lockedTotalRef.current, lockedFingerprintRef.current, {
@@ -444,15 +468,14 @@ export function QuoteWizardProvider({ children, serviceType: serviceTypeProp, al
       wizard,
     })
     if (locked != null) {
-      if (Math.abs(Number(live.estimatedTotal) - locked) < 0.009) return live
-      return { ...live, estimatedTotal: locked }
+      return withPackage({ ...live, estimatedTotal: locked }, locked)
     }
 
     // Customer changed a price-affecting option — drop the lock permanently for this session.
     lockedTotalRef.current = null
     lockedFingerprintRef.current = null
-    return live
-  }, [step, settings, serviceType, wizard, lineItems, heavyItemCount])
+    return withPackage(live, live.estimatedTotal)
+  }, [step, settings, serviceType, wizard, lineItems, heavyItemCount, totalM3])
 
   // Keep React state in sync when lock clears inside breakdown useMemo.
   useEffect(() => {
@@ -490,14 +513,41 @@ export function QuoteWizardProvider({ children, serviceType: serviceTypeProp, al
         ? lockedTotalRef.current
         : null
 
+  useLayoutEffect(() => {
+    setActiveQuoteWizardRef(quoteRef)
+    return () => setActiveQuoteWizardRef('')
+  }, [quoteRef])
+
+  useEffect(() => {
+    const flushDraft = () => {
+      if (skipAutosaveRef.current) return
+      const snap = draftSnapshotRef.current
+      if (!snap) return
+      saveQuoteDraft(snap)
+    }
+    window.addEventListener('pagehide', flushDraft)
+    return () => {
+      window.removeEventListener('pagehide', flushDraft)
+      flushDraft()
+    }
+  }, [])
+
   useEffect(() => {
     if (skipAutosaveRef.current) return undefined
     const hasProgress =
       isResumedRef.current ||
       step > 1 ||
       wizard.pickupAddress.trim().length > 2 ||
-      wizard.deliveryAddress.trim().length > 2
-    if (!hasProgress) return undefined
+      wizard.deliveryAddress.trim().length > 2 ||
+      String(wizard.moveDate || '').trim().length > 0 ||
+      (Array.isArray(wizard.inventoryLines) && wizard.inventoryLines.length > 0) ||
+      String(wizard.fullName || '').trim().length > 1 ||
+      String(wizard.phone || '').trim().length > 5 ||
+      String(wizard.email || '').trim().length > 3
+    if (!hasProgress) {
+      draftSnapshotRef.current = null
+      return undefined
+    }
 
     const returnPath =
       location.pathname && location.pathname !== '/' ? location.pathname : '/quote'
@@ -506,17 +556,19 @@ export function QuoteWizardProvider({ children, serviceType: serviceTypeProp, al
       lockedFingerprintRef.current,
       { serviceType, wizard },
     )
+    const draftPayload = {
+      step,
+      quoteRef,
+      serviceType,
+      returnPath,
+      wizard,
+      estimatedTotal: estimatedTotalForDraft,
+      lockedTotal: lockedStillActive,
+      lockedPriceFingerprint: lockedStillActive != null ? lockedFingerprintRef.current : null,
+    }
+    draftSnapshotRef.current = draftPayload
+    saveQuoteDraft(draftPayload)
     const timer = window.setTimeout(() => {
-      saveQuoteDraft({
-        step,
-        quoteRef,
-        serviceType,
-        returnPath,
-        wizard,
-        estimatedTotal: estimatedTotalForDraft,
-        lockedTotal: lockedStillActive,
-        lockedPriceFingerprint: lockedStillActive != null ? lockedFingerprintRef.current : null,
-      })
       if (!savedDraftTrackedRef.current) {
         savedDraftTrackedRef.current = true
         trackWebsiteLeadEvent('saved_quote_created', {
@@ -544,6 +596,7 @@ export function QuoteWizardProvider({ children, serviceType: serviceTypeProp, al
         wizard,
         estimatedTotal: estimatedTotalForDraft,
         totalM3,
+        servicePackageSnapshot: breakdown?.servicePackageSnapshot || null,
         landingPath: returnPath,
         currentStatus: customerLeadStatusRef.current,
       }).then((res) => {
@@ -551,7 +604,7 @@ export function QuoteWizardProvider({ children, serviceType: serviceTypeProp, al
       })
     }, 500)
     return () => window.clearTimeout(timer)
-  }, [step, quoteRef, serviceType, wizard, location.pathname, estimatedTotalForDraft, totalM3])
+  }, [step, quoteRef, serviceType, wizard, location.pathname, estimatedTotalForDraft, totalM3, breakdown])
 
   useEffect(() => {
     if (step <= 1) return
@@ -944,6 +997,7 @@ export function QuoteWizardProvider({ children, serviceType: serviceTypeProp, al
       preloadStripeJs()
       try {
         const quote_lead = buildQuoteRowFromTemplateParams(payload.templateParams, payload.extras)
+        quote_lead.estimated_total = breakdown.estimatedTotal
         const isReservation = paymentType === 'reservation'
         const reservationGbp = resolveDepositAmountGbp(settings)
         const chargeGbp = isReservation ? reservationGbp : breakdown.estimatedTotal
@@ -954,6 +1008,10 @@ export function QuoteWizardProvider({ children, serviceType: serviceTypeProp, al
           service_type: serviceType,
           amount: chargeGbp,
           amount_gbp: chargeGbp,
+          base_quote_gbp: breakdown.quoteBaseTotal ?? breakdown.estimatedTotal,
+          declared_volume_m3: totalM3,
+          service_package: breakdown.servicePackageId || wizard.packageTier || 'standard',
+          service_package_snapshot: breakdown.servicePackageSnapshot || null,
           payment_type: isReservation ? 'deposit' : 'full',
           quote_lead,
         })
@@ -1148,6 +1206,7 @@ export function QuoteWizardProvider({ children, serviceType: serviceTypeProp, al
         currency: 'GBP',
       })
       skipAutosaveRef.current = true
+      draftSnapshotRef.current = null
       clearQuoteDraft()
       rotateWebsiteLeadSessionId()
       clearCustomerLeadCache()
@@ -1171,6 +1230,7 @@ export function QuoteWizardProvider({ children, serviceType: serviceTypeProp, al
 
   const resetQuoteWizard = useCallback(() => {
     skipAutosaveRef.current = true
+    draftSnapshotRef.current = null
     clearResumeSavedQuote()
     isResumedRef.current = false
     lockedTotalRef.current = null

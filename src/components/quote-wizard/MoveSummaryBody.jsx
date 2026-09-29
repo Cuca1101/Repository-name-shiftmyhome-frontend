@@ -298,7 +298,11 @@ export default function MoveSummaryBody({
             <div>
               <dt className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Package</dt>
               <dd className="mt-0.5 text-[11px] font-semibold leading-relaxed text-slate-700">
-                {wizard.packageTier === 'premium' ? 'Premium' : 'Standard'}
+                {wizard.packageTier === 'platinum'
+                  ? 'Platinum'
+                  : wizard.packageTier === 'premium'
+                    ? 'Premium'
+                    : 'Standard'}
               </dd>
             </div>
           )}

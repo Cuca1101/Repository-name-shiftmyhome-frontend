@@ -270,6 +270,7 @@ function paymentReceivedTemplate(payload: {
   deliverySummary: string
   supportEmail: string
   invoiceDownloadUrl?: string
+  packageSummary?: string
 }) {
   const data: EmailTemplateData = {
     previewText: `Payment received for booking ${payload.quoteRef}`,
@@ -285,8 +286,9 @@ function paymentReceivedTemplate(payload: {
       : 'Your invoice/receipt PDF is attached to this email.',
     supportMessage: `For any questions, contact ${payload.supportEmail}.`,
     paymentSectionTitle: 'Payment confirmation',
-    paymentSectionBody:
-      'Your payment has been processed successfully. We will confirm your move details shortly.',
+    paymentSectionBody: payload.packageSummary
+      ? `Your payment has been processed successfully. Service package: ${payload.packageSummary}. We will confirm your move details shortly.`
+      : 'Your payment has been processed successfully. We will confirm your move details shortly.',
     invoiceSectionTitle: 'Invoice / receipt',
     invoiceSectionBody:
       payload.invoiceDownloadUrl
@@ -306,6 +308,7 @@ function paymentReceivedTemplate(payload: {
       '',
       `Your booking reference: ${payload.quoteRef}`,
       `Payment status: ${payload.paymentStatus}`,
+      payload.packageSummary ? `Service package: ${payload.packageSummary}` : '',
       `Collection: ${payload.collectionSummary}`,
       `Delivery: ${payload.deliverySummary}`,
       '',
@@ -343,6 +346,7 @@ export function renderTransactionalEmailTemplate(params: {
     collectionSummary: string
     deliverySummary: string
     invoiceDownloadUrl?: string
+    packageSummary?: string
   }
 }): RenderResult {
   const { kind, brand, paymentPayload } = params

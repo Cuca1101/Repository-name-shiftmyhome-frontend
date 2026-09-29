@@ -79,6 +79,126 @@ function uuidLike(v: string) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(v)
 }
 
+/** Must stay in step with packageFeeForBase in src/lib/servicePackages.js. */
+const VAN_CAPACITY_M3 = 18
+
+function packageDefaults(id: 'premium' | 'platinum') {
+  if (id === 'premium') {
+    return {
+      displayName: 'Premium',
+      badge: 'Most Popular',
+      percentage: 12,
+      minimumFee: 25,
+      maxForgottenItems: 5,
+      maxForgottenVolumeM3: 0.5,
+      wrappingItems: 3,
+      dismantleItems: 1,
+      waitingMinutes: 30,
+      prioritySupport: true,
+    }
+  }
+  return {
+    displayName: 'Platinum',
+    badge: 'Maximum Protection',
+    percentage: 25,
+    minimumFee: 55,
+    maxForgottenItems: 10,
+    maxForgottenVolumeM3: 1,
+    wrappingItems: 6,
+    dismantleItems: 2,
+    waitingMinutes: 60,
+    prioritySupport: true,
+  }
+}
+
+function readNonNeg(raw: unknown, fallback: number) {
+  if (raw == null || raw === '') return fallback
+  const v = Number(raw)
+  return Number.isFinite(v) && v > 0 ? v : 0
+}
+
+function readWhole(raw: unknown, fallback: number) {
+  if (raw == null || raw === '') return fallback
+  const v = Math.round(Number(raw) || 0)
+  return v > 0 ? v : 0
+}
+
+function resolvePaidPackage(packageId: string, settingsData: Record<string, unknown>) {
+  const id = packageId === 'platinum' ? 'platinum' : packageId === 'premium' ? 'premium' : 'standard'
+  if (id === 'standard') return { id, enabled: true, feeInputs: null as null | ReturnType<typeof packageDefaults> }
+  const packs = settingsData.servicePackages && typeof settingsData.servicePackages === 'object'
+    ? (settingsData.servicePackages as Record<string, Record<string, unknown>>)
+    : {}
+  const row = packs[id] || {}
+  const defaults = packageDefaults(id)
+  return {
+    id,
+    enabled: row.enabled !== false,
+    feeInputs: {
+      displayName: String(row.displayName || defaults.displayName),
+      badge: String(row.badge ?? defaults.badge),
+      percentage: readNonNeg(row.percentage, defaults.percentage),
+      minimumFee: readNonNeg(row.minimumFee, defaults.minimumFee),
+      maxForgottenItems: readWhole(row.maxForgottenItems, defaults.maxForgottenItems),
+      maxForgottenVolumeM3: readNonNeg(row.maxForgottenVolumeM3, defaults.maxForgottenVolumeM3),
+      wrappingItems: readWhole(row.wrappingItems, defaults.wrappingItems),
+      dismantleItems: readWhole(row.dismantleItems, defaults.dismantleItems),
+      waitingMinutes: readWhole(row.waitingMinutes, defaults.waitingMinutes),
+      prioritySupport: row.prioritySupport == null ? defaults.prioritySupport : Boolean(row.prioritySupport),
+    },
+  }
+}
+
+function buildServerPackageSnapshot(
+  baseQuoteGbp: number,
+  packageId: string,
+  settingsData: Record<string, unknown>,
+  declaredVolumeM3: number,
+): { ok: true; snapshot: Record<string, unknown> } | { ok: false; error: string } {
+  const resolved = resolvePaidPackage(packageId, settingsData)
+  if (resolved.id !== 'standard' && !resolved.enabled) {
+    return { ok: false, error: 'This service package is not currently offered.' }
+  }
+  const inputs = resolved.feeInputs
+  const reserve = inputs ? inputs.maxForgottenVolumeM3 : 0
+  if (
+    resolved.id !== 'standard' &&
+    Number.isFinite(declaredVolumeM3) &&
+    declaredVolumeM3 >= 0 &&
+    reserve > 0 &&
+    declaredVolumeM3 + reserve > VAN_CAPACITY_M3 + 0.0001
+  ) {
+    return {
+      ok: false,
+      error: `This package reserves ${reserve} m³ and does not fit the booked vehicle.`,
+    }
+  }
+  const base = round2(Math.max(0, baseQuoteGbp))
+  const percentFee = inputs ? round2((base * inputs.percentage) / 100) : 0
+  const minimum = inputs ? round2(inputs.minimumFee) : 0
+  const fee = inputs ? round2(Math.max(percentFee, minimum)) : 0
+  const snapshot = {
+    service_package: resolved.id,
+    service_package_fee: fee,
+    quote_base_total: base,
+    final_total: round2(base + fee),
+    forgotten_item_allowance: inputs?.maxForgottenItems ?? 0,
+    forgotten_volume_m3: inputs?.maxForgottenVolumeM3 ?? 0,
+    included_waiting_minutes: inputs?.waitingMinutes ?? 0,
+    included_wrapping_items: inputs?.wrappingItems ?? 0,
+    included_dismantle_items: inputs?.dismantleItems ?? 0,
+    priority_support: inputs?.prioritySupport ?? false,
+    display_name: inputs?.displayName ?? 'Standard',
+    badge: inputs?.badge ?? 'Included',
+    percentage: inputs?.percentage ?? 0,
+    minimum_fee: inputs?.minimumFee ?? 0,
+    used_forgotten_items: 0,
+    used_forgotten_volume_m3: 0,
+    captured_at: new Date().toISOString(),
+  }
+  return { ok: true, snapshot }
+}
+
 function stripeMetadata(entries: Record<string, string>): Record<string, string> {
   const out: Record<string, string> = {}
   for (const [key, value] of Object.entries(entries)) {
@@ -471,12 +591,61 @@ Deno.serve(async (req) => {
     }
   }
 
+  const servicePackageId = String(body.service_package ?? 'standard').trim().toLowerCase()
+  const baseQuoteGbp = Number(body.base_quote_gbp)
+  const declaredVolumeM3 = Number(body.declared_volume_m3)
+  let packageSnapshot: Record<string, unknown> | null = null
+  const hasBaseQuote = Number.isFinite(baseQuoteGbp) && baseQuoteGbp >= 0
+  if (resolvedPaymentType === 'full' && !hasBaseQuote) {
+    return jsonResponse({ error: 'base_quote_gbp is required' }, 400)
+  }
+  if (hasBaseQuote) {
+    const { data: pricingRow, error: pricingErr } = await supabase
+      .from('pricing_settings')
+      .select('data')
+      .eq('id', 1)
+      .maybeSingle()
+    if (pricingErr) {
+      console.error('[create-payment-intent] pricing_settings', pricingErr.message)
+      return jsonResponse({ error: 'Could not verify the service package price.' }, 503)
+    }
+    const settingsData =
+      pricingRow?.data && typeof pricingRow.data === 'object' && !Array.isArray(pricingRow.data)
+        ? (pricingRow.data as Record<string, unknown>)
+        : {}
+    const built = buildServerPackageSnapshot(
+      Number.isFinite(baseQuoteGbp) ? baseQuoteGbp : gbp,
+      servicePackageId,
+      settingsData,
+      declaredVolumeM3,
+    )
+    if (!built.ok) return jsonResponse({ error: built.error }, 400)
+    packageSnapshot = built.snapshot
+    if (resolvedPaymentType === 'full') {
+      const expected = Number(built.snapshot.final_total)
+      if (!Number.isFinite(expected) || Math.abs(gbp - expected) > 0.02) {
+        return jsonResponse(
+          {
+            error: `Quote total does not match the selected service package. Expected £${expected.toFixed(2)}.`,
+          },
+          400,
+        )
+      }
+      gbp = expected
+    }
+  }
+
   const unitAmount = Math.round(gbp * 100)
   if (unitAmount < 30) {
     return jsonResponse({ error: 'Amount too low for card payment' }, 400)
   }
 
   let resolvedQuoteId = quote_id && uuidLike(quote_id) ? quote_id : ''
+  if (merged && packageSnapshot) {
+    merged.service_package_snapshot = packageSnapshot
+    merged.estimated_total = packageSnapshot.final_total
+  }
+
   if (merged) {
     const ref = String(merged.quote_ref ?? '').trim()
     if (!ref) {
@@ -492,6 +661,18 @@ Deno.serve(async (req) => {
       const res = await supabase.from('quotes').insert(merged).select('id').single()
       saved = res.data
       saveErr = res.error
+    }
+    if (saveErr && /service_package_snapshot/i.test(saveErr.message || '') && merged) {
+      delete merged.service_package_snapshot
+      if (existing?.id) {
+        const res = await supabase.from('quotes').update(merged).eq('id', existing.id).select('id').single()
+        saved = res.data
+        saveErr = res.error
+      } else {
+        const res = await supabase.from('quotes').insert(merged).select('id').single()
+        saved = res.data
+        saveErr = res.error
+      }
     }
     if (saveErr || !saved?.id) {
       return jsonResponse({ error: saveErr?.message ?? 'Could not save quote lead' }, 400)
@@ -515,6 +696,8 @@ Deno.serve(async (req) => {
     customer_email,
     service_type,
     customer_name,
+    service_package: String(packageSnapshot?.service_package || servicePackageId || 'standard'),
+    service_package_fee: packageSnapshot ? String(packageSnapshot.service_package_fee ?? '') : '',
   })
 
   try {

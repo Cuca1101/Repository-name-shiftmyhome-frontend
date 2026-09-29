@@ -11,6 +11,7 @@ import { WebsiteCmsProvider } from '../context/WebsiteCmsContext'
 import { SeoSettingsProvider } from '../context/SeoSettingsContext'
 import { SeoQuoteModalProvider } from '../context/SeoQuoteModalContext'
 import { pathUsesPublicQuoteModal } from '../lib/quoteModalRoutes'
+import ContinueQuoteBanner from '../components/ContinueQuoteBanner'
 
 export default function PublicLayout({ children }) {
   const { pathname } = useLocation()
@@ -31,6 +32,7 @@ export default function PublicLayout({ children }) {
           quoteFlow ? 'quote-flow-main bg-[#e7eef6]' : 'overflow-x-hidden pb-24'
         }`}
       >
+        <ContinueQuoteBanner />
         {children}
       </main>
       {!hideFooter && <Footer />}

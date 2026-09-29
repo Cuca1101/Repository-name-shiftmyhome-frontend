@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import Navbar from '../Navbar'
 import QuoteWizard from '../quote-wizard/QuoteWizard'
+import WhatsAppButton from '../WhatsAppButton'
 import { preloadStripeJs } from '../../lib/stripePromise'
 import { resolveServiceLabel } from '../../lib/normalizeServiceType'
 
@@ -66,6 +67,7 @@ export default function SeoQuoteWizardModal({ open, onClose, serviceType = '', s
           titleId="seo-quote-flow-title"
         />
       </div>
+      <WhatsAppButton variant="quote-flow" />
     </div>
   )
 

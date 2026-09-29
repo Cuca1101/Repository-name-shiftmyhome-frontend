@@ -27,6 +27,7 @@ export const PRICING_SETTING_FIELD_LABELS = {
   saturdaySurchargePercent: 'Saturday surcharge (%)',
   sundaySurchargePercent: 'Sunday surcharge (%)',
   bankHolidaySurchargePercent: 'Bank holiday surcharge (%)',
+  showCalendarBestPrice: 'Show best price on quote calendar',
   longWalkingDistanceCharge: 'Long walking distance',
   parkingCharge: 'Parking charge',
   stairsChargePerFlight: 'Stairs charge per flight',

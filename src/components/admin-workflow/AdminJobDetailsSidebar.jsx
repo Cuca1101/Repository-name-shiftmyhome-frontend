@@ -58,8 +58,34 @@ export default function AdminJobDetailsSidebar({
   const btnDanger =
     'flex min-h-[36px] w-full items-center justify-center rounded-lg border border-red-200 bg-white px-3 py-2 text-xs font-semibold text-red-800 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-40'
 
+  const pack =
+    q?.service_package_snapshot && typeof q.service_package_snapshot === 'object'
+      ? q.service_package_snapshot
+      : q?.wizard_data?.step3?.servicePackage && typeof q.wizard_data.step3.servicePackage === 'object'
+        ? q.wizard_data.step3.servicePackage
+        : null
+
   return (
     <aside className="space-y-4 lg:sticky lg:top-4">
+      {pack ? (
+        <section className="overflow-hidden rounded-xl border border-slate-200/90 bg-white shadow-sm">
+          <div className="border-b border-slate-100 px-3.5 py-2.5">
+            <h3 className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Service package</h3>
+          </div>
+          <div className="space-y-1.5 p-3 text-xs text-slate-700">
+            <p className="inline-flex rounded-full bg-slate-900 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">
+              {pack.display_name || pack.service_package || 'Standard'}
+            </p>
+            <p>Forgotten items: {pack.forgotten_item_allowance ?? 0} / {pack.forgotten_volume_m3 ?? 0} m³</p>
+            <p>Used: {pack.used_forgotten_items ?? 0} items · {pack.used_forgotten_volume_m3 ?? 0} m³</p>
+            <p>Waiting included: {pack.included_waiting_minutes ?? 0} min</p>
+            <p>Wrapping: {pack.included_wrapping_items ?? 0} · Dismantle/reassembly: {pack.included_dismantle_items ?? 0}</p>
+            <p className="text-[11px] text-slate-500">
+              Items beyond this allowance need an extra charge or admin approval before loading.
+            </p>
+          </div>
+        </section>
+      ) : null}
       <section className="overflow-hidden rounded-xl border border-slate-200/90 bg-white shadow-sm">
         <div className="border-b border-slate-900/5 bg-slate-900/[0.03] px-3.5 py-2.5">
           <h3 className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Dispatch controls</h3>

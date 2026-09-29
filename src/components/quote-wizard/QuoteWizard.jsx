@@ -327,7 +327,7 @@ function QuoteWizardInner({
           <p className="text-center text-slate-600">Loading…</p>
         ) : pageChrome ? (
           <>
-          <div className={`grid items-start gap-4 ${step === 3 ? 'md:grid-cols-[minmax(0,1fr)_minmax(240px,30%)]' : 'md:grid-cols-[minmax(0,1fr)_minmax(260px,min(100%,340px))]'} md:gap-6`}>
+          <div className={`grid items-start gap-4 ${step === 3 ? 'md:grid-cols-[minmax(0,1fr)_minmax(240px,30%)] md:gap-6' : 'lg:grid-cols-[minmax(0,1fr)_minmax(260px,min(100%,340px))] lg:gap-6'}`}>
             <div className="quote-wizard-form-card min-w-0 rounded-2xl border border-slate-200/80 bg-white p-4 shadow-[0_10px_30px_rgba(15,23,42,0.06)] sm:p-6">
               <div className="mb-4 text-center">
                 {titleTag === 'h2' ? (

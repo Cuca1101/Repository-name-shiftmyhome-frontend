@@ -150,6 +150,9 @@ Deno.serve(async (req) => {
     payment_status: pi.status,
     quote_ref: quote_ref || undefined,
     amount_gbp,
+    service_package: typeof pi.metadata?.service_package === 'string' ? pi.metadata.service_package : undefined,
+    service_package_fee:
+      typeof pi.metadata?.service_package_fee === 'string' ? pi.metadata.service_package_fee : undefined,
     currency,
     email_sent,
     email_reason,

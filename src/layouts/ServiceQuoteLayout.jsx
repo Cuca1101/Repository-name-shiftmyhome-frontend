@@ -6,6 +6,7 @@ import FloatingReviewsBadge from '../components/reviews/FloatingReviewsBadge'
 import { CoverageModalProvider } from '../context/CoverageModalContext'
 import { WebsiteCmsProvider } from '../context/WebsiteCmsContext'
 import { SeoSettingsProvider } from '../context/SeoSettingsContext'
+import ContinueQuoteBanner from '../components/ContinueQuoteBanner'
 
 /** Service pages use the same site header as the homepage and /quote. */
 export default function ServiceQuoteLayout({ children }) {
@@ -17,6 +18,7 @@ export default function ServiceQuoteLayout({ children }) {
           <WebsiteAnnouncementBar />
           <Navbar />
           <main className="quote-flow-main box-border min-w-0 flex-1 w-full max-w-full">
+            <ContinueQuoteBanner />
             {children}
           </main>
           <Footer />

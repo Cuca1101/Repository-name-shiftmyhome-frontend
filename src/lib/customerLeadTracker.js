@@ -98,6 +98,7 @@ export async function syncCustomerLeadFromWizard(opts) {
     entryPoint: 'quote_wizard',
     estimatedTotal: opts.estimatedTotal ?? null,
     totalM3: opts.totalM3 ?? null,
+    servicePackageSnapshot: opts.servicePackageSnapshot ?? null,
     quoteId: opts.quoteId ?? null,
     currentStatus: opts.currentStatus || 'new_lead',
     paymentPhase: opts.paymentPhase || 'none',

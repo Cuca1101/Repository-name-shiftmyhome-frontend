@@ -882,7 +882,35 @@ export default function CustomerLeadDetailAdmin() {
                 : null
           }
         />
-        <Row label="Package" value={s3.packageTier} />
+        <Row label="Package" value={s3.servicePackage?.display_name || s3.packageTier} />
+        <Row
+          label="Package fee"
+          value={
+            s3.servicePackage?.service_package_fee != null
+              ? `£${Number(s3.servicePackage.service_package_fee).toFixed(2)}`
+              : null
+          }
+        />
+        <Row
+          label="Forgotten items allowance"
+          value={
+            s3.servicePackage
+              ? `${s3.servicePackage.forgotten_item_allowance ?? 0} items · ${s3.servicePackage.forgotten_volume_m3 ?? 0} m³ (used ${s3.servicePackage.used_forgotten_items ?? 0} / ${s3.servicePackage.used_forgotten_volume_m3 ?? 0} m³)`
+              : null
+          }
+        />
+        <Row
+          label="Included waiting"
+          value={s3.servicePackage ? `${s3.servicePackage.included_waiting_minutes ?? 0} minutes` : null}
+        />
+        <Row
+          label="Wrapping / dismantling"
+          value={
+            s3.servicePackage
+              ? `${s3.servicePackage.included_wrapping_items ?? 0} wrapping · ${s3.servicePackage.included_dismantle_items ?? 0} dismantle/reassembly`
+              : null
+          }
+        />
         <Row label="Notes" value={s3.specialInstructions} />
         <Row label="Heavy items" value={s3.heavyNotes} />
         <Row label="Packing" value={s3.packing ? s3.packingWhat || 'Yes' : 'No'} />

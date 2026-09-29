@@ -36,6 +36,7 @@ type QuoteRow = {
   service_type: string | null
   estimated_total: number | null
   remaining_balance: number | null
+  service_package_snapshot?: Record<string, unknown> | null
 }
 
 type QuoteStopRow = {
@@ -545,24 +546,43 @@ async function buildBookingConfirmationPdf(params: {
     // Payment summary card (must be last section before footer)
     const pricedTotal = pricing?.total_price ?? estimatedTotalGbp ?? quote.estimated_total
     const pricedRemaining = pricing?.remaining_balance ?? remainingBalanceGbp ?? quote.remaining_balance
-    const summaryHeight = specialRequirements ? 146 : 132
+    const packageSnap =
+      quote.service_package_snapshot && typeof quote.service_package_snapshot === 'object'
+        ? quote.service_package_snapshot
+        : null
+    const packageFee = Number(packageSnap?.service_package_fee)
+    const packageBase = Number(packageSnap?.quote_base_total)
+    const packageLabel = String(packageSnap?.display_name || packageSnap?.service_package || '')
+    const packageLines: string[] = []
+    if (packageSnap && packageLabel) {
+      if (Number.isFinite(packageBase)) packageLines.push(`Move price: ${pounds(packageBase)}`)
+      if (Number.isFinite(packageFee) && packageFee > 0) packageLines.push(`${packageLabel} upgrade: ${pounds(packageFee)}`)
+      else packageLines.push(`Service package: ${packageLabel}`)
+    }
+    const rightShift = packageLines.length * 14
+    const summaryHeight = (specialRequirements ? 146 : 132) + rightShift
     ensure(summaryHeight + 12)
     page.drawRectangle({ x: margin, y: y - summaryHeight, width: contentW, height: summaryHeight, color: rgb(0.97, 0.99, 1), borderColor: C.border, borderWidth: 1 })
     page.drawText('Payment summary', { x: margin + 10, y: y - 19, size: 10.5, font: fontBold, color: C.blue })
     page.drawText(pounds(amountPaidGbp), { x: margin + 10, y: y - 48, size: 22, font: fontBold, color: C.navy })
     page.drawText('Amount paid', { x: margin + 10, y: y - 62, size: 8.5, font: fontRegular, color: C.textSoft })
     const rightX = margin + contentW / 2 + 12
-    page.drawText(`Estimated total: ${pounds(pricedTotal)}`, { x: rightX, y: y - 33, size: 9.5, font: fontRegular, color: C.text })
-    page.drawText(`Remaining balance: ${pounds(pricedRemaining)}`, { x: rightX, y: y - 47, size: 9.5, font: fontRegular, color: C.text })
+    let summaryY = y - 33
+    for (const line of packageLines) {
+      page.drawText(line, { x: rightX, y: summaryY, size: 9.5, font: fontRegular, color: C.text })
+      summaryY -= 14
+    }
+    page.drawText(`Estimated total: ${pounds(pricedTotal)}`, { x: rightX, y: y - 33 - rightShift, size: 9.5, font: fontRegular, color: C.text })
+    page.drawText(`Remaining balance: ${pounds(pricedRemaining)}`, { x: rightX, y: y - 47 - rightShift, size: 9.5, font: fontRegular, color: C.text })
     page.drawText(
       `Payment type: ${isReservationFee ? 'Reservation fee' : paymentType === 'deposit' ? 'Deposit payment' : 'Full payment'}`,
-      { x: rightX, y: y - 61, size: 9.5, font: fontRegular, color: C.text },
+      { x: rightX, y: y - 61 - rightShift, size: 9.5, font: fontRegular, color: C.text },
     )
-    page.drawText(`Status: ${paymentStatusLabel}`, { x: rightX, y: y - 75, size: 9.5, font: fontRegular, color: C.text })
-    page.drawText(`Date paid: ${safePaidDate}`, { x: rightX, y: y - 89, size: 9.5, font: fontRegular, color: C.text })
+    page.drawText(`Status: ${paymentStatusLabel}`, { x: rightX, y: y - 75 - rightShift, size: 9.5, font: fontRegular, color: C.text })
+    page.drawText(`Date paid: ${safePaidDate}`, { x: rightX, y: y - 89 - rightShift, size: 9.5, font: fontRegular, color: C.text })
     if (specialRequirements) {
       const reqLines = wrap(`Requirements: ${specialRequirements}`, contentW - 20, 8.5, false)
-      let ry = y - 111
+      let ry = y - 111 - rightShift
       for (const ln of reqLines.slice(0, 3)) {
         page.drawText(ln, { x: margin + 10, y: ry, size: 8.5, font: fontRegular, color: C.textSoft })
         ry -= 10
@@ -619,7 +639,7 @@ export async function sendPaymentConfirmationWithPdfIfNeeded(params: {
   }
 
   const quoteSelect =
-    'id, quote_ref, full_name, email, phone, pickup_address, delivery_address, move_date, service, service_type, crew_size, vehicle_size, arrival_window, details, inventory_text, inventory, pricing, amount_paid, payment_type, paid_at, payment_confirmation_email_sent_at, payment_confirmation_email_intent_id, estimated_total, remaining_balance'
+    'id, quote_ref, full_name, email, phone, pickup_address, delivery_address, move_date, service, service_type, crew_size, vehicle_size, arrival_window, details, inventory_text, inventory, pricing, amount_paid, payment_type, paid_at, payment_confirmation_email_sent_at, payment_confirmation_email_intent_id, estimated_total, remaining_balance, service_package_snapshot'
   let quote: QuoteRow | null = null
   /** Prefer Stripe metadata.quote_ref so idempotency matches the row you inspect in the dashboard (updateResult.quote_id can point at a different row if metadata.quote_id was wrong/stale). */
   let quoteLookupVia: 'metadata_quote_ref' | 'metadata_quote_id' | 'update_result_quote_id' | null = null
@@ -877,6 +897,14 @@ export async function sendPaymentConfirmationWithPdfIfNeeded(params: {
       paymentStatus: paymentStatusLabel,
       collectionSummary: asText(quote.pickup_address) || '-',
       deliverySummary: asText(quote.delivery_address) || '-',
+      packageSummary: (() => {
+        const snap = quote.service_package_snapshot
+        if (!snap || typeof snap !== 'object') return ''
+        const name = String(snap.display_name || snap.service_package || '').trim()
+        const fee = Number(snap.service_package_fee)
+        if (!name) return ''
+        return Number.isFinite(fee) && fee > 0 ? `${name} upgrade £${fee.toFixed(2)}` : name
+      })(),
     },
   })
   console.log('[payment-email] template rendered', {

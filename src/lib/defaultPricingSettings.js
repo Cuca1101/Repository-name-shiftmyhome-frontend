@@ -1,4 +1,5 @@
 import { SERVICE_TYPES } from '../constants/serviceTypes'
+import { defaultServicePackages } from './servicePackages'
 
 /**
  * Offline / fallback pricing when Supabase `pricing_settings` is unavailable.
@@ -50,6 +51,9 @@ export function getDefaultPricingSettings() {
     saturdaySurchargePercent: 8,
     sundaySurchargePercent: 10,
     bankHolidaySurchargePercent: 20,
+    /** Badge the cheapest dates on the Step 3 quote calendar. */
+    showCalendarBestPrice: true,
+    servicePackages: defaultServicePackages(),
     extraHelperPrice: 40,
     crewSurchargePerExtraMember: 40,
     fallbackSpeedMph: 30,

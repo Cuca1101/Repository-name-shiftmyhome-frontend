@@ -12,13 +12,13 @@ export default function WhatsAppButton({ variant = 'default' }) {
       rel="noopener noreferrer"
       className={
         quoteFlow
-          ? 'fixed bottom-[max(0.875rem,env(safe-area-inset-bottom,0px))] right-[max(0.375rem,env(safe-area-inset-right,0px))] z-20 flex h-9 w-9 items-center justify-center rounded-full bg-[#25D366] text-white shadow-[0_2px_10px_rgba(37,211,102,0.45)] ring-2 ring-white transition-all hover:bg-[#20bd5a] focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-600 focus-visible:ring-offset-2 md:bottom-8 md:right-8 md:z-40 md:h-16 md:w-16 md:hover:scale-105'
+          ? 'fixed bottom-[max(5.75rem,calc(5.25rem+env(safe-area-inset-bottom,0px)))] right-[max(0.75rem,env(safe-area-inset-right,0px))] z-40 flex h-11 w-11 items-center justify-center rounded-full bg-[#25D366] text-white shadow-[0_4px_14px_rgba(37,211,102,0.55)] ring-2 ring-white transition-all hover:bg-[#20bd5a] focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-600 focus-visible:ring-offset-2 md:bottom-8 md:right-8 md:z-40 md:h-16 md:w-16 md:hover:scale-105'
           : 'fixed bottom-[max(1rem,env(safe-area-inset-bottom,0px))] right-[max(0.75rem,env(safe-area-inset-right,0px))] z-30 flex h-11 w-11 items-center justify-center rounded-full bg-[#25D366] text-white shadow-[0_4px_14px_rgba(37,211,102,0.55)] ring-2 ring-white transition-all hover:bg-[#20bd5a] hover:shadow-[0_6px_20px_rgba(37,211,102,0.6)] focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-600 focus-visible:ring-offset-2 sm:bottom-8 sm:right-8 sm:z-40 sm:h-16 sm:w-16 sm:hover:scale-105'
       }
       aria-label="Chat on WhatsApp"
     >
       <svg
-        className={quoteFlow ? 'h-5 w-5 md:h-9 md:w-9' : 'h-6 w-6 sm:h-9 sm:w-9'}
+        className={quoteFlow ? 'h-6 w-6 md:h-9 md:w-9' : 'h-6 w-6 sm:h-9 sm:w-9'}
         viewBox="0 0 24 24"
         fill="currentColor"
         aria-hidden

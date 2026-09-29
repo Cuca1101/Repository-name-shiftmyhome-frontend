@@ -3,7 +3,7 @@
  * Run: npm run test:pricing
  *
  * Covers anti-stacking rules, floors-only minimums, volume-band-on-volume-only,
- * small-job calibration (~£65 weekday / ~£70 Saturday), and larger-job scaling.
+ * small-job calibration (weekday floor, then Saturday % on top), and larger-job scaling.
  */
 import { pathToFileURL } from 'node:url'
 import { dirname, join } from 'node:path'
@@ -162,20 +162,37 @@ console.log(
 
 approx(A.estimatedTotal, 55, 20, 'A 1 m³ / 5 mi / 1 man / weekday')
 approx(B.estimatedTotal, 65, 5, 'B fridge / 6.3 mi / 2 men / weekday')
-approx(C.estimatedTotal, 70, 5, 'C same as B / Saturday')
+const saturdayOnFloor = Math.round(B.estimatedTotal * (1 + settings.saturdaySurchargePercent / 100) * 100) / 100
+approx(C.estimatedTotal, saturdayOnFloor, 0.02, 'C Saturday is weekday total plus Saturday %')
 assert(D.estimatedTotal > B.estimatedTotal, 'D 5 m³ / 10 mi > small job B')
 assert(E.estimatedTotal > D.estimatedTotal, 'E 10 m³ / 20 mi > D')
 assert(F.estimatedTotal > E.estimatedTotal, 'F 20 m³ / 50 mi > E')
-assert(C.estimatedTotal >= B.estimatedTotal, 'Saturday >= weekday for same job')
+assert(C.estimatedTotal > B.estimatedTotal, 'Saturday price is higher than the same weekday job')
 assert(C.surchargeLines.length === 1, 'Saturday surcharge applied once')
 assert(B.surchargeLines.length === 0, 'weekday has no weekend surcharge')
-// Both hit the 2-man floor (£70); Saturday % is applied before the floor so totals match.
-assert(C.minimumApplied > 0 && B.minimumApplied > 0, 'small MWV jobs sit on the 2-man floor')
+assert(C.minimumApplied > 0 && B.minimumApplied > 0, 'small MWV jobs sit on the 2-man floor before peak %')
 
 console.log('\n=== Henry Gibbs original quote ===')
 console.log('OLD PRICE: £142.31')
 console.log(`NEW PRICE: £${C.estimatedTotal.toFixed(2)}`)
-approx(C.estimatedTotal, 70, 5, 'Henry Gibbs Saturday replay')
+approx(C.estimatedTotal, saturdayOnFloor, 0.02, 'Henry Gibbs Saturday replay includes Saturday %')
+
+const sundayJob = quote({ distanceMiles: 6.3, crewSize: 2, moveDate: '2026-09-20', lineItems: FRIDGE })
+const sundayOnFloor = Math.round(B.estimatedTotal * (1 + settings.sundaySurchargePercent / 100) * 100) / 100
+approx(sundayJob.estimatedTotal, sundayOnFloor, 0.02, 'Sunday is weekday total plus Sunday %')
+assert(sundayJob.estimatedTotal !== C.estimatedTotal, 'Sunday price differs from Saturday')
+
+const bankHolidayJob = quote({ distanceMiles: 6.3, crewSize: 2, moveDate: '2026-11-30', lineItems: FRIDGE })
+const bankOnFloor = Math.round(B.estimatedTotal * (1 + settings.bankHolidaySurchargePercent / 100) * 100) / 100
+approx(bankHolidayJob.estimatedTotal, bankOnFloor, 0.02, 'St Andrew’s Day uses bank holiday % not weekday price')
+assert(
+  bankHolidayJob.surchargeLines.some((l) => /bank holiday/i.test(l.label)),
+  'bank holiday surcharge line present',
+)
+assert(
+  !bankHolidayJob.surchargeLines.some((l) => /saturday|sunday|weekend/i.test(l.label)),
+  'bank holiday replaces weekend surcharge',
+)
 
 console.log('\n=== Floors only (minimums never added) ===')
 const tiny = quote({
@@ -431,6 +448,44 @@ const ground = calculateQuote(settings, {
 })
 assert(ground.accessTotal === 0, 'ground floor still £0 access')
 assert(withLift50.accessTotal > ground.accessTotal, 'etaj + lift is not free like ground')
+
+const {
+  applyServicePackageToQuote,
+  packageFeeForBase,
+  quoteServicePackageTotals,
+  resolveServicePackages,
+  validateServicePackageSettings,
+} = await loadSrc('lib/servicePackages.js')
+const packages = resolveServicePackages(settings)
+const premiumOn85 = applyServicePackageToQuote({ baseTotal: 85, packageId: 'premium', settings, declaredVolumeM3: 0.1 })
+const platinumOn85 = applyServicePackageToQuote({ baseTotal: 85, packageId: 'platinum', settings, declaredVolumeM3: 0.1 })
+const standardOn85 = applyServicePackageToQuote({ baseTotal: 85, packageId: 'standard', settings, declaredVolumeM3: 0.1 })
+approx(standardOn85.finalTotal, 85, 0.001, '£85 standard stays £85')
+approx(premiumOn85.fee, 25, 0.001, '£85 premium fee is the £25 minimum')
+approx(premiumOn85.finalTotal, 110, 0.001, '£85 + premium = £110')
+approx(platinumOn85.fee, 55, 0.001, '£85 platinum fee is the £55 minimum')
+approx(platinumOn85.finalTotal, 140, 0.001, '£85 + platinum = £140')
+const premiumOn300 = packageFeeForBase(300, packages.premium)
+approx(premiumOn300, 36, 0.001, '12% of £300 beats the £25 minimum')
+const once = quoteServicePackageTotals(85, settings)
+assert(once.find((row) => row.id === 'premium').total === 110, 'preview total adds the fee once')
+assert(
+  validateServicePackageSettings({
+    servicePackages: {
+      premium: { ...packages.premium, maxForgottenItems: 8 },
+      platinum: { ...packages.platinum, maxForgottenItems: 4 },
+    },
+  }).some((msg) => /forgotten-item/i.test(msg)),
+  'platinum item limit cannot be below premium',
+)
+const blocked = applyServicePackageToQuote({
+  baseTotal: 85,
+  packageId: 'platinum',
+  settings,
+  declaredVolumeM3: 17.5,
+  vehicleCapacityM3: 18,
+})
+assert(blocked.packageId === 'standard' && blocked.blocked, 'platinum is blocked when the reserve exceeds van capacity')
 
 if (failed > 0) {
   console.error(`\n${failed} assertion(s) failed`)

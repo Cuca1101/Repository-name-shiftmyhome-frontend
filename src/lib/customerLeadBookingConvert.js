@@ -44,6 +44,13 @@ const RESTORABLE_LEAD_STATUSES = new Set([
  * @param {Record<string, unknown> | null | undefined} lead
  * @returns {Record<string, unknown>}
  */
+function packageSnapshotFromLead(lead) {
+  const wd = wizardDataObject(lead)
+  const step3 = wd.step3 && typeof wd.step3 === 'object' ? wd.step3 : null
+  const snap = step3?.servicePackage
+  return snap && typeof snap === 'object' ? snap : null
+}
+
 function wizardDataObject(lead) {
   return lead?.wizard_data && typeof lead.wizard_data === 'object' && !Array.isArray(lead.wizard_data)
     ? { ...lead.wizard_data }
@@ -202,6 +209,12 @@ function buildAdminPhoneBookingFormFromLead(lead, { createdBy, convert = true, f
     `Calculated price: £${(calculated ?? 0).toFixed(2)}`,
     `Admin agreed price: £${(chargeable ?? calculated ?? 0).toFixed(2)}`,
   ]
+  const packageSnap = packageSnapshotFromLead(lead)
+  if (packageSnap?.service_package) {
+    detailsLines.push(
+      `Service package: ${packageSnap.display_name || packageSnap.service_package} (£${Number(packageSnap.service_package_fee || 0).toFixed(2)})`,
+    )
+  }
   if (isOverride && lead.price_override_reason) {
     detailsLines.push(`Price override reason: ${String(lead.price_override_reason).trim()}`)
   }
@@ -281,6 +294,7 @@ function buildLeadUnpaidJobPatch({ summary, chargeable, calculated, lead, create
     price_override_reason: String(lead.price_override_reason || '').trim() || null,
     price_override_by: lead.price_override_by || createdBy || null,
     price_override_at: lead.price_override_at || new Date().toISOString(),
+    ...(packageSnapshotFromLead(lead) ? { service_package_snapshot: packageSnapshotFromLead(lead) } : {}),
     // Production inbox hides archived / test rows — clear so convert is visible.
     archived_for_go_live: false,
     is_test: false,

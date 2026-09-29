@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import AdminRecordsSearchRow from './admin/AdminRecordsSearchRow'
 import {
@@ -95,6 +95,8 @@ export default function CustomerLeadsAdmin() {
   const [rows, setRows] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [selectedIds, setSelectedIds] = useState(() => new Set())
+  const [bulkDeleting, setBulkDeleting] = useState(false)
   const [deletingId, setDeletingId] = useState('')
   const [convertingId, setConvertingId] = useState('')
   const [revertingId, setRevertingId] = useState('')
@@ -142,6 +144,11 @@ export default function CustomerLeadsAdmin() {
       try {
         await deleteCustomerLeadById(String(row.id))
         setRows((prev) => prev.filter((r) => String(r.id) !== String(row.id)))
+        setSelectedIds((prev) => {
+          const next = new Set(prev)
+          next.delete(String(row.id))
+          return next
+        })
       } catch (e) {
         setError(e?.message || 'Failed to delete lead.')
       } finally {
@@ -244,6 +251,74 @@ export default function CustomerLeadsAdmin() {
     [load],
   )
 
+  const visibleIds = useMemo(() => rows.map((row) => String(row.id)), [rows])
+  const selectedVisibleCount = visibleIds.filter((id) => selectedIds.has(id)).length
+  const allVisibleSelected = visibleIds.length > 0 && selectedVisibleCount === visibleIds.length
+
+  const toggleAllVisible = useCallback(() => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      if (visibleIds.length > 0 && visibleIds.every((id) => next.has(id))) {
+        visibleIds.forEach((id) => next.delete(id))
+      } else {
+        visibleIds.forEach((id) => next.add(id))
+      }
+      return next
+    })
+  }, [visibleIds])
+
+  const toggleOne = useCallback((id) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }, [])
+
+  const handleDeleteSelected = useCallback(async () => {
+    const ids = visibleIds.filter((id) => selectedIds.has(id))
+    if (!ids.length || bulkDeleting) return
+    const ok = window.confirm(
+      `Delete ${ids.length} selected lead${ids.length === 1 ? '' : 's'}? This cannot be undone. Linked bookings stay in the system.`,
+    )
+    if (!ok) return
+
+    setBulkDeleting(true)
+    setError('')
+    setActionMsg('')
+    const deleted = []
+    let failed = 0
+    for (const id of ids) {
+      try {
+        await deleteCustomerLeadById(id)
+        deleted.push(id)
+      } catch {
+        failed += 1
+      }
+    }
+    const deletedSet = new Set(deleted)
+    setRows((prev) => prev.filter((row) => !deletedSet.has(String(row.id))))
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      deleted.forEach((id) => next.delete(id))
+      return next
+    })
+    if (failed) {
+      setError(`Could not delete ${failed} lead${failed === 1 ? '' : 's'}.`)
+    }
+    if (deleted.length) {
+      setActionMsg(`Deleted ${deleted.length} lead${deleted.length === 1 ? '' : 's'}.`)
+    }
+    setBulkDeleting(false)
+  }, [bulkDeleting, selectedIds, visibleIds])
+
+  const selectAllRef = useRef(null)
+  useEffect(() => {
+    if (!selectAllRef.current) return
+    selectAllRef.current.indeterminate = selectedVisibleCount > 0 && !allVisibleSelected
+  }, [selectedVisibleCount, allVisibleSelected])
+
   const emptyMessage = useMemo(() => {
     if (loading) return ''
     if (rows.length > 0) return ''
@@ -303,16 +378,42 @@ export default function CustomerLeadsAdmin() {
         </p>
       ) : null}
 
-      <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-card">
+      {selectedVisibleCount > 0 ? (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3">
+          <p className="text-sm font-semibold text-red-900">
+            {selectedVisibleCount} selected
+          </p>
+          <button
+            type="button"
+            disabled={bulkDeleting}
+            onClick={() => void handleDeleteSelected()}
+            className="min-h-[40px] rounded-lg bg-red-700 px-4 py-2 text-sm font-semibold text-white hover:bg-red-800 disabled:opacity-50"
+          >
+            {bulkDeleting ? 'Deleting…' : 'Delete selected'}
+          </button>
+        </div>
+      ) : null}
+
+      <div className="min-w-0 rounded-2xl border border-slate-200 bg-white shadow-card">
         {loading ? (
           <p className="p-8 text-center text-slate-500">Loading…</p>
         ) : emptyMessage ? (
           <p className="p-8 text-center text-slate-600">{emptyMessage}</p>
         ) : (
-          <div className="overflow-x-auto">
+          <div className="max-h-[calc(100dvh-12rem)] min-w-0 overflow-auto overscroll-contain">
             <table className="w-full min-w-[1240px] text-left text-sm">
-              <thead className="border-b border-slate-200 bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-500">
+              <thead className="sticky top-0 z-20 border-b border-slate-200 bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-500">
                 <tr>
+                  <th className="sticky left-0 z-30 bg-slate-50 px-3 py-3">
+                    <input
+                      ref={selectAllRef}
+                      type="checkbox"
+                      checked={allVisibleSelected}
+                      onChange={toggleAllVisible}
+                      aria-label="Select all leads on this page"
+                      className="h-4 w-4 rounded border-slate-300"
+                    />
+                  </th>
                   <th className="px-4 py-3">Lead ref</th>
                   <th className="px-4 py-3">Name</th>
                   <th className="px-4 py-3">Phone</th>
@@ -329,6 +430,8 @@ export default function CustomerLeadsAdmin() {
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {rows.map((row) => {
+                  const rowId = String(row.id)
+                  const selected = selectedIds.has(rowId)
                   const eff = row.effective_status || row.status
                   const converted = leadIsConverted(row)
                   const phone = row.customer_phone
@@ -337,9 +440,19 @@ export default function CustomerLeadsAdmin() {
                   const emailHref = mailHref(email)
                   const busyConvert = convertingId === String(row.id)
                   const busyRevert = revertingId === String(row.id)
+                  const rowBg = selected ? 'bg-red-50' : 'bg-white'
 
                   return (
-                    <tr key={row.id} className="align-top text-slate-800">
+                    <tr key={row.id} className={`align-top text-slate-800 ${selected ? 'bg-red-50' : ''}`}>
+                      <td className={`sticky left-0 z-10 px-3 py-3 ${rowBg}`}>
+                        <input
+                          type="checkbox"
+                          checked={selected}
+                          onChange={() => toggleOne(rowId)}
+                          aria-label={`Select ${row.lead_ref || 'lead'}`}
+                          className="h-4 w-4 rounded border-slate-300"
+                        />
+                      </td>
                       <td className="px-4 py-3">
                         <Link
                           to={`/admin/customer-leads/${row.id}`}
@@ -387,7 +500,7 @@ export default function CustomerLeadsAdmin() {
                       <td className="whitespace-nowrap px-4 py-3 text-xs text-slate-500">
                         {formatDateTimeUK(row.created_at)}
                       </td>
-                      <td className="sticky right-0 bg-white px-4 py-3 shadow-[-8px_0_8px_-8px_rgba(15,23,42,0.15)]">
+                      <td className={`sticky right-0 px-4 py-3 shadow-[-8px_0_8px_-8px_rgba(15,23,42,0.15)] ${rowBg}`}>
                         <div className="flex flex-wrap gap-1.5">
                           {callHref ? (
                             <a
@@ -434,7 +547,7 @@ export default function CustomerLeadsAdmin() {
                           )}
                           <button
                             type="button"
-                            disabled={deletingId === String(row.id)}
+                            disabled={bulkDeleting || deletingId === String(row.id)}
                             onClick={() => handleDeleteLead(row)}
                             className="rounded-lg border border-red-200 bg-red-50 px-2 py-1 text-[11px] font-semibold text-red-800 hover:bg-red-100 disabled:opacity-50"
                           >

@@ -22,6 +22,7 @@ export default function PaymentSuccessPage() {
   const [params] = useSearchParams()
   const paymentIntentId = params.get('payment_intent')
   const [quoteRef, setQuoteRef] = useState(null)
+  const [packageSummary, setPackageSummary] = useState('')
   const [photoUploadNotice, setPhotoUploadNotice] = useState(() => consumePhotoUploadNotice())
   const [copied, setCopied] = useState(false)
   const successContentRef = useRef(null)
@@ -41,6 +42,15 @@ export default function PaymentSuccessPage() {
         if (!cancelled && data?.quote_ref && typeof data.quote_ref === 'string') {
           const ref = data.quote_ref.trim()
           setQuoteRef(ref)
+          const packageName = typeof data.service_package === 'string' ? data.service_package.trim() : ''
+          const packageFee = Number(data.service_package_fee)
+          const paidGbp = Number(data.amount_gbp)
+          if (packageName) {
+            const label = packageName.charAt(0).toUpperCase() + packageName.slice(1)
+            const feeLabel = Number.isFinite(packageFee) && packageFee > 0 ? ` upgrade £${packageFee.toFixed(2)}` : ''
+            const totalLabel = Number.isFinite(paidGbp) && paidGbp > 0 ? ` · Total £${paidGbp.toFixed(2)}` : ''
+            setPackageSummary(`${label}${feeLabel}${totalLabel}`)
+          }
           clearQuoteDraft()
           trackWebsiteLeadEvent('payment_completed', {
             quoteRef: ref,
@@ -155,6 +165,7 @@ export default function PaymentSuccessPage() {
             {paymentIntentId ? (
               <>
                 <p>Thank you — your payment has been received.</p>
+                {packageSummary ? <p className="font-semibold text-slate-800">{packageSummary}</p> : null}
 
                 {quoteRef ? (
                   <div

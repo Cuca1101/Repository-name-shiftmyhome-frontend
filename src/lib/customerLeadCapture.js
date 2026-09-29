@@ -95,7 +95,8 @@ function buildStep3Snapshot(wizard, extras = {}) {
   return {
     selectedMoveDate: wizard.moveDate ?? '',
     estimatedTotal: extras.estimatedTotal ?? null,
-    packageTier: wizard.packageTier ?? '',
+    packageTier: wizard.packageTier ?? 'standard',
+    servicePackage: extras.servicePackageSnapshot || null,
     crewSize: wizard.crewSize ?? null,
     specialInstructions: wizard.specialInstructions ?? '',
     heavyNotes: wizard.heavyNotes ?? '',
@@ -141,6 +142,7 @@ export function buildCustomerLeadUpsertPayload({
   entryPoint = 'quote_wizard',
   estimatedTotal = null,
   totalM3 = null,
+  servicePackageSnapshot = null,
   quoteId = null,
   currentStatus = 'new_lead',
   paymentPhase = 'none',
@@ -184,7 +186,7 @@ export function buildCustomerLeadUpsertPayload({
     wizard_data: {
       step1: buildStep1Snapshot(w),
       step2: buildStep2Snapshot(w, totalM3),
-      step3: buildStep3Snapshot(w, { estimatedTotal }),
+      step3: buildStep3Snapshot(w, { estimatedTotal, servicePackageSnapshot }),
       capturedAt: new Date().toISOString(),
     },
   }

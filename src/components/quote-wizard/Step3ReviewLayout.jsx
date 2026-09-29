@@ -1,6 +1,7 @@
 import { Lock, ShieldCheck, Tag } from 'lucide-react'
 import QuoteReviewPriceCalendar from './QuoteReviewPriceCalendar'
 import QuoteReviewYourMoveCard from './QuoteReviewYourMoveCard'
+import QuoteServicePackagePicker from './QuoteServicePackagePicker'
 import Step3Details from './steps/Step3Details'
 
 /** Step 3 — choose date/price slot and optional move extras (payment is Step 4). */
@@ -35,6 +36,18 @@ export default function Step3ReviewLayout({
   return (
     <div data-quote-step="3" className="min-w-0 max-w-full">
       <QuoteReviewPriceCalendar {...calendarProps} />
+
+      <QuoteServicePackagePicker
+        packageId={breakdown?.servicePackageId || wizard?.packageTier || 'standard'}
+        baseTotal={
+          breakdown?.quoteBaseTotal != null && Number.isFinite(breakdown.quoteBaseTotal)
+            ? breakdown.quoteBaseTotal
+            : breakdown?.estimatedTotal
+        }
+        declaredVolumeM3={totalM3}
+        pricingSettings={settings}
+        onChange={(packageTier) => onWizardChange?.((prev) => ({ ...prev, packageTier }))}
+      />
 
       <div className="mt-4 md:hidden">
         <QuoteReviewYourMoveCard

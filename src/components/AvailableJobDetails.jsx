@@ -38,6 +38,7 @@ import AdminJobEmailsSentPanel from './admin-workflow/AdminJobEmailsSentPanel'
 import JobDispatchControlPanel from './admin-workflow/JobDispatchControlPanel'
 import JobDispatchDetailExtras from './admin-workflow/JobDispatchDetailExtras'
 import JobExtraChargesPanel from './admin-workflow/JobExtraChargesPanel'
+import ServicePackageAllowanceCard from './admin-workflow/ServicePackageAllowanceCard'
 import JobAcceptedPayoutEditor from './admin-workflow/JobAcceptedPayoutEditor'
 import {
   fetchBookingWorkflowByQuoteIds,
@@ -545,6 +546,11 @@ export default function AvailableJobDetails() {
             onReload={load}
             onNotify={showToast}
           />
+          {fullPageDispatch || tab === 'overview' ? (
+            <ServicePackageAllowanceCard
+              snapshot={q?.service_package_snapshot || q?.price_breakdown?.servicePackageSnapshot}
+            />
+          ) : null}
           {fullPageDispatch || tab === 'overview' ? (
             <AdminCard title="Driver extra charges (audit)">
               <JobExtraChargesPanel

@@ -88,10 +88,26 @@ export default function QuoteReviewYourMoveCard({
           )
         })}
       </ul>
-      <div className="mt-4 flex items-end justify-between gap-3 border-t border-slate-100 pt-3">
-        <span className="text-sm font-semibold text-slate-700">Total</span>
-        <span className="text-2xl font-bold tabular-nums text-slate-900">{totalFormatted}</span>
-      </div>
+      <dl className="mt-4 space-y-1.5 border-t border-slate-100 pt-3 text-sm">
+        <div className="flex items-baseline justify-between gap-3">
+          <dt className="text-slate-600">Move price</dt>
+          <dd className="font-semibold tabular-nums text-slate-900">
+            {breakdown?.quoteBaseTotal != null && Number.isFinite(breakdown.quoteBaseTotal)
+              ? `£${breakdown.quoteBaseTotal.toFixed(2)}`
+              : totalFormatted}
+          </dd>
+        </div>
+        {breakdown?.servicePackageFee > 0 ? (
+          <div className="flex items-baseline justify-between gap-3">
+            <dt className="text-slate-600">{breakdown.servicePackageUpgradeLabel || 'Package upgrade'}</dt>
+            <dd className="font-semibold tabular-nums text-slate-900">£{breakdown.servicePackageFee.toFixed(2)}</dd>
+          </div>
+        ) : null}
+        <div className="flex items-end justify-between gap-3 pt-1">
+          <dt className="font-semibold text-slate-800">Total</dt>
+          <dd className="text-2xl font-bold tabular-nums text-slate-900">{totalFormatted}</dd>
+        </div>
+      </dl>
       <QuotePromoPriceReduction
         promoCode={wizard?.promoCode}
         pricingSettings={pricingSettings}

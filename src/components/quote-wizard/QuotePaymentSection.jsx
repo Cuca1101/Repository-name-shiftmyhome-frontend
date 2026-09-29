@@ -282,8 +282,20 @@ export default function QuotePaymentSection({
         {estimatedTotal != null && Number.isFinite(estimatedTotal) ? (
           <div className="mt-3 space-y-2 md:mt-4">
             <dl className="space-y-1.5 rounded-lg border border-emerald-100/90 bg-emerald-50/50 px-3 py-2.5 text-sm">
+              {breakdown?.quoteBaseTotal != null && Number.isFinite(breakdown.quoteBaseTotal) ? (
+                <div className="flex items-baseline justify-between gap-3">
+                  <dt className="font-medium text-slate-800">Move price</dt>
+                  <dd className="tabular-nums text-slate-900">£{breakdown.quoteBaseTotal.toFixed(2)}</dd>
+                </div>
+              ) : null}
+              {breakdown?.servicePackageFee > 0 ? (
+                <div className="flex items-baseline justify-between gap-3">
+                  <dt className="font-medium text-slate-800">{breakdown.servicePackageUpgradeLabel || 'Package upgrade'}</dt>
+                  <dd className="tabular-nums text-slate-900">£{breakdown.servicePackageFee.toFixed(2)}</dd>
+                </div>
+              ) : null}
               <div className="flex items-baseline justify-between gap-3">
-                <dt className="font-medium text-slate-800">Estimated total</dt>
+                <dt className="font-medium text-slate-800">Total</dt>
                 <dd className="font-bold tabular-nums text-emerald-700">{totalFormatted}</dd>
               </div>
             </dl>

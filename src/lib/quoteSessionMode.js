@@ -39,6 +39,23 @@ export function clearResumeSavedQuote() {
   session()?.removeItem(QUOTE_RESUME_SESSION_KEY)
 }
 
+/** Quote ref of the wizard currently on screen. Empty after the customer leaves it. */
+let activeQuoteWizardRef = ''
+
+export function rememberActiveQuoteWizardRef(quoteRef) {
+  activeQuoteWizardRef = String(quoteRef || '')
+}
+
+export function setActiveQuoteWizardRef(quoteRef) {
+  rememberActiveQuoteWizardRef(quoteRef)
+  if (typeof window === 'undefined') return
+  window.dispatchEvent(new Event('shiftmyhome-quote-draft'))
+}
+
+export function getActiveQuoteWizardRef() {
+  return activeQuoteWizardRef
+}
+
 /** Hide homepage reminder for this browser tab/session only. */
 export function dismissQuoteBannerForSession() {
   session()?.setItem(QUOTE_BANNER_DISMISS_KEY, '1')

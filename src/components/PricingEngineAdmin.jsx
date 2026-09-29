@@ -7,6 +7,8 @@ import { getDefaultPricingSettings } from '../lib/defaultPricingSettings'
 import { labelForPricingSettingKey } from '../lib/pricingEngineFieldLabels'
 import DriverAppExtraChargePricingPanel from './admin/DriverAppExtraChargePricingPanel'
 import { listUpcomingScottishBankHolidays } from '../lib/ukBankHolidays'
+import ServicePackagesAdminSection from './admin/ServicePackagesAdminSection'
+import { validateServicePackageSettings } from '../lib/servicePackages'
 
 /** Do not calculate pricing in UI components. Use shared pricing engine only. */
 
@@ -28,6 +30,7 @@ export default function PricingEngineAdmin() {
   const [message, setMessage] = useState({ type: '', text: '' })
   /** @type {[string[], (keys: string[]) => void]} */
   const [missingDbKeys, setMissingDbKeys] = useState([])
+  const [savedPackageJson, setSavedPackageJson] = useState('')
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -36,6 +39,7 @@ export default function PricingEngineAdmin() {
       if (result && typeof result === 'object' && 'settings' in result) {
         setSettings(result.settings)
         setMissingDbKeys(result.missingKeys || [])
+        setSavedPackageJson(JSON.stringify(result.settings?.servicePackages || {}))
       } else {
         setSettings(result)
         setMissingDbKeys([])
@@ -122,6 +126,12 @@ export default function PricingEngineAdmin() {
     e.preventDefault()
     setSaving(true)
     setMessage({ type: '', text: '' })
+    const packageErrors = validateServicePackageSettings(settings)
+    if (packageErrors.length) {
+      setSaving(false)
+      setMessage({ type: 'error', text: packageErrors[0] })
+      return
+    }
     try {
       const toSave = {
         ...settings,
@@ -132,6 +142,7 @@ export default function PricingEngineAdmin() {
       if (reloaded && typeof reloaded === 'object' && 'settings' in reloaded) {
         setSettings(reloaded.settings)
         setMissingDbKeys(reloaded.missingKeys || [])
+        setSavedPackageJson(JSON.stringify(reloaded.settings?.servicePackages || {}))
       } else {
         setSettings(reloaded)
         setMissingDbKeys([])
@@ -589,6 +600,20 @@ export default function PricingEngineAdmin() {
               />
             </Field>
           </div>
+          <label className="mt-4 flex items-start gap-3 rounded-xl border border-emerald-200 bg-emerald-50/70 px-4 py-3">
+            <input
+              type="checkbox"
+              className="mt-1 h-4 w-4 rounded border-slate-300"
+              checked={settings.showCalendarBestPrice !== false}
+              onChange={(e) => setBool('showCalendarBestPrice', e.target.checked)}
+            />
+            <span>
+              <span className="block text-sm font-semibold text-slate-900">Show best price on the calendar</span>
+              <span className="mt-0.5 block text-xs leading-relaxed text-slate-600">
+                Marks the cheapest dates in the Step 3 quote calendar as Best price. Turn off to hide the badge.
+              </span>
+            </span>
+          </label>
           <div className="mt-4 rounded-xl border border-brand-100 bg-white/80 px-4 py-3">
             <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
               Upcoming Scottish bank holidays
@@ -607,6 +632,14 @@ export default function PricingEngineAdmin() {
             </p>
           </div>
         </div>
+
+        <ServicePackagesAdminSection
+          settings={settings}
+          onChange={setSettings}
+          dirty={JSON.stringify(settings.servicePackages || {}) !== savedPackageJson}
+          saving={saving}
+          message={message}
+        />
 
         <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-card">
           <h3 className="text-lg font-semibold text-slate-900">Extras & surcharges</h3>

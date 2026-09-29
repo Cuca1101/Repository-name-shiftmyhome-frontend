@@ -11,7 +11,6 @@ import SupportCTASection from '../components/SupportCTASection'
 import PricingPreview from '../components/PricingPreview'
 import CoverageHomeSection from '../components/CoverageHomeSection'
 import ContactSection from '../components/ContactSection'
-import ContinueQuoteBanner from '../components/ContinueQuoteBanner'
 
 const mobileSecondarySections = (
   <>
@@ -26,7 +25,6 @@ export default function HomePage() {
   return (
     <PublicLayout>
       <div className="bg-white">
-        <ContinueQuoteBanner />
         {/* Mobile: hero → services → how it works → prices → quote request → reviews → rest */}
         <div className="block md:hidden">
           <Hero />
