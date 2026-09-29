@@ -2,7 +2,10 @@
  * Cloudflare Pages middleware:
  * 1) SPA deep-link fallback for email / portal routes (avoid generic 404.html)
  * 2) Legacy SEO URL redirects
+ * 3) Document CSP and microphone permission for the admin CCP
  */
+
+import { DOCUMENT_CSP, DOCUMENT_PERMISSIONS, withDocumentSecurity } from './_shared/documentSecurity.js'
 
 /** @param {string} origin @param {string} path */
 function redirect(origin, path) {
@@ -16,6 +19,11 @@ export async function onRequest(context) {
   const url = new URL(context.request.url)
   const path = url.pathname.replace(/\/+$/, '') || '/'
   const origin = url.origin
+
+  // Admin call-history APIs live under /api and must not be replaced by the SPA shell.
+  if (path === '/api' || path.startsWith('/api/')) {
+    return context.next()
+  }
 
   // --- Customer / admin SPA deep links (must not hit 404.html) ---
   const isSpa =
@@ -37,6 +45,8 @@ export async function onRequest(context) {
       headers: {
         'content-type': shell.headers.get('content-type') || 'text/html; charset=utf-8',
         'cache-control': 'no-store',
+        'content-security-policy': DOCUMENT_CSP,
+        'permissions-policy': DOCUMENT_PERMISSIONS,
       },
     })
   }
@@ -59,5 +69,5 @@ export async function onRequest(context) {
   m = path.match(/^\/([a-z0-9-]+)-man-with-van$/)
   if (m) return redirect(origin, `/man-with-van-${m[1]}/`)
 
-  return context.next()
+  return withDocumentSecurity(await context.next())
 }

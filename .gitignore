@@ -1,6 +1,7 @@
 node_modules
 dist
 .env
+.dev.vars
 .DS_Store
 
 # Accidental nested clones / deploy copies (must not be tracked as submodules)

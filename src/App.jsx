@@ -1,3 +1,4 @@
+import { lazy, Suspense } from 'react'
 import { Navigate, Route, Routes, useParams } from 'react-router-dom'
 import WebsiteLeadPageTracker from './components/WebsiteLeadPageTracker'
 import PublicMarketingTracker from './components/PublicMarketingTracker'
@@ -58,6 +59,8 @@ import PaymentSuccessPage from './pages/PaymentSuccessPage'
 import PaymentCancelledPage from './pages/PaymentCancelledPage'
 import SeoLandingPage from './pages/SeoLandingPage'
 import NotFoundPage from './pages/NotFoundPage'
+
+const AdminCallCentrePage = lazy(() => import('./pages/AdminCallCentrePage'))
 import { SEO_PAGE_PATHS } from './data/seoPages'
 import { withTrailingSlashVariants } from './lib/normalizePublicPath'
 
@@ -219,6 +222,24 @@ export default function App() {
       >
         <Route index element={<AdminHome />} />
         <Route path="analytics" element={<AdminAnalyticsPage />} />
+        <Route
+          path="calls"
+          element={
+            <Suspense
+              fallback={
+                <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white p-8 text-slate-500 shadow-sm">
+                  <span
+                    className="h-5 w-5 animate-spin rounded-full border-2 border-slate-200 border-t-brand-600"
+                    aria-hidden
+                  />
+                  Loading Call Centre…
+                </div>
+              }
+            >
+              <AdminCallCentrePage />
+            </Suspense>
+          }
+        />
         <Route path="operations-map" element={<OperationsMapPage />} />
         <Route path="available-jobs/:id" element={<AvailableJobDetails />} />
         <Route path="available-jobs" element={<AvailableJobsAdmin />} />
