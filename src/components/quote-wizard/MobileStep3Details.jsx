@@ -7,7 +7,7 @@ import {
 import MobileStepTitleWithRef from './MobileStepTitleWithRef'
 import { reassemblySameAsDismantlingPatch } from '../../lib/quoteWizardReassembly'
 import AddressConfirmationSection from './AddressConfirmationSection'
-import PickupDeliveryContactsSection from './PickupDeliveryContactsSection'
+import QuoteSpecialInstructionsField from './QuoteSpecialInstructionsField'
 import PackingMaterialsSection from './PackingMaterialsSection'
 import { applyWizardPatch } from '../../lib/wizardStateUpdate'
 import { quoteMobileInput, quoteMobileLabel } from '../../lib/quoteMobileUiClasses'
@@ -233,7 +233,6 @@ export default function MobileStep3Details({
         </div>
       ) : null}
 
-      <PickupDeliveryContactsSection data={data} onChange={onChange} variant="mobile" />
       </ReviewGroup>
 
       <ReviewGroup
@@ -252,6 +251,8 @@ export default function MobileStep3Details({
       />
       </ReviewGroup>
 
+      <QuoteSpecialInstructionsField data={data} onChange={onChange} variant="mobile" />
+
       {validationMessage ? (
         <p
           className="quote-error rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-medium text-red-800"
@@ -263,19 +264,6 @@ export default function MobileStep3Details({
       ) : null}
 
       <ReviewGroup accordion={accordionLayout} title="Optional extras" icon={Plus} defaultOpen={false}>
-      <div className={`${card} p-2.5 md:p-3`}>
-        <label className="block">
-          <span className="text-xs font-bold text-slate-900 md:text-sm">Special instructions</span>
-          <textarea
-            rows={3}
-            value={data.specialInstructions}
-            onChange={(e) => set({ specialInstructions: e.target.value })}
-            className={`${input} mt-2`}
-            placeholder="e.g. fragile items, narrow access, parking restrictions…"
-          />
-        </label>
-      </div>
-
       <div className={`${card} p-2.5 md:p-3`}>
         <div className="flex items-start gap-2.5">
           <div

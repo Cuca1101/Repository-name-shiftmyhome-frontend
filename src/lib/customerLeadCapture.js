@@ -4,6 +4,11 @@
 import { maxCustomerLeadStatus } from './customerLeadStatus'
 import { formatWizardArrivalSummary } from './emailQuotePayload'
 import { normalizeServiceType } from './normalizeServiceType'
+import {
+  isDropoffSameAsPickup,
+  resolveDeliveryContact,
+  resolvePickupContact,
+} from './quoteWizardContactFields'
 
 /**
  * @param {{
@@ -92,6 +97,8 @@ function buildStep2Snapshot(wizard, totalM3) {
  * @param {Record<string, unknown>} wizard
  */
 function buildStep3Snapshot(wizard, extras = {}) {
+  const pickup = resolvePickupContact(wizard)
+  const delivery = resolveDeliveryContact(wizard)
   return {
     selectedMoveDate: wizard.moveDate ?? '',
     estimatedTotal: extras.estimatedTotal ?? null,
@@ -110,10 +117,13 @@ function buildStep3Snapshot(wizard, extras = {}) {
     reassembly: wizard.reassembly ?? false,
     reassemblyItemCount: wizard.reassemblyItemCount ?? 0,
     reassemblyWhat: wizard.reassemblyWhat ?? '',
-    pickupContactName: wizard.pickupContactName ?? '',
-    pickupContactPhone: wizard.pickupContactPhone ?? '',
-    deliveryContactName: wizard.deliveryContactName ?? '',
-    deliveryContactPhone: wizard.deliveryContactPhone ?? '',
+    pickupContactName: pickup.name,
+    pickupContactPhone: pickup.phone,
+    deliveryContactName: delivery.name,
+    deliveryContactPhone: delivery.phone,
+    dropoffSameAsPickup: isDropoffSameAsPickup(wizard),
+    pickupFlatDetails: wizard.pickupFlatDetails ?? '',
+    deliveryFlatDetails: wizard.deliveryFlatDetails ?? '',
     promoCode: wizard.promoCode ?? '',
   }
 }

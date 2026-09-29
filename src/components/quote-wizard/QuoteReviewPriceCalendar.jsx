@@ -19,6 +19,8 @@ import {
   parseIsoDateParts,
 } from '../../lib/quoteReviewPriceOptions'
 import { alignReviewOptionsToLockedTotal } from '../../lib/quoteResumePriceLock'
+import { isCalendarBestPriceDate, resolveDaySlotAvailability } from '../../lib/calendarDayPricing'
+import { useQuoteDaySlotCounts } from '../../hooks/useQuoteDaySlotCounts'
 import { useQuoteMoveWeather } from '../../hooks/useQuoteMoveWeather'
 import QuotePromoPriceReduction, { QuotePromoCalendarPrice } from './QuotePromoPriceReduction'
 import QuoteReviewPriceCard from './QuoteReviewPriceCard'
@@ -156,6 +158,27 @@ export default function QuoteReviewPriceCalendar({
   ])
 
   const selectedOptionId = useMemo(() => getQuoteReviewSelectedOptionId(wizard), [wizard])
+  const { counts: slotCounts, loaded: slotCountsLoaded } = useQuoteDaySlotCounts(
+    weekDates[0] || '',
+    weekEnd,
+    pricingSettings,
+  )
+
+  function slotFor(iso) {
+    const booked = slotCountsLoaded ? slotCounts[iso] || 0 : 0
+    const slot = resolveDaySlotAvailability(pricingSettings, iso, booked)
+    if (!slotCountsLoaded && slot.limited && slot.capacity > 0) {
+      return { ...slot, full: false, remaining: slot.capacity }
+    }
+    return slot
+  }
+
+  function slotLabelFor(iso) {
+    const slot = slotFor(iso)
+    if (!slot.limited) return ''
+    if (slot.full) return 'Full'
+    return slotCountsLoaded ? `${slot.remaining} left` : `${slot.capacity} slots`
+  }
 
   useEffect(() => {
     if (weekGrid || !compact || !scrollRef.current) return
@@ -171,29 +194,13 @@ export default function QuoteReviewPriceCalendar({
         ? breakdown.estimatedTotal
         : null
 
-  const bestPriceDates = useMemo(() => {
-    if (pricingSettings?.showCalendarBestPrice === false) return new Set()
-    const priced = []
-    for (const option of options) {
-      if (!option?.moveDate || option.moveDate < todayIso) continue
-      const selected = option.id === selectedOptionId
-      const price = selected && selectedTotal != null ? selectedTotal : option.estimatedTotal
-      if (price == null || !Number.isFinite(price)) continue
-      priced.push({ moveDate: option.moveDate, price })
-    }
-    if (priced.length < 2) return new Set()
-    const min = Math.min(...priced.map((row) => row.price))
-    const max = Math.max(...priced.map((row) => row.price))
-    if (max - min < 0.009) return new Set()
-    return new Set(
-      priced.filter((row) => Math.abs(row.price - min) < 0.009).map((row) => row.moveDate),
-    )
-  }, [options, pricingSettings?.showCalendarBestPrice, selectedOptionId, selectedTotal, todayIso])
+  const showPriceLabels = pricingSettings?.showCalendarBestPrice !== false
   const totalFormatted =
     selectedTotal != null ? `£${selectedTotal.toFixed(2)}` : breakdown ? 'Calculating…' : '—'
 
   function handleSelect(option) {
-    if (typeof onWizardChange !== 'function') return
+    if (typeof onWizardChange !== 'function' || !option) return
+    if (slotFor(option.moveDate).full) return
     onWizardChange((prev) => applyQuoteReviewPriceSelection(prev, option.arrivalPatch))
   }
 
@@ -258,16 +265,18 @@ export default function QuoteReviewPriceCalendar({
             Add a valid move date on step 1 to see price options here.
           </p>
         ) : (
-          <div className="grid grid-cols-7 gap-1 sm:gap-2" role="listbox" aria-label="Move date prices">
+          <div className="grid grid-cols-7 gap-1.5 sm:gap-2.5 md:gap-3" role="listbox" aria-label="Move date prices">
             {weekDates.map((iso) => {
               const option = optionByDate.get(iso)
               const parts = formatReviewCalendarParts(iso)
               const past = iso < todayIso
               const selected = Boolean(option && option.id === selectedOptionId)
-              const weekend = isReviewWeekendIso(iso)
               const price = selected && selectedTotal != null ? selectedTotal : option?.estimatedTotal
-              const isBest = bestPriceDates.has(iso)
-              const disabled = past || !option
+              const isBest = Boolean(option && isCalendarBestPriceDate(pricingSettings, iso))
+              const isWeekend = isReviewWeekendIso(iso)
+              const slot = slotFor(iso)
+              const disabled = past || !option || slot.full
+              const priceTone = isBest ? 'best' : isWeekend ? 'weekend' : 'standard'
               return (
                 <button
                   key={iso}
@@ -277,37 +286,53 @@ export default function QuoteReviewPriceCalendar({
                   aria-disabled={disabled}
                   disabled={disabled}
                   onClick={() => option && handleSelect(option)}
-                  className={`relative flex min-h-[52px] min-w-0 flex-col items-center justify-center overflow-hidden rounded-xl border px-0.5 py-1 text-center transition md:min-h-[108px] md:rounded-2xl md:px-1.5 md:py-2 ${
+                  className={`relative flex min-h-[84px] min-w-0 flex-col items-center justify-center overflow-hidden rounded-xl border px-0.5 py-1.5 text-center transition md:min-h-[168px] md:rounded-2xl md:px-2 md:py-3 ${
                     selected
-                      ? 'border-blue-600 bg-blue-50 shadow-sm ring-1 ring-blue-600'
-                      : isBest
-                        ? 'border-emerald-300 bg-emerald-50/70 hover:border-emerald-400'
-                        : weekend
-                          ? 'border-slate-200 bg-slate-50 hover:border-blue-200'
-                          : 'border-slate-200 bg-white hover:border-blue-200'
+                      ? isWeekend
+                        ? 'border-blue-600 bg-red-50 shadow-sm ring-1 ring-blue-600'
+                        : 'border-blue-600 bg-blue-50 shadow-sm ring-1 ring-blue-600'
+                      : isWeekend && option && !past
+                        ? 'border-red-200 bg-red-50 hover:border-red-300'
+                        : isBest
+                          ? 'border-orange-300 bg-orange-50 hover:border-orange-400'
+                          : option && !past
+                            ? 'border-emerald-300 bg-emerald-50/80 hover:border-emerald-400'
+                            : 'border-slate-200 bg-white'
                   } ${disabled ? 'cursor-not-allowed opacity-50 hover:border-slate-200' : ''}`}
                 >
                   {selected ? (
                     <Check className="absolute right-1 top-1 h-3.5 w-3.5 text-blue-600 md:h-4 md:w-4" aria-hidden />
                   ) : null}
-                  <span className="text-[9px] font-semibold leading-none text-slate-500 md:text-[11px]">
+                  <span className="text-xs font-extrabold leading-none text-black md:text-sm">
                     {parts.weekdayShort}
                   </span>
-                  <span className={`mt-0.5 text-sm font-bold leading-none md:text-lg ${past ? 'text-slate-300' : 'text-slate-900'}`}>
+                  <span className={`mt-0.5 text-lg font-extrabold leading-none md:text-2xl ${past ? 'text-slate-300' : 'text-black'}`}>
                     {parts.dayNum}
                   </span>
-                  <span className="mt-0.5 hidden text-[11px] font-medium text-slate-500 md:block">{parts.monthShort}</span>
-                  <span className="mt-1 hidden text-[10px] leading-tight text-slate-500 md:block">{arrivalLabel}</span>
-                  {isBest ? (
-                    <span className="mt-1 max-w-full truncate rounded bg-emerald-600 px-1 text-[8px] font-bold uppercase leading-tight tracking-wide text-white md:text-[9px]">
-                      <span className="md:hidden">Best</span>
-                      <span className="hidden md:inline">Best price</span>
+                  <span className="mt-0.5 hidden text-sm font-bold text-slate-700 md:block">{parts.monthShort}</span>
+                  <span className="mt-1 hidden text-[11px] leading-tight text-slate-500 md:block">{arrivalLabel}</span>
+                  {showPriceLabels && option && !past ? (
+                    <span
+                      className={`mt-1.5 max-w-full truncate rounded px-1 py-0.5 text-[8px] font-bold uppercase leading-tight tracking-wide md:text-[10px] ${
+                        isBest
+                          ? 'bg-orange-500 text-white'
+                          : isWeekend
+                            ? 'bg-red-200 text-red-800'
+                            : 'bg-emerald-600 text-white'
+                      }`}
+                    >
+                      <span className="md:hidden">{isBest ? 'Best' : isWeekend ? 'Wkd' : 'Std'}</span>
+                      <span className="hidden md:inline">{isBest ? 'Best price' : isWeekend ? 'Weekend' : 'Standard price'}</span>
                     </span>
                   ) : null}
                   {price != null && Number.isFinite(price) ? (
                     <span className="mt-1 w-full">
                       {selected ? (
-                        <span className="block text-[10px] font-extrabold tabular-nums text-emerald-700 md:text-sm">
+                        <span
+                          className={`block text-[11px] font-extrabold tabular-nums md:text-base ${
+                            isBest ? 'text-orange-600' : isWeekend ? 'text-red-700' : 'text-emerald-700'
+                          }`}
+                        >
                           £{price.toFixed(2)}
                         </span>
                       ) : (
@@ -317,9 +342,17 @@ export default function QuoteReviewPriceCalendar({
                           priceWithPromo={option?.estimatedTotal}
                           priceWithoutPromo={option?.estimatedTotalWithoutPromo}
                           selected={false}
-                          className="text-[10px] font-extrabold text-emerald-700 md:text-sm"
+                          priceTone={priceTone}
+                          className={`text-[11px] font-extrabold md:text-base ${
+                            isBest ? 'text-orange-600' : isWeekend ? 'text-red-700' : 'text-emerald-700'
+                          }`}
                         />
                       )}
+                    </span>
+                  ) : null}
+                  {slot.limited && option && !past ? (
+                    <span className="mt-1 max-w-full truncate text-[11px] font-extrabold leading-tight text-black md:text-sm">
+                      {slot.full ? 'Full' : slotCountsLoaded ? `${slot.remaining} left` : `${slot.capacity} slots`}
                     </span>
                   ) : null}
                   {selected ? (
@@ -332,6 +365,22 @@ export default function QuoteReviewPriceCalendar({
             })}
           </div>
         )}
+        {showPriceLabels ? (
+          <div className="mt-3 flex flex-wrap gap-2 text-[11px] font-semibold">
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-orange-50 px-2 py-1 text-orange-700">
+              <span className="h-2 w-2 rounded-full bg-orange-500" aria-hidden />
+              Best price
+            </span>
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2 py-1 text-emerald-700">
+              <span className="h-2 w-2 rounded-full bg-emerald-600" aria-hidden />
+              Standard price
+            </span>
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-red-50 px-2 py-1 text-red-700">
+              <span className="h-2 w-2 rounded-full bg-red-300" aria-hidden />
+              Weekend
+            </span>
+          </div>
+        ) : null}
       </section>
     )
   }
@@ -359,6 +408,14 @@ export default function QuoteReviewPriceCalendar({
       key={option.id}
       option={option}
       selected={option.id === selectedOptionId}
+      priceTone={
+        isCalendarBestPriceDate(pricingSettings, option.moveDate)
+          ? 'best'
+          : isReviewWeekendIso(option.moveDate)
+            ? 'weekend'
+            : 'standard'
+      }
+      slotsLeftLabel={slotLabelFor(option.moveDate)}
       {...cardProps}
     />
   ))

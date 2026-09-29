@@ -1,3 +1,5 @@
+import { reviewAddressesConfirmed } from './addressConfirmation'
+
 /**
  * Pickup/delivery contact helpers for the quote wizard (Step 3).
  * Resolved values are embedded in quote `details` text until dedicated DB columns exist.
@@ -7,28 +9,30 @@
  * @param {Record<string, unknown>} wizard
  */
 export function resolvePickupContact(wizard) {
-  if (wizard.pickupContactSameAsCustomer !== false) {
-    return {
-      name: String(wizard.fullName || '').trim(),
-      phone: String(wizard.phone || '').trim(),
-    }
+  const name = String(wizard.pickupContactName || '').trim()
+  const phone = String(wizard.pickupContactPhone || '').trim()
+  if (wizard.pickupContactSameAsCustomer === false) {
+    return { name, phone }
   }
   return {
-    name: String(wizard.pickupContactName || '').trim(),
-    phone: String(wizard.pickupContactPhone || '').trim(),
+    name: name || String(wizard.fullName || '').trim(),
+    phone: phone || String(wizard.phone || '').trim(),
   }
+}
+
+/** Drop-off person defaults to the pickup contact. */
+export function isDropoffSameAsPickup(wizard) {
+  if (wizard.dropoffSameAsPickup === true) return true
+  if (wizard.dropoffSameAsPickup === false) return false
+  if (wizard.deliveryContactSameAsCustomer === false) return false
+  return true
 }
 
 /**
  * @param {Record<string, unknown>} wizard
  */
 export function resolveDeliveryContact(wizard) {
-  if (wizard.deliveryContactSameAsCustomer !== false) {
-    return {
-      name: String(wizard.fullName || '').trim(),
-      phone: String(wizard.phone || '').trim(),
-    }
-  }
+  if (isDropoffSameAsPickup(wizard)) return resolvePickupContact(wizard)
   return {
     name: String(wizard.deliveryContactName || '').trim(),
     phone: String(wizard.deliveryContactPhone || '').trim(),
@@ -36,18 +40,27 @@ export function resolveDeliveryContact(wizard) {
 }
 
 /**
+ * @param {string} name
+ * @param {string} phone
+ */
+export function contactDetailsComplete(name, phone) {
+  return String(name || '').trim().length > 1 && String(phone || '').replace(/\s/g, '').length > 5
+}
+
+/**
  * @param {Record<string, unknown>} wizard
  */
 export function pickupDeliveryContactsValid(wizard) {
   const pickup = resolvePickupContact(wizard)
+  if (!contactDetailsComplete(pickup.name, pickup.phone)) return false
+  if (isDropoffSameAsPickup(wizard)) return true
   const delivery = resolveDeliveryContact(wizard)
-  const pickupOk =
-    wizard.pickupContactSameAsCustomer !== false ||
-    (pickup.name.length > 1 && pickup.phone.length > 5)
-  const deliveryOk =
-    wizard.deliveryContactSameAsCustomer !== false ||
-    (delivery.name.length > 1 && delivery.phone.length > 5)
-  return pickupOk && deliveryOk
+  return contactDetailsComplete(delivery.name, delivery.phone)
+}
+
+/** Both Review addresses are confirmed and the required people can be contacted. */
+export function reviewDetailsReady(wizard) {
+  return reviewAddressesConfirmed(wizard) && pickupDeliveryContactsValid(wizard)
 }
 
 /**
@@ -57,18 +70,22 @@ export function pickupDeliveryContactsValid(wizard) {
 export function formatPickupDeliveryContactsForSummary(wizard) {
   const pickup = resolvePickupContact(wizard)
   const delivery = resolveDeliveryContact(wizard)
-  const pickupSame = wizard.pickupContactSameAsCustomer !== false
-  const deliverySame = wizard.deliveryContactSameAsCustomer !== false
+  const same = isDropoffSameAsPickup(wizard)
+  const pickupFlat = String(wizard.pickupFlatDetails || '').trim()
+  const deliveryFlat = String(wizard.deliveryFlatDetails || '').trim()
 
   return [
     '— Pickup & delivery contacts —',
-    `Pickup contact same as booking customer: ${pickupSame ? 'Yes' : 'No'}`,
-    `Pickup contact name: ${pickup.name || '—'}`,
+    `Pickup contact: ${pickup.name || '—'}`,
     `Pickup phone: ${pickup.phone || '—'}`,
-    `Delivery contact same as booking customer: ${deliverySame ? 'Yes' : 'No'}`,
-    `Delivery contact name: ${delivery.name || '—'}`,
+    pickupFlat ? `Pickup access notes: ${pickupFlat}` : '',
+    `Drop-off same as pickup: ${same ? 'Yes' : 'No'}`,
+    `Delivery contact: ${delivery.name || '—'}`,
     `Delivery phone: ${delivery.phone || '—'}`,
-  ].join('\n')
+    deliveryFlat ? `Delivery access notes: ${deliveryFlat}` : '',
+  ]
+    .filter(Boolean)
+    .join('\n')
 }
 
 /**

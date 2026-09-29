@@ -45,6 +45,7 @@ export default function QuoteReviewYourMoveCard({
   totalM3 = 0,
   priceWithoutPromo = null,
   onContinueToPayment,
+  continueDisabled = false,
   className = '',
   sticky = false,
 }) {
@@ -120,8 +121,10 @@ export default function QuoteReviewYourMoveCard({
       <button
         type="button"
         onClick={() => onContinueToPayment?.()}
-        className="mt-4 flex min-h-[48px] w-full items-center justify-center rounded-xl bg-blue-600 px-4 py-3 text-sm font-bold text-white shadow-md transition hover:bg-blue-700"
+        disabled={continueDisabled}
+        className="mt-4 flex min-h-[48px] w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-3 text-sm font-bold text-white shadow-md transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-[#d7e4f5] disabled:text-slate-500 disabled:shadow-none"
       >
+        {continueDisabled ? <Lock className="h-4 w-4" aria-hidden /> : null}
         Continue to payment →
       </button>
       <p className="mt-2 flex items-center justify-center gap-1.5 text-xs text-slate-500">

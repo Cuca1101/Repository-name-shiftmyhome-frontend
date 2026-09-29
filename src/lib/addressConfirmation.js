@@ -176,3 +176,38 @@ export async function resolveWizardMissingAddressCoords(wizard) {
   const updated = Object.keys(patch).length > 0 ? { ...wizard, ...patch } : wizard
   return { ok: errors.length === 0, wizard: updated, errors }
 }
+
+/**
+ * Snapshot of the address details the customer confirmed in Review.
+ * Confirmation stays valid when they leave Step 3 and come back, and drops only when these change.
+ * @param {Record<string, unknown>} wizard
+ * @param {'pickup' | 'delivery'} side
+ */
+export function reviewAddressStamp(wizard, side) {
+  return [
+    String(wizard?.[`${side}Address`] || '').trim(),
+    String(wizard?.[`${side}HouseNumber`] || '').trim(),
+    String(wizard?.[`${side}FlatDetails`] || '').trim(),
+  ].join('\n')
+}
+
+/**
+ * @param {Record<string, unknown>} wizard
+ * @param {'pickup' | 'delivery'} side
+ */
+export function isReviewSideConfirmed(wizard, side) {
+  const address = String(wizard?.[`${side}Address`] || '').trim()
+  const hasPin = wizard?.[`${side}Lng`] != null && wizard?.[`${side}Lat`] != null
+  if (address.length < MIN_MANUAL_ADDRESS_LENGTH && !(hasPin && address.length > MIN_ADDRESS_TEXT_LENGTH)) {
+    return false
+  }
+  const saved = String(wizard?.[`${side}ReviewStamp`] || '')
+  return saved.length > 0 && saved === reviewAddressStamp(wizard, side)
+}
+
+/**
+ * @param {Record<string, unknown>} wizard
+ */
+export function reviewAddressesConfirmed(wizard) {
+  return isReviewSideConfirmed(wizard, 'pickup') && isReviewSideConfirmed(wizard, 'delivery')
+}

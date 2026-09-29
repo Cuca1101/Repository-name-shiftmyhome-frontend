@@ -115,6 +115,13 @@ export default function AdminJobQuoteDetailsPanel({
               <div className="min-w-0 flex-1">
                 <p className="text-[11px] font-bold uppercase tracking-wide text-violet-800">Pickup</p>
                 <p className="mt-2 text-sm font-medium leading-relaxed text-slate-900">{q.pickup_address || '—'}</p>
+                <p className="mt-2 text-xs text-slate-600">
+                  <span className="font-semibold text-slate-800">{vm.pickupContact}</span>
+                  {vm.pickupContactPhone && vm.pickupContactPhone !== '—' ? ` · ${vm.pickupContactPhone}` : ''}
+                </p>
+                {vm.pickupFlatDetails && vm.pickupFlatDetails !== '—' ? (
+                  <p className="mt-1 text-xs text-slate-600">{vm.pickupFlatDetails}</p>
+                ) : null}
               </div>
             </div>
             <div className="flex gap-4 rounded-2xl border border-emerald-200/70 bg-gradient-to-br from-emerald-50/80 via-white to-white p-5 shadow-sm">
@@ -124,6 +131,13 @@ export default function AdminJobQuoteDetailsPanel({
               <div className="min-w-0 flex-1">
                 <p className="text-[11px] font-bold uppercase tracking-wide text-emerald-800">Dropoff</p>
                 <p className="mt-2 text-sm font-medium leading-relaxed text-slate-900">{q.delivery_address || '—'}</p>
+                <p className="mt-2 text-xs text-slate-600">
+                  <span className="font-semibold text-slate-800">{vm.deliveryContact}</span>
+                  {vm.deliveryContactPhone && vm.deliveryContactPhone !== '—' ? ` · ${vm.deliveryContactPhone}` : ''}
+                </p>
+                {vm.deliveryFlatDetails && vm.deliveryFlatDetails !== '—' ? (
+                  <p className="mt-1 text-xs text-slate-600">{vm.deliveryFlatDetails}</p>
+                ) : null}
               </div>
             </div>
           </div>

@@ -128,6 +128,7 @@ export function QuotePromoCalendarPrice({
   selected = false,
   className = '',
   size = 'sm',
+  priceTone = 'standard',
 }) {
   const reduction = useMemo(
     () =>
@@ -140,7 +141,9 @@ export function QuotePromoCalendarPrice({
     [promoCode, pricingSettings, priceWithPromo, priceWithoutPromo],
   )
 
-  const discountedCls = 'quote-review-price-card__price-final tabular-nums'
+  const toneCls =
+    priceTone === 'best' ? 'is-best-price' : priceTone === 'weekend' ? 'is-weekend-price' : 'is-standard-price'
+  const discountedCls = `quote-review-price-card__price-final tabular-nums ${toneCls}`
   const struckCls = 'quote-review-price-card__price-struck tabular-nums'
 
   if (!reduction) {

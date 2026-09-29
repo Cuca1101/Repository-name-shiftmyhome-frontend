@@ -92,6 +92,22 @@ function PackageCard({ pkg, selected, fee, blockedReason, onSelect }) {
       ) : null}
       {!isStandard && exclusions.length ? <Exclusions lines={exclusions} light={isPlatinum} /> : null}
       {blockedReason ? <p className="mt-3 text-[11px] font-semibold leading-snug text-red-700">{blockedReason}</p> : null}
+      {selected ? (
+        <span className="mt-auto block pt-3">
+          <span
+            className={`inline-flex w-full items-center justify-center gap-1.5 rounded-lg py-2 text-xs font-extrabold uppercase tracking-wide ${
+              isPlatinum
+                ? 'bg-amber-300 text-slate-950'
+                : isPremium
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-slate-900 text-white'
+            }`}
+          >
+            <Check className="h-3.5 w-3.5" aria-hidden />
+            Selected
+          </span>
+        </span>
+      ) : null}
     </div>
   )
 }

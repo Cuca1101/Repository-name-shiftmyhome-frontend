@@ -10,6 +10,7 @@ import {
   getWizardArrivalTimePayload,
 } from './emailQuotePayload'
 import { isWizardArrivalValid, wizardArrivalErrorMessage } from './arrivalWizardValidation'
+import { isReviewSideConfirmed } from './addressConfirmation'
 import { isMoveDateOnOrAfterToday, moveDatePastErrorMessage } from './moveDateLocal'
 import { isSupabaseConfigured, supabase } from './supabase'
 import {
@@ -116,14 +117,14 @@ export function collectAdminPhoneBookingFieldErrors(wizard, opts = {}) {
   }
 
   if (requireAddressConfirmation) {
-    if (!wizard.pickupAddressConfirmed) {
+    if (!isReviewSideConfirmed(wizard, 'pickup')) {
       errors.push({
         field: 'pickupAddressConfirmed',
         message: 'Confirm the pickup address below.',
         step: 3,
       })
     }
-    if (!wizard.deliveryAddressConfirmed) {
+    if (!isReviewSideConfirmed(wizard, 'delivery')) {
       errors.push({
         field: 'deliveryAddressConfirmed',
         message: 'Confirm the delivery address below.',

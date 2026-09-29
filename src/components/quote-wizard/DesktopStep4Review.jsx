@@ -1,5 +1,3 @@
-import QuoteReviewPriceCalendar from './QuoteReviewPriceCalendar'
-
 function EditLink({ label, step, onGoToStep }) {
   return (
     <button
@@ -15,17 +13,15 @@ function EditLink({ label, step, onGoToStep }) {
 /**
  * Desktop Step 4 review & payment (md+).
  */
-export default function DesktopStep4Review({ onGoToStep, calendarProps }) {
+export default function DesktopStep4Review({ onGoToStep }) {
   return (
     <div className="hidden min-w-0 space-y-6 md:block">
       <div>
         <h2 className="text-2xl font-bold text-slate-900">Review &amp; payment</h2>
         <p className="mt-1 text-sm text-slate-600">
-          Choose your move slot, check your estimate, then pay securely to confirm your booking.
+          Check your estimate, then pay securely to confirm your booking.
         </p>
       </div>
-
-      {calendarProps ? <QuoteReviewPriceCalendar {...calendarProps} /> : null}
 
       <div className="rounded-2xl border border-sky-200/80 bg-gradient-to-br from-sky-50/90 to-white px-5 py-4 text-sm leading-relaxed text-sky-950 shadow-sm">
         <p className="font-semibold text-sky-900">Need to change something?</p>

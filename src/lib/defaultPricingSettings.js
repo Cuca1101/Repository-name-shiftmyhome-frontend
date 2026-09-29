@@ -51,8 +51,14 @@ export function getDefaultPricingSettings() {
     saturdaySurchargePercent: 8,
     sundaySurchargePercent: 10,
     bankHolidaySurchargePercent: 20,
-    /** Badge the cheapest dates on the Step 3 quote calendar. */
+    /** Badge best-price weekdays (orange) and standard days (green) on the Step 3 calendar. */
     showCalendarBestPrice: true,
+    /** Percent taken off the quote total on the weekdays listed in weekdayBestPriceDays. */
+    weekdayBestPriceDiscountPercent: 0,
+    /** Monday=1 … Friday=5. Checked days are Best price on the quote calendar. */
+    weekdayBestPriceDays: [],
+    /** Jobs that can be booked per weekday (0=Sun … 6=Sat). Missing day = no limit. 0 = closed. */
+    dailyJobSlots: {},
     servicePackages: defaultServicePackages(),
     extraHelperPrice: 40,
     crewSurchargePerExtraMember: 40,

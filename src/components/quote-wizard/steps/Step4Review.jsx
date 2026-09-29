@@ -8,13 +8,10 @@ export default function Step4Review({
   serviceType,
   quoteRef,
   wizard,
-  onWizardChange,
   breakdown,
   totalM3,
   crewSettings,
   pricingSettings,
-  lineItems,
-  heavyItemCount,
   onDistanceFromRoute,
   payLoading,
   payError,
@@ -28,20 +25,6 @@ export default function Step4Review({
   priceWithoutPromo = null,
 }) {
   const settings = pricingSettings ?? crewSettings
-  const calendarProps = settings
-    ? {
-        wizard,
-        onWizardChange,
-        breakdown,
-        pricingSettings: settings,
-        serviceType,
-        lineItems,
-        heavyItemCount,
-        priceWithoutPromo,
-        compact: true,
-        showSelectedTotal: true,
-      }
-    : null
 
   return (
     <div data-quote-step="4" className="min-w-0 space-y-3 md:space-y-6">
@@ -61,7 +44,6 @@ export default function Step4Review({
         totalM3={totalM3}
         crewSettings={crewSettings}
         onDistanceFromRoute={onDistanceFromRoute}
-        calendarProps={calendarProps}
       />
 
       <div className="min-w-0 max-w-full space-y-4 md:hidden">
@@ -83,7 +65,7 @@ export default function Step4Review({
         </div>
       </div>
 
-      <DesktopStep4Review onGoToStep={onGoToStep} calendarProps={calendarProps} />
+      <DesktopStep4Review onGoToStep={onGoToStep} />
 
       <div className="hidden space-y-6 md:block">
         <Step4BackNav onBack={onBack} />

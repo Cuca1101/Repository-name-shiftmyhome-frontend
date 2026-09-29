@@ -7,7 +7,7 @@ import {
   ReviewGroup,
 } from '../QuoteReviewAccordion'
 import AddressConfirmationSection from '../AddressConfirmationSection'
-import PickupDeliveryContactsSection from '../PickupDeliveryContactsSection'
+import QuoteSpecialInstructionsField from '../QuoteSpecialInstructionsField'
 import PackingMaterialsSection from '../PackingMaterialsSection'
 import DesktopFurnitureServicesSection from '../DesktopFurnitureServicesSection'
 
@@ -164,7 +164,6 @@ export default function Step3Details({
         </>
       ) : null}
 
-      <PickupDeliveryContactsSection data={data} onChange={onChange} variant="desktop" />
       </ReviewGroup>
 
       <ReviewGroup
@@ -183,21 +182,9 @@ export default function Step3Details({
       />
       </ReviewGroup>
 
-      <ReviewGroup accordion={accordionLayout} title="Optional extras" icon={Plus} defaultOpen={false}>
-      <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
-        <h3 className="text-sm font-bold text-slate-900">Special instructions</h3>
-        <label className="mt-3 block">
-          <span className="sr-only">Special instructions</span>
-          <textarea
-            rows={3}
-            value={data.specialInstructions}
-            onChange={(e) => set('specialInstructions', e.target.value)}
-            className={input}
-            placeholder="e.g. fragile items, narrow access, parking restrictions..."
-          />
-        </label>
-      </div>
+      <QuoteSpecialInstructionsField data={data} onChange={onChange} variant="desktop" />
 
+      <ReviewGroup accordion={accordionLayout} title="Optional extras" icon={Plus} defaultOpen={false}>
       <div className="space-y-4">
         <DesktopFurnitureServicesSection
           data={data}

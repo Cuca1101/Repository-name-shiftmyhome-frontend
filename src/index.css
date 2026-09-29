@@ -1098,11 +1098,11 @@
 .quote-flow-scope .quote-review-price-card.quote-review-price-card--compact {
   position: relative;
   display: flex;
-  flex: 0 0 5.5rem;
-  width: 5.5rem;
-  min-width: 5.5rem;
-  max-width: 5.5rem;
-  min-height: 7.75rem;
+  flex: 0 0 6.25rem;
+  width: 6.25rem;
+  min-width: 6.25rem;
+  max-width: 6.25rem;
+  min-height: 8.75rem;
   flex-shrink: 0;
   scroll-snap-align: start;
   touch-action: manipulation;
@@ -1154,20 +1154,20 @@
 }
 
 .quote-flow-scope .quote-review-price-card--compact .quote-review-price-card__weekday {
-  font-size: 0.625rem;
-  font-weight: 700;
+  font-size: 0.75rem;
+  font-weight: 800;
   letter-spacing: 0;
   white-space: nowrap;
   text-transform: capitalize;
-  color: rgb(15 23 42);
+  color: rgb(0 0 0);
 }
 
 .quote-flow-scope .quote-review-price-card--compact .quote-review-price-card__day {
-  margin-top: 0.0625rem;
-  font-size: 1.25rem;
+  margin-top: 0.125rem;
+  font-size: 1.5rem;
   font-weight: 800;
   line-height: 1;
-  color: rgb(15 23 42);
+  color: rgb(0 0 0);
 }
 
 .quote-flow-scope .quote-review-price-card--compact .quote-review-price-card__month {
@@ -1213,6 +1213,33 @@
   color: rgb(4 120 87);
 }
 
+.quote-flow-scope .quote-review-price-card__price-final.is-best-price {
+  color: rgb(234 88 12);
+}
+
+.quote-flow-scope .quote-review-price-card__price-final.is-standard-price {
+  color: rgb(4 120 87);
+}
+
+.quote-flow-scope .quote-review-price-card__price-final.is-weekend-price {
+  color: rgb(185 28 28);
+}
+
+.quote-flow-scope .quote-review-price-card--compact.is-best-price:not(.is-selected) {
+  border-color: rgb(253 186 116);
+  background: rgb(255 247 237);
+}
+
+.quote-flow-scope .quote-review-price-card--compact.is-standard-price:not(.is-selected) {
+  border-color: rgb(110 231 183);
+  background: rgb(236 253 245);
+}
+
+.quote-flow-scope .quote-review-price-card--compact.is-weekend-price:not(.is-selected) {
+  border-color: rgb(254 202 202);
+  background: rgb(254 242 242);
+}
+
 .quote-flow-scope .quote-review-price-card__check {
   z-index: 5;
   pointer-events: none;
@@ -1255,11 +1282,11 @@
   }
 
   .quote-flow-scope .quote-review-price-card.quote-review-price-card--compact {
-    flex: 0 0 9.375rem;
-    width: 9.375rem;
-    min-width: 9.375rem;
-    max-width: 9.375rem;
-    min-height: 11.125rem;
+    flex: 0 0 10.5rem;
+    width: 10.5rem;
+    min-width: 10.5rem;
+    max-width: 10.5rem;
+    min-height: 12.5rem;
     border-radius: 0.625rem;
     padding: 0.75rem 0.625rem 0.625rem;
   }
@@ -1278,12 +1305,12 @@
   }
 
   .quote-flow-scope .quote-review-price-card--compact .quote-review-price-card__weekday {
-    font-size: 0.8125rem;
+    font-size: 0.9375rem;
   }
 
   .quote-flow-scope .quote-review-price-card--compact .quote-review-price-card__day {
     margin-top: 0.125rem;
-    font-size: 1.75rem;
+    font-size: 2rem;
   }
 
   .quote-flow-scope .quote-review-price-card--compact .quote-review-price-card__month {

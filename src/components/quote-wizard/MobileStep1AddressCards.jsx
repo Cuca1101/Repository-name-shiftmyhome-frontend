@@ -195,6 +195,13 @@ export default function MobileStep1AddressCards({
 
   function onPickupAddressSelected() {
     unlock(SECTION.PICKUP_PROPERTY)
+    unlock(SECTION.PICKUP_FLOOR)
+    if (customerAddressCards) {
+      closeDropdowns()
+      focusById('quote-mobile-pickup-floor')
+      setActiveDropdown('pickup-floor')
+      return
+    }
     focusById('quote-mobile-pickup-property-type')
   }
 

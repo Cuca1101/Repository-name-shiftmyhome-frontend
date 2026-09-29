@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Check, ChevronDown } from 'lucide-react'
+import { structuredAddressesConfirmed } from './AddressConfirmationSection'
 
 export function isQuoteContactComplete(data) {
   return Boolean(
@@ -10,7 +11,7 @@ export function isQuoteContactComplete(data) {
 }
 
 export function isQuoteAddressesConfirmed(data) {
-  return Boolean(data?.pickupAddressConfirmed && data?.deliveryAddressConfirmed)
+  return structuredAddressesConfirmed(data)
 }
 
 /** Collapsible review section. Children stay mounted so existing field ids remain available. */

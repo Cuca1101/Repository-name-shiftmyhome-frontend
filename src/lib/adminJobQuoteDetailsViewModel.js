@@ -54,6 +54,12 @@ export function buildAdminJobQuoteDetailsViewModel(q) {
       deliveryAddressShort: '—',
       pickupCity: '—',
       deliveryCity: '—',
+      pickupContact: '—',
+      pickupContactPhone: '—',
+      deliveryContact: '—',
+      deliveryContactPhone: '—',
+      pickupFlatDetails: '—',
+      deliveryFlatDetails: '—',
     }
   }
 
@@ -142,6 +148,12 @@ export function buildAdminJobQuoteDetailsViewModel(q) {
     deliveryAddressShort: deliveryAddress ? shortAddressLine(deliveryAddress, 42) : '—',
     pickupCity,
     deliveryCity,
+    pickupContact: kvFlat['Pickup contact'] || kvFlat['Pickup contact name'] || '—',
+    pickupContactPhone: kvFlat['Pickup phone'] || '—',
+    deliveryContact: kvFlat['Delivery contact'] || kvFlat['Delivery contact name'] || '—',
+    deliveryContactPhone: kvFlat['Delivery phone'] || '—',
+    pickupFlatDetails: kvFlat['Pickup access notes'] || '—',
+    deliveryFlatDetails: kvFlat['Delivery access notes'] || '—',
   }
 }
 

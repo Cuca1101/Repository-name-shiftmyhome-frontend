@@ -1,6 +1,8 @@
 /**
  * In-flow Back / Continue bar for mobile quote steps (&lt; md) — follows Move Summary.
  */
+import { Lock } from 'lucide-react'
+
 export default function MobileQuoteStickyActions({
   step,
   onBack,
@@ -21,8 +23,9 @@ export default function MobileQuoteStickyActions({
           type="button"
           onClick={onNext}
           disabled={nextDisabled}
-          className="flex min-h-[48px] w-full items-center justify-center rounded-xl bg-blue-600 px-3 text-sm font-bold text-white shadow-md disabled:cursor-not-allowed disabled:opacity-60"
+          className="flex min-h-[48px] w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-3 text-sm font-bold text-white shadow-md disabled:cursor-not-allowed disabled:bg-[#d7e4f5] disabled:text-slate-500 disabled:shadow-none"
         >
+          {nextDisabled ? <Lock className="h-4 w-4" aria-hidden /> : null}
           Continue to payment →
         </button>
         <button

@@ -23,6 +23,7 @@ import {
 import { mergePricingSettingsWithDefaults } from './pricingSettingsMerge'
 import { buildPricingDebugDetail } from './pricingDebugDetail'
 import { resolveVolumePricingMultiplier } from './volumePricingMultiplier'
+import { resolveWeekdayBestPriceDiscount } from './calendarDayPricing'
 import { resolveAccessChargeRates, resolveDepositAmountGbp as resolveDepositFromSettings } from './pricingSettingValue'
 import { getEffectiveReassemblyItemCount } from './quoteWizardReassembly'
 import {
@@ -88,6 +89,8 @@ export {
  * @property {number} saturdaySurchargePercent
  * @property {number} sundaySurchargePercent
  * @property {number} bankHolidaySurchargePercent — Scottish bank holidays; takes precedence over weekend %
+ * @property {number} [weekdayBestPriceDiscountPercent] — % off the final total on selected Mon–Fri dates
+ * @property {number[]} [weekdayBestPriceDays] — weekdays 1–5 that receive the best-price reduction
  * @property {number} extraHelperPrice
  * @property {number} [packingServicePrice] — legacy flat fee key
  * @property {number} packingPricePerBoxOrItem
@@ -849,7 +852,19 @@ export function calculateQuote(settings, input) {
   }
 
   const surchargesTotal = money(surchargeLines.reduce((sum, l) => sum + l.amount, 0))
-  const estimatedTotal = money(priceBeforePeak + surchargesTotal)
+  let estimatedTotal = money(priceBeforePeak + surchargesTotal)
+  const bestPrice = resolveWeekdayBestPriceDiscount(s, input.moveDate)
+  if (bestPrice.apply && bestPrice.percent > 0) {
+    const bestAmt = money((estimatedTotal * bestPrice.percent) / 100)
+    if (bestAmt > 0) {
+      discountTotal = money(discountTotal + bestAmt)
+      discountLines.push({
+        label: `Best price (${bestPrice.dayLabel}, ${bestPrice.percent}%)`,
+        amount: bestAmt,
+      })
+      estimatedTotal = money(Math.max(0, estimatedTotal - bestAmt))
+    }
+  }
 
   const subtotalBeforeSurcharges = calculatedSubtotalBeforeSurcharges
   const subtotalAfterSurchargesBeforeMinimum = priceBeforePeak

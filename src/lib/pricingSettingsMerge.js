@@ -1,3 +1,8 @@
+import {
+  normalizeDailyJobSlots,
+  normalizeWeekdayBestPriceDays,
+  normalizeWeekdayBestPricePercent,
+} from './calendarDayPricing'
 import { getDefaultPricingSettings } from './defaultPricingSettings'
 import { resolveServicePackages } from './servicePackages'
 import {
@@ -168,6 +173,12 @@ export function mergePricingSettingsWithDefaults(raw, opts = {}) {
   if (merged.sundaySurchargePercent == null || merged.sundaySurchargePercent === '') {
     merged.sundaySurchargePercent = legacyWeekend
   }
+
+  merged.weekdayBestPriceDiscountPercent = normalizeWeekdayBestPricePercent(
+    merged.weekdayBestPriceDiscountPercent,
+  )
+  merged.weekdayBestPriceDays = normalizeWeekdayBestPriceDays(merged.weekdayBestPriceDays)
+  merged.dailyJobSlots = normalizeDailyJobSlots(merged.dailyJobSlots)
 
   const resolvedPackages = resolveServicePackages(merged)
   merged.servicePackages = {

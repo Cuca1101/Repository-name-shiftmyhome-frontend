@@ -200,6 +200,7 @@ export default function Step1Address({
         <div className={quotePage ? 'grid grid-cols-1 gap-4 xl:grid-cols-2 xl:gap-5' : 'grid xl:grid-cols-2 xl:gap-x-8 xl:gap-y-6 xl:items-start'}>
         {customerAddressCards ? (
           <>
+            <div className="min-w-0 space-y-4">
             <QuoteStepAddressCard
               tone="pickup"
               title="Pickup address"
@@ -217,6 +218,25 @@ export default function Step1Address({
               onChange={onChange}
               onPropertyChange={(value) => set('pickupPropertyType', value)}
             />
+            <div className={field} data-quote-field="pickup-access">
+              <FloorSelect
+                label="Pickup floor"
+                value={data.pickupFloor}
+                onChange={setPickupFloor}
+              />
+            </div>
+            {showPickupLift ? (
+              <div className={field} data-quote-field="pickup-lift">
+                <LiftYesNoField
+                  legend="Lift at pickup"
+                  name="pickupLift"
+                  value={data.pickupLift}
+                  onSelect={(v) => set('pickupLift', v)}
+                />
+              </div>
+            ) : null}
+            </div>
+            <div className="min-w-0 space-y-4">
             <QuoteStepAddressCard
               tone="delivery"
               title="Delivery address"
@@ -234,6 +254,24 @@ export default function Step1Address({
               onChange={onChange}
               onPropertyChange={(value) => set('deliveryPropertyType', value)}
             />
+            <div className={field} data-quote-field="delivery-access">
+              <FloorSelect
+                label="Delivery floor"
+                value={data.deliveryFloor}
+                onChange={setDeliveryFloor}
+              />
+            </div>
+            {showDeliveryLift ? (
+              <div className={field} data-quote-field="delivery-lift">
+                <LiftYesNoField
+                  legend="Lift at delivery"
+                  name="deliveryLift"
+                  value={data.deliveryLift}
+                  onSelect={(v) => set('deliveryLift', v)}
+                />
+              </div>
+            ) : null}
+            </div>
           </>
         ) : HAS_ADDRESS_SEARCH ? (
           <>
@@ -344,6 +382,8 @@ export default function Step1Address({
         </>
         ) : null}
 
+        {!customerAddressCards ? (
+          <>
         <div className={field} data-quote-field="pickup-access">
           <FloorSelect
             label="Pickup floor"
@@ -378,6 +418,8 @@ export default function Step1Address({
               onSelect={(v) => set('deliveryLift', v)}
             />
           </div>
+        ) : null}
+          </>
         ) : null}
 
         <div className={field} data-quote-field="move-date">

@@ -12,6 +12,7 @@ import MobileQuoteStickyActions from '../mobile/MobileQuoteStickyActions'
 import QuoteStep2TransitionLoading from './QuoteStep2TransitionLoading'
 import useMobileQuoteLayout from '../../hooks/useMobileQuoteLayout'
 import { Lock } from 'lucide-react'
+import { reviewDetailsReady } from '../../lib/quoteWizardContactFields'
 
 function step1ArrivalErrorMessage(feedback) {
   if (feedback.type !== 'error' || !feedback.text) return ''
@@ -362,6 +363,7 @@ function QuoteWizardInner({
                 totalM3={totalM3}
                 priceWithoutPromo={priceWithoutPromo}
                 onContinueToPayment={next}
+                continueDisabled={!reviewDetailsReady(wizard)}
                 sticky
                 className="hidden md:block"
               />
@@ -374,7 +376,7 @@ function QuoteWizardInner({
               step={step}
               onBack={back}
               onNext={next}
-              nextDisabled={quoteStepTransitionLoading}
+              nextDisabled={quoteStepTransitionLoading || (step === 3 && !reviewDetailsReady(wizard))}
               nextLoading={quoteStepTransitionLoading && step === 2}
             />
           ) : null}
@@ -391,7 +393,7 @@ function QuoteWizardInner({
               step={step}
               onBack={back}
               onNext={next}
-              nextDisabled={quoteStepTransitionLoading}
+              nextDisabled={quoteStepTransitionLoading || (step === 3 && !reviewDetailsReady(wizard))}
               nextLoading={quoteStepTransitionLoading && step === 2}
             />
           </div>
@@ -414,6 +416,7 @@ function QuoteWizardInner({
                 totalM3={totalM3}
                 priceWithoutPromo={priceWithoutPromo}
                 onContinueToPayment={next}
+                continueDisabled={!reviewDetailsReady(wizard)}
                 sticky
                 className="hidden md:block"
               />

@@ -29,6 +29,7 @@ import {
   formatWizardArrivalSummary,
   getWizardArrivalTimePayload,
 } from '../../lib/emailQuotePayload'
+import { reviewDetailsReady } from '../../lib/quoteWizardContactFields'
 import {
   scrollToStep3ContactField,
   step3ContactDetailsError,
@@ -681,6 +682,7 @@ export function QuoteWizardProvider({ children, serviceType: serviceTypeProp, al
         const crewOk = Number(w.crewSize) >= 1 && Number(w.crewSize) <= 4
         return w.inventoryLines.length > 0 && crewOk && step3ContactDetailsValid(w)
       }
+      if (step === 3) return reviewDetailsReady(w)
       return true
     },
     [step, wizard],
@@ -807,6 +809,15 @@ export function QuoteWizardProvider({ children, serviceType: serviceTypeProp, al
           setFeedback({ type: 'error', text: 'Please complete the required fields.' })
         }
         scheduleQuoteValidationScroll({ hint: resolveStep1ScrollHint(currentWizard) })
+      } else if (step === 3) {
+        setFeedback({
+          type: 'error',
+          text: 'Confirm both addresses and the contact details before continuing to payment.',
+        })
+        document.getElementById('quote-wizard-address-confirmation')?.scrollIntoView({
+          behavior: 'smooth',
+          block: 'center',
+        })
       } else {
         setFeedback({ type: 'error', text: 'Please complete the required fields.' })
         scheduleQuoteValidationScroll({ hint: QUOTE_ERROR_SCROLL_HINTS.feedback })

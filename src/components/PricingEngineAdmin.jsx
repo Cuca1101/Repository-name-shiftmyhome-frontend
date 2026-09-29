@@ -7,6 +7,7 @@ import { getDefaultPricingSettings } from '../lib/defaultPricingSettings'
 import { labelForPricingSettingKey } from '../lib/pricingEngineFieldLabels'
 import DriverAppExtraChargePricingPanel from './admin/DriverAppExtraChargePricingPanel'
 import { listUpcomingScottishBankHolidays } from '../lib/ukBankHolidays'
+import { DAILY_SLOT_WEEKDAYS, WEEKDAY_BEST_PRICE_OPTIONS } from '../lib/calendarDayPricing'
 import ServicePackagesAdminSection from './admin/ServicePackagesAdminSection'
 import { validateServicePackageSettings } from '../lib/servicePackages'
 
@@ -608,12 +609,99 @@ export default function PricingEngineAdmin() {
               onChange={(e) => setBool('showCalendarBestPrice', e.target.checked)}
             />
             <span>
-              <span className="block text-sm font-semibold text-slate-900">Show best price on the calendar</span>
+              <span className="block text-sm font-semibold text-slate-900">Show best price and standard price</span>
               <span className="mt-0.5 block text-xs leading-relaxed text-slate-600">
-                Marks the cheapest dates in the Step 3 quote calendar as Best price. Turn off to hide the badge.
+                Best price days are orange. Every other bookable day is standard price in green.
               </span>
             </span>
           </label>
+
+          <div className="mt-4 rounded-xl border border-orange-200 bg-orange-50/60 px-4 py-4">
+            <p className="text-sm font-semibold text-slate-900">Best price discount</p>
+            <p className="mt-1 text-xs leading-relaxed text-slate-600">
+              Tick the weekdays that should be best price. The quote total on those days is reduced by this percentage. Monday to Friday only.
+            </p>
+            <div className="mt-3 max-w-xs">
+              <Field label="Best price reduction (%)">
+                <input
+                  type="number"
+                  step="0.1"
+                  min="0"
+                  max="80"
+                  className={inputClass}
+                  value={settings.weekdayBestPriceDiscountPercent ?? 0}
+                  onChange={(e) => setNum('weekdayBestPriceDiscountPercent', e.target.value)}
+                />
+              </Field>
+            </div>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {WEEKDAY_BEST_PRICE_OPTIONS.map((day) => {
+                const selected = (settings.weekdayBestPriceDays || []).includes(day.id)
+                return (
+                  <label
+                    key={day.id}
+                    className={`inline-flex cursor-pointer items-center gap-2 rounded-full border px-3 py-1.5 text-sm font-medium ${
+                      selected
+                        ? 'border-orange-300 bg-orange-100 text-orange-900'
+                        : 'border-slate-200 bg-white text-slate-700'
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      className="h-4 w-4 rounded border-slate-300"
+                      checked={selected}
+                      onChange={(e) => {
+                        setSettings((prev) => {
+                          const next = new Set(prev.weekdayBestPriceDays || [])
+                          if (e.target.checked) next.add(day.id)
+                          else next.delete(day.id)
+                          return {
+                            ...prev,
+                            weekdayBestPriceDays: [...next].sort((a, b) => a - b),
+                          }
+                        })
+                      }}
+                    />
+                    {day.label}
+                  </label>
+                )
+              })}
+            </div>
+          </div>
+
+          <div className="mt-4 rounded-xl border border-emerald-200 bg-white px-4 py-4">
+            <p className="text-sm font-semibold text-slate-900">Available slots</p>
+            <p className="mt-1 text-xs leading-relaxed text-slate-600">
+              How many jobs you can take on each day. Leave a day blank for no limit. Set 0 to close that weekday. A day disappears from new bookings once the paid jobs for that date reach the limit.
+            </p>
+            <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              {DAILY_SLOT_WEEKDAYS.map((day) => {
+                const stored = settings.dailyJobSlots?.[String(day.id)]
+                return (
+                  <Field key={day.id} label={`${day.label} slots`}>
+                    <input
+                      type="number"
+                      min="0"
+                      max="50"
+                      step="1"
+                      className={inputClass}
+                      placeholder="No limit"
+                      value={stored == null ? '' : stored}
+                      onChange={(e) => {
+                        const raw = e.target.value
+                        setSettings((prev) => {
+                          const next = { ...(prev.dailyJobSlots || {}) }
+                          if (raw.trim() === '') delete next[String(day.id)]
+                          else next[String(day.id)] = Math.max(0, Math.min(50, Math.floor(Number(raw) || 0)))
+                          return { ...prev, dailyJobSlots: next }
+                        })
+                      }}
+                    />
+                  </Field>
+                )
+              })}
+            </div>
+          </div>
           <div className="mt-4 rounded-xl border border-brand-100 bg-white/80 px-4 py-3">
             <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
               Upcoming Scottish bank holidays
