@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import AdminRecordsSearchRow from './admin/AdminRecordsSearchRow'
+import PhoneActions from './admin/PhoneActions'
 import {
   deleteCustomerLeadById,
   fetchCustomerLeadsForAdmin,
@@ -65,11 +66,6 @@ function money(n) {
   const v = Number(n)
   if (!Number.isFinite(v)) return '—'
   return `£${v.toFixed(2)}`
-}
-
-function telHref(phone) {
-  const p = String(phone || '').replace(/\s+/g, '')
-  return p ? `tel:${p}` : null
 }
 
 function mailHref(email) {
@@ -436,7 +432,6 @@ export default function CustomerLeadsAdmin() {
                   const converted = leadIsConverted(row)
                   const phone = row.customer_phone
                   const email = row.customer_email
-                  const callHref = telHref(phone)
                   const emailHref = mailHref(email)
                   const busyConvert = convertingId === String(row.id)
                   const busyRevert = revertingId === String(row.id)
@@ -465,7 +460,15 @@ export default function CustomerLeadsAdmin() {
                         ) : null}
                       </td>
                       <td className="px-4 py-3">{row.customer_name || '—'}</td>
-                      <td className="px-4 py-3">{phone || '—'}</td>
+                      <td className="min-w-[16rem] px-4 py-3">
+                        <PhoneActions
+                          compact
+                          name={row.customer_name || ''}
+                          phone={phone || ''}
+                          email={email || ''}
+                          sourceNote={row.lead_ref ? `Saved from customer lead ${row.lead_ref}` : 'Saved from a customer lead'}
+                        />
+                      </td>
                       <td className="max-w-[180px] truncate px-4 py-3" title={email || undefined}>
                         {email || '—'}
                       </td>
@@ -502,14 +505,6 @@ export default function CustomerLeadsAdmin() {
                       </td>
                       <td className={`sticky right-0 px-4 py-3 shadow-[-8px_0_8px_-8px_rgba(15,23,42,0.15)] ${rowBg}`}>
                         <div className="flex flex-wrap gap-1.5">
-                          {callHref ? (
-                            <a
-                              href={callHref}
-                              className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-50"
-                            >
-                              Call
-                            </a>
-                          ) : null}
                           {emailHref ? (
                             <a
                               href={emailHref}

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import AdminRecordsSearchRow from './admin/AdminRecordsSearchRow'
+import PhoneActions from './admin/PhoneActions'
 import { filterQuotesForProductionInbox } from '../lib/demoTestRecordDetection'
 import { fetchHomePageQuoteRequests } from '../lib/data/quotesAdminRepository'
 import { formatDateTimeUK, formatDateUK } from '../lib/formatDateDisplay'
@@ -153,7 +154,16 @@ export default function HomePageQuoteRequestsAdmin() {
                           )}
                         </td>
                         <td className="px-4 py-3 font-medium">{q.full_name}</td>
-                        <td className="whitespace-nowrap px-4 py-3 text-slate-700">{q.phone}</td>
+                        <td className="min-w-[16rem] px-4 py-3 text-slate-700">
+                          <PhoneActions
+                            compact
+                            name={q.full_name || ''}
+                            phone={q.phone || ''}
+                            email={q.email || ''}
+                            company={q.company || q.company_name || ''}
+                            sourceNote={q.quote_ref ? `Saved from quote request ${q.quote_ref}` : 'Saved from a quote request'}
+                          />
+                        </td>
                         <td className="max-w-[200px] truncate px-4 py-3 text-slate-700" title={q.email}>
                           {q.email}
                         </td>
@@ -220,7 +230,16 @@ export default function HomePageQuoteRequestsAdmin() {
                     <dl className="mt-3 grid gap-2 text-sm text-slate-700 sm:grid-cols-2">
                       <div>
                         <dt className="text-xs font-medium text-slate-500">Phone</dt>
-                        <dd>{q.phone}</dd>
+                        <dd>
+                          <PhoneActions
+                            compact
+                            name={q.full_name || ''}
+                            phone={q.phone || ''}
+                            email={q.email || ''}
+                            company={q.company || q.company_name || ''}
+                            sourceNote={q.quote_ref ? `Saved from quote request ${q.quote_ref}` : 'Saved from a quote request'}
+                          />
+                        </dd>
                       </div>
                       <div>
                         <dt className="text-xs font-medium text-slate-500">Service</dt>

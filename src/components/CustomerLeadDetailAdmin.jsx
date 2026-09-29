@@ -6,6 +6,7 @@ import {
 } from '../lib/data/customerLeadsRepository'
 import { CUSTOMER_LEAD_STATUS_LABELS } from '../lib/customerLeadStatus'
 import { formatDateTimeUK, formatDateUK } from '../lib/formatDateDisplay'
+import PhoneActions from './admin/PhoneActions'
 import {
   buildPayQuoteUrl,
   buildResumeQuoteUrl,
@@ -59,11 +60,6 @@ function floorDisplay(value) {
   if (value == null || value === '') return null
   const n = Number(value)
   return Number.isFinite(n) ? formatFloorLabel(n) : String(value)
-}
-
-function telHref(phone) {
-  const p = String(phone || '').replace(/\s+/g, '')
-  return p ? `tel:${p}` : null
 }
 
 function mailHref(email) {
@@ -470,7 +466,6 @@ export default function CustomerLeadDetailAdmin() {
   const s1 = wd.step1 || {}
   const s2 = wd.step2 || {}
   const s3 = wd.step3 || {}
-  const callHref = telHref(lead.customer_phone)
   const emailHref = mailHref(lead.customer_email)
   const convertHref = lead.quote_id
     ? `/admin/available-jobs/${lead.quote_id}`
@@ -499,14 +494,12 @@ export default function CustomerLeadDetailAdmin() {
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          {callHref ? (
-            <a
-              href={callHref}
-              className="inline-flex min-h-[44px] items-center rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-800 hover:bg-slate-50"
-            >
-              Call customer
-            </a>
-          ) : null}
+          <PhoneActions
+            name={lead.customer_name || ''}
+            phone={lead.customer_phone || ''}
+            email={lead.customer_email || ''}
+            sourceNote={lead.lead_ref ? `Saved from customer lead ${lead.lead_ref}` : 'Saved from a customer lead'}
+          />
           {emailHref ? (
             <a
               href={emailHref}
@@ -813,7 +806,15 @@ export default function CustomerLeadDetailAdmin() {
 
       <DetailBlock title="Summary">
         <Row label="Name" value={lead.customer_name} />
-        <Row label="Phone" value={lead.customer_phone} />
+        <div className="grid gap-1 sm:grid-cols-[140px_1fr]">
+          <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">Phone</span>
+          <PhoneActions
+            name={lead.customer_name || ''}
+            phone={lead.customer_phone || ''}
+            email={lead.customer_email || ''}
+            sourceNote={lead.lead_ref ? `Saved from customer lead ${lead.lead_ref}` : 'Saved from a customer lead'}
+          />
+        </div>
         <Row label="Email" value={lead.customer_email} />
         <Row label="Service" value={lead.service_type} />
         <Row label="Route" value={lead.route_label} />
@@ -850,7 +851,15 @@ export default function CustomerLeadDetailAdmin() {
 
       <DetailBlock title="Step 2 — Contact & inventory">
         <Row label="Name" value={s2.fullName || lead.customer_name} />
-        <Row label="Phone" value={s2.phone || lead.customer_phone} />
+        <div className="grid gap-1 sm:grid-cols-[140px_1fr]">
+          <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">Phone</span>
+          <PhoneActions
+            name={s2.fullName || lead.customer_name || ''}
+            phone={s2.phone || lead.customer_phone || ''}
+            email={s2.email || lead.customer_email || ''}
+            sourceNote={lead.lead_ref ? `Saved from customer lead ${lead.lead_ref}` : 'Saved from a customer lead'}
+          />
+        </div>
         <Row label="Email" value={s2.email || lead.customer_email} />
         <Row label="Crew" value={s2.crewSize} />
         <Row label="Volume (m³)" value={s2.totalVolumeM3 ?? lead.total_volume_m3} />

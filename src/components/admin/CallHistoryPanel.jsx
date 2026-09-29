@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { fetchCallHistory, fetchCallRecording } from '../../lib/adminCallHistoryApi'
 import { subscribeAmazonConnectCallEnded } from '../../lib/amazonConnectCcp'
+import PhoneActions from './PhoneActions'
 
 const inputClass =
   'w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 shadow-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/30'
@@ -140,9 +141,14 @@ function RecordingControl({ contactId, recordingState }) {
   )
 }
 
+function HistoryPhone({ phone }) {
+  if (!phone) return <span className="text-slate-500">Unknown</span>
+  return <PhoneActions compact phone={phone} />
+}
+
 function CallCard({ call, refreshKey }) {
   const rows = [
-    ['Telephone', call.phone || 'Unknown'],
+    ['Telephone', <HistoryPhone key="phone" phone={call.phone} />],
     ['Direction', call.directionLabel || '—'],
     ['Queue', call.queue || '—'],
     ['Agent', call.agent || '—'],
@@ -158,9 +164,9 @@ function CallCard({ call, refreshKey }) {
       </div>
       <dl className="mt-3 grid grid-cols-2 gap-x-3 gap-y-2 text-sm">
         {rows.map(([label, value]) => (
-          <div key={label} className="min-w-0">
+          <div key={label} className={label === 'Telephone' ? 'col-span-2 min-w-0' : 'min-w-0'}>
             <dt className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">{label}</dt>
-            <dd className="truncate text-slate-800">{value}</dd>
+            <dd className={label === 'Telephone' ? 'text-slate-800' : 'truncate text-slate-800'}>{value}</dd>
           </div>
         ))}
       </dl>
@@ -421,7 +427,9 @@ export default function CallHistoryPanel() {
                   {contacts.map((call) => (
                     <tr key={call.id} className="border-b border-slate-100 last:border-0">
                       <td className="whitespace-nowrap px-3 py-3 font-medium text-slate-900">{formatWhen(call.initiatedAt)}</td>
-                      <td className="whitespace-nowrap px-3 py-3 text-slate-800">{call.phone || 'Unknown'}</td>
+                      <td className="min-w-[16rem] px-3 py-3 text-slate-800">
+                        <HistoryPhone phone={call.phone} />
+                      </td>
                       <td className="whitespace-nowrap px-3 py-3 text-slate-700">{call.directionLabel || '—'}</td>
                       <td className="max-w-[10rem] truncate px-3 py-3 text-slate-700">{call.queue || '—'}</td>
                       <td className="max-w-[10rem] truncate px-3 py-3 text-slate-700">{call.agent || '—'}</td>

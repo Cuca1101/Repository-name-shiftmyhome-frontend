@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import AdminRecordsSearchRow from './admin/AdminRecordsSearchRow'
+import PhoneActions from './admin/PhoneActions'
 import {
   distinctCityRoutesFromLeads,
   fetchWebsiteLeadsForAdmin,
@@ -231,7 +232,18 @@ function LeadDetailDrawer({ row, onClose, onRefresh }) {
             <DetailRow label="Estimated total">{money(row.estimated_total)}</DetailRow>
             <DetailRow label="Customer name">{row.customer_name}</DetailRow>
             <DetailRow label="Email">{row.customer_email}</DetailRow>
-            <DetailRow label="Phone">{row.customer_phone}</DetailRow>
+            <DetailRow label="Phone">
+              <PhoneActions
+                name={row.customer_name || ''}
+                phone={row.customer_phone || ''}
+                email={row.customer_email || ''}
+                sourceNote={
+                  row.quote_ref
+                    ? `Saved from website lead ${row.quote_ref}`
+                    : 'Saved from a website lead'
+                }
+              />
+            </DetailRow>
             <DetailRow label="Pickup">{row.pickup_address || row.pickup_postcode}</DetailRow>
             <DetailRow label="Dropoff">{row.delivery_address || row.delivery_postcode}</DetailRow>
             <DetailRow label="Feedback">{row.feedback_reason || row.feedback_notes || '—'}</DetailRow>
@@ -648,12 +660,27 @@ export default function WebsiteLeadsAdmin() {
                         <td className="hidden px-2 py-2 align-top sm:table-cell">
                           <RecoveryBadge row={row} />
                         </td>
-                        <td className="max-w-[140px] px-2 py-2 align-top sm:max-w-[180px]">
+                        <td className="min-w-[16rem] px-2 py-2 align-top">
                           <TruncateCell
                             value={String(row.customer_name || '—')}
                             max={24}
                             className="font-medium text-slate-900"
                           />
+                          {row.customer_phone ? (
+                            <div className="mt-1">
+                              <PhoneActions
+                                compact
+                                name={row.customer_name || ''}
+                                phone={row.customer_phone || ''}
+                                email={row.customer_email || ''}
+                                sourceNote={
+                                  row.quote_ref
+                                    ? `Saved from website lead ${row.quote_ref}`
+                                    : 'Saved from a website lead'
+                                }
+                              />
+                            </div>
+                          ) : null}
                           {row.customer_email ? (
                             <TruncateCell
                               value={String(row.customer_email)}

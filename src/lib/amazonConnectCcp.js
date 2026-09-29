@@ -1,4 +1,5 @@
 import 'amazon-connect-streams'
+import { publishCallUi, readCallUi } from './callUiBus'
 
 /** Public CCP URL. Agent sign-in happens in Amazon's own popup. This app does not store Connect credentials. */
 export const AMAZON_CONNECT_CCP_URL = 'https://shiftmyhome.my.connect.aws/ccp-v2/'
@@ -13,6 +14,7 @@ let loginRequiredSeen = false
 const callEndedListeners = new Set()
 let callEndedBound = false
 let callEndedTimer = 0
+let dialLock = false
 
 const CCP_INIT_OPTIONS = {
   ccpUrl: AMAZON_CONNECT_CCP_URL,
@@ -28,12 +30,16 @@ const CCP_INIT_OPTIONS = {
   region: 'eu-west-2',
   softphone: {
     allowFramedSoftphone: true,
+    allowFramedVideoCall: false,
     disableRingtone: false,
     allowEarlyGum: true,
   },
   pageOptions: {
     enableAudioDeviceSettings: true,
     enablePhoneTypeSettings: true,
+  },
+  storageAccess: {
+    canRequest: true,
   },
 }
 
@@ -91,8 +97,20 @@ function allowCcpMedia(host) {
       .map((part) => part.trim())
       .filter(Boolean),
   )
-  for (const item of ['microphone', 'autoplay', 'speaker-selection']) current.add(item)
-  iframe.setAttribute('allow', [...current].join('; '))
+  current.delete('camera')
+  for (const item of ['microphone', 'autoplay', 'speaker-selection', 'clipboard-write', 'identity-credentials-get']) {
+    current.add(item)
+  }
+  const next = [...current].join('; ')
+  if (iframe.getAttribute('allow') !== next) iframe.setAttribute('allow', next)
+}
+
+function watchCcpAllow(host) {
+  allowCcpMedia(host)
+  if (host.dataset.smhAllowWatch === '1') return
+  host.dataset.smhAllowWatch = '1'
+  const observer = new MutationObserver(() => allowCcpMedia(host))
+  observer.observe(host, { childList: true, subtree: true, attributes: true, attributeFilter: ['allow'] })
 }
 
 function notifyCallEnded() {
@@ -100,6 +118,70 @@ function notifyCallEnded() {
   callEndedTimer = window.setTimeout(() => {
     for (const listener of callEndedListeners) listener()
   }, 1500)
+}
+
+function safeConnectError(error) {
+  const raw = String(error?.message || error?.type || error || 'The call could not be started.')
+  if (/akia|secret|password|aws_access|token|arn:aws/i.test(raw)) return 'Amazon Connect rejected the call.'
+  return raw.slice(0, 240)
+}
+
+function voiceContacts(agent) {
+  const list = typeof agent?.getContacts === 'function' ? agent.getContacts() : []
+  return list.filter((contact) => String(contact?.getType?.() || '').toLowerCase() === 'voice')
+}
+
+function contactIsActive(contact) {
+  const status = String(contact?.getStatus?.().type || '').toLowerCase()
+  return status && status !== 'ended' && status !== 'error' && status !== 'missed' && status !== 'rejected'
+}
+
+/** Place a normal agent-initiated voice call on the signed-in Connect session. */
+export async function placeOutboundCall({ name, phone }) {
+  if (dialLock) return { ok: false, code: 'busy', message: 'A call is already being started.' }
+  dialLock = true
+  publishCallUi({ phase: 'preparing', name: name || '', phone, startedAt: null, message: '' })
+  try {
+    const connect = getConnect()
+    if (!connect?.core?.initialized || !connect.agent || !connect.Endpoint?.byPhoneNumber) {
+      openAmazonConnectLoginPopup()
+      const message = 'Sign in to Amazon Connect before calling.'
+      publishCallUi({ phase: 'failed', message })
+      return { ok: false, code: 'auth', message }
+    }
+    const agent = await new Promise((resolve) => connect.agent(resolve))
+    if (!agent) {
+      const message = 'The Amazon Connect agent session is not ready.'
+      publishCallUi({ phase: 'failed', message })
+      return { ok: false, message }
+    }
+    const stateName = String(agent.getState?.().type || agent.getState?.().name || '').toLowerCase()
+    if (stateName === 'offline') {
+      const message = 'Change your status to Available before calling.'
+      publishCallUi({ phase: 'failed', message })
+      return { ok: false, code: 'offline', message }
+    }
+    if (voiceContacts(agent).some(contactIsActive)) {
+      const message = 'Finish the current voice call before starting another.'
+      publishCallUi({ phase: 'failed', message })
+      return { ok: false, message }
+    }
+    const endpoint = connect.Endpoint.byPhoneNumber(phone)
+    await new Promise((resolve, reject) => {
+      agent.connect(endpoint, {
+        success: () => resolve(),
+        failure: (error) => reject(error),
+      })
+    })
+    publishCallUi({ phase: 'calling', name: name || '', phone, message: '' })
+    return { ok: true }
+  } catch (error) {
+    const message = safeConnectError(error)
+    publishCallUi({ phase: 'failed', message })
+    return { ok: false, message }
+  } finally {
+    dialLock = false
+  }
 }
 
 function bindCallEndedOnce() {
@@ -112,6 +194,13 @@ function bindCallEndedOnce() {
     for (const name of ['onEnded', 'onACW', 'onMissed']) {
       if (typeof contact?.[name] === 'function') contact[name](notify)
     }
+    const type = String(contact?.getType?.() || '').toLowerCase()
+    if (type && type !== 'voice') return
+    if (typeof contact?.onConnecting === 'function') contact.onConnecting(() => publishCallUi({ phase: 'ringing' }))
+    if (typeof contact?.onConnected === 'function') {
+      contact.onConnected(() => publishCallUi({ phase: 'connected', startedAt: readCallUi().startedAt || Date.now() }))
+    }
+    if (typeof contact?.onEnded === 'function') contact.onEnded(() => publishCallUi({ phase: 'ended', startedAt: null }))
   })
 }
 
@@ -135,13 +224,18 @@ function ensureCcpInitialized(host) {
   }
   initStarted = true
   try {
-    connect.core.initCCP(host, CCP_INIT_OPTIONS)
+    connect.core.initCCP(host, {
+      ...CCP_INIT_OPTIONS,
+      loginOptions: { ...CCP_INIT_OPTIONS.loginOptions },
+      softphone: { ...CCP_INIT_OPTIONS.softphone },
+      pageOptions: { ...CCP_INIT_OPTIONS.pageOptions },
+      storageAccess: { ...CCP_INIT_OPTIONS.storageAccess },
+    })
   } catch (error) {
     initStarted = false
     throw error
   }
-  allowCcpMedia(host)
-  window.requestAnimationFrame(() => allowCcpMedia(host))
+  watchCcpAllow(host)
 }
 
 export function amazonConnectNeedsLogin() {
@@ -163,7 +257,7 @@ export function mountAmazonConnectCcp(slot, handlers = {}) {
   const host = getCcpHostElement()
   if (host.parentElement !== slot) slot.appendChild(host)
   ensureCcpInitialized(host)
-  allowCcpMedia(host)
+  watchCcpAllow(host)
   bindCallEndedOnce()
 
   const connect = getConnect()
@@ -181,11 +275,35 @@ export function mountAmazonConnectCcp(slot, handlers = {}) {
   if (connect?.core?.getEventBus && connect.EventType) {
     subs.push(connect.core.getEventBus().subscribe(connect.EventType.ACK_TIMEOUT, markLoginRequired))
   }
+  if (typeof connect?.storageAccess?.onRequest === 'function') {
+    const storageSub = connect.storageAccess.onRequest({
+      onDeny() {
+        handlers.onStorageBlocked?.()
+      },
+    })
+    if (storageSub) subs.push(storageSub)
+  }
 
   return () => {
     unsubscribeAll(subs)
     if (host.parentElement === slot) parkAmazonConnectCcp()
   }
+}
+
+/** Try the embedded CCP again without starting a second one while it is already signed in. */
+export function retryAmazonConnectCcp(slot) {
+  const connect = getConnect()
+  const host = getCcpHostElement()
+  if (host.parentElement !== slot) slot.appendChild(host)
+  if (!connect?.core?.initialized) {
+    host.querySelector('iframe')?.remove()
+    initStarted = false
+    ensureCcpInitialized(host)
+  }
+  watchCcpAllow(host)
+  bindCallEndedOnce()
+  if (!connect?.agent?.initialized) return openAmazonConnectLoginPopup()
+  return true
 }
 
 /** Focus the Connect login popup, or open it after a click if the browser blocked the first one. */

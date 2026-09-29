@@ -5,9 +5,12 @@ export const DOCUMENT_CSP = [
   "media-src 'self' blob: mediastream: https://shiftmyhome.my.connect.aws https://*.my.connect.aws https://*.awsapps.com https://*.s3.eu-west-2.amazonaws.com https://*.s3.amazonaws.com",
 ].join('; ')
 
-/** Microphone and autoplay for the framed Connect softphone. */
-export const DOCUMENT_PERMISSIONS =
-  'microphone=(self "https://shiftmyhome.my.connect.aws"), autoplay=(self "https://shiftmyhome.my.connect.aws")'
+/** Microphone, speakers and ringtone for the framed softphone. Camera is not granted. */
+export const DOCUMENT_PERMISSIONS = [
+  'microphone=(self "https://shiftmyhome.my.connect.aws")',
+  'autoplay=(self "https://shiftmyhome.my.connect.aws")',
+  'speaker-selection=(self "https://shiftmyhome.my.connect.aws")',
+].join(', ')
 
 /** @param {Response} response */
 export function withDocumentSecurity(response) {

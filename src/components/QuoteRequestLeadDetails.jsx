@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { AdminField } from './admin-workflow/AdminJobUiPrimitives'
+import PhoneActions from './admin/PhoneActions'
 import {
   deletePublicQuoteRequest,
   fetchPublicQuoteRequestById,
@@ -154,7 +155,18 @@ export default function QuoteRequestLeadDetails() {
             <dl className="mt-4 grid gap-4 sm:grid-cols-2">
               <AdminField label="Lead reference" value={ref} mono />
               <AdminField label="Customer name" value={row.full_name} />
-              <AdminField label="Phone" value={row.phone} />
+              <AdminField
+                label="Phone"
+                value={
+                  <PhoneActions
+                    name={row.full_name || ''}
+                    phone={row.phone || ''}
+                    email={row.email || ''}
+                    company={row.company || row.company_name || ''}
+                    sourceNote={ref ? `Saved from quote request ${ref}` : 'Saved from a quote request'}
+                  />
+                }
+              />
               <AdminField label="Email" value={row.email} />
             </dl>
           </section>
