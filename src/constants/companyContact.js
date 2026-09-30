@@ -3,7 +3,7 @@
  */
 
 /** UK national format (no spaces) — use in UI and tel: links. */
-export const COMPANY_PHONE = '07440365226'
+export const COMPANY_PHONE = '02046407048'
 
 /** @deprecated Alias for COMPANY_PHONE — prefer COMPANY_PHONE. */
 export const COMPANY_PHONE_DISPLAY = COMPANY_PHONE
@@ -12,7 +12,7 @@ export const COMPANY_PHONE_DISPLAY = COMPANY_PHONE
 export const COMPANY_PHONE_TEL = COMPANY_PHONE
 
 /** E.164 for schema.org / Google structured data. */
-export const COMPANY_PHONE_E164 = '+447440365226'
+export const COMPANY_PHONE_E164 = '+442046407048'
 
 /** WhatsApp wa.me digits (country code, no +). */
 export const COMPANY_PHONE_WHATSAPP = '447440365226'
