@@ -56,23 +56,48 @@ async function resumeOpenSession(id, userId) {
   return true
 }
 
-async function closeStaleOpenSessions(userId, keepId) {
+async function listOpenSessions(userId) {
   const { data, error } = await supabase
     .from(TABLE)
-    .select('id, last_seen_at')
+    .select('id, signed_in_at, last_seen_at')
     .eq('user_id', userId)
     .is('signed_out_at', null)
+    .order('last_seen_at', { ascending: false })
 
-  if (error || !data?.length) return
+  if (error || !data?.length) return []
+  return data
+}
 
-  const now = Date.now()
+/** One person stays on a single open visit, even with two admin windows. */
+async function closeOlderOpenSessions(userId, keepId) {
+  const open = await listOpenSessions(userId)
+  const keep = open.find((row) => row.id === keepId)
+  if (!keep) return
+
+  const keepStarted = new Date(keep.signed_in_at).getTime()
   await Promise.all(
-    data
-      .filter((row) => row.id !== keepId && now - new Date(row.last_seen_at).getTime() > STALE_MS)
+    open
+      .filter((row) => row.id !== keepId && new Date(row.signed_in_at).getTime() <= keepStarted)
       .map((row) =>
         supabase.from(TABLE).update({ signed_out_at: row.last_seen_at }).eq('id', row.id).is('signed_out_at', null),
       ),
   )
+}
+
+async function adoptFreshOpenSession(userId) {
+  const open = await listOpenSessions(userId)
+  const now = Date.now()
+  const fresh = open.find((row) => now - new Date(row.last_seen_at).getTime() <= STALE_MS)
+  if (!fresh) return false
+
+  writeStoredId(fresh.id)
+  await supabase
+    .from(TABLE)
+    .update({ last_seen_at: new Date().toISOString() })
+    .eq('id', fresh.id)
+    .is('signed_out_at', null)
+  await closeOlderOpenSessions(userId, fresh.id)
+  return true
 }
 
 /** Start or resume the current browser's admin visit. Safe to call more than once. */
@@ -86,11 +111,13 @@ export async function startAdminPresence() {
   if (storedId) {
     const resumed = await resumeOpenSession(storedId, user.id)
     if (resumed) {
-      await closeStaleOpenSessions(user.id, storedId)
+      await closeOlderOpenSessions(user.id, storedId)
       return
     }
     writeStoredId('')
   }
+
+  if (await adoptFreshOpenSession(user.id)) return
 
   const userAgent = typeof navigator !== 'undefined' ? navigator.userAgent.slice(0, 512) : ''
   const { data, error } = await supabase
@@ -111,7 +138,7 @@ export async function startAdminPresence() {
   }
 
   writeStoredId(data.id)
-  await closeStaleOpenSessions(user.id, data.id)
+  await closeOlderOpenSessions(user.id, data.id)
 }
 
 /** Refresh last-seen while the panel stays open. */
@@ -133,7 +160,12 @@ export async function touchAdminPresence() {
   if (!data?.length) {
     writeStoredId('')
     await startAdminPresence()
+    return
   }
+
+  const { data: sessionData } = await supabase.auth.getSession()
+  const userId = sessionData.session?.user?.id
+  if (userId) await closeOlderOpenSessions(userId, id)
 }
 
 /** Mark the current visit as signed out. Call this before auth.signOut(). */

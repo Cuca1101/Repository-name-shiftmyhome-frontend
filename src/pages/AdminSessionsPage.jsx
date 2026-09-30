@@ -32,6 +32,22 @@ function formatDuration(ms) {
   return `${hours}h ${minutes}m`
 }
 
+/** One Online row per admin. A second window is the same person, not a second visit. */
+function visibleVisits(rows, now) {
+  const seenOnline = new Set()
+  const byRecent = [...rows].sort(
+    (a, b) => new Date(b.last_seen_at).getTime() - new Date(a.last_seen_at).getTime(),
+  )
+  const kept = byRecent.filter((row) => {
+    if (adminSessionStatus(row, now).state !== 'online') return true
+    const email = String(row.email || '').toLowerCase()
+    if (seenOnline.has(email)) return false
+    seenOnline.add(email)
+    return true
+  })
+  return kept.sort((a, b) => new Date(b.signed_in_at).getTime() - new Date(a.signed_in_at).getTime())
+}
+
 function StatusBadge({ status }) {
   if (status.state === 'online') {
     return (
@@ -192,7 +208,7 @@ export default function AdminSessionsPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {rows.map((row) => {
+                {visibleVisits(rows, now).map((row) => {
                   const status = adminSessionStatus(row, now)
                   const browser = parseUserAgentLite(row.user_agent || '')
                   return (
