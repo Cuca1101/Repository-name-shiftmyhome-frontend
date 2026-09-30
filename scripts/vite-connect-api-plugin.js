@@ -8,9 +8,8 @@ const ROUTES = new Map([
   ['/api/admin/connect/recordings', recordings],
 ])
 
-function loadDevVars(root) {
+function readEnvFile(file) {
   const env = {}
-  const file = path.join(root, '.dev.vars')
   if (!fs.existsSync(file)) return env
   const text = fs.readFileSync(file, 'utf8')
   for (const line of text.split(/\r?\n/)) {
@@ -24,6 +23,15 @@ function loadDevVars(root) {
       value = value.slice(1, -1)
     }
     env[key] = value
+  }
+  return env
+}
+
+function loadDevVars(root) {
+  const env = readEnvFile(path.join(root, '.dev.vars'))
+  const site = readEnvFile(path.join(root, '.env'))
+  for (const key of ['VITE_SUPABASE_URL', 'VITE_SUPABASE_ANON_KEY']) {
+    if (!env[key] && site[key]) env[key] = site[key]
   }
   return env
 }
