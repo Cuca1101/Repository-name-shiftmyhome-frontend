@@ -170,6 +170,14 @@ export function watchAdminPresence() {
   }
 }
 
+/** Earlier admin logins kept by the login system. No sign-out time is stored. */
+export async function listAdminAuthHistory() {
+  if (!supabase) return []
+  const { data, error } = await supabase.rpc('list_admin_auth_history')
+  if (error) throw error
+  return data || []
+}
+
 export async function listAdminLoginSessions(limit = 200) {
   if (!supabase) return []
   const { data, error } = await supabase

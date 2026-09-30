@@ -3,6 +3,7 @@ import {
   ADMIN_PRESENCE_ONLINE_MS,
   adminSessionDurationMs,
   adminSessionStatus,
+  listAdminAuthHistory,
   listAdminLoginSessions,
 } from '../lib/adminPresence'
 import { parseUserAgentLite } from '../lib/parseUserAgent'
@@ -56,25 +57,40 @@ function StatusBadge({ status }) {
 
 export default function AdminSessionsPage() {
   const [rows, setRows] = useState([])
+  const [history, setHistory] = useState([])
   const [error, setError] = useState('')
+  const [historyError, setHistoryError] = useState('')
   const [loading, setLoading] = useState(true)
   const [now, setNow] = useState(() => Date.now())
 
   const load = useCallback(async () => {
-    try {
-      const data = await listAdminLoginSessions()
-      setRows(data)
+    const [visits, saved] = await Promise.allSettled([listAdminLoginSessions(), listAdminAuthHistory()])
+
+    if (visits.status === 'fulfilled') {
+      setRows(visits.value)
       setError('')
-    } catch (err) {
-      const message = err?.message || 'Could not load admin sign-ins.'
+    } else {
+      const message = visits.reason?.message || 'Could not load admin sign-ins.'
       setError(
         /admin_login_sessions|schema cache|does not exist/i.test(message)
           ? 'The sign-in journal is not in the database yet. Apply migration 103_admin_login_sessions.sql, then refresh.'
           : message,
       )
-    } finally {
-      setLoading(false)
     }
+
+    if (saved.status === 'fulfilled') {
+      setHistory(saved.value)
+      setHistoryError('')
+    } else {
+      const message = saved.reason?.message || 'Could not load earlier logins.'
+      setHistoryError(
+        /list_admin_auth_history|schema cache|does not exist/i.test(message)
+          ? 'Earlier logins are not available yet. Apply migration 104_admin_auth_history.sql, then refresh.'
+          : message,
+      )
+    }
+
+    setLoading(false)
   }, [])
 
   useEffect(() => {
@@ -91,12 +107,63 @@ export default function AdminSessionsPage() {
       <div>
         <h1 className="text-2xl font-semibold text-slate-900">Admin sign-ins</h1>
         <p className="mt-1 max-w-3xl text-sm leading-relaxed text-slate-600">
-          Who opened the admin panel, how long they stayed, and when they left. Times are UK. A visit stays
-          Online while the panel is open. Sign out records the exact leave time. Closing the browser records
-          the last moment the panel was still open, within about {Math.round(ADMIN_PRESENCE_ONLINE_MS / 1000)}{' '}
-          seconds.
+          Earlier logins are listed first: who signed in and the last time that login was used. Times are UK.
+          Those older logins do not have a sign-out time, because the browser kept them until Sign out. From
+          now on, the visit list below also shows how long someone stayed and when they left.
         </p>
       </div>
+
+      <section className="space-y-2">
+        <h2 className="text-lg font-semibold text-slate-900">Earlier logins</h2>
+        {historyError && (
+          <p className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-800" role="alert">
+            {historyError}
+          </p>
+        )}
+        <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+          {loading ? (
+            <p className="px-4 py-8 text-sm text-slate-500">Loading earlier logins…</p>
+          ) : historyError && history.length === 0 ? null : history.length === 0 ? (
+            <p className="px-4 py-8 text-sm text-slate-500">No saved admin logins.</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="min-w-full text-left text-sm">
+                <thead className="border-b border-slate-200 bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  <tr>
+                    <th className="px-4 py-3">Admin</th>
+                    <th className="px-4 py-3">Signed in</th>
+                    <th className="px-4 py-3">Last active</th>
+                    <th className="px-4 py-3">Browser</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {history.map((row) => {
+                    const browser = parseUserAgentLite(row.user_agent || '')
+                    return (
+                      <tr key={row.id} className="text-slate-800">
+                        <td className="px-4 py-3 font-medium">{row.email}</td>
+                        <td className="whitespace-nowrap px-4 py-3">{formatWhen(row.signed_in_at)}</td>
+                        <td className="whitespace-nowrap px-4 py-3">{formatWhen(row.last_active_at)}</td>
+                        <td className="px-4 py-3 text-slate-600">
+                          {browser.browser_name}
+                          <span className="text-slate-400"> · {browser.device_type}</span>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      </section>
+
+      <h2 className="text-lg font-semibold text-slate-900">Visits with time in the panel</h2>
+      <p className="text-sm text-slate-600">
+        A visit stays Online while this panel is open. Sign out records the leave time. Closing the browser
+        records the last moment the panel was open, within about {Math.round(ADMIN_PRESENCE_ONLINE_MS / 1000)}{' '}
+        seconds. This list starts from when the journal was turned on.
+      </p>
 
       {error && (
         <p className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-800" role="alert">
