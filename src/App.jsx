@@ -50,6 +50,7 @@ import WebsiteLeadsAdmin from './components/WebsiteLeadsAdmin'
 import CustomerLeadsAdmin from './components/CustomerLeadsAdmin'
 import CustomerLeadDetailAdmin from './components/CustomerLeadDetailAdmin'
 import AdminAnalyticsPage from './pages/AdminAnalyticsPage'
+import AdminSessionsPage from './pages/AdminSessionsPage'
 import ExtraChargesAdmin from './components/ExtraChargesAdmin'
 import AvailableJobDetails from './components/AvailableJobDetails'
 import JourneyPlannerPage from './components/JourneyPlannerPage'
@@ -222,6 +223,7 @@ export default function App() {
       >
         <Route index element={<AdminHome />} />
         <Route path="analytics" element={<AdminAnalyticsPage />} />
+        <Route path="sessions" element={<AdminSessionsPage />} />
         <Route
           path="calls"
           element={

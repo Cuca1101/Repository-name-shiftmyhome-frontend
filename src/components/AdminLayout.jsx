@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
+import { endAdminPresence, watchAdminPresence } from '../lib/adminPresence'
 import { showDemoAdminUi } from '../lib/adminProductionMode'
 import { CallContactsProvider } from '../lib/callContactsContext'
 import StripeModeBanner from './admin/StripeModeBanner'
@@ -11,6 +12,7 @@ const mainSections = [
     items: [
       { to: '/admin', label: 'Dashboard', end: true, icon: 'layout' },
       { to: '/admin/analytics', label: 'Analytics', end: false, icon: 'chart' },
+      { to: '/admin/sessions', label: 'Admin sign-ins', end: false, icon: 'clock' },
     ],
   },
   {
@@ -254,6 +256,16 @@ function NavIcon({ name, className }) {
           />
         </svg>
       )
+    case 'clock':
+      return (
+        <svg className={cn} fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" aria-hidden>
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"
+          />
+        </svg>
+      )
     case 'phone':
       return (
         <svg className={cn} fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" aria-hidden>
@@ -315,6 +327,8 @@ export default function AdminLayout() {
     closeSidebar()
   }, [pathname, closeSidebar])
 
+  useEffect(() => watchAdminPresence(), [])
+
   useEffect(() => {
     const mq = window.matchMedia('(min-width: 1024px)')
     const onChange = () => {
@@ -325,6 +339,7 @@ export default function AdminLayout() {
   }, [])
 
   async function handleLogout() {
+    await endAdminPresence()
     if (supabase) await supabase.auth.signOut()
     navigate('/admin/login', { replace: true })
   }
