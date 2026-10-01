@@ -88,7 +88,7 @@ function eligibleOnPage(rows) {
 console.log('=== 100 confirmed bookings on one day ===')
 
 const moveDate = '2026-10-05'
-assert(DAILY_JOB_SLOT_MAX >= 100, 'weekday slot cap must allow at least 100')
+assert(DAILY_JOB_SLOT_MAX === 50, 'configured weekday slot cap stays at 50')
 
 const dayBookings = Array.from({ length: 100 }, (_, index) => ({
   id: `day-${index + 1}`,
@@ -102,16 +102,14 @@ const dayBookings = Array.from({ length: 100 }, (_, index) => ({
 }))
 
 assert(dayBookings.filter(countsAsConfirmedBooking).length === 100, '100 paid bookings count on the day')
-assert(
-  normalizeDailyJobSlots({ 1: 100 })['1'] === 100,
-  'a Monday limit of 100 is stored',
-)
+assert(normalizeDailyJobSlots({ 1: 50 })['1'] === 50, 'a Monday limit of 50 is stored')
+assert(normalizeDailyJobSlots({ 1: 100 })['1'] === 50, 'a typed limit above 50 stays capped at 50')
 assert(normalizeDailyJobSlots({ 1: 500 })['1'] === DAILY_JOB_SLOT_MAX, 'values above the cap clamp')
 
-const atLimit = resolveDaySlotAvailability({ dailyJobSlots: { 1: 100 } }, moveDate, 100)
-assert(atLimit.capacity === 100 && atLimit.remaining === 0 && atLimit.full, '100 of 100 fills the day')
-const oneLeft = resolveDaySlotAvailability({ dailyJobSlots: { 1: 100 } }, moveDate, 99)
-assert(oneLeft.remaining === 1 && !oneLeft.full, '99 of 100 leaves one slot')
+const atLimit = resolveDaySlotAvailability({ dailyJobSlots: { 1: 50 } }, moveDate, 50)
+assert(atLimit.capacity === 50 && atLimit.remaining === 0 && atLimit.full, '50 of 50 fills the day')
+const oneLeft = resolveDaySlotAvailability({ dailyJobSlots: { 1: 50 } }, moveDate, 49)
+assert(oneLeft.remaining === 1 && !oneLeft.full, '49 of 50 leaves one slot')
 const unlimited = resolveDaySlotAvailability({ dailyJobSlots: {} }, moveDate, 100)
 assert(!unlimited.limited && !unlimited.full, 'a blank weekday stays open at 100 bookings')
 assert(customerMessagesSent.length === 0, 'day-capacity check sent no customer messages')

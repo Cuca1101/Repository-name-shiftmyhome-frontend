@@ -21,8 +21,8 @@ export const DAILY_SLOT_WEEKDAYS = [
   { id: 0, label: 'Sunday' },
 ]
 
-/** Configured weekday cap. Blank stays unlimited. High enough for a 100-booking day. */
-export const DAILY_JOB_SLOT_MAX = 200
+/** Configured weekday cap. Blank stays unlimited. */
+export const DAILY_JOB_SLOT_MAX = 50
 
 const WEEKDAY_LABELS = {
   0: 'Sunday',
