@@ -382,5 +382,5 @@ const recoverySource = readFileSync(
 )
 assert(recoverySource.includes('recoveryKindForDueLead'), 'recovery cron uses the shared cadence')
 
-console.log('PASS: 100-booking day, Available Jobs pagination, recovery and notification guards')
+console.log('PASS: Pricing Engine slots, Available Jobs pagination, recovery and notification guards')
 console.log(`Simulated customer sends: ${customerMessagesSent.length} (example.com only, no provider call)`)
