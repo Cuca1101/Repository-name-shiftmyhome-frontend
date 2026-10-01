@@ -1,7 +1,7 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { DOCUMENT_CSP, DOCUMENT_PERMISSIONS } from './functions/_shared/documentSecurity.js'
-import { connectApiDevPlugin } from './scripts/vite-connect-api-plugin.js'
+import { adminApiDevPlugin } from './scripts/vite-admin-api-plugin.js'
 
 const securityHeaders = {
   'Content-Security-Policy': DOCUMENT_CSP,
@@ -20,7 +20,7 @@ function documentSecurityPlugin() {
 }
 
 export default defineConfig({
-  plugins: [react(), documentSecurityPlugin(), connectApiDevPlugin(process.cwd())],
+  plugins: [react(), documentSecurityPlugin(), adminApiDevPlugin(process.cwd())],
   server: { headers: securityHeaders },
   preview: { headers: securityHeaders },
 })

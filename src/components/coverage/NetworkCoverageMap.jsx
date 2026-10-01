@@ -242,7 +242,7 @@ export default function NetworkCoverageMap({
             href={`tel:${CONTACT.phoneTel}`}
             className="inline-flex min-h-[44px] items-center justify-center rounded-xl bg-brand-600 px-4 text-sm font-semibold text-white shadow-sm"
           >
-            Call us
+            Call us {CONTACT.phoneDisplay}
           </a>
         </div>
       </div>
@@ -337,7 +337,7 @@ export default function NetworkCoverageMap({
             href={`tel:${CONTACT.phoneTel}`}
             className="inline-flex min-h-[44px] items-center justify-center rounded-xl bg-brand-600 px-4 text-sm font-semibold text-white shadow-sm hover:bg-brand-700"
           >
-            Call us
+            Call us {CONTACT.phoneDisplay}
           </a>
           <a
             href={WHATSAPP_URL}

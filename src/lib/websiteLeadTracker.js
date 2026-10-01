@@ -94,6 +94,24 @@ function safeHrefForMetadata(href) {
   return null
 }
 
+const recentWebsiteEvents = new Map()
+const WEBSITE_EVENT_DEDUPE_MS = 2000
+
+/**
+ * @param {string} eventName
+ * @param {string} pagePath
+ * @param {Record<string, unknown>} [extra]
+ */
+function websiteEventDedupeKey(eventName, pagePath, extra = {}) {
+  return [
+    getWebsiteLeadSessionId(),
+    eventName,
+    pagePath,
+    extra.quote_ref ?? '',
+    extra.funnel_step ?? '',
+  ].join('|')
+}
+
 /**
  * @param {string} eventName
  * @param {string} pagePath
@@ -101,6 +119,17 @@ function safeHrefForMetadata(href) {
  * @param {Record<string, unknown>} [extra]
  */
 async function recordWebsiteEvent(eventName, pagePath, metadata = {}, extra = {}) {
+  const dedupeKey = websiteEventDedupeKey(eventName, pagePath, extra)
+  const now = Date.now()
+  const previousAt = recentWebsiteEvents.get(dedupeKey)
+  if (previousAt && now - previousAt < WEBSITE_EVENT_DEDUPE_MS) return null
+  recentWebsiteEvents.set(dedupeKey, now)
+  if (recentWebsiteEvents.size > 200) {
+    for (const [key, seenAt] of recentWebsiteEvents) {
+      if (now - seenAt >= WEBSITE_EVENT_DEDUPE_MS) recentWebsiteEvents.delete(key)
+    }
+  }
+
   try {
     const ctx = await getCachedVisitorContext()
     const id = await insertWebsiteEvent({

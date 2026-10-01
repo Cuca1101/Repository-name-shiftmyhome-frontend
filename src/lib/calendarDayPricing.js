@@ -21,6 +21,9 @@ export const DAILY_SLOT_WEEKDAYS = [
   { id: 0, label: 'Sunday' },
 ]
 
+/** Configured weekday cap. Blank stays unlimited. High enough for a 100-booking day. */
+export const DAILY_JOB_SLOT_MAX = 200
+
 const WEEKDAY_LABELS = {
   0: 'Sunday',
   1: 'Monday',
@@ -85,7 +88,7 @@ export function normalizeDailyJobSlots(raw) {
     if (value === '' || value == null) continue
     const n = Math.floor(Number(value))
     if (!Number.isFinite(n) || n < 0) continue
-    out[String(day)] = Math.min(50, n)
+    out[String(day)] = Math.min(DAILY_JOB_SLOT_MAX, n)
   }
   return out
 }

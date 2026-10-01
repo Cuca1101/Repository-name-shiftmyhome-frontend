@@ -1,5 +1,12 @@
 import { sendResendEmail } from './resendClient.ts'
 import { formatDateUK } from './formatDateUK.ts'
+import {
+  alreadySentStage,
+  kindForAbandonedCount,
+  nextRecoveryAtAfterSend,
+} from './recoverySchedule.js'
+
+export { alreadySentStage, kindForAbandonedCount, nextRecoveryAtAfterSend }
 
 export type RecoveryEmailKind =
   | 'abandoned'
@@ -192,47 +199,6 @@ export function buildRecoveryEmailContent(lead: LeadLike, kind: RecoveryEmailKin
     .join('\n')
 
   return { subject, html, text, resumeUrl: trackResume, payUrl: trackPay }
-}
-
-/**
- * Next send time from abandonment / payment-failed anchor.
- * Cadence: +15m (first), +24h, +72h from abandoned_at / payment_failed_at.
- */
-export function nextRecoveryAtAfterSend(
-  kind: RecoveryEmailKind,
-  lead: LeadLike,
-  from = new Date(),
-): string | null {
-  const anchorIso = lead.abandoned_at || lead.payment_failed_at || from.toISOString()
-  const anchor = new Date(anchorIso).getTime()
-  if (kind === 'abandoned') {
-    return new Date(anchor + 24 * 60 * 60 * 1000).toISOString()
-  }
-  if (kind === 'abandoned_reminder') {
-    return new Date(anchor + 72 * 60 * 60 * 1000).toISOString()
-  }
-  if (kind === 'payment_failed') {
-    return null
-  }
-  return null
-}
-
-export function kindForAbandonedCount(sentCount: number): RecoveryEmailKind | null {
-  if (sentCount <= 0) return 'abandoned'
-  if (sentCount === 1) return 'abandoned_reminder'
-  if (sentCount === 2) return 'abandoned_final'
-  return null
-}
-
-function alreadySentStage(lead: LeadLike, kind: RecoveryEmailKind): boolean {
-  const count = Number(lead.recovery_emails_sent_count || 0)
-  const lastKind = String(lead.last_recovery_email_kind || '')
-  if (lastKind === kind) return true
-  if (kind === 'abandoned' && count >= 1) return true
-  if (kind === 'abandoned_reminder' && count >= 2) return true
-  if (kind === 'abandoned_final' && count >= 3) return true
-  if (kind === 'payment_failed' && lastKind === 'payment_failed') return true
-  return false
 }
 
 export async function sendRecoveryEmailForLead(params: {

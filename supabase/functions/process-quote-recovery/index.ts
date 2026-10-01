@@ -1,7 +1,7 @@
 import 'jsr:@supabase/functions-js/edge-runtime.d.ts'
 import { createClient } from 'npm:@supabase/supabase-js@2'
+import { kindForAbandonedCount, recoveryKindForDueLead } from '../_shared/recoverySchedule.js'
 import {
-  kindForAbandonedCount,
   sendRecoveryEmailForLead,
   type LeadLike,
   type RecoveryEmailKind,
@@ -169,14 +169,7 @@ Deno.serve(async (req) => {
         recovery_emails_sent_count?: number
         last_recovery_email_kind?: string | null
       }
-      let kind: RecoveryEmailKind | null = null
-      const lastKind = String(lead.last_recovery_email_kind || '')
-      // One payment-failed retry email, even if abandoned emails were already sent.
-      if (lead.status === 'payment_failed' && lastKind !== 'payment_failed') {
-        kind = 'payment_failed'
-      } else if (lead.status === 'abandoned') {
-        kind = kindForAbandonedCount(Number(lead.recovery_emails_sent_count || 0))
-      }
+      const kind: RecoveryEmailKind | null = recoveryKindForDueLead(lead)
       if (!kind) {
         await supabase
           .from('customer_leads')

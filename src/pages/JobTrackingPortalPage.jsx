@@ -13,6 +13,13 @@ import { GOOGLE_LEAVE_REVIEW_URL } from '../lib/reviews/externalReviews'
 import 'mapbox-gl/dist/mapbox-gl.css'
 
 const POLL_MS = 15000
+const MEDIA_REFRESH_MS = 10 * 60 * 1000
+
+function trackingMediaKey(portal) {
+  const photos = Array.isArray(portal?.photos) ? portal.photos : []
+  const waivers = Array.isArray(portal?.waivers) ? portal.waivers : []
+  return [...photos, ...waivers].map((p) => String(p.id || p.storage_path || '')).join('|')
+}
 
 function Section({ title, children }) {
   return (
@@ -44,6 +51,8 @@ export default function JobTrackingPortalPage() {
   const mapRef = useRef(null)
   const mapObjRef = useRef(null)
   const markerRef = useRef(null)
+  const mediaFetchedAtRef = useRef(0)
+  const mediaKeyRef = useRef('')
 
   const load = useCallback(async () => {
     const t = String(token || '').trim()
@@ -53,6 +62,7 @@ export default function JobTrackingPortalPage() {
       setLoading(false)
       return
     }
+    if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return
     try {
       const { data: portal, error: rpcErr } = await client.rpc('public_get_job_tracking', { p_token: t })
       if (rpcErr) throw rpcErr
@@ -72,10 +82,19 @@ export default function JobTrackingPortalPage() {
       setData(portal)
       setError('')
 
+      const nextKey = trackingMediaKey(portal)
+      const mediaDue =
+        nextKey !== mediaKeyRef.current || Date.now() - mediaFetchedAtRef.current >= MEDIA_REFRESH_MS
+      if (!mediaDue) return
+
       const { data: mediaRes } = await client.functions.invoke('get-job-tracking-media', {
         body: { token: t },
       })
-      if (mediaRes?.photos) setMedia(mediaRes.photos)
+      if (mediaRes?.photos) {
+        mediaKeyRef.current = nextKey
+        mediaFetchedAtRef.current = Date.now()
+        setMedia(mediaRes.photos)
+      }
     } catch (e) {
       setError(e?.message || 'Could not load tracking.')
     } finally {
@@ -86,7 +105,14 @@ export default function JobTrackingPortalPage() {
   useEffect(() => {
     void load()
     const id = window.setInterval(() => void load(), POLL_MS)
-    return () => window.clearInterval(id)
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') void load()
+    }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => {
+      window.clearInterval(id)
+      document.removeEventListener('visibilitychange', onVisible)
+    }
   }, [load])
 
   const live = Boolean(data?.tracking_live && data?.location?.available)

@@ -19,6 +19,7 @@ const navItems = [
 /** Compact mobile/tablet navbar (&lt; lg) ÔÇö logo, phone icon, hamburger only; CTA in drawer. */
 export default function MobileNavbar({ showSlogan } = {}) {
   const { navbar } = useWebsiteCms()
+  const phoneDisplay = navbar.phoneDisplay || CONTACT.phoneDisplay
   const phoneTel = navbar.phoneTel || CONTACT.phoneTel
   const ctaText = navbar.ctaText || 'Get a Quote'
   const [open, setOpen] = useState(false)
@@ -45,7 +46,7 @@ export default function MobileNavbar({ showSlogan } = {}) {
           <a
             href={`tel:${phoneTel}`}
             className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-white/10 text-white ring-1 ring-white/15"
-            aria-label="Call us"
+            aria-label={`Call us ${phoneDisplay}`}
           >
             <svg className="h-4 w-4 text-brand-300" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" aria-hidden>
               <path
@@ -77,6 +78,13 @@ export default function MobileNavbar({ showSlogan } = {}) {
       {open ? (
         <div className="border-t border-white/10 bg-navy-800">
           <div className="flex max-h-[min(70vh,420px)] flex-col gap-0.5 overflow-y-auto px-3 py-2">
+            <a
+              href={`tel:${phoneTel}`}
+              className="rounded-lg px-2 py-3 text-[15px] font-semibold text-white active:bg-white/10"
+              onClick={closeMenu}
+            >
+              Call us {phoneDisplay}
+            </a>
             {navItems.map((item) =>
               item.sectionId === 'coverage' ? (
                 <CoverageLink

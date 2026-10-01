@@ -20,6 +20,60 @@ import {
 
 const QUOTES_TABLE = 'quotes'
 
+/**
+ * Available Jobs list columns. Omits pricing, details, inventory and notes text,
+ * which are only needed on the job page.
+ */
+export const AVAILABLE_JOB_LIST_COLUMNS = [
+  'id',
+  'quote_ref',
+  'full_name',
+  'phone',
+  'email',
+  'pickup_address',
+  'delivery_address',
+  'service',
+  'service_type',
+  'move_date',
+  'arrival_window',
+  'arrival_time',
+  'arrival_type',
+  'payment_status',
+  'payment_type',
+  'amount_paid',
+  'paid_at',
+  'remaining_balance',
+  'estimated_total',
+  'calculated_total',
+  'agreed_price',
+  'status',
+  'source',
+  'operational_status',
+  'created_at',
+  'crew_size',
+  'distance_miles',
+  'assigned_driver_id',
+  'assigned_driver_name',
+  'assigned_partner_id',
+  'assigned_partner_company',
+  'marketplace_visibility',
+  'marketplace_payout_price',
+  'bundled_journey_id',
+  'completed_at',
+  'cancelled_at',
+  'auto_marketplace_hold',
+  'auto_marketplace_eligible_at',
+  'auto_marketplace_sent_at',
+  'payout_status',
+  'driver_payout_amount',
+  'partner_dashboard_hidden',
+  'pricing',
+  'details',
+  'message',
+  'is_test',
+  'archived_for_go_live',
+].join(',')
+
 /** Keys known to exist on `quotes` from workflow migrations (safe fallback if newer columns are missing). */
 const QUOTE_ASSIGNMENT_SAFE_KEYS = new Set([
   'bundled_journey_id',
@@ -68,14 +122,21 @@ const QUOTE_ASSIGNMENT_SAFE_KEYS = new Set([
 /**
  * @param {AvailableJobsAdminFilter} filterKey
  * @param {string} [searchTerm] partial ilike on quote_ref, name, phone, email, pickup, delivery
- * @returns {Promise<Record<string, unknown>[]>}
+ * @param {{ columns?: string, page?: number, pageSize?: number, withCount?: boolean, availableInbox?: boolean }} [opts]
+ * @returns {Promise<Record<string, unknown>[] | { rows: Record<string, unknown>[], total: number }>}
  */
-export async function fetchQuotesForAdmin(filterKey = 'all', searchTerm = '') {
+export async function fetchQuotesForAdmin(filterKey = 'all', searchTerm = '', opts = {}) {
   if (!isSupabaseConfigured || !supabase) {
-    return []
+    return opts.withCount ? { rows: [], total: 0 } : []
   }
 
-  let q = supabase.from(QUOTES_TABLE).select('*').order('created_at', { ascending: false })
+  const columns = opts.columns || '*'
+  const pageSize = Number(opts.pageSize) > 0 ? Math.min(100, Math.floor(Number(opts.pageSize))) : 0
+  const page = Math.max(0, Math.floor(Number(opts.page) || 0))
+  let q = supabase
+    .from(QUOTES_TABLE)
+    .select(columns, pageSize ? { count: 'exact' } : undefined)
+    .order('created_at', { ascending: false })
 
   if (filterKey === 'all_paid') {
     // Online Stripe paid/deposit + offline phone bookings released to Available Jobs.
@@ -94,6 +155,17 @@ export async function fetchQuotesForAdmin(filterKey = 'all', searchTerm = '') {
     q = q.eq('status', 'Booked')
   }
 
+  if (opts.availableInbox) {
+    // Empty assignee ids still count as unassigned. `.is(null)` alone would drop them
+    // from every page even though the inbox rules treat them as eligible.
+    q = q
+      .is('bundled_journey_id', null)
+      .is('completed_at', null)
+      .is('cancelled_at', null)
+      .or('assigned_driver_id.is.null,assigned_driver_id.eq.')
+      .or('assigned_partner_id.is.null,assigned_partner_id.eq.')
+  }
+
   const safe = sanitizeAdminIlikeTerm(searchTerm)
   if (safe.length > 0) {
     const p = `%${safe}%`
@@ -102,9 +174,16 @@ export async function fetchQuotesForAdmin(filterKey = 'all', searchTerm = '') {
     )
   }
 
-  const { data, error } = await q
+  if (pageSize) {
+    const from = page * pageSize
+    q = q.range(from, from + pageSize - 1)
+  }
+
+  const { data, error, count } = await q
   if (error) throw error
-  return data ?? []
+  const rows = data ?? []
+  if (opts.withCount) return { rows, total: count ?? rows.length }
+  return rows
 }
 
 /**

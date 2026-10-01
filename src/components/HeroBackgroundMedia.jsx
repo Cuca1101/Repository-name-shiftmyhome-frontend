@@ -1,9 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import {
-  coerceUseHeroVideo,
-  heroVideoMimeFromUrl,
-  resolveHeroVideoPlaybackUrl,
-} from '../lib/heroCmsVideo'
+import { coerceUseHeroVideo, resolveHeroVideoPlaybackUrl } from '../lib/heroCmsVideo'
 
 /**
  * Homepage hero background — image fallback with optional CMS video on top.
@@ -25,7 +21,6 @@ export default function HeroBackgroundMedia({
 }) {
   const playbackUrl = resolveHeroVideoPlaybackUrl(videoUrl)
   const wantsVideo = coerceUseHeroVideo(useVideo) && playbackUrl.length > 0
-  const videoMime = heroVideoMimeFromUrl(playbackUrl)
   const [videoFailed, setVideoFailed] = useState(false)
 
   useEffect(() => {
@@ -75,9 +70,7 @@ export default function HeroBackgroundMedia({
             void el.play().catch(() => {})
           }}
           onError={() => setVideoFailed(true)}
-        >
-          <source src={playbackUrl} type={videoMime || 'video/mp4'} />
-        </video>
+        />
       ) : null}
       {overlay === 'panel-edge' ? (
         <div className="hero-media-panel-edge absolute inset-0 z-[2]" aria-hidden />

@@ -7,7 +7,7 @@ import { getDefaultPricingSettings } from '../lib/defaultPricingSettings'
 import { labelForPricingSettingKey } from '../lib/pricingEngineFieldLabels'
 import DriverAppExtraChargePricingPanel from './admin/DriverAppExtraChargePricingPanel'
 import { listUpcomingScottishBankHolidays } from '../lib/ukBankHolidays'
-import { DAILY_SLOT_WEEKDAYS, WEEKDAY_BEST_PRICE_OPTIONS } from '../lib/calendarDayPricing'
+import { DAILY_JOB_SLOT_MAX, DAILY_SLOT_WEEKDAYS, WEEKDAY_BEST_PRICE_OPTIONS } from '../lib/calendarDayPricing'
 import ServicePackagesAdminSection from './admin/ServicePackagesAdminSection'
 import { validateServicePackageSettings } from '../lib/servicePackages'
 
@@ -682,7 +682,7 @@ export default function PricingEngineAdmin() {
                     <input
                       type="number"
                       min="0"
-                      max="50"
+                      max={DAILY_JOB_SLOT_MAX}
                       step="1"
                       className={inputClass}
                       placeholder="No limit"
@@ -692,7 +692,7 @@ export default function PricingEngineAdmin() {
                         setSettings((prev) => {
                           const next = { ...(prev.dailyJobSlots || {}) }
                           if (raw.trim() === '') delete next[String(day.id)]
-                          else next[String(day.id)] = Math.max(0, Math.min(50, Math.floor(Number(raw) || 0)))
+                          else next[String(day.id)] = Math.max(0, Math.min(DAILY_JOB_SLOT_MAX, Math.floor(Number(raw) || 0)))
                           return { ...prev, dailyJobSlots: next }
                         })
                       }}

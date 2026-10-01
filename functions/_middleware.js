@@ -2,7 +2,7 @@
  * Cloudflare Pages middleware:
  * 1) SPA deep-link fallback for email / portal routes (avoid generic 404.html)
  * 2) Legacy SEO URL redirects
- * 3) Document CSP and microphone permission for the admin CCP
+ * 3) Document CSP for the public site
  */
 
 import { DOCUMENT_CSP, DOCUMENT_PERMISSIONS, withDocumentSecurity } from './_shared/documentSecurity.js'

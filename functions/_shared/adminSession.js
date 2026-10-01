@@ -16,7 +16,7 @@ function isServiceRoleKey(key) {
 
 /**
  * Confirm the bearer token is a current Supabase user with the admin role.
- * Uses the same role check as the admin web app. No AWS credentials are read here.
+ * Uses the same role check as the admin web app.
  * @param {Request} request
  * @param {Record<string, string | undefined>} env
  */

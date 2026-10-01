@@ -2,17 +2,17 @@
  * Official ShiftMyHome business contact — single source of truth for UI, tel: links, and schema.org.
  */
 
-/** UK national format (no spaces) — use in UI and tel: links. */
-export const COMPANY_PHONE = '02046407048'
+/** Shown next to call links. */
+export const COMPANY_PHONE_DISPLAY = '0141 461 4813'
 
-/** @deprecated Alias for COMPANY_PHONE — prefer COMPANY_PHONE. */
-export const COMPANY_PHONE_DISPLAY = COMPANY_PHONE
+/** @deprecated Prefer COMPANY_PHONE_DISPLAY. */
+export const COMPANY_PHONE = COMPANY_PHONE_DISPLAY
 
-/** tel: href value (digits only, no spaces). */
-export const COMPANY_PHONE_TEL = COMPANY_PHONE
+/** Value used in tel: links. */
+export const COMPANY_PHONE_TEL = '+441414614813'
 
 /** E.164 for schema.org / Google structured data. */
-export const COMPANY_PHONE_E164 = '+442046407048'
+export const COMPANY_PHONE_E164 = '+441414614813'
 
 /** WhatsApp wa.me digits (country code, no +). */
 export const COMPANY_PHONE_WHATSAPP = '447440365226'
@@ -92,7 +92,7 @@ export function filterValidSameAsUrls(urls) {
 }
 
 export const COMPANY_CONTACT = {
-  phoneDisplay: COMPANY_PHONE,
+  phoneDisplay: COMPANY_PHONE_DISPLAY,
   phoneTel: COMPANY_PHONE_TEL,
   email: COMPANY_EMAIL,
 }

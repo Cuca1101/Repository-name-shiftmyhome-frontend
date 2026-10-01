@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { fetchQuotesForAdmin } from '../lib/data/quotesAdminRepository'
+import { fetchQuotesForAdmin, AVAILABLE_JOB_LIST_COLUMNS } from '../lib/data/quotesAdminRepository'
+import { supabase } from '../lib/supabase'
 import { quoteIsAdminPhoneBookingReleased, quoteIsCardPaid, quotePassesAvailableJobsStrict } from '../lib/adminJobListRules'
 import {
   availableJobIdSet,
@@ -29,7 +30,7 @@ import { filterProductionAdminQuotes } from '../lib/adminProductionFilters'
 import { sendAdminAvailableJobTestEmail } from '../lib/adminAvailableJobTestEmail'
 import AdminSettingsAccordion from './admin/AdminSettingsAccordion'
 
-const POLL_MS = 12_000
+const PAGE_SIZE = 40
 const AUTO_MARKETPLACE_MS = 60_000
 const HIGHLIGHT_MS = 4_000
 const NOTIFY_DEBOUNCE_MS = 450
@@ -114,6 +115,8 @@ export default function AvailableJobsAdmin() {
   const [searchInput, setSearchInput] = useState('')
   const [activeSearch, setActiveSearch] = useState('')
   const [rows, setRows] = useState([])
+  const [page, setPage] = useState(0)
+  const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(true)
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [error, setError] = useState('')
@@ -138,10 +141,23 @@ export default function AvailableJobsAdmin() {
     return () => clearTimeout(t)
   }, [searchInput])
 
-  const fetchFilteredRows = useCallback(async () => {
-    const list = await fetchQuotesForAdmin(filterKey, activeSearch)
-    return filterProductionAdminQuotes(list).filter(quotePassesAvailableJobsStrict)
+  useEffect(() => {
+    setPage(0)
   }, [filterKey, activeSearch])
+
+  const fetchFilteredRows = useCallback(async () => {
+    const result = await fetchQuotesForAdmin(filterKey, activeSearch, {
+      columns: AVAILABLE_JOB_LIST_COLUMNS,
+      page,
+      pageSize: PAGE_SIZE,
+      withCount: true,
+      availableInbox: true,
+    })
+    const list = Array.isArray(result) ? result : result.rows
+    const count = Array.isArray(result) ? list.length : result.total
+    setTotal(count)
+    return filterProductionAdminQuotes(list).filter(quotePassesAvailableJobsStrict)
+  }, [filterKey, activeSearch, page])
 
   const jobCountsByDriverId = useMemo(() => countAcceptedJobsByDriverId(rows), [rows])
 
@@ -265,19 +281,41 @@ export default function AvailableJobsAdmin() {
   useEffect(() => {
     const defs = loadMarketplacePricingDefaults()
     if (!defs.autoMarketplace.enabled) return undefined
-    void runAutoMarketplace()
-    const id = window.setInterval(() => void runAutoMarketplace(), AUTO_MARKETPLACE_MS)
+    const tick = () => {
+      if (document.visibilityState !== 'visible') return
+      void runAutoMarketplace()
+    }
+    tick()
+    const id = window.setInterval(tick, AUTO_MARKETPLACE_MS)
     return () => window.clearInterval(id)
   }, [runAutoMarketplace])
 
   useEffect(() => {
-    if (!notifyReadyRef.current) return undefined
-    const tick = () => {
-      if (document.visibilityState === 'visible') void silentRefresh()
+    if (!supabase) return undefined
+    let pendingWhileHidden = false
+    const channel = supabase
+      .channel('available-jobs-quotes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'quotes' }, () => {
+        if (document.visibilityState !== 'visible') {
+          pendingWhileHidden = true
+          return
+        }
+        void silentRefresh()
+      })
+      .subscribe()
+
+    const onVisible = () => {
+      if (document.visibilityState !== 'visible' || !pendingWhileHidden) return
+      pendingWhileHidden = false
+      void silentRefresh()
     }
-    const id = window.setInterval(tick, POLL_MS)
-    return () => window.clearInterval(id)
-  }, [silentRefresh, filterKey, activeSearch])
+    document.addEventListener('visibilitychange', onVisible)
+
+    return () => {
+      document.removeEventListener('visibilitychange', onVisible)
+      void supabase.removeChannel(channel)
+    }
+  }, [silentRefresh])
 
   useEffect(
     () => () => {
@@ -453,7 +491,7 @@ export default function AvailableJobsAdmin() {
             Only card-paid bookings waiting for assignment appear here. Open a job for marketplace controls,
             assignment, and payment history. Unpaid leads stay in Website Leads / Quote Funnel.
             <span className="mt-1 block text-xs text-slate-500">
-              List updates automatically every {Math.round(POLL_MS / 1000)} seconds.
+              Updates when a booking changes. Manual refresh stays available.
               {isRefreshing ? ' · Updating…' : null}
             </span>
             {extendJourneyId ? (
@@ -694,6 +732,32 @@ export default function AvailableJobsAdmin() {
           renderJob={renderAvailableJob}
         />
       )}
+
+      {total > PAGE_SIZE ? (
+        <div className="flex items-center justify-between gap-3 text-sm text-slate-600">
+          <span>
+            Page {page + 1} of {Math.max(1, Math.ceil(total / PAGE_SIZE))} · {total} bookings
+          </span>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              disabled={page === 0 || loading}
+              onClick={() => setPage((p) => Math.max(0, p - 1))}
+              className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 font-semibold disabled:opacity-40"
+            >
+              Previous
+            </button>
+            <button
+              type="button"
+              disabled={loading || (page + 1) * PAGE_SIZE >= total}
+              onClick={() => setPage((p) => p + 1)}
+              className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 font-semibold disabled:opacity-40"
+            >
+              Next
+            </button>
+          </div>
+        </div>
+      ) : null}
     </div>
   )
 }

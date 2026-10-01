@@ -1,9 +1,8 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
+import TeamsCallButtons from './TeamsCallButtons'
 import { useCallContacts } from '../../lib/callContactsContext'
 import { deleteCallContact, saveCallContact } from '../../lib/data/callContactsRepository'
-import { subscribeCallUi } from '../../lib/callUiBus'
-import { requestOutboundCall } from '../../lib/outboundCall'
 import { normalisePhone } from '../../lib/ukPhone'
 
 const inputClass =
@@ -11,7 +10,7 @@ const inputClass =
 
 const emptyForm = { id: '', fullName: '', phone: '', company: '', email: '', notes: '', allowUpdate: false }
 
-export default function ContactsPanel({ onCall }) {
+export default function ContactsPanel() {
   const { contacts, loading, error, refresh } = useCallContacts()
   const [params] = useSearchParams()
   const focusId = params.get('contact') || ''
@@ -21,10 +20,6 @@ export default function ContactsPanel({ onCall }) {
   const [message, setMessage] = useState('')
   const [busy, setBusy] = useState(false)
   const [pendingDelete, setPendingDelete] = useState(null)
-  const [callPhase, setCallPhase] = useState('idle')
-  const callBusy = callPhase === 'preparing' || callPhase === 'calling' || callPhase === 'ringing' || callPhase === 'connected'
-
-  useEffect(() => subscribeCallUi((next) => setCallPhase(next.phase)), [])
 
   const filtered = useMemo(() => {
     const needle = query.trim().toLowerCase()
@@ -102,14 +97,9 @@ export default function ContactsPanel({ onCall }) {
     }
   }
 
-  function callContact(contact) {
+  function callError(contact) {
     const parsed = normalisePhone(contact.phoneE164)
-    if (!parsed.ok) {
-      setMessage(parsed.error)
-      return
-    }
-    requestOutboundCall({ name: contact.fullName, phone: contact.phoneE164, e164: parsed.e164 })
-    onCall?.()
+    return parsed.ok ? '' : parsed.error
   }
 
   return (
@@ -118,7 +108,7 @@ export default function ContactsPanel({ onCall }) {
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h3 className="text-base font-bold tracking-tight text-slate-900">Contacts</h3>
-            <p className="mt-1 text-sm text-slate-600">Shared address book for Amazon Connect calls.</p>
+            <p className="mt-1 text-sm text-slate-600">Shared address book for customers and drivers. Calls open in Microsoft Teams.</p>
           </div>
           <button
             type="button"
@@ -210,9 +200,8 @@ export default function ContactsPanel({ onCall }) {
             {contact.company ? <p className="text-sm text-slate-600">{contact.company}</p> : null}
             {contact.email ? <p className="text-sm text-slate-600">{contact.email}</p> : null}
             <div className="mt-3 flex flex-wrap gap-2">
-              <button type="button" disabled={callBusy} onClick={() => callContact(contact)} className="min-h-[44px] rounded-lg bg-slate-900 px-3 text-sm font-semibold text-white disabled:opacity-50">
-                Call
-              </button>
+              <TeamsCallButtons phone={contact.phoneE164} />
+              {callError(contact) ? <p className="text-xs text-amber-900">{callError(contact)}</p> : null}
               <button type="button" onClick={() => beginEdit(contact)} className="min-h-[44px] rounded-lg border border-slate-200 px-3 text-sm font-semibold">
                 Edit
               </button>
@@ -245,9 +234,7 @@ export default function ContactsPanel({ onCall }) {
                   <td className="px-3 py-3">{contact.email || '—'}</td>
                   <td className="px-3 py-3">
                     <div className="flex flex-wrap gap-2">
-                      <button type="button" disabled={callBusy} onClick={() => callContact(contact)} className="rounded-lg bg-slate-900 px-2 py-1 text-xs font-semibold text-white disabled:opacity-50">
-                        Call
-                      </button>
+                      <TeamsCallButtons phone={contact.phoneE164} compact />
                       <button type="button" onClick={() => beginEdit(contact)} className="rounded-lg border border-slate-200 px-2 py-1 text-xs font-semibold">
                         Edit
                       </button>

@@ -1,6 +1,6 @@
 import { requireAdmin } from '../../../_shared/adminSession.js'
-import { createRecordingPlayback } from '../../../_shared/connectApi.js'
 import { HttpError, assertBrowserOrigin, json, logServerError, preflight } from '../../../_shared/http.js'
+import { listTeamsPstnCalls } from '../../../_shared/teamsGraph.js'
 
 export async function onRequest(context) {
   const { request, env } = context
@@ -11,11 +11,11 @@ export async function onRequest(context) {
   try {
     assertBrowserOrigin(request)
     await requireAdmin(request, env)
-    const result = await createRecordingPlayback(request, env)
+    const result = await listTeamsPstnCalls(request, env)
     return json(result, 200, request)
   } catch (error) {
     if (error instanceof HttpError) return json({ message: error.message }, error.status, request)
-    logServerError('connect recording failed', error)
-    return json({ message: 'Could not open the recording.' }, 500, request)
+    logServerError('teams call history failed', error)
+    return json({ message: 'Could not load Teams call history.' }, 500, request)
   }
 }

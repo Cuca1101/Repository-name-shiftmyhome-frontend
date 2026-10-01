@@ -13,6 +13,11 @@ import {
   trackingUrl,
   type JobNotifyEventKey,
 } from '../_shared/jobCustomerNotify.ts'
+import {
+  isUniqueViolation,
+  notificationClaimDecision,
+  queueProcessingIsTerminal,
+} from '../_shared/deliveryRetryPolicy.js'
 
 /**
  * Process customer job notifications (assign / status / completed / tip).
@@ -67,6 +72,20 @@ function formatDateTimeUK(iso: unknown) {
   })
 }
 
+async function insertNotificationClaim(
+  // deno-lint-ignore no-explicit-any
+  supabase: any,
+  quoteId: string,
+  eventKey: string,
+) {
+  return supabase.from('job_customer_notifications').insert({
+    quote_id: quoteId,
+    event_key: eventKey,
+    event_label: JOB_NOTIFY_EVENT_LABELS[eventKey as JobNotifyEventKey] || eventKey,
+    delivery_status: 'pending',
+  })
+}
+
 async function claimNotification(
   // deno-lint-ignore no-explicit-any
   supabase: any,
@@ -77,19 +96,32 @@ async function claimNotification(
   if (force) {
     await supabase.from('job_customer_notifications').delete().eq('quote_id', quoteId).eq('event_key', eventKey)
   }
-  const { error } = await supabase.from('job_customer_notifications').insert({
-    quote_id: quoteId,
-    event_key: eventKey,
-    event_label: JOB_NOTIFY_EVENT_LABELS[eventKey as JobNotifyEventKey] || eventKey,
-    delivery_status: 'pending',
-  })
-  if (error) {
-    if (String(error.code) === '23505' || /duplicate|unique/i.test(String(error.message))) {
-      return { claimed: false as const, reason: 'already_sent' }
-    }
-    return { claimed: false as const, reason: error.message }
-  }
-  return { claimed: true as const }
+  const { error } = await insertNotificationClaim(supabase, quoteId, eventKey)
+  if (!error) return { claimed: true as const }
+  if (!isUniqueViolation(error)) return { claimed: false as const, reason: error.message }
+
+  const { data: existing } = await supabase
+    .from('job_customer_notifications')
+    .select('delivery_status, created_at')
+    .eq('quote_id', quoteId)
+    .eq('event_key', eventKey)
+    .maybeSingle()
+
+  const decision = notificationClaimDecision(existing)
+  if (decision === 'already_sent') return { claimed: false as const, reason: 'already_sent' }
+  if (decision === 'in_flight') return { claimed: false as const, reason: 'in_flight' }
+
+  await supabase
+    .from('job_customer_notifications')
+    .delete()
+    .eq('quote_id', quoteId)
+    .eq('event_key', eventKey)
+    .in('delivery_status', ['failed', 'pending'])
+
+  const retry = await insertNotificationClaim(supabase, quoteId, eventKey)
+  if (!retry.error) return { claimed: true as const }
+  if (isUniqueViolation(retry.error)) return { claimed: false as const, reason: 'already_sent' }
+  return { claimed: false as const, reason: retry.error.message }
 }
 
 async function markNotificationResult(
@@ -164,7 +196,11 @@ async function sendEventEmail(
 
   const claim = await claimNotification(supabase, quoteId, eventKey, force)
   if (!claim.claimed) {
-    return { ok: false, error: claim.reason || 'not_claimed', skipped: true }
+    return {
+      ok: false,
+      error: claim.reason || 'not_claimed',
+      skipped: claim.reason === 'already_sent',
+    }
   }
 
   const track = trackingUrl(token)
@@ -339,11 +375,12 @@ Deno.serve(async (req) => {
       const eventKey = String(row.event_key || '') as JobNotifyEventKey
       const quoteId = String(row.quote_id || '')
       const sent = await sendEventEmail(supabase, quoteId, eventKey, false)
+      const finished = queueProcessingIsTerminal(sent)
       await supabase
         .from('job_customer_notify_queue')
         .update({
-          processed_at: new Date().toISOString(),
-          error: sent.ok || sent.skipped ? null : sent.error || 'failed',
+          processed_at: finished ? new Date().toISOString() : null,
+          error: sent.ok ? null : sent.error || 'failed',
         })
         .eq('id', row.id)
       results.push({ id: row.id, quote_id: quoteId, event_key: eventKey, ...sent })

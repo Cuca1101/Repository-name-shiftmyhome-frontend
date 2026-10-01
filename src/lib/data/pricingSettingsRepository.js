@@ -9,11 +9,42 @@ import { dispatchPricingSettingsUpdated } from '../pricingSettingsEvents'
 import { preparePricingSettingsForSave } from '../driverExtraChargePricingSettings'
 
 const TABLE = 'pricing_settings'
+const PRICING_CACHE_TTL_MS = 5 * 60 * 1000
+
+/** @type {{ settings: import('../pricingCalculator.js').PricingSettings, updatedAt: string | null, savedAt: number, missingKeys: string[] } | null} */
+let memoryPricingCache = null
+
+function clearMemoryPricingCache() {
+  memoryPricingCache = null
+}
+
+function invalidateStoredPricingCache() {
+  memoryPricingCache = null
+  try {
+    localStorage.removeItem(LS_PRICING_SYNC)
+  } catch {
+    /* ignore */
+  }
+}
+
+let pricingRealtimeStarted = false
+
+function ensurePricingSettingsRealtime() {
+  if (pricingRealtimeStarted || typeof window === 'undefined' || !supabase) return
+  pricingRealtimeStarted = true
+  supabase
+    .channel('pricing-settings-live')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'pricing_settings' }, () => {
+      invalidateStoredPricingCache()
+      dispatchPricingSettingsUpdated()
+    })
+    .subscribe()
+}
 
 /** @param {{ message?: string } | null | undefined} err */
 function isMissingPricingRpc(err) {
   const msg = String(err?.message || '')
-  return /admin_(get|upsert)_pricing_settings|schema cache|function.*does not exist/i.test(msg)
+  return /admin_(get|upsert)_pricing_settings|public_get_pricing_settings|schema cache|function.*does not exist/i.test(msg)
 }
 
 /**
@@ -51,36 +82,91 @@ async function loadPricingRowFromSupabase() {
 }
 
 /**
+ * Saved Pricing Engine for the public quote. Read-only.
+ * @returns {Promise<{ data: Record<string, unknown>, updated_at: string | null } | null>}
+ */
+async function loadPublicPricingRowFromSupabase() {
+  if (!supabase) return null
+
+  const { data: rpcRows, error: rpcErr } = await supabase.rpc('public_get_pricing_settings')
+  if (rpcErr) return null
+  const row = Array.isArray(rpcRows) ? rpcRows[0] : rpcRows
+  if (row?.data && typeof row.data === 'object') {
+    return {
+      data: /** @type {Record<string, unknown>} */ (row.data),
+      updated_at: row.updated_at ?? null,
+    }
+  }
+  return null
+}
+
+/**
  * @param {import('../pricingCalculator.js').PricingSettings} settings
  * @param {string | null | undefined} updatedAt
  * @param {'supabase'|'save'|'defaults'|'localStorage'} source
  */
 function writeLocalPricingCache(settings, updatedAt, source) {
+  const savedAt = Date.now()
+  memoryPricingCache = {
+    settings,
+    updatedAt: updatedAt || null,
+    savedAt,
+    missingKeys: [],
+  }
   localStorage.setItem(LS_PRICING, JSON.stringify(settings))
   localStorage.setItem(
     LS_PRICING_SYNC,
     JSON.stringify({
       updatedAt: updatedAt || new Date().toISOString(),
+      cachedAt: new Date(savedAt).toISOString(),
       source,
     }),
   )
 }
 
 /**
- * @returns {import('../pricingCalculator.js').PricingSettings | null}
+ * @returns {{ settings: import('../pricingCalculator.js').PricingSettings, updatedAt: string | null, missingKeys: string[] } | null}
  */
-function readOfflinePricingCache() {
-  const raw = localStorage.getItem(LS_PRICING)
-  if (!raw) return null
-  try {
-    const parsed = JSON.parse(raw)
-    if (parsed && typeof parsed === 'object') {
-      return mergeWithDefaults(parsed, { source: 'localStorage', warnOnFallback: false })
-    }
-  } catch {
-    /* ignore */
+function readFreshPricingCache() {
+  if (memoryPricingCache && Date.now() - memoryPricingCache.savedAt < PRICING_CACHE_TTL_MS) {
+    return memoryPricingCache
   }
-  return null
+  try {
+    const sync = JSON.parse(localStorage.getItem(LS_PRICING_SYNC) || 'null')
+    const source = String(sync?.source || '')
+    if (source !== 'supabase' && source !== 'save') return null
+    const cachedAt = new Date(sync.cachedAt || sync.updatedAt || 0).getTime()
+    if (!Number.isFinite(cachedAt) || Date.now() - cachedAt >= PRICING_CACHE_TTL_MS) return null
+    const parsed = JSON.parse(localStorage.getItem(LS_PRICING) || 'null')
+    if (!parsed || typeof parsed !== 'object') return null
+    const settings = mergeWithDefaults(parsed, { source: 'localStorage', warnOnFallback: false })
+    memoryPricingCache = {
+      settings,
+      updatedAt: sync.updatedAt || null,
+      savedAt: cachedAt,
+      missingKeys: [],
+    }
+    return memoryPricingCache
+  } catch {
+    return null
+  }
+}
+
+/**
+ * @param {{ data: Record<string, unknown>, updated_at: string | null }} row
+ * @param {(merged: import('../pricingCalculator.js').PricingSettings, missingKeys?: string[]) => import('../pricingCalculator.js').PricingSettings | { settings: import('../pricingCalculator.js').PricingSettings, missingKeys: string[] }} finish
+ */
+function finishLivePricingRow(row, finish) {
+  const raw = row.data
+  const missingKeys = detectMissingPricingSettingKeys(raw)
+  if (missingKeys.length > 0) {
+    console.warn('Pricing fallback used because admin settings were missing', missingKeys, {
+      source: 'supabase',
+    })
+  }
+  const merged = mergeWithDefaults(raw, { warnOnFallback: false, source: 'supabase' })
+  writeLocalPricingCache(merged, row.updated_at, 'supabase')
+  return finish(merged, missingKeys)
 }
 
 /**
@@ -88,6 +174,7 @@ function readOfflinePricingCache() {
  * @returns {Promise<import('../pricingCalculator.js').PricingSettings | { settings: import('../pricingCalculator.js').PricingSettings, missingKeys: string[] }>}
  */
 export async function fetchPricingSettings(opts = {}) {
+  ensurePricingSettingsRealtime()
   /** @param {import('../pricingCalculator.js').PricingSettings} merged @param {string[]} missingKeys */
   function finish(merged, missingKeys = []) {
     if (opts.includeMissingKeys) {
@@ -96,23 +183,20 @@ export async function fetchPricingSettings(opts = {}) {
     return merged
   }
 
+  if (!opts.includeMissingKeys) {
+    const cached = readFreshPricingCache()
+    if (cached?.settings) return finish(cached.settings, cached.missingKeys || [])
+  }
+
   if (isSupabaseConfigured && supabase) {
     try {
+      const publicRow = await loadPublicPricingRowFromSupabase()
+      if (publicRow?.data) return finishLivePricingRow(publicRow, finish)
+
       const { data: sessionData } = await supabase.auth.getSession()
       if (sessionData?.session) {
         const row = await loadPricingRowFromSupabase()
-        if (row?.data) {
-          const raw = row.data
-          const missingKeys = detectMissingPricingSettingKeys(raw)
-          if (missingKeys.length > 0) {
-            console.warn('Pricing fallback used because admin settings were missing', missingKeys, {
-              source: 'supabase',
-            })
-          }
-          const merged = mergeWithDefaults(raw, { warnOnFallback: false, source: 'supabase' })
-          writeLocalPricingCache(merged, row.updated_at, 'supabase')
-          return finish(merged, missingKeys)
-        }
+        if (row?.data) return finishLivePricingRow(row, finish)
       }
 
       const { data, error } = await supabase
@@ -120,37 +204,25 @@ export async function fetchPricingSettings(opts = {}) {
         .select('data, updated_at')
         .eq('id', 1)
         .maybeSingle()
-      if (error) throw error
-      if (data?.data && typeof data.data === 'object') {
-        const raw = /** @type {Record<string, unknown>} */ (data.data)
-        const missingKeys = detectMissingPricingSettingKeys(raw)
-        const merged = mergeWithDefaults(raw, { warnOnFallback: false, source: 'supabase' })
-        writeLocalPricingCache(merged, data.updated_at, 'supabase')
-        return finish(merged, missingKeys)
+      if (!error && data?.data && typeof data.data === 'object') {
+        return finishLivePricingRow(
+          {
+            data: /** @type {Record<string, unknown>} */ (data.data),
+            updated_at: data.updated_at ?? null,
+          },
+          finish,
+        )
       }
-
-      const defaults = mergeWithDefaults(null, { source: 'defaults', warnOnFallback: true })
-      writeLocalPricingCache(defaults, data?.updated_at || null, 'defaults')
-      return finish(defaults, detectMissingPricingSettingKeys(null))
+      if (error) throw error
     } catch (e) {
       const detail = e?.message || String(e)
       if (import.meta.env.DEV) {
-        console.warn('[fetchPricingSettings] Supabase unavailable — using offline cache if present.', detail)
+        console.warn('[fetchPricingSettings] Could not read admin pricing.', detail)
       }
     }
   }
 
-  const cached = readOfflinePricingCache()
-  if (cached) {
-    return finish(cached, [])
-  }
-
-  console.warn('Pricing fallback used because admin settings were missing', detectMissingPricingSettingKeys(null), {
-    source: 'defaults',
-  })
-  const defaults = mergeWithDefaults(null, { source: 'defaults', warnOnFallback: true })
-  writeLocalPricingCache(defaults, null, 'defaults')
-  return finish(defaults, detectMissingPricingSettingKeys(null))
+  throw new Error('Could not load pricing settings from admin.')
 }
 
 /**
@@ -235,4 +307,12 @@ function normalizePackingMaterialPrices(merged) {
     }
   }
   return merged
+}
+
+if (typeof window !== 'undefined') {
+  window.addEventListener('storage', (event) => {
+    if (event.key !== LS_PRICING && event.key !== LS_PRICING_SYNC) return
+    clearMemoryPricingCache()
+    dispatchPricingSettingsUpdated()
+  })
 }

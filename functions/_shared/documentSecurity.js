@@ -1,16 +1,12 @@
-/** Site CSP for the Amazon Connect CCP, recordings, and existing embedded services. */
+/** Site CSP for payments, maps, and media. Teams calls open in a new window, not an iframe. */
 export const DOCUMENT_CSP = [
-  "frame-src 'self' https://shiftmyhome.my.connect.aws https://*.my.connect.aws https://*.awsapps.com https://js.stripe.com https://*.stripe.com https://hooks.stripe.com https://m.stripe.network https://maps.googleapis.com https://maps.gstatic.com",
-  "worker-src 'self' blob: https://shiftmyhome.my.connect.aws https://*.my.connect.aws",
-  "media-src 'self' blob: mediastream: https://shiftmyhome.my.connect.aws https://*.my.connect.aws https://*.awsapps.com https://*.s3.eu-west-2.amazonaws.com https://*.s3.amazonaws.com",
+  "frame-src 'self' https://js.stripe.com https://*.stripe.com https://hooks.stripe.com https://m.stripe.network https://maps.googleapis.com https://maps.gstatic.com",
+  "worker-src 'self' blob:",
+  "media-src 'self' blob: mediastream:",
 ].join('; ')
 
-/** Microphone, speakers and ringtone for the framed softphone. Camera is not granted. */
-export const DOCUMENT_PERMISSIONS = [
-  'microphone=(self "https://shiftmyhome.my.connect.aws")',
-  'autoplay=(self "https://shiftmyhome.my.connect.aws")',
-  'speaker-selection=(self "https://shiftmyhome.my.connect.aws")',
-].join(', ')
+/** Camera is not used by the public site. */
+export const DOCUMENT_PERMISSIONS = 'camera=()'
 
 /** @param {Response} response */
 export function withDocumentSecurity(response) {

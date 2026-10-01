@@ -5,6 +5,16 @@
 import { register } from 'node:module'
 import { pathToFileURL } from 'node:url'
 
+globalThis.__SMH_IMPORT_META_ENV = {
+  DEV: false,
+  PROD: true,
+  MODE: 'test',
+  VITE_MAPBOX_TOKEN: '',
+  VITE_GOOGLE_MAPS_API_KEY: '',
+  VITE_SUPABASE_URL: '',
+  VITE_SUPABASE_ANON_KEY: '',
+}
+
 register('./esm-extension-loader.mjs', pathToFileURL('./scripts/'))
 
 const { maxCustomerLeadStatus } = await import('../src/lib/customerLeadStatus.js')
