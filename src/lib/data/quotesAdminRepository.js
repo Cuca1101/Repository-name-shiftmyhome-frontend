@@ -156,14 +156,14 @@ export async function fetchQuotesForAdmin(filterKey = 'all', searchTerm = '', op
   }
 
   if (opts.availableInbox) {
-    // Empty assignee ids still count as unassigned. `.is(null)` alone would drop them
-    // from every page even though the inbox rules treat them as eligible.
+    // Driver and partner ids are UUIDs. Comparing them to "" makes Postgres reject
+    // the whole Available Jobs query (invalid input syntax for type uuid).
     q = q
       .is('bundled_journey_id', null)
       .is('completed_at', null)
       .is('cancelled_at', null)
-      .or('assigned_driver_id.is.null,assigned_driver_id.eq.')
-      .or('assigned_partner_id.is.null,assigned_partner_id.eq.')
+      .is('assigned_driver_id', null)
+      .is('assigned_partner_id', null)
   }
 
   const safe = sanitizeAdminIlikeTerm(searchTerm)
