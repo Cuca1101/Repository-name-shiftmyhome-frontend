@@ -19,7 +19,7 @@ globalThis.__SMH_IMPORT_META_ENV = {
 
 register('./esm-extension-loader.mjs', pathToFileURL('./scripts/'))
 
-const { DAILY_JOB_SLOT_MAX, normalizeDailyJobSlots, resolveDaySlotAvailability } = await import(
+const { normalizeDailyJobSlots, resolveDaySlotAvailability } = await import(
   '../src/lib/calendarDayPricing.js'
 )
 const { quotePassesAvailableJobsStrict } = await import('../src/lib/adminJobListRules.js')
@@ -85,12 +85,24 @@ function eligibleOnPage(rows) {
   return filterProductionAdminQuotes(rows).filter(quotePassesAvailableJobsStrict)
 }
 
-console.log('=== 100 confirmed bookings on one day ===')
+console.log('=== daily slots follow Pricing Engine ===')
 
 const moveDate = '2026-10-05'
-assert(DAILY_JOB_SLOT_MAX === 50, 'configured weekday slot cap stays at 50')
+const engineSlots = { 0: 12, 1: 24, 2: 24, 3: 24, 4: 24, 5: 21, 6: 12 }
+assert(
+  JSON.stringify(normalizeDailyJobSlots(engineSlots)) === JSON.stringify({
+    0: 12,
+    1: 24,
+    2: 24,
+    3: 24,
+    4: 24,
+    5: 21,
+    6: 12,
+  }),
+  'saved Pricing Engine slots are kept as entered',
+)
 
-const dayBookings = Array.from({ length: 100 }, (_, index) => ({
+const dayBookings = Array.from({ length: 24 }, (_, index) => ({
   id: `day-${index + 1}`,
   quote_ref: `SMH-2026-${200000 + index}`,
   full_name: `Volume Customer ${index + 1}`,
@@ -101,18 +113,18 @@ const dayBookings = Array.from({ length: 100 }, (_, index) => ({
   is_test: false,
 }))
 
-assert(dayBookings.filter(countsAsConfirmedBooking).length === 100, '100 paid bookings count on the day')
-assert(normalizeDailyJobSlots({ 1: 50 })['1'] === 50, 'a Monday limit of 50 is stored')
-assert(normalizeDailyJobSlots({ 1: 100 })['1'] === 50, 'a typed limit above 50 stays capped at 50')
-assert(normalizeDailyJobSlots({ 1: 500 })['1'] === DAILY_JOB_SLOT_MAX, 'values above the cap clamp')
-
-const atLimit = resolveDaySlotAvailability({ dailyJobSlots: { 1: 50 } }, moveDate, 50)
-assert(atLimit.capacity === 50 && atLimit.remaining === 0 && atLimit.full, '50 of 50 fills the day')
-const oneLeft = resolveDaySlotAvailability({ dailyJobSlots: { 1: 50 } }, moveDate, 49)
-assert(oneLeft.remaining === 1 && !oneLeft.full, '49 of 50 leaves one slot')
+assert(dayBookings.filter(countsAsConfirmedBooking).length === 24, '24 paid bookings count on the Monday')
+const atLimit = resolveDaySlotAvailability({ dailyJobSlots: engineSlots }, moveDate, 24)
+assert(atLimit.capacity === 24 && atLimit.remaining === 0 && atLimit.full, 'Monday closes at the engine limit of 24')
+const oneLeft = resolveDaySlotAvailability({ dailyJobSlots: engineSlots }, moveDate, 23)
+assert(oneLeft.capacity === 24 && oneLeft.remaining === 1 && !oneLeft.full, '23 of 24 leaves one Monday slot')
+const friday = resolveDaySlotAvailability({ dailyJobSlots: engineSlots }, '2026-10-02', 21)
+assert(friday.capacity === 21 && friday.full, 'Friday closes at the engine limit of 21')
+const changed = resolveDaySlotAvailability({ dailyJobSlots: { ...engineSlots, 1: 30 } }, moveDate, 24)
+assert(changed.capacity === 30 && changed.remaining === 6 && !changed.full, 'a Pricing Engine edit to 30 is what the calendar uses')
 const unlimited = resolveDaySlotAvailability({ dailyJobSlots: {} }, moveDate, 100)
-assert(!unlimited.limited && !unlimited.full, 'a blank weekday stays open at 100 bookings')
-assert(customerMessagesSent.length === 0, 'day-capacity check sent no customer messages')
+assert(!unlimited.limited && !unlimited.full, 'a blank weekday stays open')
+assert(customerMessagesSent.length === 0, 'slot check sent no customer messages')
 
 console.log('=== Available Jobs pagination keeps every eligible job ===')
 

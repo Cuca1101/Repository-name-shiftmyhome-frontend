@@ -21,9 +21,6 @@ export const DAILY_SLOT_WEEKDAYS = [
   { id: 0, label: 'Sunday' },
 ]
 
-/** Configured weekday cap. Blank stays unlimited. */
-export const DAILY_JOB_SLOT_MAX = 50
-
 const WEEKDAY_LABELS = {
   0: 'Sunday',
   1: 'Monday',
@@ -75,7 +72,8 @@ export function normalizeWeekdayBestPriceDays(raw) {
 }
 
 /**
- * Jobs the company can take on each weekday. Missing key = no limit. 0 = closed.
+ * Jobs the company can take on each weekday, as saved in Pricing Engine.
+ * Missing key = no limit. 0 = closed. The number is not capped in code.
  * @param {unknown} raw
  * @returns {Record<string, number>}
  */
@@ -88,7 +86,7 @@ export function normalizeDailyJobSlots(raw) {
     if (value === '' || value == null) continue
     const n = Math.floor(Number(value))
     if (!Number.isFinite(n) || n < 0) continue
-    out[String(day)] = Math.min(DAILY_JOB_SLOT_MAX, n)
+    out[String(day)] = n
   }
   return out
 }
