@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import AdminRecordsSearchRow from './admin/AdminRecordsSearchRow'
-import PhoneActions from './admin/PhoneActions'
+import LeadCallButton from './admin/LeadCallButton'
 import { filterQuotesForProductionInbox } from '../lib/demoTestRecordDetection'
 import { fetchHomePageQuoteRequests } from '../lib/data/quotesAdminRepository'
 import { formatDateTimeUK, formatDateUK } from '../lib/formatDateDisplay'
@@ -130,7 +130,7 @@ export default function HomePageQuoteRequestsAdmin() {
                     const ref = q.quote_ref ? String(q.quote_ref) : ''
                     const copyKey = `${q.id}-ref`
                     return (
-                      <tr key={q.id} className="align-top text-slate-800">
+                      <tr key={q.id} className="align-middle text-slate-800">
                         <td className="px-4 py-3">
                           {ref ? (
                             <div className="flex flex-wrap items-center gap-2">
@@ -154,15 +154,8 @@ export default function HomePageQuoteRequestsAdmin() {
                           )}
                         </td>
                         <td className="px-4 py-3 font-medium">{q.full_name}</td>
-                        <td className="min-w-[16rem] px-4 py-3 text-slate-700">
-                          <PhoneActions
-                            compact
-                            name={q.full_name || ''}
-                            phone={q.phone || ''}
-                            email={q.email || ''}
-                            company={q.company || q.company_name || ''}
-                            sourceNote={q.quote_ref ? `Saved from quote request ${q.quote_ref}` : 'Saved from a quote request'}
-                          />
+                        <td className="whitespace-nowrap px-3 py-1.5">
+                          <LeadCallButton phone={q.phone || ''} />
                         </td>
                         <td className="max-w-[200px] truncate px-4 py-3 text-slate-700" title={q.email}>
                           {q.email}
@@ -231,14 +224,7 @@ export default function HomePageQuoteRequestsAdmin() {
                       <div>
                         <dt className="text-xs font-medium text-slate-500">Phone</dt>
                         <dd>
-                          <PhoneActions
-                            compact
-                            name={q.full_name || ''}
-                            phone={q.phone || ''}
-                            email={q.email || ''}
-                            company={q.company || q.company_name || ''}
-                            sourceNote={q.quote_ref ? `Saved from quote request ${q.quote_ref}` : 'Saved from a quote request'}
-                          />
+                          <LeadCallButton phone={q.phone || ''} />
                         </dd>
                       </div>
                       <div>

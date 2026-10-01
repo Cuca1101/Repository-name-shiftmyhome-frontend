@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import DriverFleetCard from './admin/DriverFleetCard'
+import LeadCallButton from './admin/LeadCallButton'
 import { fetchQuotesForAdmin } from '../lib/data/quotesAdminRepository'
 import { fetchAllJobs } from '../lib/data/jobsRepository'
 import { fetchFleetDrivers, upsertFleetDriver, setFleetDriverUserId } from '../lib/data/driversRepository'
@@ -637,7 +638,9 @@ export default function DriversAdmin() {
             </div>
             <div>
               <dt className={fieldLabel}>Phone</dt>
-              <dd>{draft.phone || '—'}</dd>
+              <dd>
+                <LeadCallButton phone={draft.phone || ''} />
+              </dd>
             </div>
             <div>
               <dt className={fieldLabel}>Vehicle type</dt>

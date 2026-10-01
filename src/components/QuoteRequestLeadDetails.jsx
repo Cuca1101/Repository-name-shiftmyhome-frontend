@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { AdminField } from './admin-workflow/AdminJobUiPrimitives'
-import PhoneActions from './admin/PhoneActions'
+import LeadCallButton from './admin/LeadCallButton'
 import {
   deletePublicQuoteRequest,
   fetchPublicQuoteRequestById,
@@ -157,15 +157,7 @@ export default function QuoteRequestLeadDetails() {
               <AdminField label="Customer name" value={row.full_name} />
               <AdminField
                 label="Phone"
-                value={
-                  <PhoneActions
-                    name={row.full_name || ''}
-                    phone={row.phone || ''}
-                    email={row.email || ''}
-                    company={row.company || row.company_name || ''}
-                    sourceNote={ref ? `Saved from quote request ${ref}` : 'Saved from a quote request'}
-                  />
-                }
+                value={<LeadCallButton phone={row.phone || ''} />}
               />
               <AdminField label="Email" value={row.email} />
             </dl>

@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom'
 import JobStatusBadge from '../admin-workflow/JobStatusBadge'
 import DriverLifecycleActions from './DriverLifecycleActions'
-import TeamsCallButtons from './TeamsCallButtons'
+import LeadCallButton from './LeadCallButton'
 import { getDriverDisplayStatus, getDriverLifecyclePhase } from '../../lib/driverAdminLifecycle'
 
 function statusTone(st) {
@@ -108,12 +108,7 @@ export default function DriverFleetCard({
         </div>
 
         <div className="space-y-1 text-xs text-slate-600">
-          {d.phone ? (
-            <div className="space-y-2">
-              <p className="truncate">{d.phone}</p>
-              <TeamsCallButtons phone={d.phone} compact />
-            </div>
-          ) : null}
+          {d.phone ? <LeadCallButton phone={String(d.phone)} /> : null}
           {vehicleLine ? <p className="truncate text-slate-500">{vehicleLine}</p> : null}
           <p
             className={

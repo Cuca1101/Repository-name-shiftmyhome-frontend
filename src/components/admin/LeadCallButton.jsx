@@ -3,7 +3,7 @@ import { Phone } from 'lucide-react'
 import { teamsCallLink } from '../../lib/teamsPhone'
 
 /**
- * Customer number plus one Teams call control.
+ * Visible telephone number plus one Teams call control.
  * @param {{ phone?: string }} props
  */
 export default function LeadCallButton({ phone = '' }) {
@@ -14,8 +14,8 @@ export default function LeadCallButton({ phone = '' }) {
   const link = teamsCallLink(display)
 
   return (
-    <span className="inline-flex max-w-full items-center gap-1.5">
-      <span className="text-slate-800">{display}</span>
+    <span className="inline-flex min-w-0 max-w-full items-center gap-1.5">
+      <span className="min-w-0 truncate text-slate-800" title={display}>{display}</span>
       <a
         href={link.ok ? link.href : '#call'}
         target="_blank"
