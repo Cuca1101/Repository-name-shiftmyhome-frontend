@@ -6,7 +6,7 @@ import {
 } from '../lib/data/customerLeadsRepository'
 import { CUSTOMER_LEAD_STATUS_LABELS } from '../lib/customerLeadStatus'
 import { formatDateTimeUK, formatDateUK } from '../lib/formatDateDisplay'
-import PhoneActions from './admin/PhoneActions'
+import LeadCallButton from './admin/LeadCallButton'
 import {
   buildPayQuoteUrl,
   buildResumeQuoteUrl,
@@ -494,12 +494,7 @@ export default function CustomerLeadDetailAdmin() {
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <PhoneActions
-            name={lead.customer_name || ''}
-            phone={lead.customer_phone || ''}
-            email={lead.customer_email || ''}
-            sourceNote={lead.lead_ref ? `Saved from customer lead ${lead.lead_ref}` : 'Saved from a customer lead'}
-          />
+          <LeadCallButton phone={lead.customer_phone || ''} />
           {emailHref ? (
             <a
               href={emailHref}
@@ -808,12 +803,7 @@ export default function CustomerLeadDetailAdmin() {
         <Row label="Name" value={lead.customer_name} />
         <div className="grid gap-1 sm:grid-cols-[140px_1fr]">
           <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">Phone</span>
-          <PhoneActions
-            name={lead.customer_name || ''}
-            phone={lead.customer_phone || ''}
-            email={lead.customer_email || ''}
-            sourceNote={lead.lead_ref ? `Saved from customer lead ${lead.lead_ref}` : 'Saved from a customer lead'}
-          />
+          <LeadCallButton phone={lead.customer_phone || ''} />
         </div>
         <Row label="Email" value={lead.customer_email} />
         <Row label="Service" value={lead.service_type} />
@@ -853,12 +843,7 @@ export default function CustomerLeadDetailAdmin() {
         <Row label="Name" value={s2.fullName || lead.customer_name} />
         <div className="grid gap-1 sm:grid-cols-[140px_1fr]">
           <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">Phone</span>
-          <PhoneActions
-            name={s2.fullName || lead.customer_name || ''}
-            phone={s2.phone || lead.customer_phone || ''}
-            email={s2.email || lead.customer_email || ''}
-            sourceNote={lead.lead_ref ? `Saved from customer lead ${lead.lead_ref}` : 'Saved from a customer lead'}
-          />
+          <LeadCallButton phone={s2.phone || lead.customer_phone || ''} />
         </div>
         <Row label="Email" value={s2.email || lead.customer_email} />
         <Row label="Crew" value={s2.crewSize} />

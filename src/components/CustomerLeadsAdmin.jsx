@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import AdminRecordsSearchRow from './admin/AdminRecordsSearchRow'
-import PhoneActions from './admin/PhoneActions'
+import LeadCallButton from './admin/LeadCallButton'
 import {
   deleteCustomerLeadById,
   fetchCustomerLeadsForAdmin,
@@ -366,16 +366,16 @@ export default function CustomerLeadsAdmin() {
       />
 
       {error && (
-        <p className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{error}</p>
+        <p className="rounded-xl border border-red-200 bg-red-50 px-3 py-1.5 text-sm text-red-800">{error}</p>
       )}
       {actionMsg ? (
-        <p className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
+        <p className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-sm text-emerald-900">
           {actionMsg}
         </p>
       ) : null}
 
       {selectedVisibleCount > 0 ? (
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3">
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-red-200 bg-red-50 px-3 py-1.5">
           <p className="text-sm font-semibold text-red-900">
             {selectedVisibleCount} selected
           </p>
@@ -400,7 +400,7 @@ export default function CustomerLeadsAdmin() {
             <table className="w-full min-w-[1240px] text-left text-sm">
               <thead className="sticky top-0 z-20 border-b border-slate-200 bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-500">
                 <tr>
-                  <th className="sticky left-0 z-30 bg-slate-50 px-3 py-3">
+                  <th className="sticky left-0 z-30 bg-slate-50 px-3 py-1.5">
                     <input
                       ref={selectAllRef}
                       type="checkbox"
@@ -410,18 +410,18 @@ export default function CustomerLeadsAdmin() {
                       className="h-4 w-4 rounded border-slate-300"
                     />
                   </th>
-                  <th className="px-4 py-3">Lead ref</th>
-                  <th className="px-4 py-3">Name</th>
-                  <th className="px-4 py-3">Phone</th>
-                  <th className="px-4 py-3">Email</th>
-                  <th className="px-4 py-3">Service</th>
-                  <th className="min-w-[160px] px-4 py-3">Route</th>
-                  <th className="px-4 py-3">Quote price</th>
-                  <th className="px-4 py-3">Agreed</th>
-                  <th className="px-4 py-3">Status</th>
-                  <th className="px-4 py-3">Last activity</th>
-                  <th className="px-4 py-3">Created</th>
-                  <th className="px-4 py-3">Actions</th>
+                  <th className="px-3 py-1.5">Lead ref</th>
+                  <th className="px-3 py-1.5">Name</th>
+                  <th className="px-3 py-1.5">Phone</th>
+                  <th className="px-3 py-1.5">Email</th>
+                  <th className="px-3 py-1.5">Service</th>
+                  <th className="min-w-[160px] px-3 py-1.5">Route</th>
+                  <th className="px-3 py-1.5">Quote price</th>
+                  <th className="px-3 py-1.5">Agreed</th>
+                  <th className="px-3 py-1.5">Status</th>
+                  <th className="px-3 py-1.5">Last activity</th>
+                  <th className="px-3 py-1.5">Created</th>
+                  <th className="px-3 py-1.5">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -438,8 +438,8 @@ export default function CustomerLeadsAdmin() {
                   const rowBg = selected ? 'bg-red-50' : 'bg-white'
 
                   return (
-                    <tr key={row.id} className={`align-top text-slate-800 ${selected ? 'bg-red-50' : ''}`}>
-                      <td className={`sticky left-0 z-10 px-3 py-3 ${rowBg}`}>
+                    <tr key={row.id} className={`align-middle text-slate-800 ${selected ? 'bg-red-50' : ''}`}>
+                      <td className={`sticky left-0 z-10 px-3 py-1.5 ${rowBg}`}>
                         <input
                           type="checkbox"
                           checked={selected}
@@ -448,7 +448,7 @@ export default function CustomerLeadsAdmin() {
                           className="h-4 w-4 rounded border-slate-300"
                         />
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="px-3 py-1.5">
                         <Link
                           to={`/admin/customer-leads/${row.id}`}
                           className="font-mono text-xs font-semibold text-brand-700 hover:underline"
@@ -459,32 +459,26 @@ export default function CustomerLeadsAdmin() {
                           <p className="mt-0.5 font-mono text-[10px] text-slate-500">{row.quote_ref}</p>
                         ) : null}
                       </td>
-                      <td className="px-4 py-3">{row.customer_name || '—'}</td>
-                      <td className="min-w-[16rem] px-4 py-3">
-                        <PhoneActions
-                          compact
-                          name={row.customer_name || ''}
-                          phone={phone || ''}
-                          email={email || ''}
-                          sourceNote={row.lead_ref ? `Saved from customer lead ${row.lead_ref}` : 'Saved from a customer lead'}
-                        />
+                      <td className="px-3 py-1.5">{row.customer_name || '—'}</td>
+                      <td className="whitespace-nowrap px-3 py-1.5">
+                        <LeadCallButton phone={phone || ''} />
                       </td>
-                      <td className="max-w-[180px] truncate px-4 py-3" title={email || undefined}>
+                      <td className="max-w-[180px] truncate px-3 py-1.5" title={email || undefined}>
                         {email || '—'}
                       </td>
-                      <td className="px-4 py-3">{row.service_type || '—'}</td>
-                      <td className="max-w-[200px] truncate px-4 py-3" title={row.route_label || undefined}>
+                      <td className="px-3 py-1.5">{row.service_type || '—'}</td>
+                      <td className="max-w-[200px] truncate px-3 py-1.5" title={row.route_label || undefined}>
                         {row.route_label || '—'}
                       </td>
-                      <td className="px-4 py-3 tabular-nums">{money(row.estimated_total)}</td>
-                      <td className="px-4 py-3 tabular-nums">
+                      <td className="px-3 py-1.5 tabular-nums">{money(row.estimated_total)}</td>
+                      <td className="px-3 py-1.5 tabular-nums">
                         {row.agreed_price != null ? (
                           <span className="font-semibold text-brand-800">{money(row.agreed_price)}</span>
                         ) : (
                           '—'
                         )}
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="px-3 py-1.5">
                         <StatusBadge status={eff} />
                         {converted ? (
                           <button
@@ -497,14 +491,14 @@ export default function CustomerLeadsAdmin() {
                           </button>
                         ) : null}
                       </td>
-                      <td className="whitespace-nowrap px-4 py-3 text-xs text-slate-600">
+                      <td className="whitespace-nowrap px-3 py-1.5 text-xs text-slate-600">
                         {formatDateTimeUK(row.last_activity_at)}
                       </td>
-                      <td className="whitespace-nowrap px-4 py-3 text-xs text-slate-500">
+                      <td className="whitespace-nowrap px-3 py-1.5 text-xs text-slate-500">
                         {formatDateTimeUK(row.created_at)}
                       </td>
-                      <td className={`sticky right-0 px-4 py-3 shadow-[-8px_0_8px_-8px_rgba(15,23,42,0.15)] ${rowBg}`}>
-                        <div className="flex flex-wrap gap-1.5">
+                      <td className={`sticky right-0 px-3 py-1.5 shadow-[-8px_0_8px_-8px_rgba(15,23,42,0.15)] ${rowBg}`}>
+                        <div className="flex flex-nowrap gap-1">
                           {emailHref ? (
                             <a
                               href={emailHref}
