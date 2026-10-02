@@ -10,6 +10,7 @@ import QuotePhotosAdminSection from './QuotePhotosAdminSection'
 import JobDetailsOpsTimeline from './JobDetailsOpsTimeline'
 import JobDetailsPayoutSection from './JobDetailsPayoutSection'
 import { AdminField } from './AdminJobUiPrimitives'
+import { resolveCustomerPaymentSummary } from '../../lib/customerPaymentSummary'
 
 const cardShell =
   'overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-[0_1px_3px_rgba(15,23,42,0.06)]'
@@ -27,6 +28,7 @@ function StatCard({ label, value, sub, tone = 'slate' }) {
     slate: 'border-slate-200 bg-slate-50/80',
     emerald: 'border-emerald-200/80 bg-emerald-50/50',
     amber: 'border-amber-200/80 bg-amber-50/50',
+    orange: 'border-orange-200/80 bg-orange-50/50',
     sky: 'border-sky-200/80 bg-sky-50/50',
     violet: 'border-violet-200/80 bg-violet-50/50',
   }
@@ -86,7 +88,6 @@ function ChecklistRow({ ok, label, detail }) {
 export default function JobDetailsOverviewOps({
   q,
   overrides,
-  fin,
   adjSum,
   vm,
   statusDraft,
@@ -107,25 +108,25 @@ export default function JobDetailsOverviewOps({
   const partner = String(q.assigned_partner_company || overrides.assignedPartnerCompany || '').trim()
   const invRows = buildAvailableJobInventoryDisplayRows(q)
   const invSummary = summarizeAvailableJobInventory(invRows)
-  const paid = Number(fin?.paid) > 0
+  const customerPayment = resolveCustomerPaymentSummary(q, { adjustmentsGbp: adjSum })
+  const paid = customerPayment.paid > 0
   const hasDriver = Boolean(driver || partner)
   const mv = String(overrides.marketplaceVisibility || q.marketplace_visibility || '')
 
-  const paymentStatLabel = String(q.payment_status || 'unpaid').replace(/_/g, ' ')
-  const paymentTone =
-    String(q.payment_status) === 'paid'
-      ? 'emerald'
-      : String(q.payment_status) === 'deposit_paid'
-        ? 'sky'
-        : 'amber'
+  const paymentStatLabel = `${customerPayment.label} · Paid ${money(customerPayment.paid)} · Balance ${
+    customerPayment.remaining != null ? money(customerPayment.remaining) : '—'
+  }`
+  const paymentTone = customerPayment.tone === 'orange' ? 'orange' : customerPayment.tone
 
   return (
     <div className="space-y-5">
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
         <StatCard
           label="Payment"
-          value={fin?.customerTotal != null ? money(fin.customerTotal) : '—'}
-          sub={`Paid ${money(fin?.paid)} · Bal ${fin?.remaining != null ? money(fin.remaining) : '—'}`}
+          value={customerPayment.label}
+          sub={`Total ${customerPayment.total != null ? money(customerPayment.total) : '—'} · Paid ${money(customerPayment.paid)} · Balance ${
+            customerPayment.remaining != null ? money(customerPayment.remaining) : '—'
+          }`}
           tone={paymentTone}
         />
         <StatCard
@@ -143,11 +144,11 @@ export default function JobDetailsOverviewOps({
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2">
-        <StatCard label="Customer total" value={fin?.customerTotal != null ? money(fin.customerTotal) : '—'} />
+        <StatCard label="Customer total" value={customerPayment.total != null ? money(customerPayment.total) : '—'} />
         <StatCard
           label="Remaining balance"
-          value={fin?.remaining != null ? money(fin.remaining) : '—'}
-          tone={fin?.remaining != null && Number(fin.remaining) > 0 ? 'amber' : 'emerald'}
+          value={customerPayment.remaining != null ? money(customerPayment.remaining) : '—'}
+          tone={customerPayment.remaining != null && customerPayment.remaining > 0 ? 'orange' : 'emerald'}
         />
       </div>
 

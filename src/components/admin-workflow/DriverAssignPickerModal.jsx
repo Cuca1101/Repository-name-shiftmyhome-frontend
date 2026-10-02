@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { loadFleetDriversForAdmin } from '../../lib/adminFleetDrivers'
 import { filterDriversForPicker } from '../../lib/adminDriverJobCounts'
 
@@ -52,7 +53,7 @@ export default function DriverAssignPickerModal({
     setPending(null)
   }
 
-  return (
+  const dialog = (
     <div
       className="fixed inset-0 z-[110] flex items-end justify-center bg-slate-900/60 p-0 sm:items-center sm:p-4"
       role="dialog"
@@ -206,4 +207,6 @@ export default function DriverAssignPickerModal({
       </div>
     </div>
   )
+
+  return createPortal(dialog, document.body)
 }

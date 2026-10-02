@@ -88,7 +88,11 @@ export default function JobQuickAssignDriver({ quote, jobCountsByDriverId = {}, 
         type="button"
         disabled={busy || !id}
         className={btnClass}
-        onClick={() => setPickerOpen(true)}
+        onClick={(event) => {
+          event.preventDefault()
+          event.stopPropagation()
+          setPickerOpen(true)
+        }}
       >
         {busy ? 'Assigning…' : hasDriver ? 'Change driver' : 'Assign driver'}
       </button>

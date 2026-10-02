@@ -1,4 +1,5 @@
 import { Component } from 'react'
+import MarketplacePricingSettingsPanel from './admin-workflow/MarketplacePricingSettingsPanel'
 import AdminWorkflowJobList from './admin-workflow/AdminWorkflowJobList'
 
 class MarketplacePageErrorBoundary extends Component {
@@ -49,11 +50,31 @@ class MarketplacePageErrorBoundary extends Component {
 export default function MarketplaceJobsAdmin() {
   return (
     <MarketplacePageErrorBoundary>
-      <AdminWorkflowJobList
-        workflow="marketplace"
-        title="Marketplace"
-        description="Jobs published to the partner marketplace awaiting acceptance. Once a partner accepts, the job moves to Job Accepted — it will not appear here."
-      />
+      <div className="space-y-5">
+        <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+          <h2 className="text-sm font-bold text-slate-900">Marketplace finance</h2>
+          <p className="mt-1 max-w-3xl text-xs leading-relaxed text-slate-600">
+            The commission you set here applies only after a job is sent to the partner marketplace.
+            It is not applied to Available Jobs or to jobs assigned to your own drivers. Partner payout
+            is the job total minus this commission. It does not change the customer price or the balance
+            remaining, and it is not net profit.
+          </p>
+          <div className="mt-3">
+            <MarketplacePricingSettingsPanel
+              marketplaceQuotes={[]}
+              recalcScope="marketplace"
+              onApplied={() => {}}
+              compact
+              embedded
+            />
+          </div>
+        </section>
+        <AdminWorkflowJobList
+          workflow="marketplace"
+          title="Marketplace"
+          description="Jobs published to the partner marketplace awaiting acceptance. Once a partner accepts, the job moves to Job Accepted — it will not appear here."
+        />
+      </div>
     </MarketplacePageErrorBoundary>
   )
 }

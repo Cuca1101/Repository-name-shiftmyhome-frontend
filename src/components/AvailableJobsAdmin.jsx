@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useNavigate, useSearchParams } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { fetchQuotesForAdmin, AVAILABLE_JOB_LIST_COLUMNS } from '../lib/data/quotesAdminRepository'
 import { supabase } from '../lib/supabase'
 import { quoteIsAdminPhoneBookingReleased, quoteIsCardPaid, quotePassesAvailableJobsStrict } from '../lib/adminJobListRules'
@@ -21,8 +21,7 @@ import JobQuickAssignDriver from './admin-workflow/JobQuickAssignDriver'
 import { countAcceptedJobsByDriverId } from '../lib/adminDriverJobCounts'
 import AdminJobListSections from './admin-workflow/AdminJobListSections'
 import AdminRecordsSearchRow from './admin/AdminRecordsSearchRow'
-import MarketplacePricingSettingsPanel from './admin-workflow/MarketplacePricingSettingsPanel'
-import AutoMarketplaceHoldToggle from './admin-workflow/AutoMarketplaceHoldToggle'
+import JobCardOverflowMenu from './admin-workflow/JobCardOverflowMenu'
 import { runAutoMarketplaceTick } from '../lib/autoMarketplacePublish'
 import { loadMarketplacePricingDefaults } from '../lib/marketplacePricingDefaultsStore'
 import { subscribeAdminDataRefresh } from '../lib/adminDataRefresh'
@@ -124,7 +123,6 @@ export default function AvailableJobsAdmin() {
   const [highlightIds, setHighlightIds] = useState(() => new Set())
   const [toast, setToast] = useState('')
   const [testEmailBusy, setTestEmailBusy] = useState(false)
-  const [settingsVersion, setSettingsVersion] = useState(0)
   const [testEmailToast, setTestEmailToast] = useState(null)
   const [soundEnabled, setSoundEnabled] = useState(() => readAvailableJobsSoundEnabled())
   const [soundUnlocked, setSoundUnlocked] = useState(() => readAvailableJobsSoundUnlocked())
@@ -388,23 +386,30 @@ export default function AvailableJobsAdmin() {
         listVariant="available"
         layoutMode={viewMode}
         highlight={highlightIds.has(String(q.id))}
+        openDetailsHref={`/admin/available-jobs/${q.id}`}
         secondarySlot={
-          <div className="flex w-full flex-col gap-2">
-            <JobQuickAssignDriver
-              quote={q}
-              jobCountsByDriverId={jobCountsByDriverId}
-              onApplied={async () => {
-                const filtered = await fetchFilteredRows()
-                mergeRows(filtered, { notify: false })
-              }}
-            />
-            <AutoMarketplaceHoldToggle
-              q={q}
-              onUpdated={async () => {
-                const filtered = await fetchFilteredRows()
-                mergeRows(filtered, { notify: false })
-              }}
-            />
+          <div className="flex w-full items-start gap-2">
+            <div className="pointer-events-auto min-w-0 flex-1">
+              <JobQuickAssignDriver
+                quote={q}
+                jobCountsByDriverId={jobCountsByDriverId}
+                onApplied={async () => {
+                  const filtered = await fetchFilteredRows()
+                  mergeRows(filtered, { notify: false })
+                }}
+              />
+            </div>
+            <div className="pointer-events-auto">
+            <JobCardOverflowMenu>
+              <Link
+                role="menuitem"
+                to={`/admin/available-jobs/${q.id}`}
+                className="block rounded-md px-2 py-2 text-left text-xs font-semibold text-slate-800 hover:bg-slate-50"
+              >
+                View details
+              </Link>
+            </JobCardOverflowMenu>
+            </div>
           </div>
         }
         selectionCheckbox={
@@ -579,20 +584,6 @@ export default function AvailableJobsAdmin() {
               </div>
             ),
           },
-          {
-            id: 'marketplace',
-            title: 'Marketplace pricing settings',
-            content: (
-              <MarketplacePricingSettingsPanel
-                marketplaceQuotes={rows}
-                recalcScope="available"
-                onApplied={load}
-                onSettingsSaved={() => setSettingsVersion((v) => v + 1)}
-                compact
-                embedded
-              />
-            ),
-          },
         ]}
       />
 
@@ -685,7 +676,7 @@ export default function AvailableJobsAdmin() {
           {emptyMessage}
         </p>
       ) : splitAllOpen ? (
-        <div className="space-y-8" key={settingsVersion}>
+        <div className="space-y-8">
           <section className="space-y-3">
             <div className="flex flex-wrap items-baseline justify-between gap-2">
               <h3 className="text-sm font-bold text-slate-900">Paid online</h3>
@@ -726,7 +717,6 @@ export default function AvailableJobsAdmin() {
         </div>
       ) : (
         <AdminJobListSections
-          key={settingsVersion}
           jobs={sortedRows}
           viewMode={viewMode}
           renderJob={renderAvailableJob}

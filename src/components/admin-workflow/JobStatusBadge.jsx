@@ -12,6 +12,8 @@ function badgeClass(tone) {
       return 'bg-violet-50 text-violet-900 ring-1 ring-violet-200'
     case 'rose':
       return 'bg-rose-50 text-rose-900 ring-1 ring-rose-200'
+    case 'orange':
+      return 'bg-orange-50 text-orange-950 ring-1 ring-orange-200'
     default:
       return 'bg-amber-50 text-amber-900 ring-1 ring-amber-200'
   }

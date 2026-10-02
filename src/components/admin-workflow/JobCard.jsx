@@ -17,6 +17,7 @@ import AdminJobOperationsCard from './AdminJobOperationsCard'
  *   highlight?: boolean,
  *   secondarySlot?: unknown,
  *   viewJobLabel?: string,
+ *   openDetailsHref?: string,
  * }} props
  */
 export default function JobCard({
@@ -30,6 +31,7 @@ export default function JobCard({
   highlight = false,
   secondarySlot = null,
   viewJobLabel,
+  openDetailsHref = '',
 }) {
   const cardVariant =
     listVariant === 'available'
@@ -55,6 +57,7 @@ export default function JobCard({
       secondarySlot={secondarySlot ?? adminSlot}
       highlight={highlight}
       viewJobLabel={viewJobLabel}
+      openDetailsHref={openDetailsHref}
     />
   )
 }

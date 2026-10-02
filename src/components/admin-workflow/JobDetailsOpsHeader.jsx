@@ -3,17 +3,11 @@ import JobStatusBadge from './JobStatusBadge'
 import { isQuoteDemoOrTest } from '../../lib/demoTestRecordDetection'
 import { showDemoAdminUi } from '../../lib/adminProductionMode'
 import { formatDateTimeUK, formatDateUK } from '../../lib/formatDateDisplay'
+import { resolveCustomerPaymentSummary } from '../../lib/customerPaymentSummary'
 
 function money(n) {
   if (n == null || n === '') return '—'
   return `£${Number(n).toFixed(2)}`
-}
-
-function paymentTone(ps) {
-  const p = String(ps || '').toLowerCase()
-  if (p === 'paid') return 'emerald'
-  if (p === 'deposit_paid') return 'sky'
-  return 'slate'
 }
 
 function CustomerAvatar() {
@@ -66,7 +60,6 @@ function RouteFlow({ vm }) {
  * @param {{
  *   q: Record<string, unknown>,
  *   vm: Record<string, unknown> | null,
- *   fin: { customerTotal: number|null, paid: number, remaining: number|null } | null,
  *   workflowBadge: { label: string, tone?: string },
  *   overrides: Record<string, unknown>,
  *   backHref: string,
@@ -77,7 +70,6 @@ function RouteFlow({ vm }) {
 export default function JobDetailsOpsHeader({
   q,
   vm,
-  fin,
   workflowBadge,
   overrides,
   backHref,
@@ -86,6 +78,7 @@ export default function JobDetailsOpsHeader({
 }) {
   const driverLabel = String(q.assigned_driver_name || overrides.assignedDriver || '').trim()
   const opStatus = String(overrides.operationalStatus || q.operational_status || '').trim()
+  const customerPayment = resolveCustomerPaymentSummary(q)
 
   return (
     <header className="overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-[0_4px_24px_-8px_rgba(15,23,42,0.12)]">
@@ -146,15 +139,12 @@ export default function JobDetailsOpsHeader({
 
                 <div className="mt-3 flex flex-wrap items-center gap-2">
                   <JobStatusBadge label={workflowBadge.label} tone={workflowBadge.tone} />
-                  <JobStatusBadge
-                    label={String(q.payment_status || 'unpaid').replace(/_/g, ' ')}
-                    tone={paymentTone(q.payment_status)}
-                  />
+                  <JobStatusBadge label={customerPayment.label} tone={customerPayment.tone} />
                   {opStatus ? <JobStatusBadge label={opStatus} tone="sky" /> : null}
                   {driverLabel ? (
                     <JobStatusBadge label={`Driver · ${driverLabel}`} tone="emerald" />
                   ) : (
-                    <JobStatusBadge label="No driver" tone="amber" />
+                    <JobStatusBadge label="Unassigned" tone="amber" />
                   )}
                   {showDemoAdminUi() && isQuoteDemoOrTest(q) ? (
                     <JobStatusBadge label="Test record" tone="slate" />
@@ -171,17 +161,17 @@ export default function JobDetailsOpsHeader({
               <div>
                 <p className="text-[10px] font-bold uppercase tracking-wide text-slate-500">Total</p>
                 <p className="mt-1 text-base font-bold tabular-nums text-slate-900">
-                  {fin?.customerTotal != null ? money(fin.customerTotal) : '—'}
+                  {customerPayment.total != null ? money(customerPayment.total) : '—'}
                 </p>
               </div>
               <div>
                 <p className="text-[10px] font-bold uppercase tracking-wide text-slate-500">Paid</p>
-                <p className="mt-1 text-base font-bold tabular-nums text-emerald-700">{money(fin?.paid)}</p>
+                <p className="mt-1 text-base font-bold tabular-nums text-emerald-700">{money(customerPayment.paid)}</p>
               </div>
               <div>
                 <p className="text-[10px] font-bold uppercase tracking-wide text-slate-500">Balance</p>
                 <p className="mt-1 text-base font-bold tabular-nums text-amber-800">
-                  {fin?.remaining != null ? money(fin.remaining) : '—'}
+                  {customerPayment.remaining != null ? money(customerPayment.remaining) : '—'}
                 </p>
               </div>
             </div>

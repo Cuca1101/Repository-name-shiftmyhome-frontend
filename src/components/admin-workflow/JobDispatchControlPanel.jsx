@@ -12,6 +12,7 @@ import JobDriverAssignmentPanel from './JobDriverAssignmentPanel'
 import JobAdjustmentsPanel from './JobAdjustmentsPanel'
 import GenerateJobSheetButton from './GenerateJobSheetButton'
 import JobStatusBadge from './JobStatusBadge'
+import { resolveCustomerPaymentSummary } from '../../lib/customerPaymentSummary'
 
 function money(n) {
   if (n == null || n === '') return '—'
@@ -65,6 +66,7 @@ export default function JobDispatchControlPanel({
   onNotify,
 }) {
   const badge = dispatchWorkflowBadge(q, linkedJob)
+  const customerPayment = resolveCustomerPaymentSummary(q, { adjustmentsGbp: adjSum })
   const ref = String(q.quote_ref || q.id || '—')
   const service = String(q.service || q.service_type || vm?.serviceLabel || '—')
   const volCrew = formatVolumeAndCrew(q)
@@ -99,10 +101,15 @@ export default function JobDispatchControlPanel({
             <span className="rounded bg-slate-800 px-2 py-0.5">{volCrew}</span>
             <span className="rounded bg-slate-800 px-2 py-0.5">{moveDate}</span>
             <span className="rounded bg-slate-800 px-2 py-0.5 tabular-nums">
-              Paid {money(fin?.paid)} · Bal {fin?.remaining != null ? money(fin.remaining) : '—'}
+              Total {customerPayment.total != null ? money(customerPayment.total) : '—'} · Paid{' '}
+              {money(customerPayment.paid)} · Balance{' '}
+              {customerPayment.remaining != null ? money(customerPayment.remaining) : '—'}
             </span>
           </div>
-          <JobStatusBadge label={badge.label} tone={badge.tone} />
+          <JobStatusBadge label={customerPayment.label} tone={customerPayment.tone} />
+          {['paid', 'deposit_paid', 'unpaid', 'pending_payment'].includes(String(badge.label).toLowerCase()) ? null : (
+            <JobStatusBadge label={badge.label} tone={badge.tone} />
+          )}
           <div className="flex w-full flex-wrap gap-1.5 sm:ml-auto sm:w-auto">
             <button type="button" disabled={terminal} onClick={onMarkComplete} className={btnPrimary}>
               Complete

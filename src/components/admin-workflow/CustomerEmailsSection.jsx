@@ -5,8 +5,10 @@ import {
   buildCustomerEmailList,
   providerStatusLabel,
 } from '../../lib/customerEmailArchive'
-import { fetchJobCustomerNotifications } from '../../lib/jobCustomerTracking'
+import { buildCustomerSentEmailPreview } from '../../lib/customerEmailPreview'
+import { fetchJobCustomerNotifications, fetchJobTrackingTokenRow } from '../../lib/jobCustomerTracking'
 import { isSupabaseConfigured, supabase } from '../../lib/supabase'
+import RecoveryEmailPreviewFrame from '../admin/RecoveryEmailPreviewFrame'
 
 const STATUS_TONE = {
   delivered: 'bg-emerald-50 text-emerald-800 ring-emerald-200',
@@ -35,7 +37,7 @@ export default function CustomerEmailsSection({ quote }) {
   const [invoiceArchive, setInvoiceArchive] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  const [preview, setPreview] = useState(null)
+  const [trackingToken, setTrackingToken] = useState('')
   const [invoiceUrl, setInvoiceUrl] = useState('')
   const [invoiceName, setInvoiceName] = useState('invoice.pdf')
   const [fileError, setFileError] = useState('')
@@ -52,7 +54,11 @@ export default function CustomerEmailsSection({ quote }) {
     setError('')
     try {
       await supabase.functions.invoke('admin-booking-archive', { body: { quoteId, sync: true } })
-      const notifications = await fetchJobCustomerNotifications(quoteId)
+      const [notifications, tokenRow] = await Promise.all([
+        fetchJobCustomerNotifications(quoteId),
+        fetchJobTrackingTokenRow(quoteId),
+      ])
+      setTrackingToken(tokenRow?.token ? String(tokenRow.token) : '')
       const archiveResult = await supabase
         .from('customer_email_archive')
         .select(
@@ -74,6 +80,7 @@ export default function CustomerEmailsSection({ quote }) {
       setError(loadError?.message || 'Could not load customer emails.')
       setRows([])
       setInvoiceArchive(null)
+      setTrackingToken('')
     } finally {
       setLoading(false)
     }
@@ -143,6 +150,15 @@ export default function CustomerEmailsSection({ quote }) {
     }
   }
 
+  function previewHtmlFor(row) {
+    if (row.hasSnapshot && row.html) return row.html
+    return buildCustomerSentEmailPreview({
+      quote,
+      eventKey: row.eventKey,
+      trackingToken,
+    })
+  }
+
   return (
     <div className="space-y-4">
       <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3">
@@ -201,68 +217,35 @@ export default function CustomerEmailsSection({ quote }) {
                   {providerStatusLabel(row.status)}
                 </span>
               </div>
-              <div className="mt-2 flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  onClick={() => setPreview(row)}
-                  className="rounded-lg border border-slate-300 bg-white px-2.5 py-1 text-xs font-semibold text-slate-800 hover:bg-slate-50"
-                >
-                  Preview
-                </button>
-                {row.hasInvoice ? (
-                  <>
-                    <button
-                      type="button"
-                      disabled={fileBusy}
-                      onClick={() => void openStoredInvoice({ archiveId: row.archiveId })}
-                      className="rounded-lg border border-slate-300 bg-white px-2.5 py-1 text-xs font-semibold text-slate-800 hover:bg-slate-50 disabled:opacity-50"
-                    >
-                      View invoice
-                    </button>
-                    <button
-                      type="button"
-                      disabled={fileBusy}
-                      onClick={() => void downloadStoredInvoice({ archiveId: row.archiveId }, row.invoiceFilename)}
-                      className="rounded-lg border border-slate-300 bg-white px-2.5 py-1 text-xs font-semibold text-slate-800 hover:bg-slate-50 disabled:opacity-50"
-                    >
-                      Download PDF
-                    </button>
-                  </>
-                ) : null}
+              <div className="mt-3 overflow-hidden rounded-lg border border-slate-200">
+                <p className="border-b border-slate-100 bg-slate-50 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                  {row.hasSnapshot ? 'Preview' : 'Preview from booking details'}
+                </p>
+                <RecoveryEmailPreviewFrame html={previewHtmlFor(row)} />
               </div>
+              {row.hasInvoice ? (
+                <div className="mt-2 flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    disabled={fileBusy}
+                    onClick={() => void openStoredInvoice({ archiveId: row.archiveId })}
+                    className="rounded-lg border border-slate-300 bg-white px-2.5 py-1 text-xs font-semibold text-slate-800 hover:bg-slate-50 disabled:opacity-50"
+                  >
+                    View invoice
+                  </button>
+                  <button
+                    type="button"
+                    disabled={fileBusy}
+                    onClick={() => void downloadStoredInvoice({ archiveId: row.archiveId }, row.invoiceFilename)}
+                    className="rounded-lg border border-slate-300 bg-white px-2.5 py-1 text-xs font-semibold text-slate-800 hover:bg-slate-50 disabled:opacity-50"
+                  >
+                    Download PDF
+                  </button>
+                </div>
+              ) : null}
             </li>
           ))}
         </ul>
-      ) : null}
-
-      {preview ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4">
-          <div className="flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl bg-white shadow-xl">
-            <div className="flex items-center justify-between gap-3 border-b border-slate-200 px-4 py-3">
-              <div className="min-w-0">
-                <p className="truncate font-semibold text-slate-900">{preview.subject}</p>
-                <p className="text-xs text-slate-500">{preview.recipient}</p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setPreview(null)}
-                className="rounded-lg border border-slate-200 px-3 py-1.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
-              >
-                Close
-              </button>
-            </div>
-            {preview.hasSnapshot && preview.html ? (
-              <iframe
-                title="Customer email preview"
-                sandbox=""
-                srcDoc={preview.html}
-                className="h-[70vh] w-full bg-white"
-              />
-            ) : (
-              <p className="px-4 py-8 text-sm text-slate-700">Original preview unavailable</p>
-            )}
-          </div>
-        </div>
       ) : null}
 
       {invoiceUrl ? (

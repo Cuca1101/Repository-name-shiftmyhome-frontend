@@ -98,7 +98,6 @@ export function getAvailableJobWarningBadges(q) {
   const moveYmd = extractMoveYmd(q.move_date)
   const tomorrowYmd = addDaysYmd(todayYmd, 1)
   const deadlineMs = quoteMoveDeadlineMs(q)
-  const mv = mergedAdminWorkflowForQuote(q).marketplaceVisibility
   const cardPaid = quoteIsCardPaid(q)
   const unassigned = unassignedNoDriverPartner(q)
   const notMkt = notInMarketplaceForWarnings(q)
@@ -129,19 +128,6 @@ export function getAvailableJobWarningBadges(q) {
     notMkt &&
     cardPaid
   if (tomorrowNoDriver) out.push({ label: 'Tomorrow — no driver', tone: 'amber' })
-
-  const noDriverPath =
-    cardPaid &&
-    unassigned &&
-    mv !== 'visible_in_marketplace' &&
-    mv !== 'assigned' &&
-    !overdue &&
-    !unassignedToday &&
-    !tomorrowNoDriver
-  if (noDriverPath) out.push({ label: 'No driver assigned', tone: 'amber' })
-
-  const ready = cardPaid && unassigned && notMkt
-  if (ready) out.push({ label: 'Ready for dispatch', tone: 'sky' })
 
   return out
 }
@@ -176,8 +162,7 @@ export function availableJobWarningSortTier(q) {
 
   if (moveYmd != null && moveYmd === tomorrowYmd && unassigned && notMkt && cardPaid) return 2
 
-  const badges = getAvailableJobWarningBadges(q)
-  if (badges.some((b) => b.tone === 'amber' || b.tone === 'sky')) return 3
+  if (cardPaid && unassigned && notMkt) return 3
   return 4
 }
 

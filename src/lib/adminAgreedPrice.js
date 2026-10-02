@@ -8,10 +8,16 @@
  */
 export function resolveCalculatedTotal(leadOrQuote) {
   if (!leadOrQuote) return null
-  const calc = Number(leadOrQuote.calculated_total)
-  if (Number.isFinite(calc) && calc >= 0) return Math.round(calc * 100) / 100
-  const est = Number(leadOrQuote.estimated_total)
-  if (Number.isFinite(est) && est >= 0) return Math.round(est * 100) / 100
+  const rawCalc = leadOrQuote.calculated_total
+  if (rawCalc != null && String(rawCalc).trim() !== '') {
+    const calc = Number(rawCalc)
+    if (Number.isFinite(calc) && calc >= 0) return Math.round(calc * 100) / 100
+  }
+  const rawEst = leadOrQuote.estimated_total
+  if (rawEst != null && String(rawEst).trim() !== '') {
+    const est = Number(rawEst)
+    if (Number.isFinite(est) && est >= 0) return Math.round(est * 100) / 100
+  }
   return null
 }
 
@@ -22,8 +28,11 @@ export function resolveCalculatedTotal(leadOrQuote) {
  */
 export function resolveChargeableTotal(leadOrQuote) {
   if (!leadOrQuote) return null
-  const agreed = Number(leadOrQuote.agreed_price)
-  if (Number.isFinite(agreed) && agreed >= 0) return Math.round(agreed * 100) / 100
+  const rawAgreed = leadOrQuote.agreed_price
+  if (rawAgreed != null && String(rawAgreed).trim() !== '') {
+    const agreed = Number(rawAgreed)
+    if (Number.isFinite(agreed) && agreed >= 0) return Math.round(agreed * 100) / 100
+  }
   const remaining = Number(leadOrQuote.remaining_balance)
   if (
     Number.isFinite(remaining) &&

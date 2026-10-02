@@ -26,9 +26,13 @@ import { isSupabaseConfigured } from './supabase'
  */
 export async function applyDefaultMarketplacePayoutToQuote(q, opts = {}) {
   const clearManual = opts.clearManualOverride !== false
-  const source = opts.source || 'settings'
   const id = String(q?.id || '').trim()
   if (!id) return
+
+  const visibility = String(q.marketplace_visibility || '')
+  const sentToPartnerMarketplace =
+    visibility === 'visible_in_marketplace' || Boolean(String(q.assigned_partner_id || '').trim())
+  if (!sentToPartnerMarketplace) return
 
   const cur = loadAvailableJobAdminOverrides(id)
   if (!clearManual && cur.marketplacePayoutManualOverride) return
@@ -52,10 +56,10 @@ export async function applyDefaultMarketplacePayoutToQuote(q, opts = {}) {
   saveAvailableJobAdminOverrides(id, {
     marketplacePayoutGbp: calc.marketplacePayout,
     marketplacePayoutManualOverride: false,
-    marketplaceDeductionSnapshot: {
+      marketplaceDeductionSnapshot: {
       type: def.deductionType,
       value: def.deductionValue,
-      source,
+      source: 'marketplace',
       appliedAt,
     },
   })

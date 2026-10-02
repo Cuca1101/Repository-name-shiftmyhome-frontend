@@ -21,6 +21,10 @@ import {
   parsePricingText,
   resolveFinancials,
 } from '../lib/quoteJobAdminModel'
+import { resolveCustomerPaymentSummary } from '../lib/customerPaymentSummary'
+import { buildAdminBookingEmailPreview } from '../lib/adminBookingEmailPreview'
+import RecoveryEmailPreviewFrame from './admin/RecoveryEmailPreviewFrame'
+import { getMarketplaceFinancePresentation } from '../lib/marketplaceQuoteFinance'
 import GenerateJobSheetButton from './admin-workflow/GenerateJobSheetButton'
 import { findLinkedJobForQuote, quoteIsCancelled, quoteIsCompleted } from '../lib/adminWorkflowFilters'
 import { quotePassesActiveStrict, quotePassesAvailableJobsStrict } from '../lib/adminJobListRules'
@@ -54,6 +58,7 @@ const TABS = [
   { id: 'assignment', label: 'Marketplace' },
   { id: 'details', label: 'Job details' },
   { id: 'pricing', label: 'Pricing & payments' },
+  { id: 'emails', label: 'Customer email' },
   { id: 'notes', label: 'Notes & history' },
 ]
 
@@ -107,15 +112,59 @@ function DlItem({ label, value }) {
   )
 }
 
+function CustomerEmailsBlock({ q, adminEmailPreview, onOpenPreview, onClosePreview }) {
+  return (
+    <>
+      {adminEmailPreview ? (
+        <div className="mb-4 border-b border-slate-100 pb-4">
+          <p className="text-sm font-semibold text-slate-900">Email preview</p>
+          <p className="mb-2 mt-1 text-xs text-slate-500">
+            This is the automatic admin email for this Available Job.
+            {q.admin_notified_at ? ` Sent ${formatDateTimeUK(q.admin_notified_at)}.` : ' Not sent yet.'} Preview
+            only — nothing is sent from here. The admin link opens in a new tab.
+          </p>
+          <p className="mb-2 text-sm font-semibold text-slate-800">
+            {buildAdminBookingEmailPreview(q).subject}
+          </p>
+          <div className="overflow-hidden rounded-lg border border-slate-200">
+            <RecoveryEmailPreviewFrame html={adminEmailPreview} />
+          </div>
+          <button
+            type="button"
+            className="mt-2 text-sm font-semibold text-brand-700 hover:underline"
+            onClick={onClosePreview}
+          >
+            Close preview
+          </button>
+        </div>
+      ) : (
+        <div className="mb-4 flex justify-end border-b border-slate-100 pb-3">
+          <button
+            type="button"
+            onClick={onOpenPreview}
+            className="rounded-md border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-800 hover:bg-slate-50"
+          >
+            Preview email
+          </button>
+        </div>
+      )}
+      <CustomerEmailsSection quote={q} />
+    </>
+  )
+}
+
 export default function AvailableJobDetails() {
   const { id } = useParams()
   const location = useLocation()
-  const [searchParams] = useSearchParams()
+  const [searchParams, setSearchParams] = useSearchParams()
   const isActiveJobDetailRoute = /\/admin\/active-jobs\//.test(location.pathname)
   const [q, setQ] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  const [tab, setTab] = useState('overview')
+  const [tab, setTab] = useState(() =>
+    searchParams.get('emailPreview') === '1' ? 'emails' : 'overview',
+  )
+  const [adminEmailPreview, setAdminEmailPreview] = useState('')
   const [statusDraft, setStatusDraft] = useState('')
   const [statusSaving, setStatusSaving] = useState(false)
   const [statusMessage, setStatusMessage] = useState({ type: null, text: '' })
@@ -248,6 +297,12 @@ export default function AvailableJobDetails() {
   }, [id])
 
   useEffect(() => {
+    if (!q || searchParams.get('emailPreview') !== '1') return
+    setTab('emails')
+    setAdminEmailPreview(buildAdminBookingEmailPreview(q).html)
+  }, [q, searchParams])
+
+  useEffect(() => {
     let cancelled = false
     void refreshWorkflowMeta().then(() => {
       if (cancelled) return undefined
@@ -304,6 +359,11 @@ export default function AvailableJobDetails() {
   const adjSum = useMemo(() => sumJobAdjustmentsGbp(adjustments), [adjustments])
 
   const fin = useMemo(() => (q ? resolveFinancials(q, adjSum) : null), [q, adjSum])
+  const customerPayment = useMemo(
+    () => (q ? resolveCustomerPaymentSummary(q, { adjustmentsGbp: adjSum }) : null),
+    [q, adjSum],
+  )
+  const marketplaceFinance = useMemo(() => (q ? getMarketplaceFinancePresentation(q) : null), [q])
 
   useEffect(() => {
     if (tab === 'customer' || tab === 'move' || tab === 'inventory') setTab('details')
@@ -520,7 +580,7 @@ export default function AvailableJobDetails() {
         </div>
       ) : null}
 
-      <div className={`mt-3 ${fullPageDispatch || tab === 'overview' ? '' : 'grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_14rem] xl:items-start'}`}>
+      <div className={`mt-3 ${fullPageDispatch || tab === 'overview' || tab === 'emails' ? '' : 'grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_14rem] xl:items-start'}`}>
         <div className="min-w-0 space-y-4">
       {fullPageDispatch || tab === 'overview' ? (
         <>
@@ -560,13 +620,41 @@ export default function AvailableJobDetails() {
             </AdminCard>
           ) : null}
           {!fullPageDispatch && tab === 'overview' ? (
-            <AdminCard title="Payment & marketplace payout">
+            <AdminCard title="Payment">
               <JobAcceptedPayoutEditor q={q} onUpdated={load} />
+              {String(q.marketplace_visibility || '') === 'visible_in_marketplace' && marketplaceFinance ? (
+                <div className="mt-4 space-y-1 border-t border-slate-100 pt-3 text-xs text-slate-600">
+                  <p>
+                    Marketplace commission{' '}
+                    {marketplaceFinance.deductionLabel && marketplaceFinance.deductionLabel !== '—'
+                      ? marketplaceFinance.deductionLabel
+                      : '—'}
+                    . This does not change the customer total or the balance remaining.
+                  </p>
+                  <p>
+                    Partner payout{' '}
+                    {marketplaceFinance.marketplacePayout != null
+                      ? money(marketplaceFinance.marketplacePayout)
+                      : '—'}
+                  </p>
+                </div>
+              ) : null}
             </AdminCard>
           ) : null}
-          {(fullPageDispatch || tab === 'overview') && q?.id ? (
+          {fullPageDispatch && q?.id ? (
             <AdminCard title="Customer emails">
-              <CustomerEmailsSection quote={q} />
+              <CustomerEmailsBlock
+                q={q}
+                adminEmailPreview={adminEmailPreview}
+                onOpenPreview={() => setAdminEmailPreview(buildAdminBookingEmailPreview(q).html)}
+                onClosePreview={() => {
+                  setAdminEmailPreview('')
+                  if (searchParams.get('emailPreview') !== '1') return
+                  const next = new URLSearchParams(searchParams)
+                  next.delete('emailPreview')
+                  setSearchParams(next, { replace: true })
+                }}
+              />
             </AdminCard>
           ) : null}
           {fullPageDispatch ? (
@@ -677,16 +765,20 @@ export default function AvailableJobDetails() {
           <div className="mt-8 border-t border-slate-100 pt-6">
             <h4 className="text-xs font-bold uppercase tracking-wide text-slate-500">Payment record</h4>
             <dl className="mt-4 grid gap-4 text-sm sm:grid-cols-2">
-              <DlItem label="Payment status" value={q.payment_status ?? '—'} />
+              <DlItem label="Payment status" value={customerPayment?.label ?? '—'} />
+              <DlItem label="Quote total" value={customerPayment?.total != null ? money(customerPayment.total) : '—'} />
               <DlItem
                 label="Payment type"
                 value={q.payment_type === 'deposit' ? 'Deposit' : q.payment_type === 'full' ? 'Full' : q.payment_type ?? '—'}
               />
-              <DlItem label="Amount paid" value={money(q.amount_paid)} />
+              <DlItem label="Amount paid" value={customerPayment ? money(customerPayment.paid) : money(q.amount_paid)} />
               <DlItem label="Paid date" value={formatDateTimeUK(q.paid_at)} />
               <DlItem label="Stripe payment intent" value={q.stripe_payment_intent_id || '—'} />
               <DlItem label="Stripe checkout session" value={q.stripe_session_id || '—'} />
-              <DlItem label="Remaining balance" value={fin?.remaining != null ? money(fin.remaining) : '—'} />
+              <DlItem
+                label="Remaining balance"
+                value={customerPayment?.remaining != null ? money(customerPayment.remaining) : '—'}
+              />
             </dl>
             {stripeUrl ? (
               <a
@@ -706,6 +798,23 @@ export default function AvailableJobDetails() {
               the Overview tab.
             </p>
           ) : null}
+        </AdminCard>
+      ) : null}
+
+      {!fullPageDispatch && tab === 'emails' && q?.id ? (
+        <AdminCard title="Customer emails">
+          <CustomerEmailsBlock
+            q={q}
+            adminEmailPreview={adminEmailPreview}
+            onOpenPreview={() => setAdminEmailPreview(buildAdminBookingEmailPreview(q).html)}
+            onClosePreview={() => {
+              setAdminEmailPreview('')
+              if (searchParams.get('emailPreview') !== '1') return
+              const next = new URLSearchParams(searchParams)
+              next.delete('emailPreview')
+              setSearchParams(next, { replace: true })
+            }}
+          />
         </AdminCard>
       ) : null}
 
@@ -766,7 +875,7 @@ export default function AvailableJobDetails() {
 
         </div>
 
-        {!fullPageDispatch && tab !== 'overview' ? (
+        {!fullPageDispatch && tab !== 'overview' && tab !== 'emails' ? (
           <AdminJobDetailsSidebar
             quote={q}
             overrides={overrides}

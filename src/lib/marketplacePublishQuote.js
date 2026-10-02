@@ -51,7 +51,7 @@ export async function publishQuoteToMarketplace(quoteId, quote, opts = {}) {
         logMessage,
       ),
     })
-    await applyDefaultMarketplacePayoutToQuote(mergedQuote, { source: 'available_jobs' })
+    await applyDefaultMarketplacePayoutToQuote(mergedQuote, { source: 'marketplace' })
     return { ok: true, localOnly: true }
   }
 
@@ -80,7 +80,7 @@ export async function publishQuoteToMarketplace(quoteId, quote, opts = {}) {
 
   await updateQuoteWorkflowAssignmentSilent(id, silentPatch)
   await removeJobAssignmentForQuote(id)
-  await applyDefaultMarketplacePayoutToQuote(mergedQuote, { source: 'available_jobs' })
+  await applyDefaultMarketplacePayoutToQuote(mergedQuote, { source: 'marketplace' })
 
   return { ok: true }
 }

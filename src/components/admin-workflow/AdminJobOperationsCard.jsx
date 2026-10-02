@@ -20,6 +20,7 @@ import JobStatusBadge from './JobStatusBadge'
 import { isQuoteDemoOrTest } from '../../lib/demoTestRecordDetection'
 import { showDemoAdminUi } from '../../lib/adminProductionMode'
 import { getAutoMarketplaceCardBadge } from '../../lib/autoMarketplacePublish'
+import { resolveCustomerPaymentSummary } from '../../lib/customerPaymentSummary'
 import { resolveQuoteCollectionAddress, resolveQuoteDeliveryAddress } from '../../lib/quoteAddressResolve'
 import TruncatedAddressText from './TruncatedAddressText'
 
@@ -164,7 +165,7 @@ function RouteLine({ from, to, className = '' }) {
  *   compact?: boolean,
  * }} props
  */
-function PaymentStrip({ fin, compact = false }) {
+function PaymentStrip({ fin, compact = false, labels = null }) {
   const cell = compact
     ? 'text-right'
     : 'flex flex-col items-center justify-center rounded-lg bg-slate-50/90 px-2 py-1.5 text-center'
@@ -174,9 +175,13 @@ function PaymentStrip({ fin, compact = false }) {
     : 'mt-0.5 text-sm font-bold tabular-nums text-slate-900'
 
   const rows = [
-    { label: 'Total', value: fin.customerTotal != null ? money(fin.customerTotal) : '—', tone: '' },
-    { label: 'Paid', value: money(fin.paid), tone: 'text-emerald-700' },
-    { label: 'Balance', value: fin.remaining != null ? money(fin.remaining) : '—', tone: 'text-amber-800' },
+    { label: labels?.total || 'Total', value: fin.customerTotal != null ? money(fin.customerTotal) : '—', tone: '' },
+    { label: labels?.paid || 'Paid', value: money(fin.paid), tone: 'text-emerald-700' },
+    {
+      label: labels?.balance || 'Balance',
+      value: fin.remaining != null ? money(fin.remaining) : '—',
+      tone: 'text-amber-800',
+    },
   ]
 
   if (compact) {
@@ -207,57 +212,15 @@ function PaymentStrip({ fin, compact = false }) {
 /**
  * @param {{ mpFin: ReturnType<typeof getMarketplaceFinancePresentation>, compact?: boolean }} props
  */
-function AvailableJobsPricingStrip({ mpFin, compact = false }) {
-  function fmt(v) {
-    if (v == null || !Number.isFinite(v)) return '—'
-    return money(v)
-  }
-  const rows = [
-    { label: 'Customer', value: fmt(mpFin.customerTotal), tone: '' },
-    { label: 'Payout', value: fmt(mpFin.marketplacePayout), tone: 'text-violet-900' },
-    { label: 'Profit', value: fmt(mpFin.platformProfit), tone: 'text-emerald-800' },
-  ]
-  const cell = compact ? 'text-right' : 'flex flex-col items-center justify-center text-center'
-  const labelCls = 'text-[10px] font-semibold uppercase tracking-wide text-slate-500'
-  const valueCls = 'text-sm font-bold tabular-nums text-slate-900'
-
-  if (compact) {
-    return (
-      <dl className="grid shrink-0 grid-cols-3 gap-x-4 text-xs sm:gap-x-6">
-        {rows.map((r) => (
-          <div key={r.label} className={cell}>
-            <dt className={labelCls}>{r.label}</dt>
-            <dd className={`${valueCls} ${r.tone}`.trim()}>{r.value}</dd>
-          </div>
-        ))}
-      </dl>
-    )
-  }
-
-  return (
-    <dl className="grid grid-cols-3 gap-2 border-t border-emerald-100/80 bg-emerald-50/30 px-3 py-2.5">
-      {rows.map((r) => (
-        <div key={r.label} className={cell}>
-          <dt className={labelCls}>{r.label}</dt>
-          <dd className={`${valueCls} ${r.tone}`.trim()}>{r.value}</dd>
-        </div>
-      ))}
-    </dl>
-  )
-}
-
-/**
- * @param {{ mpFin: ReturnType<typeof getMarketplaceFinancePresentation>, compact?: boolean }} props
- */
 function MarketplacePaymentStrip({ mpFin, compact = false }) {
   function fmt(v) {
     if (v == null || !Number.isFinite(v)) return '—'
     return money(v)
   }
   const rows = [
-    { label: 'Customer', value: fmt(mpFin.customerTotal), tone: '' },
-    { label: 'Payout', value: fmt(mpFin.marketplacePayout), tone: 'text-violet-900' },
-    { label: 'Balance', value: fmt(mpFin.remainingBalance), tone: 'text-amber-800' },
+    { label: 'Job total', value: fmt(mpFin.customerTotal), tone: '' },
+    { label: 'Partner payout', value: fmt(mpFin.marketplacePayout), tone: 'text-violet-900' },
+    { label: 'Commission', value: fmt(mpFin.platformProfit), tone: 'text-slate-800' },
   ]
   const cell = compact ? 'text-right' : 'flex flex-col items-center justify-center text-center'
   const labelCls = 'text-[10px] font-semibold uppercase tracking-wide text-slate-500'
@@ -299,8 +262,13 @@ const viewDetailsClass =
  *   linkLabel?: string,
  * }} props
  */
-function ViewDetailsWithBooked({ quoteId, q, className = '', linkLabel = 'View Details' }) {
+function ViewDetailsWithBooked({ quoteId, q, className = '', linkLabel = 'View Details', hideLink = false }) {
   const bookedLine = formatAdminJobBookedLine(q)
+  if (hideLink) {
+    return bookedLine ? (
+      <p className={`text-[10px] font-medium text-slate-500 ${className}`.trim()}>{bookedLine}</p>
+    ) : null
+  }
   return (
     <div className={`flex min-w-0 flex-col items-stretch gap-1 sm:items-end ${className}`.trim()}>
       <Link
@@ -359,11 +327,14 @@ function JobIdentityColumn({
   selectionCheckbox,
   keyBadges,
   badgesDesktop = true,
+  isolateControls = false,
 }) {
   const emphasis = badgesDesktop
   return (
     <div className="min-w-0 flex-1 lg:max-w-[15rem] lg:shrink-0">
-      {selectionCheckbox ? <div className="mb-2">{selectionCheckbox}</div> : null}
+      {selectionCheckbox ? (
+        <div className={`mb-2 ${isolateControls ? 'pointer-events-auto' : ''}`}>{selectionCheckbox}</div>
+      ) : null}
       <p
         className={`truncate text-slate-900 ${emphasis ? 'text-base font-bold tracking-tight' : 'text-sm font-semibold'}`}
       >
@@ -397,6 +368,21 @@ function WorkflowHint({ rows }) {
   )
 }
 
+function ClickableJobCard({ className, openDetailsHref, openLabel, children }) {
+  return (
+    <li className={`relative ${className}`.trim()}>
+      {openDetailsHref ? (
+        <Link
+          to={openDetailsHref}
+          aria-label={openLabel}
+          className="absolute inset-0 z-0 rounded-xl focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600"
+        />
+      ) : null}
+      <div className={openDetailsHref ? 'relative z-10 pointer-events-none' : undefined}>{children}</div>
+    </li>
+  )
+}
+
 /**
  * Premium compact operations card for admin job lists.
  * @param {{
@@ -409,6 +395,7 @@ function WorkflowHint({ rows }) {
  *   secondarySlot?: unknown,
  *   highlight?: boolean,
  *   viewJobLabel?: string,
+ *   openDetailsHref?: string,
  * }} props
  */
 export default function AdminJobOperationsCard({
@@ -421,6 +408,7 @@ export default function AdminJobOperationsCard({
   secondarySlot = null,
   highlight = false,
   viewJobLabel,
+  openDetailsHref = '',
 }) {
   const id = String(q.id)
   const ref = q.quote_ref ? String(q.quote_ref) : id.slice(0, 8)
@@ -428,8 +416,19 @@ export default function AdminJobOperationsCard({
   const overrides = mergedAdminWorkflowForQuote(q)
   const adjSum = (overrides.adjustments || []).reduce((s, a) => s + (Number(a.amountGbp) || 0), 0)
   const fin = resolveFinancials(q, adjSum)
+  const customerPayment =
+    cardVariant === 'available' ? resolveCustomerPaymentSummary(q, { adjustmentsGbp: adjSum }) : null
+  const displayFin = customerPayment
+    ? {
+        customerTotal: customerPayment.total,
+        paid: customerPayment.paid,
+        remaining: customerPayment.remaining,
+      }
+    : fin
   const workflowBadge = statusBadge ?? deriveCardStatusBadge(q)
-  const payBadge = paymentBadge(fin, q)
+  const payBadge = customerPayment
+    ? { label: customerPayment.label, tone: customerPayment.tone }
+    : paymentBadge(fin, q)
   const assign = assignmentBadge(q, overrides)
   const moveWhen = q.move_date ? formatDateUK(q.move_date) : '—'
   const arrival = formatMoveArrivalSummary(q, kv)
@@ -444,19 +443,23 @@ export default function AdminJobOperationsCard({
   const autoMpBadge = cardVariant === 'available' ? getAutoMarketplaceCardBadge(q) : null
   const pickupLabel = routeLocationLabel(q.pickup_address)
   const deliveryLabel = routeLocationLabel(q.delivery_address)
-  const mpFin =
-    cardVariant === 'marketplace' || cardVariant === 'available'
-      ? getMarketplaceFinancePresentation(q)
-      : null
+  const mpFin = cardVariant === 'marketplace' ? getMarketplaceFinancePresentation(q) : null
   const partnerListingLabel =
     cardVariant === 'marketplace' ? partnerListingLabelForMarketplaceCard(q) : null
   const partnerAcceptanceLabel =
     cardVariant === 'marketplace' ? partnerAcceptanceLabelForMarketplaceCard(q) : null
 
+  const visibleWarnings =
+    cardVariant === 'available'
+      ? warningBadges.filter((badge) => badge.label !== 'No driver assigned' && badge.label !== 'Ready for dispatch')
+      : warningBadges
+
   const keyBadges = (
     <div className="flex flex-wrap gap-1" role="status" aria-label="Job status">
-      <JobStatusBadge label={workflowBadge.label} tone={workflowBadge.tone} />
-      {payBadge.label !== workflowBadge.label ? (
+      {cardVariant === 'available' ? null : (
+        <JobStatusBadge label={workflowBadge.label} tone={workflowBadge.tone} />
+      )}
+      {cardVariant === 'available' || payBadge.label !== workflowBadge.label ? (
         <JobStatusBadge label={payBadge.label} tone={payBadge.tone} />
       ) : null}
       {assign ? <JobStatusBadge label={assign.label} tone={assign.tone} /> : null}
@@ -467,7 +470,7 @@ export default function AdminJobOperationsCard({
         <JobStatusBadge label="Test record" tone="slate" />
       ) : null}
       {autoMpBadge ? <JobStatusBadge label={autoMpBadge.label} tone={autoMpBadge.tone} /> : null}
-      {warningBadges.slice(0, 2).map((b) => (
+      {visibleWarnings.slice(0, 2).map((b) => (
         <JobStatusBadge key={b.label} label={b.label} tone={b.tone} />
       ))}
     </div>
@@ -485,8 +488,12 @@ export default function AdminJobOperationsCard({
     : ''
 
   const financeBlock =
-    cardVariant === 'available' && mpFin ? (
-      <AvailableJobsPricingStrip mpFin={mpFin} compact={layoutMode === 'list'} />
+    cardVariant === 'available' ? (
+      <PaymentStrip
+        fin={displayFin}
+        compact={layoutMode === 'list'}
+        labels={{ total: 'Total job', paid: 'Paid', balance: 'Balance remaining' }}
+      />
     ) : cardVariant === 'marketplace' && mpFin ? (
       <MarketplacePaymentStrip mpFin={mpFin} compact={layoutMode === 'list'} />
     ) : (
@@ -503,7 +510,7 @@ export default function AdminJobOperationsCard({
     ) : null
 
   const marketplacePayoutMeta =
-    (cardVariant === 'marketplace' || cardVariant === 'available') && mpFin ? (
+    cardVariant === 'marketplace' && mpFin ? (
       <div className="flex flex-wrap items-center gap-1">
         {mpFin.deductionLabel && mpFin.deductionLabel !== '—' ? (
           <span className="inline-flex rounded-full bg-slate-100 px-2 py-0.5 text-[9px] font-semibold text-slate-800 ring-1 ring-slate-200/90">
@@ -542,7 +549,7 @@ export default function AdminJobOperationsCard({
       {workflowRows.length > 0 ? <WorkflowHint rows={workflowRows} /> : null}
       {marketplaceHints}
       {marketplacePayoutMeta}
-      <div className="hidden lg:block">{keyBadges}</div>
+      {cardVariant === 'available' ? null : <div className="hidden lg:block">{keyBadges}</div>}
     </div>
   )
 
@@ -566,7 +573,13 @@ export default function AdminJobOperationsCard({
           </div>
           <div className="mt-3 flex flex-col gap-3 border-t border-slate-100 pt-3 sm:flex-row sm:items-end sm:justify-between sm:gap-4">
             <div className="min-w-0 flex-1">{secondarySlot}</div>
-            <ViewDetailsWithBooked quoteId={id} q={q} className="w-full shrink-0 sm:w-auto" linkLabel={viewJobLabel} />
+            <ViewDetailsWithBooked
+              quoteId={id}
+              q={q}
+              className="w-full shrink-0 sm:w-auto"
+              linkLabel={viewJobLabel}
+              hideLink={cardVariant === 'available'}
+            />
           </div>
         </div>
       </li>
@@ -601,8 +614,10 @@ export default function AdminJobOperationsCard({
 
   if (layoutMode === 'list') {
     return (
-      <li
-        className={`overflow-hidden rounded-xl border border-slate-200/80 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.06)] ${highlightClass}`.trim()}
+      <ClickableJobCard
+        openDetailsHref={openDetailsHref}
+        openLabel={`Open job ${ref}`}
+        className={`overflow-hidden rounded-xl border border-slate-200/80 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.06)] ${openDetailsHref ? 'cursor-pointer hover:border-slate-300' : ''} ${highlightClass}`.trim()}
       >
         <div className="flex flex-col gap-3 p-3 sm:p-3.5 lg:flex-row lg:items-center lg:gap-4">
           <JobIdentityColumn
@@ -613,24 +628,35 @@ export default function AdminJobOperationsCard({
             selectionCheckbox={selectionCheckbox}
             keyBadges={keyBadges}
             badgesDesktop={false}
+            isolateControls={Boolean(openDetailsHref)}
           />
           {routeColumn}
           <div className="flex min-w-0 flex-col gap-2 lg:shrink-0 lg:gap-3">
             {financeBlock}
             {secondarySlot ? <div className="min-w-0">{secondarySlot}</div> : null}
-            <ViewDetailsWithBooked quoteId={id} q={q} className="w-full" linkLabel={viewJobLabel} />
+            <ViewDetailsWithBooked
+              quoteId={id}
+              q={q}
+              className="w-full"
+              linkLabel={viewJobLabel}
+              hideLink={cardVariant === 'available'}
+            />
           </div>
         </div>
-      </li>
+      </ClickableJobCard>
     )
   }
 
   return (
-    <li
-      className={`flex flex-col overflow-hidden rounded-xl border border-slate-200/80 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.06)] ${highlightClass}`.trim()}
+    <ClickableJobCard
+      openDetailsHref={openDetailsHref}
+      openLabel={`Open job ${ref}`}
+      className={`flex flex-col overflow-hidden rounded-xl border border-slate-200/80 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.06)] ${openDetailsHref ? 'cursor-pointer hover:border-slate-300' : ''} ${highlightClass}`.trim()}
     >
       <div className="flex flex-1 flex-col p-3.5">
-        {selectionCheckbox ? <div className="mb-2">{selectionCheckbox}</div> : null}
+        {selectionCheckbox ? (
+          <div className={`mb-2 ${openDetailsHref ? 'pointer-events-auto' : ''}`}>{selectionCheckbox}</div>
+        ) : null}
         <p className="truncate text-sm font-semibold text-slate-900">{q.full_name || '—'}</p>
         <p className="font-mono text-[10px] font-medium text-slate-500">{ref}</p>
         <p className="mt-1.5 text-xs font-medium text-slate-800">
@@ -649,13 +675,17 @@ export default function AdminJobOperationsCard({
       </div>
       {cardVariant === 'marketplace' && mpFin ? (
         <MarketplacePaymentStrip mpFin={mpFin} />
+      ) : cardVariant === 'available' ? (
+        financeBlock
       ) : (
         <PaymentStrip fin={fin} />
       )}
       {secondarySlot ? <div className="border-t border-slate-100 px-3 pb-2 pt-2">{secondarySlot}</div> : null}
-      <div className="border-t border-slate-100 p-3 pt-2">
-        <ViewDetailsWithBooked quoteId={id} q={q} className="w-full" linkLabel={viewJobLabel} />
-      </div>
-    </li>
+      {cardVariant === 'available' ? null : (
+        <div className="border-t border-slate-100 p-3 pt-2">
+          <ViewDetailsWithBooked quoteId={id} q={q} className="w-full" linkLabel={viewJobLabel} />
+        </div>
+      )}
+    </ClickableJobCard>
   )
 }
