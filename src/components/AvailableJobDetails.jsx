@@ -34,7 +34,7 @@ import AdminJobQuoteDetailsPanel from './admin-workflow/AdminJobQuoteDetailsPane
 import { buildAdminJobQuoteDetailsViewModel } from '../lib/adminJobQuoteDetailsViewModel'
 import AdminJobDetailsSidebar from './admin-workflow/AdminJobDetailsSidebar'
 import AdminJobCustomerComms from './admin-workflow/AdminJobCustomerComms'
-import AdminJobEmailsSentPanel from './admin-workflow/AdminJobEmailsSentPanel'
+import CustomerEmailsSection from './admin-workflow/CustomerEmailsSection'
 import JobDispatchControlPanel from './admin-workflow/JobDispatchControlPanel'
 import JobDispatchDetailExtras from './admin-workflow/JobDispatchDetailExtras'
 import JobExtraChargesPanel from './admin-workflow/JobExtraChargesPanel'
@@ -565,8 +565,8 @@ export default function AvailableJobDetails() {
             </AdminCard>
           ) : null}
           {(fullPageDispatch || tab === 'overview') && q?.id ? (
-            <AdminCard title="Email History">
-              <AdminJobEmailsSentPanel quoteId={q.id} />
+            <AdminCard title="Customer emails">
+              <CustomerEmailsSection quote={q} />
             </AdminCard>
           ) : null}
           {fullPageDispatch ? (

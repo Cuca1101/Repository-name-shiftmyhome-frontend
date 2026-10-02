@@ -18,6 +18,7 @@ import {
   notificationClaimDecision,
   queueProcessingIsTerminal,
 } from '../_shared/deliveryRetryPolicy.js'
+import { saveCustomerEmailArchive } from '../_shared/customerEmailArchive.ts'
 
 /**
  * Process customer job notifications (assign / status / completed / tip).
@@ -330,11 +331,35 @@ async function sendEventEmail(
   const sentAt = new Date().toISOString()
   await markNotificationResult(supabase, quoteId, eventKey, {
     delivery_status: 'sent',
+    provider_status: 'sent',
     recipient_email: email,
     provider_message_id: result.resendId || null,
     sent_at: sentAt,
     payload: { tracking_token: token, event_key: eventKey },
   })
+
+  try {
+    const { data: note } = await supabase
+      .from('job_customer_notifications')
+      .select('id')
+      .eq('quote_id', quoteId)
+      .eq('event_key', eventKey)
+      .maybeSingle()
+    await saveCustomerEmailArchive(supabase, {
+      quoteId,
+      notificationId: note?.id || null,
+      eventKey,
+      subject,
+      recipientEmail: email,
+      html,
+      text,
+      providerMessageId: result.resendId || null,
+      providerStatus: 'sent',
+      sentAt,
+    })
+  } catch (archiveError) {
+    console.error('[job-customer-notify] archive save failed', archiveError)
+  }
 
   if (eventKey === 'status_completed') {
     await supabase

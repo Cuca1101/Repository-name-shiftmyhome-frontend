@@ -5,6 +5,7 @@ import { renderTransactionalEmailTemplate } from './transactionalEmailTemplates.
 import { sendResendEmailMinimal } from './postResendEmail.ts'
 import { asciiEmailSubject, encodePdfBytesToResendBase64 } from './resendPayloadLog.ts'
 import { formatDateUK } from './formatDateUK.ts'
+import { saveCustomerEmailArchive, storeSentInvoicePdf } from './customerEmailArchive.ts'
 
 type UpdateResult = {
   ok: boolean
@@ -1009,16 +1010,66 @@ export async function sendPaymentConfirmationWithPdfIfNeeded(params: {
     }
   }
 
+  const sentAt = new Date().toISOString()
   await supabase
     .from('quotes')
     .update({
-      payment_confirmation_email_sent_at: new Date().toISOString(),
+      payment_confirmation_email_sent_at: sentAt,
       payment_confirmation_email_provider: 'resend',
       payment_confirmation_email_intent_id: paymentIntent.id,
     })
     .eq('id', quote.id)
     .is('payment_confirmation_email_sent_at', null)
   console.log('[payment-email] marked sent in db', { quote_id: quote.id, payment_intent_id: paymentIntent.id })
+
+  try {
+    let storedInvoice: { bucket: string; path: string; filename: string } | null = null
+    if (pdfAttached && pdfBytesForStorage) {
+      storedInvoice = await storeSentInvoicePdf(
+        supabase,
+        quote.id,
+        paymentIntent.id,
+        pdfBytesForStorage,
+        attachmentFilename,
+      )
+    }
+    const eventKey = `payment_confirmation:${paymentIntent.id}`
+    const { data: note, error: noteError } = await supabase
+      .from('job_customer_notifications')
+      .insert({
+        quote_id: quote.id,
+        event_key: eventKey,
+        event_label: 'Payment confirmation',
+        recipient_email: customerEmail,
+        provider_message_id: resendId || null,
+        delivery_status: 'sent',
+        provider_status: 'sent',
+        sent_at: sentAt,
+        payload: { kind: 'payment_confirmation', payment_intent_id: paymentIntent.id },
+      })
+      .select('id')
+      .maybeSingle()
+    if (noteError && noteError.code !== '23505') {
+      console.error('[payment-email] notification log failed', noteError.message)
+    }
+    await saveCustomerEmailArchive(supabase, {
+      quoteId: quote.id,
+      notificationId: note?.id || null,
+      eventKey,
+      subject: subjectForResend,
+      recipientEmail: customerEmail,
+      html: rendered.html,
+      text: rendered.text,
+      providerMessageId: resendId || null,
+      providerStatus: 'sent',
+      invoiceBucket: storedInvoice?.bucket || null,
+      invoicePath: storedInvoice?.path || null,
+      invoiceFilename: storedInvoice?.filename || null,
+      sentAt,
+    })
+  } catch (archiveError) {
+    console.error('[payment-email] archive save failed', archiveError)
+  }
 
   return {
     sent: true as const,
