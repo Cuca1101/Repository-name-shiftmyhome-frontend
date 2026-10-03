@@ -10,7 +10,7 @@ import { CoverageModalProvider } from '../context/CoverageModalContext'
 import { WebsiteCmsProvider } from '../context/WebsiteCmsContext'
 import { SeoSettingsProvider } from '../context/SeoSettingsContext'
 import { SeoQuoteModalProvider } from '../context/SeoQuoteModalContext'
-import { pathUsesPublicQuoteModal } from '../lib/quoteModalRoutes'
+import { pathHasOwnQuoteModal, pathUsesDedicatedQuotePage, pathUsesPublicQuoteModal } from '../lib/quoteModalRoutes'
 import ContinueQuoteBanner from '../components/ContinueQuoteBanner'
 
 export default function PublicLayout({ children }) {
@@ -44,7 +44,9 @@ export default function PublicLayout({ children }) {
       <WebsiteCmsProvider>
         <SeoSettingsProvider>
         {showQuoteModal ? <SeoQuoteModalProvider>{layoutBody}</SeoQuoteModalProvider> : layoutBody}
-        <FloatingReviewsBadge />
+        {pathUsesDedicatedQuotePage(pathname) || pathHasOwnQuoteModal(pathname) ? null : (
+          <FloatingReviewsBadge />
+        )}
         <WhatsAppButton variant={quoteFlow ? 'quote-flow' : 'default'} />
         </SeoSettingsProvider>
       </WebsiteCmsProvider>

@@ -12,6 +12,7 @@ import InventorySelectionVolumeRow from '../InventorySelectionVolumeRow'
 import { resolveDefaultM3PerUnit } from '../inventoryLineDefaults'
 import { applyInventoryLineQuantityDelta, catalogLineForItem } from '../../../lib/inventoryLineQuantity'
 import CrewSizeField from '../CrewSizeField'
+import MobileStepRefBadge from '../MobileStepRefBadge'
 import MobileStep2Inventory from '../MobileStep2Inventory'
 import JobDetailsContactSection from '../JobDetailsContactSection'
 import {
@@ -50,6 +51,7 @@ export default function Step2Inventory({
   crewSettings,
   crewRestrictions,
   quoteRef,
+  quotePage = false,
   data,
   onChange,
   pricingSettings = null,
@@ -426,6 +428,7 @@ export default function Step2Inventory({
     <>
       <MobileStep2Inventory
         quoteRef={quoteRef}
+        quotePage={quotePage}
         totalM3={totalM3}
         categoryOrder={categoryOrder}
         inventoryByCategory={inventoryByCategory}
@@ -486,6 +489,12 @@ export default function Step2Inventory({
           Choose crew size, then add items. Search and categories use the full width below.
         </p>
       )}
+
+      {quotePage ? (
+        <div className="mb-2 md:hidden">
+          <MobileStepRefBadge quoteRef={quoteRef} />
+        </div>
+      ) : null}
 
       <CrewSizeField
         id={crewFieldId}

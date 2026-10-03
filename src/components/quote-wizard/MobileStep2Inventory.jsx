@@ -1,6 +1,7 @@
 import { useRef } from 'react'
 import { ChevronDown } from 'lucide-react'
 import CrewSizeField from './CrewSizeField'
+import MobileStepRefBadge from './MobileStepRefBadge'
 import MobileStepTitleWithRef from './MobileStepTitleWithRef'
 import InventorySearchDropdown, {
   InventorySearchDropdownEmpty,
@@ -15,6 +16,7 @@ const card = 'box-border min-w-0 w-full rounded-lg border border-slate-200 bg-wh
  */
 export default function MobileStep2Inventory({
   quoteRef,
+  quotePage = false,
   totalM3,
   categoryOrder,
   inventoryByCategory,
@@ -66,6 +68,12 @@ export default function MobileStep2Inventory({
           <p className="mt-1 text-[11px] text-slate-500">Using your Items Library catalogue.</p>
         ) : null}
       </div>
+
+      {quotePage ? (
+        <div className="px-0.5">
+          <MobileStepRefBadge quoteRef={quoteRef} />
+        </div>
+      ) : null}
 
       <CrewSizeField
         id={crewFieldId}

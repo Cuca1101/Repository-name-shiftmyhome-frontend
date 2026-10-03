@@ -6,7 +6,9 @@ import FloorSelect, { floorNeedsLiftQuestion } from '../FloorSelect'
 import { liftClearPatchForWizard } from '../../../lib/floorAccess'
 import { getLocalDateYYYYMMDD } from '../../../lib/moveDateLocal'
 import MobileStepTitleWithRef from '../MobileStepTitleWithRef'
+import QuoteReferenceCard from '../QuoteReferenceCard'
 import MobileStep1AddressCards from '../MobileStep1AddressCards'
+import QuoteAccessFields from '../QuoteAccessFields'
 import Step1ArrivalFields from '../Step1ArrivalFields'
 import QuoteMoveDateCalendar from '../QuoteMoveDateCalendar'
 import useMobileQuoteLayout from '../../../hooks/useMobileQuoteLayout'
@@ -118,12 +120,12 @@ export default function Step1Address({
   const isMobileLayout = useMobileQuoteLayout()
 
   return (
-    <div data-quote-step="1" className={`box-border w-full min-w-0 ${quotePage ? 'space-y-4' : 'space-y-2 sm:space-y-8'}`}>
-      <div>
+    <div data-quote-step="1" className={`box-border w-full min-w-0 ${quotePage ? 'space-y-2 md:space-y-4' : 'space-y-2 sm:space-y-8'}`}>
+      <div className={quotePage ? 'hidden' : undefined}>
         <MobileStepTitleWithRef
           title="Address & access"
           quoteRef={quoteRef}
-          titleClassName={quotePage ? '!text-xl font-bold' : 'whitespace-nowrap md:whitespace-normal'}
+          titleClassName="whitespace-nowrap md:whitespace-normal"
         />
         <p className={`mt-1 text-sm leading-snug text-slate-500 ${quotePage ? '' : 'md:hidden'}`}>
           Pickup, delivery and access details.
@@ -162,15 +164,15 @@ export default function Step1Address({
       )}
 
       {showFullServicePicker && (
-        <div className={quotePage ? 'rounded-xl border border-slate-200 bg-slate-50 p-3 sm:p-4' : 'rounded-xl border border-brand-100 bg-brand-50/60 p-3 sm:rounded-2xl sm:p-5'}>
-          <label className={label} htmlFor="quote-service-type">
+        <div className={quotePage ? 'quote-service-card' : 'rounded-xl border border-brand-100 bg-brand-50/60 p-3 sm:rounded-2xl sm:p-5'}>
+          <label className={quotePage ? 'mb-1 block text-xs font-medium leading-none text-slate-600' : label} htmlFor="quote-service-type">
             Service type
           </label>
           <select
             id="quote-service-type"
             value={serviceType ?? serviceTypeOptions[0]}
             onChange={(e) => onServiceTypeChange(e.target.value)}
-            className={input}
+            className={quotePage ? 'quote-service-select' : input}
           >
             {serviceTypeOptions.map((s) => (
               <option key={s} value={s}>
@@ -178,7 +180,7 @@ export default function Step1Address({
               </option>
             ))}
           </select>
-          <p className="mt-2 text-xs text-slate-600">
+          <p className={quotePage ? 'mt-1 text-[11px] leading-tight text-slate-500' : 'mt-2 text-xs text-slate-600'}>
             Your live price updates on the review step when you change service or details.
           </p>
         </div>
@@ -195,6 +197,7 @@ export default function Step1Address({
           showDeliveryLift={showDeliveryLift}
           customerAddressCards={customerAddressCards}
           quotePage={quotePage}
+          quoteRef={quoteRef}
         />
       ) : (
         <div className={quotePage ? 'grid grid-cols-1 gap-4 xl:grid-cols-2 xl:gap-5' : 'grid xl:grid-cols-2 xl:gap-x-8 xl:gap-y-6 xl:items-start'}>
@@ -204,8 +207,8 @@ export default function Step1Address({
             <QuoteStepAddressCard
               tone="pickup"
               title="Pickup address"
-              helper={quotePage ? 'Where we collect from.' : 'Include the house number and street.'}
-              placeholder={quotePage ? 'Enter pickup postcode' : 'Enter pickup postcode or address'}
+              helper={quotePage ? '' : 'Include the house number and street.'}
+              placeholder={quotePage ? 'Enter pickup address' : 'Enter pickup postcode or address'}
               quotePage={quotePage}
               address={data.pickupAddress}
               lng={data.pickupLng}
@@ -217,7 +220,20 @@ export default function Step1Address({
               propertyValue={data.pickupPropertyType}
               onChange={onChange}
               onPropertyChange={(value) => set('pickupPropertyType', value)}
-            />
+            >
+              {quotePage ? (
+                <QuoteAccessFields
+                  floorValue={data.pickupFloor}
+                  onFloorChange={setPickupFloor}
+                  showLift={showPickupLift}
+                  liftId="pickup-lift"
+                  liftValue={data.pickupLift}
+                  onLiftSelect={(v) => set('pickupLift', v)}
+                />
+              ) : null}
+            </QuoteStepAddressCard>
+            {quotePage ? null : (
+            <>
             <div className={field} data-quote-field="pickup-access">
               <FloorSelect
                 label="Pickup floor"
@@ -235,13 +251,15 @@ export default function Step1Address({
                 />
               </div>
             ) : null}
+            </>
+            )}
             </div>
             <div className="min-w-0 space-y-4">
             <QuoteStepAddressCard
               tone="delivery"
               title="Delivery address"
-              helper={quotePage ? 'Where we deliver to.' : 'Include the house number and street.'}
-              placeholder={quotePage ? 'Enter delivery postcode' : 'Enter delivery postcode or address'}
+              helper={quotePage ? '' : 'Include the house number and street.'}
+              placeholder={quotePage ? 'Enter delivery address' : 'Enter delivery postcode or address'}
               quotePage={quotePage}
               address={data.deliveryAddress}
               lng={data.deliveryLng}
@@ -253,7 +271,20 @@ export default function Step1Address({
               propertyValue={data.deliveryPropertyType}
               onChange={onChange}
               onPropertyChange={(value) => set('deliveryPropertyType', value)}
-            />
+            >
+              {quotePage ? (
+                <QuoteAccessFields
+                  floorValue={data.deliveryFloor}
+                  onFloorChange={setDeliveryFloor}
+                  showLift={showDeliveryLift}
+                  liftId="delivery-lift"
+                  liftValue={data.deliveryLift}
+                  onLiftSelect={(v) => set('deliveryLift', v)}
+                />
+              ) : null}
+            </QuoteStepAddressCard>
+            {quotePage ? null : (
+            <>
             <div className={field} data-quote-field="delivery-access">
               <FloorSelect
                 label="Delivery floor"
@@ -271,6 +302,9 @@ export default function Step1Address({
                 />
               </div>
             ) : null}
+            </>
+            )}
+            {quotePage ? <QuoteReferenceCard quoteRef={quoteRef} className="md:hidden" /> : null}
             </div>
           </>
         ) : HAS_ADDRESS_SEARCH ? (
@@ -422,7 +456,7 @@ export default function Step1Address({
           </>
         ) : null}
 
-        <div className={field} data-quote-field="move-date">
+        <div className={quotePage ? 'quote-surface-card' : field} data-quote-field="move-date">
           <span className={label}>Move date</span>
           {quotePage ? (
             <QuoteMoveDateCalendar value={data.moveDate} onChange={(next) => set('moveDate', next)} />
@@ -438,11 +472,11 @@ export default function Step1Address({
           )}
         </div>
 
-        <div className={`${field} ${quotePage ? '' : 'col-span-2'}`} data-quote-field="arrival">
+        <div className={quotePage ? 'quote-surface-card' : `${field} col-span-2`} data-quote-field="arrival">
           <Step1ArrivalFields data={data} onChange={onChange} error={arrivalError} />
         </div>
 
-        <label className={`${field} ${quotePage ? '' : 'col-span-2'}`}>
+        <label className={quotePage ? 'quote-surface-card' : `${field} col-span-2`}>
           <span className={label}>Distance (miles)</span>
           <input
             type="number"

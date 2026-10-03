@@ -882,17 +882,21 @@
     line-height: 1.4;
   }
 
-  .quote-page-shell .quote-flow-scope #quote-wizard-top ol {
-    gap: 0.125rem;
-    font-size: 10px;
-    justify-content: space-between;
+  .quote-page-shell .quote-flow-scope #quote-wizard-top ol.quote-page-steps {
+    gap: 0;
+    font-size: 0.75rem;
+    justify-content: flex-start;
     overflow: visible;
   }
 
-  .quote-page-shell .quote-flow-scope #quote-wizard-top li span.rounded-full {
-    height: 1.5rem;
-    width: 1.5rem;
-    font-size: 0.6875rem;
+  .quote-page-shell .quote-flow-scope #quote-wizard-top .quote-page-step-dot {
+    height: 1.75rem;
+    width: 1.75rem;
+    font-size: 0.75rem;
+  }
+
+  .quote-page-shell .quote-flow-scope #quote-wizard-top .quote-page-step-label {
+    font-size: 0.75rem;
   }
 }
 
@@ -916,6 +920,49 @@
 /* Quote wizard floating panels (address suggestions, mobile pickers) — above SEO quote modal (z-220). */
 .quote-floating-panel {
   @apply fixed z-[230] overflow-y-auto overscroll-contain rounded-xl border border-slate-200 bg-white py-1 shadow-[0_12px_40px_rgba(15,23,42,0.18)] ring-1 ring-slate-100;
+}
+
+.quote-surface-card {
+  border-radius: 1rem;
+  border: 1px solid #e2e8f0;
+  background: #fff;
+  padding: 1rem;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+
+.quote-service-card {
+  border-radius: 0.875rem;
+  border: 1px solid #e2e8f0;
+  background: #fff;
+  padding: 0.45rem 0.75rem 0.4rem;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+
+.quote-page-shell .quote-wizard-section select.quote-service-select {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 2.25rem;
+  height: 2.25rem;
+  margin: 0;
+  padding: 0 2rem 0 0.75rem;
+  border-radius: 0.75rem;
+  border: 1px solid #e2e8f0;
+  background: #fff;
+  font-size: 0.9375rem;
+  line-height: 1.2;
+}
+
+.quote-page-shell [data-quote-step='2'] .rounded-xl:not(.quote-package-card),
+.quote-page-shell [data-quote-step='3'] .rounded-xl:not(.quote-package-card),
+.quote-page-shell [data-quote-step='4'] .rounded-xl:not(.quote-package-card),
+.quote-page-shell [data-quote-step='2'] .rounded-2xl:not(.quote-package-card),
+.quote-page-shell [data-quote-step='3'] .rounded-2xl:not(.quote-package-card),
+.quote-page-shell [data-quote-step='4'] .rounded-2xl:not(.quote-package-card) {
+  border-color: #e2e8f0;
+}
+
+.quote-page-shell .quote-inline-step-title {
+  display: none;
 }
 
 /* Quote wizard — page scroll only; no nested form scrollbars (mobile + desktop). */
@@ -1374,6 +1421,27 @@
 
 .quote-flow-scope [data-quote-step='4'] #quote-wizard-payment form button[type='submit'] {
   min-height: 48px;
+}
+
+/* Customer leads table — keep the paired horizontal scrollbars visible. */
+.leads-table-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: #64748b #e2e8f0;
+}
+
+.leads-table-scroll::-webkit-scrollbar {
+  height: 12px;
+  width: 12px;
+}
+
+.leads-table-scroll::-webkit-scrollbar-track {
+  background: #e2e8f0;
+}
+
+.leads-table-scroll::-webkit-scrollbar-thumb {
+  background: #64748b;
+  border: 2px solid #e2e8f0;
+  border-radius: 999px;
 }
 
 /* Admin: scale down cards/grids on narrow viewports without changing structure. */

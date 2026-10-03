@@ -39,29 +39,65 @@ function PackageCard({ pkg, selected, fee, blockedReason, onSelect }) {
           onSelect(pkg.id)
         }
       }}
-      className={`relative flex h-full min-w-0 flex-col rounded-2xl border p-3 text-left transition sm:p-4 ${
+      className={`quote-package-card relative flex h-full min-w-0 flex-col overflow-hidden rounded-2xl border-2 p-3 text-left transition sm:p-4 ${
         blockedReason
           ? 'cursor-not-allowed border-slate-200 bg-slate-50 opacity-70'
           : selected && isPlatinum
-            ? 'border-amber-400 bg-slate-950 text-white shadow-md ring-2 ring-amber-300'
+            ? 'border-amber-300 bg-slate-950 text-white shadow-[0_14px_30px_-18px_rgba(251,191,36,0.85),inset_0_0_0_1px_rgba(251,191,36,0.35)]'
             : selected && isPremium
-              ? 'border-blue-600 bg-blue-50 shadow-md ring-2 ring-blue-600'
+              ? 'border-blue-600 bg-gradient-to-b from-blue-50 to-white shadow-[0_14px_30px_-18px_rgba(37,99,235,0.55),inset_0_0_0_1px_rgba(37,99,235,0.14)]'
               : selected
-                ? 'border-slate-900 bg-white shadow-md ring-2 ring-slate-900'
+                ? 'border-slate-900 bg-gradient-to-b from-slate-50 to-white shadow-[0_14px_30px_-18px_rgba(15,23,42,0.45)]'
                 : isPlatinum
-                  ? 'border-slate-800 bg-slate-950 text-white hover:border-amber-300'
-                  : isPremium
-                    ? 'border-blue-200 bg-white hover:border-blue-400'
-                    : 'border-slate-200 bg-white hover:border-slate-400'
+                  ? 'border-slate-800 bg-slate-950 text-white hover:border-amber-300/80'
+                  : 'border-slate-200 bg-white hover:border-slate-300'
       }`}
     >
+      {selected ? (
+        <span
+          className={`pointer-events-none absolute inset-x-0 top-0 h-1 ${
+            isPlatinum
+              ? 'bg-gradient-to-r from-amber-200 via-amber-400 to-amber-200'
+              : isPremium
+                ? 'bg-gradient-to-r from-blue-500 via-blue-600 to-indigo-500'
+                : 'bg-slate-900'
+          }`}
+          aria-hidden
+        />
+      ) : null}
       <span className="flex items-start justify-between gap-2">
         <span className="flex items-center gap-2">
-          <Icon className={`h-4 w-4 ${isPlatinum ? 'text-amber-300' : isPremium ? 'text-blue-600' : 'text-slate-600'}`} aria-hidden />
+          <span
+            className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${
+              isPlatinum
+                ? 'bg-amber-300/15 text-amber-300'
+                : selected && isPremium
+                  ? 'bg-blue-600 text-white'
+                  : selected
+                    ? 'bg-slate-900 text-white'
+                    : isPremium
+                      ? 'bg-blue-50 text-blue-600'
+                      : 'bg-slate-100 text-slate-600'
+            }`}
+          >
+            <Icon className="h-4 w-4" aria-hidden />
+          </span>
           <span className={`text-sm font-bold ${isPlatinum ? 'text-white' : 'text-slate-900'}`}>{pkg.displayName}</span>
         </span>
-        <span className={`shrink-0 text-sm font-bold tabular-nums ${isPlatinum ? 'text-amber-200' : 'text-emerald-700'}`}>
-          {isStandard || fee <= 0 ? 'Included' : `+${moneyLabel(fee)}`}
+        <span className="flex shrink-0 flex-col items-end gap-1">
+          <span className={`text-sm font-bold tabular-nums ${isPlatinum ? 'text-amber-200' : 'text-emerald-700'}`}>
+            {isStandard || fee <= 0 ? 'Included' : `+${moneyLabel(fee)}`}
+          </span>
+          {selected ? (
+            <span
+              className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${
+                isPlatinum ? 'bg-amber-300 text-slate-950' : isPremium ? 'bg-blue-600 text-white' : 'bg-slate-900 text-white'
+              }`}
+            >
+              <Check className="h-3 w-3" aria-hidden />
+              Selected
+            </span>
+          ) : null}
         </span>
       </span>
       {pkg.badge ? (
@@ -92,22 +128,6 @@ function PackageCard({ pkg, selected, fee, blockedReason, onSelect }) {
       ) : null}
       {!isStandard && exclusions.length ? <Exclusions lines={exclusions} light={isPlatinum} /> : null}
       {blockedReason ? <p className="mt-3 text-[11px] font-semibold leading-snug text-red-700">{blockedReason}</p> : null}
-      {selected ? (
-        <span className="mt-auto block pt-3">
-          <span
-            className={`inline-flex w-full items-center justify-center gap-1.5 rounded-lg py-2 text-xs font-extrabold uppercase tracking-wide ${
-              isPlatinum
-                ? 'bg-amber-300 text-slate-950'
-                : isPremium
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-slate-900 text-white'
-            }`}
-          >
-            <Check className="h-3.5 w-3.5" aria-hidden />
-            Selected
-          </span>
-        </span>
-      ) : null}
     </div>
   )
 }

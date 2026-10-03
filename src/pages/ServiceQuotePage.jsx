@@ -82,10 +82,10 @@ export default function ServiceQuotePage() {
 
       <section
         id="service-quote"
-        className="quote-page-shell seo-quote-wrap scroll-mt-[76px] bg-[#e7eef6] px-3 py-4 sm:px-4 sm:py-8"
+        className="quote-page-shell seo-quote-wrap scroll-mt-[76px] bg-[#e7eef6] px-3 py-3 sm:px-4 sm:py-5"
         aria-label="Instant quote"
       >
-        <QuoteWizard serviceType={page.serviceType} pageChrome titleTag="h2" />
+        <QuoteWizard serviceType={page.serviceType} pageChrome titleTag="h2" showStep1Back={false} />
       </section>
 
       {seoContent ? (

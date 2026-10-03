@@ -15,24 +15,34 @@ const SHORT_LABELS = {
 export default function WizardProgress({ step, variant = 'default' }) {
   if (variant === 'page') {
     return (
-      <ol className="quote-page-steps mb-5 flex w-full items-center justify-between gap-0.5 text-[10px] font-semibold leading-tight sm:justify-center sm:gap-1 sm:text-sm">
-        {STEPS.map((s, index) => (
-          <li key={s.n} className="flex min-w-0 items-center gap-0.5 sm:gap-1">
-            {index > 0 ? <span className="px-0.5 font-normal text-slate-300">—</span> : null}
-            <span
-              className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[11px] tabular-nums sm:h-7 sm:w-7 sm:text-xs ${
-                step === s.n
-                  ? 'bg-blue-600 text-white'
-                  : step > s.n
-                    ? 'bg-emerald-500 text-white'
-                    : 'bg-slate-200 text-slate-500'
-              }`}
-            >
-              {step > s.n ? '✓' : s.n}
-            </span>
-            <span className={step >= s.n ? 'text-blue-700' : 'text-slate-400'}>{s.label}</span>
-          </li>
-        ))}
+      <ol className="quote-page-steps mb-2 flex w-full items-center">
+        {STEPS.map((s, index) => {
+          const current = step === s.n
+          const done = step > s.n
+          return (
+            <li key={s.n} className="contents">
+              <span className="flex shrink-0 items-center">
+                <span
+                  className={`quote-page-step-dot flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold tabular-nums ${
+                    current || done ? 'bg-blue-600 text-white' : 'bg-slate-200 text-slate-500'
+                  }`}
+                >
+                  {done ? '✓' : s.n}
+                </span>
+                <span
+                  className={`quote-page-step-label ml-1.5 whitespace-nowrap text-xs font-semibold sm:text-sm ${
+                    current ? 'text-slate-900' : done ? 'text-blue-700' : 'text-slate-400'
+                  }`}
+                >
+                  {SHORT_LABELS[s.n]}
+                </span>
+              </span>
+              {index < STEPS.length - 1 ? (
+                <span className="mx-1.5 h-px min-w-2 flex-1 bg-slate-200 sm:mx-2" aria-hidden />
+              ) : null}
+            </li>
+          )
+        })}
       </ol>
     )
   }

@@ -1,4 +1,4 @@
-﻿import { useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import Logo from '../Logo'
 import NavSloganBar from '../NavSloganBar'
@@ -17,7 +17,7 @@ const navItems = [
 ]
 
 /** Compact mobile/tablet navbar (&lt; lg) ÔÇö logo, phone icon, hamburger only; CTA in drawer. */
-export default function MobileNavbar({ showSlogan } = {}) {
+export default function MobileNavbar({ showSlogan, onLogoClick } = {}) {
   const { navbar } = useWebsiteCms()
   const phoneDisplay = navbar.phoneDisplay || CONTACT.phoneDisplay
   const phoneTel = navbar.phoneTel || CONTACT.phoneTel
@@ -37,7 +37,13 @@ export default function MobileNavbar({ showSlogan } = {}) {
         <HomeSectionLink
           sectionId="home"
           className="relative z-10 flex min-w-0 max-w-[min(82vw,16rem)] shrink items-center py-1"
-          onNavigate={closeMenu}
+          onNavigate={() => {
+            closeMenu()
+            if (onLogoClick) {
+              onLogoClick()
+              return false
+            }
+          }}
         >
           <Logo asImage variant="dark" compact="nav" className="max-w-full" src={navbar.logoUrl || undefined} />
         </HomeSectionLink>

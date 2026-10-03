@@ -281,7 +281,7 @@ export default function QuotePaymentSection({
 
         {estimatedTotal != null && Number.isFinite(estimatedTotal) ? (
           <div className="mt-3 space-y-2 md:mt-4">
-            <dl className="space-y-1.5 rounded-lg border border-emerald-100/90 bg-emerald-50/50 px-3 py-2.5 text-sm">
+            <dl className="space-y-1.5 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm">
               {breakdown?.quoteBaseTotal != null && Number.isFinite(breakdown.quoteBaseTotal) ? (
                 <div className="flex items-baseline justify-between gap-3">
                   <dt className="font-medium text-slate-800">Move price</dt>
@@ -296,7 +296,7 @@ export default function QuotePaymentSection({
               ) : null}
               <div className="flex items-baseline justify-between gap-3">
                 <dt className="font-medium text-slate-800">Total</dt>
-                <dd className="font-bold tabular-nums text-emerald-700">{totalFormatted}</dd>
+                <dd className="text-lg font-bold tabular-nums text-slate-900">{totalFormatted}</dd>
               </div>
             </dl>
             <QuotePromoPriceReduction
@@ -458,7 +458,7 @@ export default function QuotePaymentSection({
                 <button
                   type="button"
                   onClick={() => onPay(paymentChoice)}
-                  className="inline-flex min-h-[44px] items-center justify-center rounded-xl border border-brand-200 bg-brand-50 px-4 text-sm font-semibold text-brand-900"
+                  className="inline-flex min-h-[52px] w-full items-center justify-center rounded-xl bg-blue-600 px-4 text-base font-bold text-white shadow-sm hover:bg-blue-700"
                 >
                   Load secure payment
                 </button>

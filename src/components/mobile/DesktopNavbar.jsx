@@ -1,4 +1,4 @@
-﻿import { useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import Logo from '../Logo'
 import NavSloganBar from '../NavSloganBar'
@@ -24,7 +24,7 @@ function navLinkClass(isActive) {
 }
 
 /** Full desktop navbar (md+) ÔÇö unchanged. */
-export default function DesktopNavbar({ showSlogan } = {}) {
+export default function DesktopNavbar({ showSlogan, onLogoClick } = {}) {
   const { navbar } = useWebsiteCms()
   const phoneDisplay = navbar.phoneDisplay || CONTACT.phoneDisplay
   const phoneTel = navbar.phoneTel || CONTACT.phoneTel
@@ -77,6 +77,14 @@ export default function DesktopNavbar({ showSlogan } = {}) {
         <HomeSectionLink
           sectionId="home"
           className="relative z-10 flex shrink-0 items-center self-stretch py-1.5 sm:py-2"
+          onNavigate={
+            onLogoClick
+              ? () => {
+                  onLogoClick()
+                  return false
+                }
+              : undefined
+          }
         >
           <Logo asImage variant="dark" src={navbar.logoUrl || undefined} />
         </HomeSectionLink>

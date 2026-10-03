@@ -3,6 +3,8 @@ import { cityFromAddress } from '../../lib/journeyPlannerDisplay'
 import { formatMoveSummaryCrewForPricing } from '../../lib/moveSummaryDisplay'
 import { formatReviewShortTimeLabel, parseIsoDateParts } from '../../lib/quoteReviewPriceOptions'
 import QuotePromoPriceReduction from './QuotePromoPriceReduction'
+import QuoteReferenceCard from './QuoteReferenceCard'
+import QuoteRouteMap from './QuoteRouteMap'
 
 function placeLabel(address) {
   const city = cityFromAddress(address)
@@ -46,6 +48,11 @@ export default function QuoteReviewYourMoveCard({
   priceWithoutPromo = null,
   onContinueToPayment,
   continueDisabled = false,
+  hideContinue = false,
+  quoteRef = '',
+  onDistanceFromRoute,
+  showReference = true,
+  showMap = true,
   className = '',
   sticky = false,
 }) {
@@ -54,6 +61,7 @@ export default function QuoteReviewYourMoveCard({
       ? breakdown.estimatedTotal
       : null
   const totalFormatted = total != null ? `£${total.toFixed(2)}` : '—'
+  const ref = String(quoteRef || '').trim()
   const crew = formatMoveSummaryCrewForPricing(
     wizard?.crewSize,
     breakdown?.crewSizeUsedInPricing,
@@ -69,15 +77,33 @@ export default function QuoteReviewYourMoveCard({
   ]
 
   return (
+    <div
+      className={`flex min-w-0 flex-col gap-4 ${sticky ? 'md:sticky md:top-24' : ''} ${className}`.trim()}
+    >
+      {showReference ? <QuoteReferenceCard quoteRef={ref} /> : null}
+
+      {showMap ? (
+        <div className="quote-sidebar-route-map overflow-hidden rounded-xl shadow-sm ring-1 ring-slate-100 md:rounded-2xl [&_.relative]:!h-[12rem] [&_.relative]:!min-h-[12rem] [&_.relative]:!max-h-[12rem] md:[&_.relative]:!h-[15rem] md:[&_.relative]:!min-h-[15rem] md:[&_.relative]:!max-h-[15rem] [&_.quote-route-map]:rounded-xl [&_.quote-route-map]:border-0 [&_.quote-route-map]:shadow-none md:[&_.quote-route-map]:rounded-2xl">
+          <QuoteRouteMap
+            variant="review"
+            pickupLng={wizard?.pickupLng}
+            pickupLat={wizard?.pickupLat}
+            deliveryLng={wizard?.deliveryLng}
+            deliveryLat={wizard?.deliveryLat}
+            distanceMiles={wizard?.distanceMiles}
+            onDistanceFromRoute={onDistanceFromRoute}
+          />
+        </div>
+      ) : null}
+
     <aside
-      className={`rounded-2xl border border-slate-200 bg-white p-4 shadow-[0_10px_30px_rgba(15,23,42,0.06)] ${
-        sticky ? 'md:sticky md:top-24' : ''
-      } ${className}`.trim()}
+      className="rounded-2xl border border-slate-200 bg-white p-4 shadow-[0_10px_30px_rgba(15,23,42,0.06)]"
       aria-labelledby="quote-your-move-heading"
     >
       <h3 id="quote-your-move-heading" className="text-base font-bold text-slate-900">
         Your move
       </h3>
+      <p className="mt-0.5 text-xs text-slate-500">Estimated move summary</p>
       <ul className="mt-3 space-y-2.5">
         {rows.map((row) => {
           const Icon = row.icon
@@ -118,19 +144,24 @@ export default function QuoteReviewYourMoveCard({
         size="sm"
         showPromoCode
       />
-      <button
-        type="button"
-        onClick={() => onContinueToPayment?.()}
-        disabled={continueDisabled}
-        className="mt-4 flex min-h-[48px] w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-3 text-sm font-bold text-white shadow-md transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-[#d7e4f5] disabled:text-slate-500 disabled:shadow-none"
-      >
-        {continueDisabled ? <Lock className="h-4 w-4" aria-hidden /> : null}
-        Continue to payment →
-      </button>
-      <p className="mt-2 flex items-center justify-center gap-1.5 text-xs text-slate-500">
-        <Lock className="h-3.5 w-3.5" aria-hidden />
-        Secure checkout
-      </p>
+      {hideContinue ? null : (
+        <>
+          <button
+            type="button"
+            onClick={() => onContinueToPayment?.()}
+            disabled={continueDisabled}
+            className="mt-4 flex min-h-[52px] w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-3 text-base font-bold text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-[#d7e4f5] disabled:text-slate-500 disabled:shadow-none"
+          >
+            {continueDisabled ? <Lock className="h-4 w-4" aria-hidden /> : null}
+            Continue to payment →
+          </button>
+          <p className="mt-2 flex items-center justify-center gap-1.5 text-xs text-slate-500">
+            <Lock className="h-3.5 w-3.5" aria-hidden />
+            Secure checkout
+          </p>
+        </>
+      )}
     </aside>
+    </div>
   )
 }

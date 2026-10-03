@@ -45,25 +45,26 @@ export default function SeoQuoteWizardModal({ open, onClose, serviceType = '', s
       aria-labelledby="seo-quote-flow-title"
     >
       <div className="shrink-0">
-        <Navbar showSlogan />
-        <div className="border-b border-slate-200/70 bg-[#e7eef6] px-3 py-2 sm:px-4">
+        <Navbar showSlogan onLogoClick={onClose} />
+        <div className="bg-[#e7eef6] px-3 pt-1.5 sm:px-4">
           <button
             type="button"
             onClick={onClose}
-            className="inline-flex min-h-[36px] items-center gap-2 text-xs font-semibold text-slate-600 transition hover:text-brand-700 sm:min-h-[40px] sm:text-sm"
+            className="inline-flex items-center gap-1 text-sm font-semibold text-slate-600 hover:text-slate-900"
           >
             <span aria-hidden>←</span> Back to page
           </button>
         </div>
       </div>
 
-      <div className="quote-flow-main quote-page-shell min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-4 pb-24 sm:px-4 sm:py-8 md:pb-8">
+      <div className="quote-flow-main quote-page-shell min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 pb-24 pt-1 sm:px-4 sm:pb-8">
         <QuoteWizard
           key={sessionKey}
           serviceType={resolvedServiceType}
           allowServiceChange
           servicePreSelected={Boolean(resolvedServiceType)}
           pageChrome
+          showStep1Back={false}
           titleId="seo-quote-flow-title"
         />
       </div>

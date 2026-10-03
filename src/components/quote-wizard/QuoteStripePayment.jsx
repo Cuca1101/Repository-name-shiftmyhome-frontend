@@ -129,8 +129,8 @@ function PaymentForm({
     ? 'min-w-0 overflow-hidden rounded-lg border border-slate-200/80 bg-white p-2 [&_.Tab]:!py-1.5 [&_.Tab]:!text-xs'
     : 'min-w-0 max-w-full overflow-hidden'
   const buttonClass = mobileReview
-    ? 'inline-flex min-h-[48px] w-full items-center justify-center rounded-xl bg-gradient-to-r from-brand-600 to-emerald-600 px-4 py-2.5 text-sm font-bold text-white shadow-md transition hover:from-brand-700 hover:to-emerald-700 disabled:opacity-50'
-    : 'inline-flex min-h-[48px] w-full items-center justify-center rounded-xl bg-brand-600 px-4 py-3 text-sm font-bold text-white shadow-md transition hover:bg-brand-700 disabled:opacity-50'
+    ? 'inline-flex min-h-[52px] w-full items-center justify-center rounded-xl bg-blue-600 px-4 py-3 text-base font-bold text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50'
+    : 'inline-flex min-h-[52px] w-full items-center justify-center rounded-xl bg-blue-600 px-4 py-3 text-base font-bold text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50'
 
   return (
     <form onSubmit={handleSubmit} className={formClass}>

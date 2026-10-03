@@ -39,7 +39,7 @@ export default function JobDetailsContactSection({
 
   return (
     <>
-      <div className="mt-3 min-w-0 max-w-full border-t border-slate-200 pt-3 md:mt-10 md:pt-10">
+      <div className="mt-3 min-w-0 max-w-full">
         <h2 className="text-base font-bold text-slate-900 md:text-lg">
           Job details &amp; contact
         </h2>

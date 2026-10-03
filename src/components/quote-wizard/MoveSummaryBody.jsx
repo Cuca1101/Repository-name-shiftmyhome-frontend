@@ -75,6 +75,7 @@ export default function MoveSummaryBody({
   mapVariant = 'default',
   hideEstimatedTotalCard = false,
   afterSummary = null,
+  afterMap = null,
 }) {
   const lineRowCount = inventoryLines.length
   const totalItemUnits = inventoryLines.reduce(
@@ -92,7 +93,6 @@ export default function MoveSummaryBody({
 
   const cardPad = compact ? 'p-3' : 'p-2 shadow-card ring-1 ring-slate-100 xxs:p-2.5 xs:rounded-2xl sm:p-5'
   const cardRound = compact ? 'rounded-xl' : 'rounded-lg xxs:rounded-2xl'
-  const hideRefCardOnMobileStep1 = step === 1 ? 'hidden md:block' : ''
 
   const pickupFloorSummary = formatMoveSummaryFloorLabel(pickupFloor)
   const deliveryFloorSummary = formatMoveSummaryFloorLabel(deliveryFloor)
@@ -109,13 +109,13 @@ export default function MoveSummaryBody({
         />
       ) : null}
 
-      <div className={`min-w-0 border border-slate-200 bg-white ${cardRound} ${cardPad} ${hideRefCardOnMobileStep1}`}>
+      <div className={`min-w-0 border border-slate-200 bg-white ${cardRound} ${cardPad}`}>
         <p className="text-[0.65rem] font-semibold uppercase tracking-wide text-slate-500">Quote reference</p>
         <p className="mt-0.5 font-mono text-sm font-bold text-brand-800">{quoteRef}</p>
         {!compact ? <p className="mt-2 text-xs text-slate-500">Keep this handy when you speak to us.</p> : null}
       </div>
 
-      <div className="quote-sidebar-route-map [&_.relative]:!h-[9.5rem] [&_.relative]:!min-h-[9.5rem] [&_.relative]:!max-h-[9.5rem] lg:[&_.relative]:!h-[10.5rem] lg:[&_.relative]:!min-h-[10.5rem] lg:[&_.relative]:!max-h-[10.5rem]">
+      <div className="quote-sidebar-route-map overflow-hidden rounded-xl shadow-sm ring-1 ring-slate-100 md:rounded-2xl [&_.relative]:!h-[12rem] [&_.relative]:!min-h-[12rem] [&_.relative]:!max-h-[12rem] md:[&_.relative]:!h-[15rem] md:[&_.relative]:!min-h-[15rem] md:[&_.relative]:!max-h-[15rem] lg:[&_.relative]:!h-[17rem] lg:[&_.relative]:!min-h-[17rem] lg:[&_.relative]:!max-h-[17rem] xl:[&_.relative]:!h-[18.5rem] xl:[&_.relative]:!min-h-[18.5rem] xl:[&_.relative]:!max-h-[18.5rem] [&_.quote-route-map]:rounded-xl [&_.quote-route-map]:border-0 [&_.quote-route-map]:shadow-none md:[&_.quote-route-map]:rounded-2xl">
         <QuoteRouteMap
           variant={mapVariant === 'review' ? 'review' : undefined}
           pickupLng={pickupLng}
@@ -126,6 +126,8 @@ export default function MoveSummaryBody({
           onDistanceFromRoute={onDistanceFromRoute}
         />
       </div>
+
+      {afterMap}
 
       <div
         className={`min-w-0 border border-slate-200 bg-gradient-to-br from-slate-50 to-white ${cardRound} ${cardPad}`}

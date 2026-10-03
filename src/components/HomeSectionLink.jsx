@@ -27,7 +27,7 @@ export default function HomeSectionLink({ sectionId, children, className, onNavi
 
   function handleClick(e) {
     e.preventDefault()
-    onNavigate?.()
+    if (onNavigate?.() === false) return
 
     if (location.pathname !== '/') {
       navigate({ pathname: '/', hash: `#${sectionId}` })

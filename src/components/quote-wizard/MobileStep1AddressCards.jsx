@@ -8,6 +8,8 @@ import FloorSelect, { floorNeedsLiftQuestion } from './FloorSelect'
 import { liftClearPatchForWizard } from '../../lib/floorAccess'
 import MobileStep1ArrivalWindow from './MobileStep1ArrivalWindow'
 import MobileOptionBottomSheet from './MobileOptionBottomSheet'
+import QuoteAccessFields from './QuoteAccessFields'
+import QuoteReferenceCard from './QuoteReferenceCard'
 
 const PROPERTY_TYPES = ['House', 'Flat / apartment', 'Bungalow', 'Commercial', 'Other']
 
@@ -131,8 +133,8 @@ function MobileLiftYesNoField({ legend, name, value, onSelect, liftYesId, liftNo
   )
 }
 
-function MobileCardRow({ children }) {
-  return <div className="quote-mobile-step1-row px-3 py-2.5">{children}</div>
+function MobileCardRow({ children, className = '' }) {
+  return <div className={`quote-mobile-step1-row px-3 py-2.5 ${className}`}>{children}</div>
 }
 
 /**
@@ -148,6 +150,7 @@ export default function MobileStep1AddressCards({
   showDeliveryLift,
   customerAddressCards = false,
   quotePage = false,
+  quoteRef = '',
 }) {
   const [openSections, setOpenSections] = useState(() => computeInitialSections(data))
   const [activeDropdown, setActiveDropdown] = useState(null)
@@ -198,8 +201,10 @@ export default function MobileStep1AddressCards({
     unlock(SECTION.PICKUP_FLOOR)
     if (customerAddressCards) {
       closeDropdowns()
-      focusById('quote-mobile-pickup-floor')
-      setActiveDropdown('pickup-floor')
+      if (!quotePage) {
+        focusById('quote-mobile-pickup-floor')
+        setActiveDropdown('pickup-floor')
+      }
       return
     }
     focusById('quote-mobile-pickup-property-type')
@@ -253,6 +258,7 @@ export default function MobileStep1AddressCards({
   function openDeliveryFloor() {
     unlock(SECTION.DELIVERY_FLOOR)
     closeDropdowns()
+    if (quotePage) return
     focusById('quote-mobile-delivery-floor')
     setActiveDropdown('delivery-floor')
   }
@@ -303,13 +309,13 @@ export default function MobileStep1AddressCards({
 
   return (
     <div className="quote-mobile-step1-flow overflow-visible">
-      <MobileCardRow>
+      <MobileCardRow className={quotePage ? '!px-0 !pt-0 pb-1' : ''}>
           {customerAddressCards ? (
             <QuoteStepAddressCard
               tone="pickup"
               title="Pickup address"
-              helper={quotePage ? 'Where we collect from.' : 'Include the house number and street.'}
-              placeholder={quotePage ? 'Enter pickup postcode' : 'Enter pickup postcode or address'}
+              helper={quotePage ? '' : 'Include the house number and street.'}
+              placeholder={quotePage ? 'Enter pickup address' : 'Enter pickup postcode or address'}
               quotePage={quotePage}
               address={data.pickupAddress}
               lng={data.pickupLng}
@@ -323,7 +329,22 @@ export default function MobileStep1AddressCards({
               onChange={onChange}
               onPropertyChange={onPickupPropertyChange}
               onAddressSelected={onPickupAddressSelected}
-            />
+            >
+              {quotePage && show.pickupFloor ? (
+                <QuoteAccessFields
+                  floorId="quote-mobile-pickup-floor"
+                  floorValue={data.pickupFloor}
+                  onFloorChange={onPickupFloorChange}
+                  floorVariant="mobile-card"
+                  floorOpen={activeDropdown === 'pickup-floor'}
+                  onFloorOpenChange={(next) => setActiveDropdown(next ? 'pickup-floor' : null)}
+                  showLift={show.pickupLift}
+                  liftId="quote-mobile-pickup-lift"
+                  liftValue={data.pickupLift}
+                  onLiftSelect={onPickupLiftSelect}
+                />
+              ) : null}
+            </QuoteStepAddressCard>
           ) : hasMapbox ? (
             <MapboxAddressField
               label="Pickup address"
@@ -382,7 +403,7 @@ export default function MobileStep1AddressCards({
         </MobileCardRow>
         ) : null}
 
-        {show.pickupFloor ? (
+        {show.pickupFloor && !quotePage ? (
           <MobileCardRow>
             <FloorSelect
               id="quote-mobile-pickup-floor"
@@ -396,7 +417,7 @@ export default function MobileStep1AddressCards({
           </MobileCardRow>
         ) : null}
 
-        {show.pickupLift ? (
+        {show.pickupLift && !quotePage ? (
           <MobileCardRow>
             <div data-quote-field="pickup-lift">
               <MobileLiftYesNoField
@@ -411,13 +432,13 @@ export default function MobileStep1AddressCards({
           </MobileCardRow>
         ) : null}
 
-        <MobileCardRow>
+        <MobileCardRow className={quotePage ? '!px-0 pt-1 pb-1' : ''}>
           {customerAddressCards ? (
             <QuoteStepAddressCard
               tone="delivery"
               title="Delivery address"
-              helper={quotePage ? 'Where we deliver to.' : 'Include the house number and street.'}
-              placeholder={quotePage ? 'Enter delivery postcode' : 'Enter delivery postcode or address'}
+              helper={quotePage ? '' : 'Include the house number and street.'}
+              placeholder={quotePage ? 'Enter delivery address' : 'Enter delivery postcode or address'}
               quotePage={quotePage}
               address={data.deliveryAddress}
               lng={data.deliveryLng}
@@ -431,7 +452,22 @@ export default function MobileStep1AddressCards({
               onChange={onChange}
               onPropertyChange={onDeliveryPropertyChange}
               onAddressSelected={onDeliveryAddressSelected}
-            />
+            >
+              {quotePage && show.deliveryFloor ? (
+                <QuoteAccessFields
+                  floorId="quote-mobile-delivery-floor"
+                  floorValue={data.deliveryFloor}
+                  onFloorChange={onDeliveryFloorChange}
+                  floorVariant="mobile-card"
+                  floorOpen={activeDropdown === 'delivery-floor'}
+                  onFloorOpenChange={(next) => setActiveDropdown(next ? 'delivery-floor' : null)}
+                  showLift={show.deliveryLift}
+                  liftId="quote-mobile-delivery-lift"
+                  liftValue={data.deliveryLift}
+                  onLiftSelect={onDeliveryLiftSelect}
+                />
+              ) : null}
+            </QuoteStepAddressCard>
           ) : hasMapbox ? (
             <MapboxAddressField
               label="Delivery address"
@@ -473,6 +509,12 @@ export default function MobileStep1AddressCards({
             )}
         </MobileCardRow>
 
+        {quotePage ? (
+          <div className="pb-1 pt-1 md:hidden">
+            <QuoteReferenceCard quoteRef={quoteRef} />
+          </div>
+        ) : null}
+
         {!customerAddressCards ? (
         <MobileCardRow>
           <MobileOptionBottomSheet
@@ -490,7 +532,7 @@ export default function MobileStep1AddressCards({
         </MobileCardRow>
         ) : null}
 
-          {show.deliveryFloor ? (
+          {show.deliveryFloor && !quotePage ? (
             <MobileCardRow>
               <FloorSelect
                 id="quote-mobile-delivery-floor"
@@ -504,7 +546,7 @@ export default function MobileStep1AddressCards({
             </MobileCardRow>
           ) : null}
 
-          {show.deliveryLift ? (
+          {show.deliveryLift && !quotePage ? (
             <MobileCardRow>
               <div data-quote-field="delivery-lift">
                 <MobileLiftYesNoField

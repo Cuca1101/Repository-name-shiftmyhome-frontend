@@ -1,4 +1,5 @@
 import { Lock, ShieldCheck, Tag } from 'lucide-react'
+import MobileStepRefBadge from './MobileStepRefBadge'
 import QuoteReviewPriceCalendar from './QuoteReviewPriceCalendar'
 import QuoteReviewYourMoveCard from './QuoteReviewYourMoveCard'
 import QuoteServicePackagePicker from './QuoteServicePackagePicker'
@@ -18,6 +19,7 @@ export default function Step3ReviewLayout({
   onGoToStep,
   totalM3 = 0,
   onContinueToPayment,
+  embedSummary = false,
 }) {
   const calendarProps = {
     wizard,
@@ -35,6 +37,11 @@ export default function Step3ReviewLayout({
 
   return (
     <div data-quote-step="3" className="min-w-0 max-w-full">
+      {embedSummary ? (
+        <div className="mb-3">
+          <MobileStepRefBadge quoteRef={quoteRef} />
+        </div>
+      ) : null}
       <QuoteReviewPriceCalendar {...calendarProps} />
 
       <QuoteServicePackagePicker
@@ -51,12 +58,14 @@ export default function Step3ReviewLayout({
 
       <div className="mt-4 md:hidden">
         <QuoteReviewYourMoveCard
+          quoteRef={quoteRef}
           wizard={wizard}
           breakdown={breakdown}
           pricingSettings={settings}
           totalM3={totalM3}
           priceWithoutPromo={priceWithoutPromo}
           onContinueToPayment={onContinueToPayment}
+          hideContinue={embedSummary}
         />
       </div>
 
@@ -70,7 +79,7 @@ export default function Step3ReviewLayout({
         accordionLayout
       />
 
-      {quoteRef ? (
+      {quoteRef && !embedSummary ? (
         <p className="mt-3 font-mono text-xs font-semibold text-slate-500">Quote reference {quoteRef}</p>
       ) : null}
 

@@ -1,7 +1,10 @@
 /**
  * In-flow Back / Continue bar for mobile quote steps (&lt; md) — follows Move Summary.
+ * `pinned` keeps the primary action in a bottom bar on the quote page.
  */
 import { Lock } from 'lucide-react'
+import MobileStepRefBadge from '../quote-wizard/MobileStepRefBadge'
+import { QuoteFlowHelp } from '../WhatsAppButton'
 
 export default function MobileQuoteStickyActions({
   step,
@@ -9,8 +12,40 @@ export default function MobileQuoteStickyActions({
   onNext,
   nextDisabled = false,
   nextLoading = false,
+  pinned = false,
+  quoteRef = '',
 }) {
   if (step > 4) return null
+
+  if (pinned && step < 4) {
+    const label = nextLoading
+      ? 'Finding your price…'
+      : step === 3
+        ? 'Continue to payment →'
+        : step === 2
+          ? 'Get a quote'
+          : 'Continue →'
+    return (
+      <div
+        className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-[#e7eef6]/95 px-3 pt-2 backdrop-blur md:hidden"
+        style={{ paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))' }}
+        role="group"
+        aria-label="Quote navigation"
+      >
+        <MobileStepRefBadge quoteRef={quoteRef} className="mb-2" />
+        <button
+          type="button"
+          onClick={onNext}
+          disabled={nextDisabled}
+          className="flex min-h-[52px] w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 text-base font-bold text-white shadow-sm disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {nextDisabled && step === 3 ? <Lock className="h-4 w-4" aria-hidden /> : null}
+          {label}
+        </button>
+        <QuoteFlowHelp className="mt-2" />
+      </div>
+    )
+  }
 
   if (step === 3) {
     return (
@@ -61,7 +96,7 @@ export default function MobileQuoteStickyActions({
 
   return (
     <div
-      className="mt-2 flex gap-2 border-t border-slate-200 pt-2 md:hidden"
+      className="mt-2 flex gap-5 border-t border-slate-200 pt-2 md:hidden"
       role="group"
       aria-label="Wizard navigation"
     >

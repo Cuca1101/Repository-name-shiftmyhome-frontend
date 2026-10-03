@@ -6,7 +6,7 @@ import QuoteReviewStickyPanel, {
 } from './QuoteReviewStickyPanel'
 
 export default function MoveSummary(props) {
-  const { reviewSticky, afterSummary, ...bodyProps } = props
+  const { reviewSticky, afterSummary, afterMap, ...bodyProps } = props
   const mapVariant = bodyProps.step === 4 ? 'review' : 'default'
   const step3Sidebar =
     reviewSticky?.placement === 'aboveReference' && typeof reviewSticky?.onContinueToPayment === 'function'
@@ -14,11 +14,16 @@ export default function MoveSummary(props) {
 
   return (
     <>
-      <aside className="hidden w-full min-w-0 flex-col gap-3 md:flex lg:sticky lg:top-24 lg:gap-4">
+      <aside className="hidden w-full min-w-0 flex-col gap-4 md:flex lg:sticky lg:top-24 lg:gap-5">
         {step3Sidebar ? (
           <QuoteReviewSelectedSlot {...stickyPanelProps} className="!shadow-card" />
         ) : null}
-        <MoveSummaryBody {...bodyProps} mapVariant={mapVariant} afterSummary={afterSummary} />
+        <MoveSummaryBody
+          {...bodyProps}
+          mapVariant={mapVariant}
+          afterSummary={afterSummary}
+          afterMap={afterMap}
+        />
         {step3Sidebar ? (
           <QuoteReviewPayCta
             onContinueToPayment={stickyPanelProps.onContinueToPayment}

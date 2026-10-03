@@ -17,7 +17,7 @@ export default function QuotePage() {
         path="/quote"
         includeSocial
       />
-      <div className="quote-page-shell quote-flow-layout min-w-0 bg-[#e7eef6] px-3 py-4 sm:px-4 sm:py-8" data-quote-flow>
+      <div className="quote-page-shell quote-flow-layout min-w-0 bg-[#e7eef6] px-3 py-3 sm:px-4 sm:py-5" data-quote-flow>
         <CustomerQuoteCalculator pageChrome />
       </div>
     </PublicLayout>

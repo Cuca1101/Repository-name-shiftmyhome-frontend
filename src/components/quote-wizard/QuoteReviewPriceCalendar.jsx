@@ -313,7 +313,7 @@ export default function QuoteReviewPriceCalendar({
                   <span className="mt-1 hidden text-[11px] leading-tight text-slate-500 md:block">{arrivalLabel}</span>
                   {showPriceLabels && option && !past ? (
                     <span
-                      className={`mt-1.5 max-w-full truncate rounded px-1 py-0.5 text-[8px] font-bold uppercase leading-tight tracking-wide md:text-[10px] ${
+                      className={`mt-1.5 max-w-full rounded px-1 py-0.5 text-center text-[8px] font-bold uppercase leading-tight tracking-wide md:text-[10px] ${
                         isBest
                           ? 'bg-orange-500 text-white'
                           : isWeekend
@@ -322,7 +322,7 @@ export default function QuoteReviewPriceCalendar({
                       }`}
                     >
                       <span className="md:hidden">{isBest ? 'Best' : isWeekend ? 'Wkd' : 'Std'}</span>
-                      <span className="hidden md:inline">{isBest ? 'Best price' : isWeekend ? 'Weekend' : 'Standard price'}</span>
+                      <span className="hidden md:inline">{isBest ? 'Best price' : isWeekend ? 'Weekend' : 'Standard'}</span>
                     </span>
                   ) : null}
                   {price != null && Number.isFinite(price) ? (

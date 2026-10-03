@@ -92,6 +92,7 @@ export default function QuoteStepAddressCard({
   onAddressSelected,
   propertySelectId,
   quotePage = false,
+  children = null,
 }) {
   const prefix = addressPrefix(addressKey)
   const [accepted, setAccepted] = useState(() => lng != null && lat != null)
@@ -110,12 +111,16 @@ export default function QuoteStepAddressCard({
   const requestRef = useRef(0)
 
   const isPickup = tone === 'pickup'
-  const accent = isPickup ? 'text-blue-700' : 'text-emerald-700'
-  const iconWrap = isPickup ? 'bg-blue-600' : 'bg-emerald-600'
-  const focusRing = isPickup
+  const accent = quotePage ? 'text-slate-900' : isPickup ? 'text-blue-700' : 'text-emerald-700'
+  const iconWrap = quotePage
+    ? 'bg-blue-50 text-blue-600'
+    : isPickup
+      ? 'bg-blue-600 text-white'
+      : 'bg-emerald-600 text-white'
+  const focusRing = quotePage || isPickup
     ? 'focus:border-blue-500 focus:ring-blue-500/25'
     : 'focus:border-emerald-500 focus:ring-emerald-500/25'
-  const buttonClass = isPickup
+  const buttonClass = quotePage || isPickup
     ? 'bg-blue-600 hover:bg-blue-700 focus-visible:ring-blue-500/30'
     : 'bg-emerald-600 hover:bg-emerald-700 focus-visible:ring-emerald-500/30'
 
@@ -316,9 +321,7 @@ export default function QuoteStepAddressCard({
   const control =
     'box-border h-[52px] w-full min-w-0 rounded-xl border border-slate-200 bg-white px-3.5 text-base text-slate-900 shadow-sm outline-none transition focus:ring-2'
   const panelClass = quotePage
-    ? isPickup
-      ? 'border-blue-100 bg-[#eef5ff]'
-      : 'border-emerald-100 bg-[#eefaf3]'
+    ? 'border-slate-200 bg-white shadow-sm'
     : 'border-slate-200 bg-white shadow-sm'
 
   function resultLabel(item) {
@@ -335,12 +338,12 @@ export default function QuoteStepAddressCard({
       className={`rounded-2xl border p-4 ${panelClass}`}
     >
       <div className="flex items-center gap-2.5">
-        <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-white ${iconWrap}`}>
+        <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${iconWrap}`}>
           <MapPin className="h-4 w-4" strokeWidth={2.25} aria-hidden />
         </span>
         <div className="min-w-0">
-          <h3 className={`text-sm font-semibold leading-tight ${accent}`}>{title}</h3>
-          <p className="mt-0.5 text-xs leading-snug text-slate-500">{helper}</p>
+          <h3 className={`text-base font-bold leading-tight ${accent}`}>{title}</h3>
+          {helper ? <p className="mt-0.5 text-xs leading-snug text-slate-500">{helper}</p> : null}
         </div>
       </div>
 
@@ -369,6 +372,9 @@ export default function QuoteStepAddressCard({
         />
       ) : (
         <div className="relative mt-3">
+          {quotePage ? (
+            <span className="mb-1 block text-xs font-medium text-slate-600">Postcode or full address</span>
+          ) : null}
           <div className="flex flex-col gap-2">
             <div className="flex flex-col gap-2 xl:flex-row xl:items-center">
             <input
@@ -581,6 +587,7 @@ export default function QuoteStepAddressCard({
       >
         {manual ? 'Search for an address' : 'Enter address manually'}
       </button>
+      {children}
     </section>
   )
 }
