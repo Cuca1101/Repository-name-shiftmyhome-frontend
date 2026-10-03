@@ -150,7 +150,7 @@ export default function Step1Address({
       </div>
 
       {hasServicePicker && servicePreSelected && !serviceExpanded && (
-        <div className="flex items-center gap-2 text-sm">
+        <div className="flex items-center gap-2 text-sm" data-quote-field="service-type">
           <span className="font-medium text-slate-600">Service:</span>
           <span className="font-semibold text-slate-900">{serviceType}</span>
           <button
@@ -164,7 +164,10 @@ export default function Step1Address({
       )}
 
       {showFullServicePicker && (
-        <div className={quotePage ? 'quote-service-card' : 'rounded-xl border border-brand-100 bg-brand-50/60 p-3 sm:rounded-2xl sm:p-5'}>
+        <div
+          className={quotePage ? 'quote-service-card' : 'rounded-xl border border-brand-100 bg-brand-50/60 p-3 sm:rounded-2xl sm:p-5'}
+          data-quote-field="service-type"
+        >
           <label className={quotePage ? 'mb-1 block text-xs font-medium leading-none text-slate-600' : label} htmlFor="quote-service-type">
             Service type
           </label>

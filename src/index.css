@@ -1423,7 +1423,7 @@
   min-height: 48px;
 }
 
-/* Customer leads table — horizontal scrollbar only (page scrolls vertically). */
+/* Customer leads — paired horizontal scrollbars (page scrolls vertically). */
 .leads-table-scroll {
   scrollbar-width: thin;
   scrollbar-color: #64748b #e2e8f0;

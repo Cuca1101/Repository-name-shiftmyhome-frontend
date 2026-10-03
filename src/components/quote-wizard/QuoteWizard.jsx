@@ -91,12 +91,16 @@ function QuoteWizardInner({
       if (!el) return
       el.style.paddingTop = '0px'
       if (window.matchMedia('(max-width: 767px)').matches) return
-      const anchorSelector =
-        step === 2 ? '[data-quote-field="crew-size"]' : '[data-quote-field="pickup-address"]'
-      const anchor = [...document.querySelectorAll(anchorSelector)].find((node) => {
-        const style = window.getComputedStyle(node)
-        return style.display !== 'none' && style.visibility !== 'hidden' && node.getBoundingClientRect().height > 0
-      })
+      const anchorSelectors =
+        step === 2
+          ? ['[data-quote-field="crew-size"]']
+          : ['[data-quote-field="service-type"]', '[data-quote-field="pickup-address"]']
+      const anchor = anchorSelectors
+        .flatMap((selector) => [...document.querySelectorAll(selector)])
+        .find((node) => {
+          const style = window.getComputedStyle(node)
+          return style.display !== 'none' && style.visibility !== 'hidden' && node.getBoundingClientRect().height > 0
+        })
       if (!anchor) return
       const delta = Math.round(anchor.getBoundingClientRect().top - el.getBoundingClientRect().top)
       if (delta > 0) el.style.paddingTop = `${delta}px`

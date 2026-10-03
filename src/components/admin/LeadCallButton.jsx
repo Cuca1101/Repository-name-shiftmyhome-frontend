@@ -14,8 +14,8 @@ export default function LeadCallButton({ phone = '' }) {
   const link = teamsCallLink(display)
 
   return (
-    <span className="inline-flex min-w-0 max-w-full items-center gap-1.5">
-      <span className="min-w-0 truncate text-slate-800" title={display}>{display}</span>
+    <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
+      <span className="whitespace-nowrap text-slate-800">{display}</span>
       <a
         href={link.ok ? link.href : '#call'}
         target="_blank"

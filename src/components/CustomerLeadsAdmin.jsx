@@ -156,22 +156,6 @@ function TopTableScrollbar({ scrollRef }) {
     track.addEventListener('pointerup', onUp)
   }
 
-  function onKeyDown(event) {
-    const body = scrollRef.current
-    if (!body) return
-    const page = Math.max(80, body.clientWidth * 0.8)
-    let next = null
-    if (event.key === 'ArrowRight') next = body.scrollLeft + 60
-    else if (event.key === 'ArrowLeft') next = body.scrollLeft - 60
-    else if (event.key === 'PageDown') next = body.scrollLeft + page
-    else if (event.key === 'PageUp') next = body.scrollLeft - page
-    else if (event.key === 'Home') next = 0
-    else if (event.key === 'End') next = body.scrollWidth
-    if (next == null) return
-    event.preventDefault()
-    body.scrollLeft = next
-  }
-
   return (
     <div
       ref={trackRef}
@@ -184,13 +168,12 @@ function TopTableScrollbar({ scrollRef }) {
       aria-controls="customer-leads-table"
       tabIndex={metrics.visible ? 0 : -1}
       onPointerDown={onPointerDown}
-      onKeyDown={onKeyDown}
-      className={`relative touch-none border-b border-slate-200 bg-slate-200 ${
-        metrics.visible ? 'h-6 cursor-pointer sm:h-4' : 'hidden'
+      className={`relative touch-none border-b border-blue-200 bg-blue-100/80 ${
+        metrics.visible ? 'h-5 cursor-pointer' : 'hidden'
       }`}
     >
       <div
-        className="pointer-events-none absolute left-0 top-1 h-4 rounded-full bg-slate-500 sm:top-0.5 sm:h-3"
+        className="pointer-events-none absolute left-0 top-1 h-3 rounded-full bg-blue-600"
         style={{ width: metrics.width, transform: `translateX(${metrics.left}px)` }}
       />
     </div>
@@ -730,23 +713,22 @@ export default function CustomerLeadsAdmin() {
         </div>
       ) : null}
 
-      <div className="min-w-0 overflow-visible rounded-2xl border border-slate-200 bg-white shadow-card">
-        {loading ? (
-          <p className="p-8 text-center text-slate-500">Loading…</p>
-        ) : emptyMessage ? (
-          <p className="p-8 text-center text-slate-600">{emptyMessage}</p>
-        ) : (
-          <>
+      {loading ? (
+        <p className="py-8 text-center text-slate-500">Loading…</p>
+      ) : emptyMessage ? (
+        <p className="py-8 text-center text-slate-600">{emptyMessage}</p>
+      ) : (
+        <div className="min-w-0">
           <TopTableScrollbar scrollRef={bodyRef} />
           <div
             ref={bodyRef}
             id="customer-leads-table"
-            className="leads-table-scroll min-w-0 overflow-x-auto overflow-y-visible overscroll-x-contain"
+            className="leads-table-scroll min-w-0 overflow-x-auto"
           >
-            <table className="w-full min-w-[1240px] text-left text-sm">
-              <thead className="border-b border-slate-200 bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-500">
+            <table className="w-full min-w-[1380px] border-collapse text-left text-sm [&_td]:border [&_td]:border-blue-200/80 [&_th]:border [&_th]:border-blue-300">
+              <thead className="bg-blue-50 text-xs font-semibold uppercase tracking-wide text-blue-900">
                 <tr>
-                  <th className="sticky left-0 z-30 bg-slate-50 px-3 py-1.5">
+                  <th className="px-2 py-2.5">
                     <input
                       ref={selectAllRef}
                       type="checkbox"
@@ -756,22 +738,22 @@ export default function CustomerLeadsAdmin() {
                       className="h-4 w-4 rounded border-slate-300"
                     />
                   </th>
-                  <th className="px-3 py-1.5">Lead ref</th>
-                  <th className="px-3 py-1.5">Name</th>
-                  <th className="px-3 py-1.5">Phone</th>
-                  <th className="px-3 py-1.5">Email</th>
-                  <th className="px-3 py-1.5">Service</th>
-                  <th className="min-w-[160px] px-3 py-1.5">Route</th>
-                  <th className="px-3 py-1.5">Quote price</th>
-                  <th className="px-3 py-1.5">Agreed</th>
-                  <th className="px-3 py-1.5">Status</th>
-                  <th className="px-3 py-1.5">Last activity</th>
-                  <th className="px-3 py-1.5">Created</th>
-                  <th className="w-px whitespace-nowrap px-3 py-1.5 text-right">Actions</th>
+                  <th className="whitespace-nowrap px-2 py-2.5">Lead ref</th>
+                  <th className="whitespace-nowrap px-2 py-2.5">Name</th>
+                  <th className="min-w-[12.5rem] whitespace-nowrap px-2 py-2.5">Phone</th>
+                  <th className="whitespace-nowrap px-2 py-2.5">Email</th>
+                  <th className="whitespace-nowrap px-2 py-2.5">Service</th>
+                  <th className="min-w-[10rem] whitespace-nowrap px-2 py-2.5">Route</th>
+                  <th className="whitespace-nowrap px-2 py-2.5">Quote price</th>
+                  <th className="whitespace-nowrap px-2 py-2.5">Agreed</th>
+                  <th className="whitespace-nowrap px-2 py-2.5">Status</th>
+                  <th className="whitespace-nowrap px-2 py-2.5">Last activity</th>
+                  <th className="whitespace-nowrap px-2 py-2.5">Created</th>
+                  <th className="whitespace-nowrap px-2 py-2.5 text-right">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
-                {rows.map((row) => {
+              <tbody>
+                {rows.map((row, index) => {
                   const rowId = String(row.id)
                   const selected = selectedIds.has(rowId)
                   const eff = row.effective_status || row.status
@@ -781,11 +763,12 @@ export default function CustomerLeadsAdmin() {
                   const emailHref = mailHref(email)
                   const busyConvert = convertingId === String(row.id)
                   const busyRevert = revertingId === String(row.id)
-                  const rowBg = selected ? 'bg-red-50' : 'bg-white'
+                  const zebra = index % 2 === 0 ? 'bg-white' : 'bg-blue-50/50'
+                  const rowBg = selected ? 'bg-red-50' : zebra
 
                   return (
-                    <tr key={row.id} className={`align-middle text-slate-800 ${selected ? 'bg-red-50' : ''}`}>
-                      <td className={`sticky left-0 z-10 px-3 py-1.5 ${rowBg}`}>
+                    <tr key={row.id} className={`align-middle text-slate-800 ${rowBg} hover:bg-blue-50`}>
+                      <td className="px-2 py-2">
                         <input
                           type="checkbox"
                           checked={selected}
@@ -794,7 +777,7 @@ export default function CustomerLeadsAdmin() {
                           className="h-4 w-4 rounded border-slate-300"
                         />
                       </td>
-                      <td className="px-3 py-1.5">
+                      <td className="whitespace-nowrap px-2 py-2">
                         <Link
                           to={`/admin/customer-leads/${row.id}`}
                           className="font-mono text-xs font-semibold text-brand-700 hover:underline"
@@ -805,35 +788,35 @@ export default function CustomerLeadsAdmin() {
                           <p className="mt-0.5 font-mono text-[10px] text-slate-500">{row.quote_ref}</p>
                         ) : null}
                       </td>
-                      <td className="px-3 py-1.5">{row.customer_name || '—'}</td>
-                      <td className="whitespace-nowrap px-3 py-1.5">
+                      <td className="whitespace-nowrap px-2 py-2">{row.customer_name || '—'}</td>
+                      <td className="min-w-[12.5rem] whitespace-nowrap px-2 py-2">
                         <LeadCallButton phone={phone || ''} />
                       </td>
-                      <td className="max-w-[180px] truncate px-3 py-1.5" title={email || undefined}>
+                      <td className="max-w-[200px] truncate px-2 py-2" title={email || undefined}>
                         {email || '—'}
                       </td>
-                      <td className="px-3 py-1.5">{row.service_type || '—'}</td>
-                      <td className="max-w-[200px] truncate px-3 py-1.5" title={row.route_label || undefined}>
+                      <td className="whitespace-nowrap px-2 py-2">{row.service_type || '—'}</td>
+                      <td className="max-w-[220px] truncate px-2 py-2" title={row.route_label || undefined}>
                         {row.route_label || '—'}
                       </td>
-                      <td className="px-3 py-1.5 tabular-nums">{money(row.estimated_total)}</td>
-                      <td className="px-3 py-1.5 tabular-nums">
+                      <td className="whitespace-nowrap px-2 py-2 tabular-nums">{money(row.estimated_total)}</td>
+                      <td className="whitespace-nowrap px-2 py-2 tabular-nums">
                         {row.agreed_price != null ? (
                           <span className="font-semibold text-brand-800">{money(row.agreed_price)}</span>
                         ) : (
                           '—'
                         )}
                       </td>
-                      <td className="px-3 py-1.5">
+                      <td className="whitespace-nowrap px-2 py-2">
                         <StatusBadge status={eff} />
                       </td>
-                      <td className="whitespace-nowrap px-3 py-1.5 text-xs text-slate-600">
+                      <td className="whitespace-nowrap px-2 py-2 text-xs text-slate-600">
                         {formatDateTimeUK(row.last_activity_at)}
                       </td>
-                      <td className="whitespace-nowrap px-3 py-1.5 text-xs text-slate-500">
+                      <td className="whitespace-nowrap px-2 py-2 text-xs text-slate-500">
                         {formatDateTimeUK(row.created_at)}
                       </td>
-                      <td className="w-px whitespace-nowrap px-3 py-1.5 text-right">
+                      <td className="whitespace-nowrap px-2 py-2 text-right">
                         <LeadActionsMenu
                           open={openActionsId === rowId}
                           onOpenChange={(next) => setOpenActionsId(next ? rowId : '')}
@@ -858,9 +841,8 @@ export default function CustomerLeadsAdmin() {
               </tbody>
             </table>
           </div>
-          </>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   )
 }
