@@ -1423,25 +1423,16 @@
   min-height: 48px;
 }
 
-/* Customer leads — paired horizontal scrollbars (page scrolls vertically). */
+/* Customer leads — native H-scrollbar hidden; sticky top+bottom bars handle scroll. */
 .leads-table-scroll {
-  scrollbar-width: thin;
-  scrollbar-color: #64748b #e2e8f0;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
 }
 
 .leads-table-scroll::-webkit-scrollbar {
-  height: 12px;
+  display: none;
+  height: 0;
   width: 0;
-}
-
-.leads-table-scroll::-webkit-scrollbar-track {
-  background: #e2e8f0;
-}
-
-.leads-table-scroll::-webkit-scrollbar-thumb {
-  background: #64748b;
-  border: 2px solid #e2e8f0;
-  border-radius: 999px;
 }
 
 /* Admin: scale down cards/grids on narrow viewports without changing structure. */

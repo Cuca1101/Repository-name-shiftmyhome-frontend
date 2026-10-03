@@ -13,7 +13,6 @@ import { formatGbp, resolveChargeableTotal } from '../lib/adminAgreedPrice'
 import {
   convertCustomerLeadToUnpaidJob,
   getCustomerLeadBookingSummary,
-  revertCustomerLeadConversion,
 } from '../lib/customerLeadBookingConvert'
 import { isSupabaseConfigured, supabase } from '../lib/supabase'
 
@@ -76,10 +75,12 @@ function mailHref(email) {
 
 const MENU_WIDTH = 208
 
-function TopTableScrollbar({ scrollRef }) {
+/** Sticky paired horizontal scrollbar — stays visible while the page scrolls vertically. */
+function LeadsHorizontalScrollbar({ scrollRef, placement }) {
   const trackRef = useRef(null)
   const metricsRef = useRef({ left: 0, width: 48, maxLeft: 0, range: 0 })
   const [metrics, setMetrics] = useState({ left: 0, width: 48, visible: true, value: 0, max: 0 })
+  const isTop = placement === 'top'
 
   const publish = useCallback(() => {
     const body = scrollRef.current
@@ -158,24 +159,32 @@ function TopTableScrollbar({ scrollRef }) {
 
   return (
     <div
-      ref={trackRef}
-      role="scrollbar"
-      aria-label="Scroll customer leads horizontally"
-      aria-orientation="horizontal"
-      aria-valuemin={0}
-      aria-valuemax={Math.round(metrics.max)}
-      aria-valuenow={Math.round(metrics.value)}
-      aria-controls="customer-leads-table"
-      tabIndex={metrics.visible ? 0 : -1}
-      onPointerDown={onPointerDown}
-      className={`relative touch-none border-b border-blue-200 bg-blue-100/80 ${
-        metrics.visible ? 'h-5 cursor-pointer' : 'hidden'
-      }`}
+      className={
+        isTop
+          ? 'sticky top-14 z-20 sm:top-16'
+          : 'sticky bottom-0 z-20'
+      }
     >
       <div
-        className="pointer-events-none absolute left-0 top-1 h-3 rounded-full bg-blue-600"
-        style={{ width: metrics.width, transform: `translateX(${metrics.left}px)` }}
-      />
+        ref={trackRef}
+        role="scrollbar"
+        aria-label={isTop ? 'Scroll customer leads horizontally (top)' : 'Scroll customer leads horizontally (bottom)'}
+        aria-orientation="horizontal"
+        aria-valuemin={0}
+        aria-valuemax={Math.round(metrics.max)}
+        aria-valuenow={Math.round(metrics.value)}
+        aria-controls="customer-leads-table"
+        tabIndex={metrics.visible ? 0 : -1}
+        onPointerDown={onPointerDown}
+        className={`relative touch-none bg-blue-100 shadow-sm ${
+          isTop ? 'border-b border-blue-300' : 'border-t border-blue-300'
+        } ${metrics.visible ? 'h-5 cursor-pointer' : 'hidden'}`}
+      >
+        <div
+          className="pointer-events-none absolute left-0 top-1 h-3 rounded-full bg-blue-600"
+          style={{ width: metrics.width, transform: `translateX(${metrics.left}px)` }}
+        />
+      </div>
     </div>
   )
 }
@@ -188,13 +197,10 @@ function LeadActionsMenu({
   detailsTo,
   converted,
   busyConvert,
-  busyRevert,
   busyDelete,
   convertDisabled,
-  revertDisabled,
   deleteDisabled,
   onConvert,
-  onRevert,
   onDelete,
 }) {
   const navigate = useNavigate()
@@ -324,19 +330,18 @@ function LeadActionsMenu({
               <button
                 type="button"
                 role="menuitem"
-                disabled={revertDisabled}
-                title="Undo convert — restore lead and remove unpaid job from Available Jobs"
-                className={`${itemClass} text-amber-950 hover:bg-amber-50`}
-                onClick={() => choose(onRevert)}
+                disabled
+                title="Converted jobs are marked paid and cannot be undone or deleted"
+                className={`${itemClass} cursor-not-allowed text-slate-400`}
               >
-                {busyRevert ? 'Undoing…' : 'Undo convert'}
+                Converted (paid)
               </button>
             ) : (
               <button
                 type="button"
                 role="menuitem"
                 disabled={convertDisabled}
-                title="Create unpaid job from saved lead details (no re-typing)"
+                title="Create paid job from saved lead details (Available Jobs — cannot delete)"
                 className={`${itemClass} text-emerald-900 hover:bg-emerald-50`}
                 onClick={() => choose(onConvert)}
               >
@@ -358,7 +363,7 @@ function LeadActionsMenu({
         )
       : null
 
-  const triggerBusy = busyConvert || busyRevert || busyDelete
+  const triggerBusy = busyConvert || busyDelete
 
   return (
     <>
@@ -372,7 +377,7 @@ function LeadActionsMenu({
         onClick={() => onOpenChange(!open)}
         className="inline-flex min-h-10 items-center gap-1 whitespace-nowrap rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-800 shadow-sm hover:bg-slate-50 disabled:opacity-50 sm:min-h-8"
       >
-        {busyConvert ? 'Creating…' : busyRevert ? 'Undoing…' : busyDelete ? 'Deleting…' : 'Actions'}
+        {busyConvert ? 'Creating…' : busyDelete ? 'Deleting…' : 'Actions'}
         <svg
           className={`h-3.5 w-3.5 text-slate-500 transition ${open ? 'rotate-180' : ''}`}
           fill="none"
@@ -411,7 +416,6 @@ export default function CustomerLeadsAdmin() {
   const [bulkDeleting, setBulkDeleting] = useState(false)
   const [deletingId, setDeletingId] = useState('')
   const [convertingId, setConvertingId] = useState('')
-  const [revertingId, setRevertingId] = useState('')
   const [actionMsg, setActionMsg] = useState('')
   const [openActionsId, setOpenActionsId] = useState('')
 
@@ -492,15 +496,15 @@ export default function CustomerLeadsAdmin() {
 
       const ok = window.confirm(
         [
-          `Create unpaid job from lead ${row.lead_ref || ''}?`,
+          `Create paid job from lead ${row.lead_ref || ''}?`,
           '',
           `Pickup: ${summary.pickupAddress}`,
           `Delivery: ${summary.deliveryAddress}`,
-          `Price: ${formatGbp(chargeable)} (unpaid — customer pays driver / office)`,
+          `Price: ${formatGbp(chargeable)} (marked paid — same as card-paid bookings)`,
           '',
           'Uses the saved lead details — you do not need to re-enter addresses.',
-          'The job will appear in Available Jobs.',
-          'You can Undo convert later if the job is still unpaid and unassigned.',
+          'The job will appear in Available Jobs as Paid.',
+          'Lead will show as Converted. Paid jobs cannot be deleted or undone.',
         ].join('\n'),
       )
       if (!ok) return
@@ -514,7 +518,7 @@ export default function CustomerLeadsAdmin() {
           releaseToAvailableJobs: true,
         })
         setActionMsg(
-          `Job ${result.quoteRef} created unpaid (£${Number(resolveChargeableTotal(row) || 0).toFixed(2)}) and sent to Available Jobs.`,
+          `Job ${result.quoteRef} created as Paid (£${Number(resolveChargeableTotal(row) || 0).toFixed(2)}) and sent to Available Jobs. Lead marked Converted.`,
         )
         await load()
         navigate(`/admin/available-jobs/${encodeURIComponent(result.quoteId)}`)
@@ -525,43 +529,6 @@ export default function CustomerLeadsAdmin() {
       }
     },
     [load, navigate],
-  )
-
-  const handleRevertLead = useCallback(
-    async (row) => {
-      setError('')
-      setActionMsg('')
-      const ok = window.confirm(
-        [
-          `Undo convert for ${row.lead_ref || 'this lead'}?`,
-          '',
-          'Restores the lead as before (not converted).',
-          'Removes the unpaid job from Available Jobs (only if still unpaid and not assigned).',
-        ].join('\n'),
-      )
-      if (!ok) return
-
-      setRevertingId(String(row.id))
-      try {
-        const result = await revertCustomerLeadConversion({ lead: row })
-        setActionMsg(
-          `Lead restored to ${CUSTOMER_LEAD_STATUS_LABELS[result.previousStatus] || result.previousStatus}.` +
-            (result.quoteDeleted
-              ? ' Unpaid job removed.'
-              : result.quoteCancelled
-                ? ' Unpaid job cancelled and removed from Available Jobs.'
-                : result.quoteUnreleased
-                  ? ' Job pulled out of Available Jobs.'
-                  : ''),
-        )
-        await load()
-      } catch (e) {
-        setError(e?.message || 'Failed to undo convert.')
-      } finally {
-        setRevertingId('')
-      }
-    },
-    [load],
   )
 
   const visibleIds = useMemo(() => rows.map((row) => String(row.id)), [rows])
@@ -651,9 +618,9 @@ export default function CustomerLeadsAdmin() {
           <h2 className="text-2xl font-bold text-slate-900">Customer Leads</h2>
           <p className="mt-1 text-sm text-slate-600">
             Quote wizard and homepage enquiries saved before payment — reference format{' '}
-            <code className="rounded bg-slate-100 px-1">SMH-LEAD-000001</code>. Use Create job for
-            unpaid (no card) leads → Available Jobs. Use Undo convert to put the lead back if the
-            job is still unpaid and unassigned.
+            <code className="rounded bg-slate-100 px-1">SMH-LEAD-000001</code>. Use Create job to
+            convert a lead into a Paid Available Jobs booking. Converted/paid jobs cannot be deleted
+            or undone.
           </p>
         </div>
         <button
@@ -718,8 +685,8 @@ export default function CustomerLeadsAdmin() {
       ) : emptyMessage ? (
         <p className="py-8 text-center text-slate-600">{emptyMessage}</p>
       ) : (
-        <div className="min-w-0">
-          <TopTableScrollbar scrollRef={bodyRef} />
+        <div className="relative min-w-0">
+          <LeadsHorizontalScrollbar scrollRef={bodyRef} placement="top" />
           <div
             ref={bodyRef}
             id="customer-leads-table"
@@ -762,7 +729,6 @@ export default function CustomerLeadsAdmin() {
                   const email = row.customer_email
                   const emailHref = mailHref(email)
                   const busyConvert = convertingId === String(row.id)
-                  const busyRevert = revertingId === String(row.id)
                   const zebra = index % 2 === 0 ? 'bg-white' : 'bg-blue-50/50'
                   const rowBg = selected ? 'bg-red-50' : zebra
 
@@ -825,13 +791,10 @@ export default function CustomerLeadsAdmin() {
                           detailsTo={`/admin/customer-leads/${row.id}`}
                           converted={converted}
                           busyConvert={busyConvert}
-                          busyRevert={busyRevert}
                           busyDelete={deletingId === rowId}
-                          convertDisabled={busyConvert || Boolean(convertingId) || Boolean(revertingId)}
-                          revertDisabled={busyRevert || Boolean(convertingId) || Boolean(revertingId)}
+                          convertDisabled={busyConvert || Boolean(convertingId)}
                           deleteDisabled={bulkDeleting || deletingId === rowId}
                           onConvert={() => void handleConvertLead(row)}
-                          onRevert={() => void handleRevertLead(row)}
                           onDelete={() => handleDeleteLead(row)}
                         />
                       </td>
@@ -841,6 +804,7 @@ export default function CustomerLeadsAdmin() {
               </tbody>
             </table>
           </div>
+          <LeadsHorizontalScrollbar scrollRef={bodyRef} placement="bottom" />
         </div>
       )}
     </div>

@@ -126,9 +126,9 @@ export function canRevertCustomerLeadConversion(lead, quote = null) {
   if (!quote) {
     return { ok: true, reason: '' }
   }
-  // Only block real card payment — abandoned Stripe sessions on unpaid quotes are OK.
+  // Paid bookings (card or admin lead-convert) cannot be undone or deleted.
   if (quoteIsCardPaid(quote) || quote.paid_at) {
-    return { ok: false, reason: 'This booking was paid by card — cannot undo.' }
+    return { ok: false, reason: 'This booking is paid — cannot undo or delete.' }
   }
   if (quoteHasAssignedDriver(quote) || quoteHasAssignedPartner(quote)) {
     return { ok: false, reason: 'Job is already assigned — unassign first.' }
@@ -251,7 +251,9 @@ function buildAdminPhoneBookingFormFromLead(lead, { createdBy, convert = true, f
 }
 
 /**
- * Fields required so an unpaid phone booking appears in Available Jobs.
+ * Fields for a Customer Lead → Available Jobs conversion.
+ * Marked paid (offline / admin convert) so the job shows like card-paid bookings
+ * and cannot be deleted or undone like unpaid phone staging rows.
  * Clears archive/test/cancel flags that hide rows from production admin inboxes.
  * @param {{
  *   summary: ReturnType<typeof getCustomerLeadBookingSummary>,
@@ -262,8 +264,16 @@ function buildAdminPhoneBookingFormFromLead(lead, { createdBy, convert = true, f
  *   existing?: Record<string, unknown> | null,
  * }} p
  */
-function buildLeadUnpaidJobPatch({ summary, chargeable, calculated, lead, createdBy, existing = null }) {
+function buildLeadConvertedJobPatch({ summary, chargeable, calculated, lead, createdBy, existing = null }) {
   const calc = calculated ?? chargeable
+  const paidAmount = Math.max(0, Number(chargeable) || 0)
+  const now = new Date().toISOString()
+  const staffNote = `Converted from customer lead by admin (${createdBy || 'admin'}) — marked paid (offline / no card).`
+  const priorDetails = String(existing?.details || '').trim()
+  const details =
+    priorDetails && !priorDetails.includes('Converted from customer lead')
+      ? `${staffNote}\n\n${priorDetails}`
+      : priorDetails || staffNote
   return {
     full_name: summary.fullName || existing?.full_name || 'Customer',
     // quotes.phone is NOT NULL — placeholder when lead has email only.
@@ -274,11 +284,15 @@ function buildLeadUnpaidJobPatch({ summary, chargeable, calculated, lead, create
     move_date: summary.moveDate || existing?.move_date || new Date().toISOString().slice(0, 10),
     source: ADMIN_PHONE_BOOKING_SOURCE,
     status: 'Booked',
-    payment_status: 'unpaid',
-    payment_type: null,
-    // amount_paid is NOT NULL in DB — unpaid jobs use 0, never null.
-    amount_paid: 0,
-    paid_at: null,
+    // Appear as paid in Available Jobs (same as card-paid) — not deletable / not undoable.
+    payment_status: 'paid',
+    payment_type: 'full',
+    amount_paid: paidAmount,
+    paid_at: existing?.paid_at || now,
+    remaining_balance: 0,
+    // Clear abandoned checkout refs so this is offline paid, not Stripe-pending.
+    stripe_session_id: null,
+    stripe_payment_intent_id: null,
     // Released to Available Jobs (not phone_booking_pending).
     operational_status: null,
     marketplace_visibility: 'hidden_from_partners',
@@ -290,10 +304,10 @@ function buildLeadUnpaidJobPatch({ summary, chargeable, calculated, lead, create
     calculated_total: calc,
     estimated_total: chargeable,
     agreed_price: chargeable,
-    remaining_balance: chargeable,
     price_override_reason: String(lead.price_override_reason || '').trim() || null,
     price_override_by: lead.price_override_by || createdBy || null,
-    price_override_at: lead.price_override_at || new Date().toISOString(),
+    price_override_at: lead.price_override_at || now,
+    details,
     ...(packageSnapshotFromLead(lead) ? { service_package_snapshot: packageSnapshotFromLead(lead) } : {}),
     // Production inbox hides archived / test rows — clear so convert is visible.
     archived_for_go_live: false,
@@ -460,7 +474,7 @@ async function linkLeadQuoteIds(lead, quoteId, quoteRef) {
 }
 
 /**
- * Create/update unpaid phone booking from lead — does NOT mark the lead converted.
+ * Create/update paid phone booking from lead — does NOT mark the lead converted.
  * Caller must mark lead only after Available Jobs eligibility is confirmed.
  * @param {{ lead: Record<string, unknown>, createdBy: string }} params
  */
@@ -519,7 +533,7 @@ export async function convertCustomerLeadToBooking({ lead, createdBy }) {
 
   let existing = await findExistingQuoteForLead(lead)
   if (existing && (quoteIsCardPaid(existing) || existing.paid_at)) {
-    // Never mutate a card-paid booking into an unpaid phone job — create a fresh unpaid job.
+    // Never mutate an already-paid booking — create a fresh paid convert job.
     existing = null
     quoteId = null
     quoteCreatedByConvert = true
@@ -531,7 +545,7 @@ export async function convertCustomerLeadToBooking({ lead, createdBy }) {
     quoteRef = String(existing.quote_ref || quoteRef)
     quoteBefore = quoteSnapshotFields(existing)
     quoteCreatedByConvert = false
-    const patch = buildLeadUnpaidJobPatch({
+    const patch = buildLeadConvertedJobPatch({
       summary,
       chargeable,
       calculated,
@@ -562,7 +576,7 @@ export async function convertCustomerLeadToBooking({ lead, createdBy }) {
     quoteRef = String(created.quote_ref)
     quoteCreatedByConvert = true
 
-    const patch = buildLeadUnpaidJobPatch({
+    const patch = buildLeadConvertedJobPatch({
       summary,
       chargeable,
       calculated,
@@ -597,7 +611,7 @@ export async function convertCustomerLeadToBooking({ lead, createdBy }) {
 }
 
 /**
- * Ensure a lead-converted quote can enter Available Jobs as an unpaid phone booking.
+ * Ensure a lead-converted quote can enter Available Jobs as a paid booking.
  * @param {string} quoteId
  * @param {{ lead: Record<string, unknown>, createdBy: string, chargeable: number, calculated: number | null, summary: ReturnType<typeof getCustomerLeadBookingSummary> }} ctx
  * @returns {Promise<{ alreadyVisible: boolean, quote: Record<string, unknown> }>}
@@ -610,7 +624,7 @@ async function ensureLeadQuoteReadyForAvailableJobs(quoteId, ctx) {
     return { alreadyVisible: true, quote: row }
   }
 
-  const patch = buildLeadUnpaidJobPatch({
+  const patch = buildLeadConvertedJobPatch({
     summary: ctx.summary,
     chargeable: ctx.chargeable,
     calculated: ctx.calculated,
@@ -670,8 +684,9 @@ async function markLeadConvertedAfterJobReady(p) {
 }
 
 /**
- * Convert lead → unpaid phone booking using saved lead details, then release to Available Jobs.
+ * Convert lead → paid Available Jobs booking using saved lead details.
  * Atomic: lead is marked converted only after the job passes Available Jobs checks.
+ * Paid convert jobs cannot be deleted or undone (same protection as card-paid bookings).
  * @param {{
  *   lead: Record<string, unknown>,
  *   createdBy: string,

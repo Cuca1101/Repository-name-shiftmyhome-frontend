@@ -28,7 +28,6 @@ import {
 } from '../lib/adminAgreedPrice'
 import {
   convertCustomerLeadToUnpaidJob,
-  revertCustomerLeadConversion,
   saveCustomerLeadAgreedPrice,
 } from '../lib/customerLeadBookingConvert'
 import { isSupabaseConfigured, supabase } from '../lib/supabase'
@@ -185,7 +184,7 @@ export default function CustomerLeadDetailAdmin() {
           })
           if (
             !window.confirm(
-              `${confirmMsg}\n\nThen create the unpaid job and send it to Available Jobs.`,
+              `${confirmMsg}\n\nThen create a Paid job and send it to Available Jobs (cannot delete or undo).`,
             )
           ) {
             return
@@ -209,7 +208,8 @@ export default function CustomerLeadDetailAdmin() {
           [
             `Convert this lead at ${formatGbp(resolveChargeableTotal(lead))}?`,
             '',
-            'Creates an unpaid job from the saved lead details and sends it to Available Jobs.',
+            'Creates a Paid job from the saved lead details and sends it to Available Jobs.',
+            'Lead will show as Converted. Paid jobs cannot be deleted or undone.',
           ].join('\n'),
         )
       ) {
@@ -223,7 +223,7 @@ export default function CustomerLeadDetailAdmin() {
         releaseToAvailableJobs: true,
       })
       setActionMsg(
-        `Unpaid job ${result.quoteRef} created and sent to Available Jobs. Chargeable: ${formatGbp(resolveChargeableTotal(result.lead || workingLead))}.`,
+        `Paid job ${result.quoteRef} created and sent to Available Jobs. Chargeable: ${formatGbp(resolveChargeableTotal(result.lead || workingLead))}. Lead marked Converted.`,
       )
       await load()
       navigate(`/admin/available-jobs/${result.quoteId}`)
@@ -250,7 +250,7 @@ export default function CustomerLeadDetailAdmin() {
           })
           if (
             !window.confirm(
-              `${confirmMsg}\n\nThen create an unpaid job and send it to Available Jobs.`,
+              `${confirmMsg}\n\nThen create a Paid job and send it to Available Jobs (cannot delete or undo).`,
             )
           ) {
             return
@@ -272,11 +272,11 @@ export default function CustomerLeadDetailAdmin() {
       } else if (
         !window.confirm(
           [
-            `Create unpaid job at ${formatGbp(resolveChargeableTotal(lead))}?`,
+            `Create paid job at ${formatGbp(resolveChargeableTotal(lead))}?`,
             '',
             'Uses the saved lead details (addresses, inventory, date).',
-            'No card payment — job goes to Available Jobs.',
-            'You can Undo convert later if still unpaid and unassigned.',
+            'Job goes to Available Jobs as Paid (same as card-paid).',
+            'Lead marked Converted. Cannot delete or undo.',
           ].join('\n'),
         )
       ) {
@@ -290,47 +290,12 @@ export default function CustomerLeadDetailAdmin() {
         releaseToAvailableJobs: true,
       })
       setActionMsg(
-        `Unpaid job ${result.quoteRef} created from this lead and sent to Available Jobs.`,
+        `Paid job ${result.quoteRef} created from this lead and sent to Available Jobs. Lead marked Converted.`,
       )
       await load()
       navigate(`/admin/available-jobs/${encodeURIComponent(result.quoteId)}`)
     } catch (e) {
-      setActionMsg(e?.message || 'Failed to create unpaid job.')
-    } finally {
-      setBusy('')
-    }
-  }
-
-  async function handleUndoConvert() {
-    setBusy('revert')
-    setActionMsg('')
-    try {
-      if (
-        !window.confirm(
-          [
-            'Undo convert?',
-            '',
-            'Lead goes back to how it was (not converted).',
-            'Unpaid job is removed from Available Jobs (only if unpaid and not assigned).',
-          ].join('\n'),
-        )
-      ) {
-        return
-      }
-      const result = await revertCustomerLeadConversion({ lead })
-      setActionMsg(
-        `Lead restored to ${CUSTOMER_LEAD_STATUS_LABELS[result.previousStatus] || result.previousStatus}.` +
-          (result.quoteDeleted
-            ? ' Unpaid job removed.'
-            : result.quoteCancelled
-              ? ' Unpaid job cancelled and removed from Available Jobs.'
-              : result.quoteUnreleased
-                ? ' Job pulled out of Available Jobs.'
-                : ''),
-      )
-      await load()
-    } catch (e) {
-      setActionMsg(e?.message || 'Failed to undo convert.')
+      setActionMsg(e?.message || 'Failed to create paid job.')
     } finally {
       setBusy('')
     }
@@ -504,14 +469,12 @@ export default function CustomerLeadDetailAdmin() {
             </a>
           ) : null}
           {isConverted ? (
-            <button
-              type="button"
-              disabled={Boolean(busy)}
-              onClick={() => void handleUndoConvert()}
-              className="inline-flex min-h-[44px] items-center rounded-xl border-2 border-amber-400 bg-amber-100 px-4 text-sm font-bold text-amber-950 hover:bg-amber-200 disabled:opacity-50"
+            <span
+              className="inline-flex min-h-[44px] items-center rounded-xl border border-emerald-200 bg-emerald-50 px-4 text-sm font-semibold text-emerald-900"
+              title="Converted jobs are marked paid and cannot be undone or deleted"
             >
-              {busy === 'revert' ? 'Undoing…' : 'Undo convert'}
-            </button>
+              Converted (paid)
+            </span>
           ) : null}
           {isConverted && convertHref ? (
             <Link
@@ -533,11 +496,11 @@ export default function CustomerLeadDetailAdmin() {
       </div>
 
       {isConverted ? (
-        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
-          <p className="font-semibold">Converted to unpaid job</p>
+        <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-950">
+          <p className="font-semibold">Converted — job marked Paid</p>
           <p className="mt-1">
-            Use <strong>Undo convert</strong> to put this lead back and remove the job from Available
-            Jobs (only if still unpaid and unassigned).
+            This lead is Converted. The booking appears in Available Jobs as Paid and cannot be
+            deleted or undone (same protection as card-paid bookings).
           </p>
         </div>
       ) : null}
@@ -660,20 +623,9 @@ export default function CustomerLeadDetailAdmin() {
             {busy === 'job'
               ? 'Creating…'
               : isConverted
-                ? 'Send unpaid job to Available Jobs'
-                : 'Create unpaid job → Available Jobs'}
+                ? 'Resend paid job to Available Jobs'
+                : 'Create paid job → Available Jobs'}
           </button>
-          {isConverted ? (
-            <button
-              type="button"
-              disabled={Boolean(busy)}
-              onClick={() => void handleUndoConvert()}
-              className="inline-flex min-h-[40px] items-center rounded-lg border border-amber-300 bg-amber-50 px-3 text-sm font-semibold text-amber-950 hover:bg-amber-100 disabled:opacity-50"
-              title="Restore lead and remove unpaid job from Available Jobs"
-            >
-              {busy === 'revert' ? 'Undoing…' : 'Undo convert'}
-            </button>
-          ) : null}
           <button
             type="button"
             disabled={Boolean(busy)}
