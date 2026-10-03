@@ -23,6 +23,7 @@ import {
   Microwave,
   Monitor,
   Package,
+  PackagePlus,
   Refrigerator,
   Shirt,
   Sofa,
@@ -49,6 +50,7 @@ export const CATEGORY_LUCIDE_ICONS = {
   garage: Wrench,
   children: Baby,
   sports: Dumbbell,
+  other: PackagePlus,
 }
 
 /** @type {Record<string, import('lucide-react').LucideIcon>} */

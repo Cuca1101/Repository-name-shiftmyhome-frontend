@@ -17,6 +17,10 @@ export const INVENTORY_BY_CATEGORY = {
       { id: 'bed-single', name: 'Single bed & mattress', m3: 1.0, weightType: 'large', mult: 1 },
       { id: 'bed-double', name: 'Double bed & mattress', m3: 1.4, weightType: 'large', mult: 1 },
       { id: 'bed-king', name: 'King size bed & mattress', m3: 1.7, weightType: 'large', mult: 1 },
+      { id: 'bed-king-frame', name: 'King size bed (frame only)', m3: 1.15, weightType: 'large', mult: 1 },
+      { id: 'bed-super-king-frame', name: 'Super king size bed (frame only)', m3: 1.35, weightType: 'large', mult: 1 },
+      { id: 'mattress-super-king', name: 'Super king size mattress', m3: 1.0, weightType: 'medium', mult: 1 },
+      { id: 'bed-super-king', name: 'Super king size bed & mattress', m3: 2.0, weightType: 'large', mult: 1 },
       { id: 'bed-bunk', name: 'Bunk bed', m3: 1.8, weightType: 'large', mult: 1.05 },
       { id: 'mattress-single', name: 'Single mattress', m3: 0.45, weightType: 'medium', mult: 1 },
       { id: 'mattress-double', name: 'Double mattress', m3: 0.65, weightType: 'medium', mult: 1 },
@@ -45,6 +49,10 @@ export const INVENTORY_BY_CATEGORY = {
       { id: 'recliner-chair', name: 'Recliner chair', m3: 0.8, weightType: 'heavy', mult: 1.1 },
       { id: 'coffee-table', name: 'Coffee table', m3: 0.35, weightType: 'medium', mult: 1 },
       { id: 'side-table', name: 'Side table', m3: 0.2, weightType: 'small', mult: 1 },
+      { id: 'console-table', name: 'Console table', m3: 0.35, weightType: 'medium', mult: 1 },
+      { id: 'footstool-ottoman', name: 'Footstool / ottoman', m3: 0.25, weightType: 'medium', mult: 1 },
+      { id: 'shoe-cabinet', name: 'Shoe cabinet', m3: 0.4, weightType: 'medium', mult: 1 },
+      { id: 'hallway-bench', name: 'Hallway bench', m3: 0.45, weightType: 'medium', mult: 1 },
       { id: 'tv-unit', name: 'TV unit', m3: 0.5, weightType: 'medium', mult: 1 },
       { id: 'bookcase-small', name: 'Small bookcase', m3: 0.45, weightType: 'medium', mult: 1 },
       { id: 'bookcase-large', name: 'Large bookcase', m3: 0.9, weightType: 'medium', mult: 1 },
@@ -60,6 +68,10 @@ export const INVENTORY_BY_CATEGORY = {
     items: [
       { id: 'fridge-freezer', name: 'Fridge freezer', m3: 0.95, weightType: 'heavy', mult: 1.15, heavyFee: false },
       { id: 'american-fridge', name: 'American fridge freezer', m3: 1.6, weightType: 'heavy', mult: 1.2, heavyFee: true },
+      { id: 'chest-freezer', name: 'Chest freezer', m3: 0.75, weightType: 'heavy', mult: 1.15, heavyFee: false },
+      { id: 'fridge-undercounter', name: 'Under-counter fridge', m3: 0.35, weightType: 'heavy', mult: 1.1, heavyFee: false },
+      { id: 'freezer-undercounter', name: 'Under-counter freezer', m3: 0.3, weightType: 'heavy', mult: 1.1, heavyFee: false },
+      { id: 'wine-fridge', name: 'Wine fridge', m3: 0.4, weightType: 'heavy', mult: 1.1, heavyFee: false },
       { id: 'washing-machine', name: 'Washing machine', m3: 0.6, weightType: 'heavy', mult: 1.15, heavyFee: false },
       { id: 'tumble-dryer', name: 'Tumble dryer', m3: 0.55, weightType: 'heavy', mult: 1.1, heavyFee: false },
       { id: 'dishwasher', name: 'Dishwasher', m3: 0.6, weightType: 'heavy', mult: 1.1, heavyFee: false },
@@ -67,6 +79,7 @@ export const INVENTORY_BY_CATEGORY = {
       { id: 'microwave', name: 'Microwave', m3: 0.08, weightType: 'small', mult: 1 },
       { id: 'dining-table-small', name: 'Small dining table', m3: 0.6, weightType: 'medium', mult: 1 },
       { id: 'dining-table-large', name: 'Large dining table', m3: 1.0, weightType: 'medium', mult: 1 },
+      { id: 'dining-bench', name: 'Dining bench', m3: 0.45, weightType: 'medium', mult: 1 },
       { id: 'dining-chair', name: 'Dining chair', m3: 0.1, weightType: 'small', mult: 1 },
       { id: 'bar-stool', name: 'Bar stool', m3: 0.12, weightType: 'small', mult: 1 },
       { id: 'kitchen-bin', name: 'Kitchen bin', m3: 0.08, weightType: 'small', mult: 1 },
@@ -112,6 +125,10 @@ export const INVENTORY_BY_CATEGORY = {
       { id: 'garden-bench', name: 'Garden bench', m3: 0.8, weightType: 'medium', mult: 1 },
       { id: 'patio-heater', name: 'Patio heater', m3: 0.35, weightType: 'medium', mult: 1 },
       { id: 'parasols', name: 'Garden parasol', m3: 0.2, weightType: 'medium', mult: 1 },
+      { id: 'trampoline', name: 'Trampoline', m3: 1.5, weightType: 'large', mult: 1.05 },
+      { id: 'wheelbarrow', name: 'Wheelbarrow', m3: 0.4, weightType: 'medium', mult: 1 },
+      { id: 'garden-swing', name: 'Garden swing', m3: 1.2, weightType: 'large', mult: 1 },
+      { id: 'garden-slide', name: 'Garden slide', m3: 0.9, weightType: 'large', mult: 1 },
     ],
   },
 
@@ -122,6 +139,8 @@ export const INVENTORY_BY_CATEGORY = {
       { id: 'office-desk-large', name: 'Large office desk', m3: 1.0, weightType: 'medium', mult: 1 },
       { id: 'office-chair', name: 'Office chair', m3: 0.35, weightType: 'medium', mult: 1 },
       { id: 'filing-cabinet', name: 'Filing cabinet', m3: 0.45, weightType: 'heavy', mult: 1.05 },
+      { id: 'safe', name: 'Safe', m3: 0.4, weightType: 'heavy', mult: 1.25, heavyFee: true },
+      { id: 'paper-shredder', name: 'Paper shredder', m3: 0.12, weightType: 'medium', mult: 1 },
       { id: 'printer', name: 'Printer', m3: 0.15, weightType: 'medium', mult: 1 },
       { id: 'bookshelf', name: 'Bookshelf', m3: 0.8, weightType: 'medium', mult: 1 },
       { id: 'monitor', name: 'Monitor', m3: 0.08, weightType: 'small', mult: 1 },
@@ -165,6 +184,9 @@ export const INVENTORY_BY_CATEGORY = {
       { id: 'pram', name: 'Pram / pushchair', m3: 0.35, weightType: 'medium', mult: 1 },
       { id: 'high-chair', name: 'High chair', m3: 0.2, weightType: 'small', mult: 1 },
       { id: 'kids-desk', name: "Children's desk", m3: 0.35, weightType: 'medium', mult: 1 },
+      { id: 'playpen', name: 'Playpen', m3: 0.4, weightType: 'medium', mult: 1 },
+      { id: 'moses-basket', name: 'Moses basket', m3: 0.15, weightType: 'small', mult: 1 },
+      { id: 'baby-bath', name: 'Baby bath', m3: 0.12, weightType: 'small', mult: 1 },
     ],
   },
 
@@ -178,6 +200,22 @@ export const INVENTORY_BY_CATEGORY = {
       { id: 'guitar', name: 'Guitar', m3: 0.08, weightType: 'small', mult: 1 },
       { id: 'drum-kit', name: 'Drum kit', m3: 0.7, weightType: 'medium', mult: 1 },
       { id: 'exercise-equipment', name: 'Exercise equipment', m3: 0.8, weightType: 'heavy', mult: 1.1 },
+      { id: 'pool-table', name: 'Pool table', m3: 2.5, weightType: 'heavy', mult: 1.3, heavyFee: true },
+      { id: 'table-tennis-table', name: 'Table tennis table', m3: 1.2, weightType: 'heavy', mult: 1.15, heavyFee: true },
+    ],
+  },
+
+  other: {
+    label: 'Other items',
+    items: [
+      { id: 'large-mirror', name: 'Large mirror', m3: 0.2, weightType: 'medium', mult: 1.05 },
+      { id: 'framed-picture', name: 'Framed picture / artwork', m3: 0.12, weightType: 'small', mult: 1 },
+      { id: 'empty-aquarium', name: 'Empty aquarium', m3: 0.5, weightType: 'heavy', mult: 1.15, heavyFee: false },
+      { id: 'coat-stand', name: 'Coat stand', m3: 0.15, weightType: 'small', mult: 1 },
+      { id: 'room-divider', name: 'Room divider / screen', m3: 0.5, weightType: 'medium', mult: 1 },
+      { id: 'ironing-board', name: 'Ironing board', m3: 0.1, weightType: 'small', mult: 1 },
+      { id: 'vacuum-cleaner', name: 'Vacuum cleaner', m3: 0.12, weightType: 'small', mult: 1 },
+      { id: 'pet-cage', name: 'Pet cage / carrier', m3: 0.35, weightType: 'medium', mult: 1 },
     ],
   },
 }
@@ -194,7 +232,11 @@ export const CATEGORY_ORDER = [
   'garage',
   'children',
   'sports',
+  'other',
 ]
+
+/** Category key for “Other items” (catalogue + custom-item form on Step 2). */
+export const OTHER_ITEMS_CATEGORY_KEY = 'other'
 
 export function getFlattenedCatalogEntries() {
   const out = []

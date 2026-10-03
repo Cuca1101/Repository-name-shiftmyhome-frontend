@@ -20,6 +20,7 @@ import {
   CategoryLucideIcon,
   ITEM_VOLUME_HINT,
 } from '../inventoryLucideIcons'
+import { categoryCardClassName } from '../inventoryCategoryCardStyles'
 
 function newLineId() {
   if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID()
@@ -455,6 +456,7 @@ export default function Step2Inventory({
         customSize={customSize}
         setCustomSize={setCustomSize}
         addCustom={addCustom}
+        customLines={customLines}
         removeAll={removeAll}
         bump={bump}
         renderCatalogRow={isAdminLayout ? renderQuoteInventoryGridCard : renderMobileCatalogRow}
@@ -514,7 +516,7 @@ export default function Step2Inventory({
         </p>
       ) : null}
 
-      <div className="grid grid-cols-2 gap-2 sm:gap-3">
+      <div className="grid grid-cols-2 items-stretch gap-2 sm:gap-3">
         {categoryOrder.map((key) => {
           const c = inventoryByCategory[key]
           if (!c) return null
@@ -525,19 +527,21 @@ export default function Step2Inventory({
               type="button"
               aria-expanded={isOpen}
               onClick={() => toggleCategory(key)}
-              className={`flex min-h-[48px] w-full items-center gap-2 rounded-xl border px-3 py-2.5 text-left text-sm font-semibold shadow-sm transition ${
-                isOpen
-                  ? 'border-brand-500 bg-brand-50 text-brand-900 ring-2 ring-brand-500/20'
-                  : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'
-              }`}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                  event.preventDefault()
+                  toggleCategory(key)
+                }
+              }}
+              className={categoryCardClassName(isOpen)}
             >
               <CategoryLucideIcon
                 categoryKey={key}
-                className={`h-4 w-4 shrink-0 ${isOpen ? 'text-brand-700' : 'text-slate-500'}`}
+                className={`h-5 w-5 shrink-0 ${isOpen ? 'text-blue-700' : 'text-slate-600'}`}
               />
               <span className="min-w-0 flex-1 leading-snug">{c.label}</span>
               <ChevronDown
-                className={`h-4 w-4 shrink-0 text-slate-400 transition-transform ${isOpen ? 'rotate-180 text-brand-600' : ''}`}
+                className={`h-5 w-5 shrink-0 text-slate-500 transition-transform ${isOpen ? 'rotate-180 text-blue-600' : ''}`}
                 aria-hidden
               />
             </button>
@@ -591,10 +595,11 @@ export default function Step2Inventory({
         </div>
       ) : null}
 
-      <div
-        className="rounded-2xl border border-dashed border-slate-300 bg-slate-50/50 p-4 sm:p-5"
-      >
+      <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50/50 p-4 sm:p-5">
         <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Custom item</p>
+        <p className="mt-1 text-sm font-bold text-blue-700">
+          If you can&apos;t find your item in the inventory, add it manually.
+        </p>
         <div className="mt-3 grid gap-3 sm:grid-cols-12 sm:items-end">
           <label className="block sm:col-span-6">
             <span className="text-sm font-medium text-slate-700">Name</span>
@@ -630,15 +635,12 @@ export default function Step2Inventory({
           </div>
         </div>
 
-        {customLines.length > 0 && (
+        {customLines.length > 0 ? (
           <ul className="mt-5 space-y-3 border-t border-slate-200/80 pt-5">
             {customLines.map((row) =>
               isAdminLayout ? (
                 <li key={row.lineId} className={`${ADMIN_INVENTORY_CARD} border-slate-200 bg-white`}>
-                  <div
-                    className={`${ADMIN_INVENTORY_CARD_ICON} bg-slate-50 text-slate-700`}
-                    aria-hidden
-                  >
+                  <div className={`${ADMIN_INVENTORY_CARD_ICON} bg-slate-50 text-slate-700`} aria-hidden>
                     <PackagePlus className="h-5 w-5" />
                   </div>
                   <div className={ADMIN_INVENTORY_CARD_TEXT}>
@@ -687,7 +689,7 @@ export default function Step2Inventory({
               ),
             )}
           </ul>
-        )}
+        ) : null}
       </div>
 
       <div className="hidden rounded-2xl border border-brand-100 bg-gradient-to-br from-brand-50/50 to-white p-5 shadow-card ring-1 ring-brand-100/60" aria-hidden="true">

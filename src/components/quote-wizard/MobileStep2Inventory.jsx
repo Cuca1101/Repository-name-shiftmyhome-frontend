@@ -1,12 +1,14 @@
 import { useRef } from 'react'
-import { ChevronDown } from 'lucide-react'
+import { ChevronDown, PackagePlus } from 'lucide-react'
 import CrewSizeField from './CrewSizeField'
 import MobileStepRefBadge from './MobileStepRefBadge'
 import MobileStepTitleWithRef from './MobileStepTitleWithRef'
 import InventorySearchDropdown, {
   InventorySearchDropdownEmpty,
 } from './InventorySearchDropdown'
+import InlineInventoryQtyControl from './InlineInventoryQtyControl'
 import { CategoryLucideIcon } from './inventoryLucideIcons'
+import { categoryCardClassNameMobile } from './inventoryCategoryCardStyles'
 import { quoteMobileHelper } from '../../lib/quoteMobileUiClasses'
 
 const card = 'box-border min-w-0 w-full rounded-lg border border-slate-200 bg-white shadow-sm md:rounded-xl'
@@ -43,6 +45,7 @@ export default function MobileStep2Inventory({
   customSize,
   setCustomSize,
   addCustom,
+  customLines = [],
   removeAll,
   bump,
   renderCatalogRow,
@@ -94,7 +97,7 @@ export default function MobileStep2Inventory({
       ) : null}
 
       <div ref={catalogSectionRef} data-quote-field="inventory" className={`${card} p-2.5 md:p-3`}>
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-2 items-stretch gap-2">
           {categoryOrder.map((key) => {
             const c = inventoryByCategory[key]
             if (!c) return null
@@ -105,16 +108,21 @@ export default function MobileStep2Inventory({
                 type="button"
                 aria-expanded={isOpen}
                 onClick={() => onCategoryToggle(key)}
-                className={`flex min-h-[44px] w-full items-center gap-1.5 rounded-xl border px-2.5 py-2 text-left text-xs font-semibold shadow-sm transition active:scale-[0.98] ${
-                  isOpen
-                    ? 'border-brand-500 bg-brand-50 text-brand-900 ring-1 ring-brand-500/20'
-                    : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'
-                }`}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault()
+                    onCategoryToggle(key)
+                  }
+                }}
+                className={categoryCardClassNameMobile(isOpen)}
               >
-                <CategoryLucideIcon categoryKey={key} className="h-4 w-4 shrink-0" />
+                <CategoryLucideIcon
+                  categoryKey={key}
+                  className={`h-[1.125rem] w-[1.125rem] shrink-0 ${isOpen ? 'text-blue-700' : 'text-slate-600'}`}
+                />
                 <span className="min-w-0 flex-1 leading-snug">{c.label}</span>
                 <ChevronDown
-                  className={`h-3.5 w-3.5 shrink-0 text-slate-400 transition-transform ${isOpen ? 'rotate-180 text-brand-600' : ''}`}
+                  className={`h-4 w-4 shrink-0 text-slate-500 transition-transform ${isOpen ? 'rotate-180 text-blue-600' : ''}`}
                   aria-hidden
                 />
               </button>
@@ -158,7 +166,7 @@ export default function MobileStep2Inventory({
       </div>
 
       <div className={`${card} p-3`}>
-        <p className="text-sm text-slate-600">
+        <p className="text-sm font-bold text-blue-700">
           If you can&apos;t find your item in the inventory, add it manually.
         </p>
         <div className="mt-3 space-y-2">
@@ -193,8 +201,30 @@ export default function MobileStep2Inventory({
             </button>
           </div>
         </div>
+        {customLines.length > 0 ? (
+          <ul className="mt-3 space-y-2 border-t border-slate-200 pt-3">
+            {customLines.map((row) => (
+              <li
+                key={row.lineId}
+                className="flex min-h-[52px] items-center gap-2 rounded-xl border border-slate-200 bg-white px-2.5 py-2"
+              >
+                <PackagePlus className="h-4 w-4 shrink-0 text-slate-600" aria-hidden />
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-semibold text-slate-900">{row.name}</p>
+                  <p className="text-[11px] text-slate-500">Custom · {row.m3.toFixed(2)} m³</p>
+                </div>
+                <InlineInventoryQtyControl
+                  compact
+                  quantity={row.quantity}
+                  onAdd={() => bump(row.lineId, 1)}
+                  onDecrement={() => bump(row.lineId, -1)}
+                  onIncrement={() => bump(row.lineId, 1)}
+                />
+              </li>
+            ))}
+          </ul>
+        ) : null}
       </div>
-
     </div>
   )
 }

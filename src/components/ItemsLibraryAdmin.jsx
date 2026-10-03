@@ -80,7 +80,24 @@ export default function ItemsLibraryAdmin() {
     setLoading(true)
     setError('')
     try {
-      const data = await fetchItemsLibrary()
+      let data = await fetchItemsLibrary()
+      // Idempotent: add any new catalogue rows that are not already in the library.
+      try {
+        const validOnly = data.filter(isValidLibraryRow)
+        const { toImport } = planCatalogImport(validOnly)
+        if (toImport.length > 0) {
+          const result = await importMissingCatalogToItemsLibrary(data)
+          data = await fetchItemsLibrary()
+          if (result.imported > 0) {
+            setImportMessage(`Synced ${result.imported} new catalogue item(s) into the library.`)
+          }
+        }
+      } catch (syncErr) {
+        if (import.meta.env.DEV) {
+          // eslint-disable-next-line no-console
+          console.warn('[ItemsLibrary] catalogue sync skipped', syncErr?.message || syncErr)
+        }
+      }
       if (import.meta.env.DEV) {
         // eslint-disable-next-line no-console
         console.log('items library storage', getItemsLibraryStorageKind())

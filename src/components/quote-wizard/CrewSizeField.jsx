@@ -29,7 +29,7 @@ function buildCrewOptions(crewSettings) {
  * @param {{ count: number, selected: boolean }} props
  */
 function CrewPeopleIcon({ count, selected }) {
-  const tone = selected ? 'text-brand-600' : 'text-slate-500'
+  const tone = selected ? 'text-blue-600' : 'text-slate-600'
   if (count === 1) {
     return <User className={`h-7 w-7 ${tone}`} strokeWidth={2} aria-hidden />
   }
@@ -61,15 +61,21 @@ function CrewOptionCard({ option, selected, onSelect, variant }) {
         role="radio"
         aria-checked={selected}
         onClick={() => onSelect(option.value)}
-        className={`relative flex min-h-[112px] flex-col items-center justify-center rounded-xl border px-4 py-4 text-center shadow-sm transition-all duration-200 ${
+        onKeyDown={(event) => {
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault()
+            onSelect(option.value)
+          }
+        }}
+        className={`relative flex h-full min-h-[112px] w-full flex-col items-center justify-center rounded-xl border px-4 py-4 text-center shadow-sm transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40 ${
           selected
-            ? 'border-brand-500 bg-brand-50/90 ring-2 ring-brand-500/30 shadow-md shadow-brand-500/10'
-            : 'border-slate-200 bg-white hover:border-brand-200 hover:bg-slate-50/80'
+            ? 'border-[#3B82F6] bg-[#BFDBFE] ring-1 ring-blue-500/35 shadow-md shadow-blue-500/10'
+            : 'border-blue-200/70 bg-[#EFF6FF] hover:border-blue-300'
         }`}
       >
         {selected ? (
           <span
-            className="absolute right-2.5 top-2.5 flex h-5 w-5 items-center justify-center rounded-full bg-brand-600 text-white shadow-sm"
+            className="absolute right-2.5 top-2.5 flex h-5 w-5 items-center justify-center rounded-full bg-blue-600 text-white shadow-sm"
             aria-hidden
           >
             <svg className="h-3 w-3" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2">
@@ -79,14 +85,14 @@ function CrewOptionCard({ option, selected, onSelect, variant }) {
         ) : null}
         <span
           className={`mb-3 flex h-12 w-12 items-center justify-center rounded-xl transition-colors ${
-            selected ? 'bg-white ring-1 ring-brand-200/80' : 'bg-slate-50 ring-1 ring-slate-100'
+            selected ? 'bg-white ring-1 ring-blue-200' : 'bg-white/80 ring-1 ring-blue-100'
           }`}
         >
           <CrewPeopleIcon count={option.value} selected={selected} />
         </span>
         <span className="text-sm font-bold leading-tight text-slate-900">{option.label}</span>
         {meta?.hint ? (
-          <span className="mt-1 max-w-[9rem] text-xs leading-snug text-slate-500">{meta.hint}</span>
+          <span className="mt-1 max-w-[9rem] text-xs leading-snug text-slate-600">{meta.hint}</span>
         ) : null}
       </button>
     )
@@ -99,15 +105,21 @@ function CrewOptionCard({ option, selected, onSelect, variant }) {
       role="radio"
       aria-checked={selected}
       onClick={() => onSelect(option.value)}
-      className={`relative flex min-h-[66px] flex-col items-center justify-center rounded-lg border px-1 py-1.5 text-center shadow-sm transition duration-200 active:scale-[0.97] md:min-h-[88px] md:rounded-xl md:px-1.5 md:py-2.5 ${
+      onKeyDown={(event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault()
+          onSelect(option.value)
+        }
+      }}
+      className={`relative flex h-full min-h-[66px] w-full flex-col items-center justify-center rounded-lg border px-1 py-1.5 text-center shadow-sm transition duration-200 active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40 md:min-h-[88px] md:rounded-xl md:px-1.5 md:py-2.5 ${
         selected
-          ? 'border-brand-500 bg-brand-50 ring-2 ring-brand-500/25'
-          : 'border-slate-200 bg-white hover:border-slate-300'
+          ? 'border-[#3B82F6] bg-[#BFDBFE] ring-1 ring-blue-500/35'
+          : 'border-blue-200/70 bg-[#EFF6FF] hover:border-blue-300'
       }`}
     >
       {selected ? (
         <span
-          className="absolute right-1.5 top-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-brand-600 text-white"
+          className="absolute right-1.5 top-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-blue-600 text-white"
           aria-hidden
         >
           <svg className="h-2.5 w-2.5" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2">
@@ -116,12 +128,12 @@ function CrewOptionCard({ option, selected, onSelect, variant }) {
         </span>
       ) : null}
       <Icon
-        className={`h-5 w-5 ${selected ? 'text-brand-600' : 'text-slate-500'}`}
+        className={`h-5 w-5 ${selected ? 'text-blue-600' : 'text-slate-600'}`}
         strokeWidth={2}
         aria-hidden
       />
       <span className="mt-1.5 text-xs font-bold leading-tight text-slate-900">{option.label}</span>
-      <span className="mt-0.5 text-[10px] leading-tight text-slate-500">{meta?.hint}</span>
+      <span className="mt-0.5 text-[10px] leading-tight text-slate-600">{meta?.hint}</span>
     </button>
   )
 }
@@ -161,7 +173,7 @@ export default function CrewSizeField({
       </span>
 
       <div className="md:hidden" role="radiogroup" aria-labelledby={labelId}>
-        <div className="grid grid-cols-3 gap-2">
+        <div className="grid grid-cols-3 items-stretch gap-2">
           {mobileCrewOptions.map((o) => (
             <CrewOptionCard
               key={o.value}
@@ -175,7 +187,7 @@ export default function CrewSizeField({
       </div>
 
       <div className="hidden md:block" role="radiogroup" aria-labelledby={labelId}>
-        <div className={`mt-1 grid gap-3 ${desktopGridCols}`}>
+        <div className={`mt-1 grid items-stretch gap-3 ${desktopGridCols}`}>
           {displayOptions.map((o) => (
             <CrewOptionCard
               key={o.value}

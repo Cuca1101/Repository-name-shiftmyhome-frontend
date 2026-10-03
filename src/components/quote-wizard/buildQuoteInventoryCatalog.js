@@ -3,7 +3,53 @@ import { isValidLibraryRow } from '../../lib/data/itemsLibraryValidation'
 import {
   CATEGORY_ORDER,
   INVENTORY_BY_CATEGORY,
+  OTHER_ITEMS_CATEGORY_KEY,
 } from './inventoryCatalog'
+
+function ensureCategoryOrder(categoryOrder, inventoryByCategory) {
+  const order = []
+  for (const key of CATEGORY_ORDER) {
+    if (inventoryByCategory[key] || INVENTORY_BY_CATEGORY[key]) {
+      if (!order.includes(key)) order.push(key)
+    }
+  }
+  for (const key of categoryOrder) {
+    if (!order.includes(key) && inventoryByCategory[key]) order.push(key)
+  }
+  if (!order.includes(OTHER_ITEMS_CATEGORY_KEY) && INVENTORY_BY_CATEGORY.other) {
+    order.push(OTHER_ITEMS_CATEGORY_KEY)
+  }
+  return order
+}
+
+/**
+ * Fill gaps from inventoryCatalog.js without overriding Admin library rows
+ * (matched by item name within the same category label).
+ * @param {Record<string, CatalogCategory>} inventoryByCategory
+ */
+export function mergeFallbackCatalogGaps(inventoryByCategory) {
+  for (const key of CATEGORY_ORDER) {
+    const fallback = INVENTORY_BY_CATEGORY[key]
+    if (!fallback) continue
+    if (!inventoryByCategory[key]) {
+      inventoryByCategory[key] = {
+        label: fallback.label,
+        items: fallback.items.map((item) => ({ ...item })),
+      }
+      continue
+    }
+    const existingNames = new Set(
+      inventoryByCategory[key].items.map((item) => String(item.name || '').trim().toLowerCase()),
+    )
+    for (const item of fallback.items) {
+      const nameKey = String(item.name || '').trim().toLowerCase()
+      if (!nameKey || existingNames.has(nameKey)) continue
+      existingNames.add(nameKey)
+      inventoryByCategory[key].items.push({ ...item })
+    }
+  }
+  return inventoryByCategory
+}
 
 /**
  * @typedef {{ id: string, name: string, m3: number, weightType: string, mult?: number, defaultQty?: number }} CatalogItem
@@ -79,14 +125,23 @@ export function buildQuoteInventoryCatalogFromLibrary(rows) {
   categoryOrder.push(...rest)
 
   const inventoryByCategory = Object.fromEntries(byKey.entries())
+  mergeFallbackCatalogGaps(inventoryByCategory)
+  const ordered = ensureCategoryOrder(categoryOrder, inventoryByCategory)
 
-  return { categoryOrder, inventoryByCategory, source: 'library' }
+  return { categoryOrder: ordered, inventoryByCategory, source: 'library' }
 }
 
 export function getFallbackInventoryCatalog() {
+  /** @type {Record<string, CatalogCategory>} */
+  const inventoryByCategory = Object.fromEntries(
+    Object.entries(INVENTORY_BY_CATEGORY).map(([key, cat]) => [
+      key,
+      { label: cat.label, items: cat.items.map((item) => ({ ...item })) },
+    ]),
+  )
   return {
-    categoryOrder: [...CATEGORY_ORDER],
-    inventoryByCategory: INVENTORY_BY_CATEGORY,
+    categoryOrder: ensureCategoryOrder([...CATEGORY_ORDER], inventoryByCategory),
+    inventoryByCategory,
     source: 'fallback',
   }
 }
