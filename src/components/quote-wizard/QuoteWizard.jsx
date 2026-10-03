@@ -92,7 +92,7 @@ function QuoteWizardInner({
       el.style.paddingTop = '0px'
       if (window.matchMedia('(max-width: 767px)').matches) return
       const anchorSelector =
-        step === 2 ? '[data-quote-field="crew-size"]' : '[data-quote-step="1"]'
+        step === 2 ? '[data-quote-field="crew-size"]' : '[data-quote-field="pickup-address"]'
       const anchor = [...document.querySelectorAll(anchorSelector)].find((node) => {
         const style = window.getComputedStyle(node)
         return style.display !== 'none' && style.visibility !== 'hidden' && node.getBoundingClientRect().height > 0

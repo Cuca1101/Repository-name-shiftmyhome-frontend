@@ -200,7 +200,6 @@ function TopTableScrollbar({ scrollRef }) {
 function LeadActionsMenu({
   open,
   onOpenChange,
-  scrollParentRef,
   leadRef,
   emailHref,
   detailsTo,
@@ -227,15 +226,10 @@ function LeadActionsMenu({
     const button = buttonRef.current
     if (!button) return false
     const rect = button.getBoundingClientRect()
-    const parent = scrollParentRef?.current
-    if (parent) {
-      const bounds = parent.getBoundingClientRect()
-      const hidden =
-        rect.bottom <= bounds.top + 1 ||
-        rect.top >= bounds.bottom - 1 ||
-        rect.right <= bounds.left + 1 ||
-        rect.left >= bounds.right - 1
-      if (hidden) return false
+    // Close only if the trigger left the viewport — menu is portaled to body
+    // so it can open below the table card without staying inside that box.
+    if (rect.bottom < 0 || rect.top > window.innerHeight || rect.right < 0 || rect.left > window.innerWidth) {
+      return false
     }
     const menuHeight = menuRef.current?.offsetHeight || 188
     let left = rect.right - MENU_WIDTH
@@ -247,7 +241,7 @@ function LeadActionsMenu({
     }
     setCoords((prev) => (prev && prev.top === top && prev.left === left ? prev : { top, left }))
     return true
-  }, [scrollParentRef])
+  }, [])
 
   useLayoutEffect(() => {
     if (!open) {
@@ -305,7 +299,7 @@ function LeadActionsMenu({
               top: coords?.top ?? -9999,
               left: coords?.left ?? 0,
               width: MENU_WIDTH,
-              zIndex: 200,
+              zIndex: 9999,
               visibility: coords ? 'visible' : 'hidden',
             }}
             className="rounded-lg border border-slate-200 bg-white p-1 shadow-lg"
@@ -736,7 +730,7 @@ export default function CustomerLeadsAdmin() {
         </div>
       ) : null}
 
-      <div className="min-w-0 rounded-2xl border border-slate-200 bg-white shadow-card">
+      <div className="min-w-0 overflow-visible rounded-2xl border border-slate-200 bg-white shadow-card">
         {loading ? (
           <p className="p-8 text-center text-slate-500">Loading…</p>
         ) : emptyMessage ? (
@@ -747,10 +741,10 @@ export default function CustomerLeadsAdmin() {
           <div
             ref={bodyRef}
             id="customer-leads-table"
-            className="leads-table-scroll max-h-[calc(100dvh-13rem)] min-w-0 overflow-auto overscroll-contain"
+            className="leads-table-scroll min-w-0 overflow-x-auto overflow-y-visible overscroll-x-contain"
           >
             <table className="w-full min-w-[1240px] text-left text-sm">
-              <thead className="sticky top-0 z-20 border-b border-slate-200 bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-500">
+              <thead className="border-b border-slate-200 bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-500">
                 <tr>
                   <th className="sticky left-0 z-30 bg-slate-50 px-3 py-1.5">
                     <input
@@ -843,7 +837,6 @@ export default function CustomerLeadsAdmin() {
                         <LeadActionsMenu
                           open={openActionsId === rowId}
                           onOpenChange={(next) => setOpenActionsId(next ? rowId : '')}
-                          scrollParentRef={bodyRef}
                           leadRef={row.lead_ref}
                           emailHref={emailHref}
                           detailsTo={`/admin/customer-leads/${row.id}`}
