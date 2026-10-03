@@ -1,5 +1,16 @@
 /** Customer lead status labels and abandonment rules (display + admin filters). */
 
+/**
+ * Single customer-facing booking reference for admin lists.
+ * Prefer quote_ref (SMH-YYYY-…) — same as the quote wizard / booking — over SMH-LEAD-….
+ * @param {{ quote_ref?: unknown, lead_ref?: unknown } | null | undefined} row
+ */
+export function customerLeadBookingRef(row) {
+  const quoteRef = String(row?.quote_ref ?? '').trim()
+  if (quoteRef) return quoteRef
+  return String(row?.lead_ref ?? '').trim()
+}
+
 export const CUSTOMER_LEAD_STATUSES = [
   'new_lead',
   'quote_started',

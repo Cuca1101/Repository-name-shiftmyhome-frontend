@@ -7,7 +7,7 @@ import {
   deleteCustomerLeadById,
   fetchCustomerLeadsForAdmin,
 } from '../lib/data/customerLeadsRepository'
-import { CUSTOMER_LEAD_STATUS_LABELS } from '../lib/customerLeadStatus'
+import { CUSTOMER_LEAD_STATUS_LABELS, customerLeadBookingRef } from '../lib/customerLeadStatus'
 import { formatDateTimeUK } from '../lib/formatDateDisplay'
 import { formatGbp, resolveChargeableTotal } from '../lib/adminAgreedPrice'
 import {
@@ -22,6 +22,23 @@ const FILTERS = [
   { id: 'abandoned', label: 'Abandoned' },
   { id: 'converted', label: 'Converted' },
 ]
+
+/** @param {Record<string, unknown>} row @param {string} filterId */
+function leadMatchesFilter(row, filterId) {
+  if (filterId === 'all') return true
+  const eff = String(row.effective_status || row.status || '')
+  if (filterId === 'new') {
+    return (
+      eff === 'new_lead' ||
+      eff === 'quote_started' ||
+      eff === 'quote_viewed' ||
+      eff === 'payment_started'
+    )
+  }
+  if (filterId === 'abandoned') return eff === 'abandoned' || eff === 'payment_failed'
+  if (filterId === 'converted') return eff === 'converted_to_booking' || Boolean(row.converted_at)
+  return true
+}
 
 const BADGE_TONES = {
   slate: 'bg-slate-100 text-slate-700 ring-slate-200/80',
@@ -409,7 +426,7 @@ export default function CustomerLeadsAdmin() {
   const [searchInput, setSearchInput] = useState('')
   const [activeSearch, setActiveSearch] = useState('')
   const [filter, setFilter] = useState('all')
-  const [rows, setRows] = useState([])
+  const [allRows, setAllRows] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [selectedIds, setSelectedIds] = useState(() => new Set())
@@ -428,14 +445,15 @@ export default function CustomerLeadsAdmin() {
     setLoading(true)
     setError('')
     try {
-      const list = await fetchCustomerLeadsForAdmin({ filter, search: activeSearch })
-      setRows(list)
+      // Always load the full search result so filter tabs can show live counts.
+      const list = await fetchCustomerLeadsForAdmin({ filter: 'all', search: activeSearch })
+      setAllRows(list)
     } catch (e) {
       setError(e?.message || 'Failed to load customer leads.')
     } finally {
       setLoading(false)
     }
-  }, [filter, activeSearch])
+  }, [activeSearch])
 
   useEffect(() => {
     load()
@@ -447,7 +465,7 @@ export default function CustomerLeadsAdmin() {
 
   const handleDeleteLead = useCallback(
     async (row) => {
-      const ref = row.lead_ref || 'this lead'
+      const ref = customerLeadBookingRef(row) || row.lead_ref || 'this lead'
       const eff = row.effective_status || row.status
       const isConverted = eff === 'converted_to_booking'
       const msg = isConverted
@@ -460,7 +478,7 @@ export default function CustomerLeadsAdmin() {
       setActionMsg('')
       try {
         await deleteCustomerLeadById(String(row.id))
-        setRows((prev) => prev.filter((r) => String(r.id) !== String(row.id)))
+        setAllRows((prev) => prev.filter((r) => String(r.id) !== String(row.id)))
         setSelectedIds((prev) => {
           const next = new Set(prev)
           next.delete(String(row.id))
@@ -489,14 +507,14 @@ export default function CustomerLeadsAdmin() {
       const summary = getCustomerLeadBookingSummary(row)
       if (!summary.hasAddresses) {
         setError(
-          `Lead ${row.lead_ref || ''} is missing pickup/delivery address. Open Details to check what was captured.`,
+          `Lead ${customerLeadBookingRef(row) || row.lead_ref || ''} is missing pickup/delivery address. Open Details to check what was captured.`,
         )
         return
       }
 
       const ok = window.confirm(
         [
-          `Create paid job from lead ${row.lead_ref || ''}?`,
+          `Create paid job from lead ${customerLeadBookingRef(row) || row.lead_ref || ''}?`,
           '',
           `Pickup: ${summary.pickupAddress}`,
           `Delivery: ${summary.deliveryAddress}`,
@@ -529,6 +547,21 @@ export default function CustomerLeadsAdmin() {
       }
     },
     [load, navigate],
+  )
+
+  const filterCounts = useMemo(() => {
+    const counts = { all: allRows.length, new: 0, abandoned: 0, converted: 0 }
+    for (const row of allRows) {
+      if (leadMatchesFilter(row, 'new')) counts.new += 1
+      if (leadMatchesFilter(row, 'abandoned')) counts.abandoned += 1
+      if (leadMatchesFilter(row, 'converted')) counts.converted += 1
+    }
+    return counts
+  }, [allRows])
+
+  const rows = useMemo(
+    () => (filter === 'all' ? allRows : allRows.filter((row) => leadMatchesFilter(row, filter))),
+    [allRows, filter],
   )
 
   const visibleIds = useMemo(() => rows.map((row) => String(row.id)), [rows])
@@ -578,7 +611,7 @@ export default function CustomerLeadsAdmin() {
       }
     }
     const deletedSet = new Set(deleted)
-    setRows((prev) => prev.filter((row) => !deletedSet.has(String(row.id))))
+    setAllRows((prev) => prev.filter((row) => !deletedSet.has(String(row.id))))
     setSelectedIds((prev) => {
       const next = new Set(prev)
       deleted.forEach((id) => next.delete(id))
@@ -615,7 +648,12 @@ export default function CustomerLeadsAdmin() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-bold text-slate-900">Customer Leads</h2>
+          <h2 className="text-2xl font-bold text-slate-900">
+            Customer Leads{' '}
+            <span className="text-lg font-semibold tabular-nums text-slate-500">
+              ({loading ? '…' : filterCounts.all})
+            </span>
+          </h2>
           <p className="mt-1 text-sm text-slate-600">
             Quote wizard and homepage enquiries saved before payment — reference format{' '}
             <code className="rounded bg-slate-100 px-1">SMH-LEAD-000001</code>. Use Create job to
@@ -633,20 +671,31 @@ export default function CustomerLeadsAdmin() {
       </div>
 
       <div className="flex flex-wrap gap-2">
-        {FILTERS.map((f) => (
-          <button
-            key={f.id}
-            type="button"
-            onClick={() => setFilter(f.id)}
-            className={`rounded-lg px-3.5 py-2 text-sm font-semibold ring-1 ring-inset transition ${
-              filter === f.id
-                ? 'bg-brand-600 text-white ring-brand-600'
-                : 'bg-white text-slate-700 ring-slate-200 hover:bg-slate-50'
-            }`}
-          >
-            {f.label}
-          </button>
-        ))}
+        {FILTERS.map((f) => {
+          const count = filterCounts[f.id] ?? 0
+          const active = filter === f.id
+          return (
+            <button
+              key={f.id}
+              type="button"
+              onClick={() => setFilter(f.id)}
+              className={`inline-flex items-center gap-2 rounded-lg px-3.5 py-2 text-sm font-semibold ring-1 ring-inset transition ${
+                active
+                  ? 'bg-brand-600 text-white ring-brand-600'
+                  : 'bg-white text-slate-700 ring-slate-200 hover:bg-slate-50'
+              }`}
+            >
+              {f.label}
+              <span
+                className={`rounded-md px-1.5 py-0.5 text-xs tabular-nums ${
+                  active ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'
+                }`}
+              >
+                {loading ? '…' : count}
+              </span>
+            </button>
+          )
+        })}
       </div>
 
       <AdminRecordsSearchRow
@@ -705,7 +754,7 @@ export default function CustomerLeadsAdmin() {
                       className="h-4 w-4 rounded border-slate-300"
                     />
                   </th>
-                  <th className="whitespace-nowrap px-2 py-2.5">Lead ref</th>
+                  <th className="whitespace-nowrap px-2 py-2.5">Reference</th>
                   <th className="whitespace-nowrap px-2 py-2.5">Name</th>
                   <th className="min-w-[12.5rem] whitespace-nowrap px-2 py-2.5">Phone</th>
                   <th className="whitespace-nowrap px-2 py-2.5">Email</th>
@@ -747,12 +796,14 @@ export default function CustomerLeadsAdmin() {
                         <Link
                           to={`/admin/customer-leads/${row.id}`}
                           className="font-mono text-xs font-semibold text-brand-700 hover:underline"
+                          title={
+                            row.quote_ref && row.lead_ref && row.quote_ref !== row.lead_ref
+                              ? `Booking ref (same as quote). Internal lead id: ${row.lead_ref}`
+                              : undefined
+                          }
                         >
-                          {row.lead_ref}
+                          {customerLeadBookingRef(row) || '—'}
                         </Link>
-                        {row.quote_ref ? (
-                          <p className="mt-0.5 font-mono text-[10px] text-slate-500">{row.quote_ref}</p>
-                        ) : null}
                       </td>
                       <td className="whitespace-nowrap px-2 py-2">{row.customer_name || '—'}</td>
                       <td className="min-w-[12.5rem] whitespace-nowrap px-2 py-2">

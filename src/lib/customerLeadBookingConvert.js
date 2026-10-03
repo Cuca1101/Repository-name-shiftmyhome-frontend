@@ -233,7 +233,7 @@ function buildAdminPhoneBookingFormFromLead(lead, { createdBy, convert = true, f
   const arrival = formatWizardArrivalSummary(wizard) || getWizardArrivalTimePayload(wizard) || ''
 
   return {
-    // Never reuse website quote_ref on insert — avoids unique constraint collisions.
+    // Prefer the client's existing quote_ref (SMH-YYYY-…) so booking keeps one reference.
     quote_ref: freshQuoteRef ? undefined : String(lead.quote_ref || '').trim() || undefined,
     name: wizard.fullName || 'Customer',
     email: wizard.email || 'lead@shiftmyhome.local',
@@ -556,16 +556,48 @@ export async function convertCustomerLeadToBooking({ lead, createdBy }) {
     const { error } = await supabase.from('quotes').update(patch).eq('id', quoteId)
     if (error) throw new Error(error.message || 'Failed to update booking for Available Jobs.')
   } else {
+    // Keep the client's quote reference (SMH-YYYY-…) when present — do not mint a second ref.
+    const existingClientRef = String(lead.quote_ref || quoteRef || '').trim()
     const form = buildAdminPhoneBookingFormFromLead(lead, {
       createdBy,
       convert: true,
-      // Never reuse website quote_ref on insert — unique constraint 23505 if row already exists.
-      freshQuoteRef: true,
+      freshQuoteRef: !existingClientRef,
     })
     let created
     try {
       created = await insertAdminPhoneBooking(form)
     } catch (e) {
+      const msg = String(e?.message || e || '')
+      // Race / missed lookup: quote_ref already on quotes — reuse that row.
+      if (existingClientRef && (/already in use|23505|duplicate/i.test(msg))) {
+        const raced = await findExistingQuoteForLead({ ...lead, quote_ref: existingClientRef, quote_id: null })
+        if (raced && !(quoteIsCardPaid(raced) || raced.paid_at)) {
+          quoteId = String(raced.id)
+          quoteRef = String(raced.quote_ref || existingClientRef)
+          quoteBefore = quoteSnapshotFields(raced)
+          quoteCreatedByConvert = false
+          const patchReuse = buildLeadConvertedJobPatch({
+            summary,
+            chargeable,
+            calculated,
+            lead,
+            createdBy,
+            existing: raced,
+          })
+          const { error: reuseErr } = await supabase.from('quotes').update(patchReuse).eq('id', quoteId)
+          if (reuseErr) throw new Error(reuseErr.message || 'Failed to update booking for Available Jobs.')
+          workingLead = await linkLeadQuoteIds(workingLead, quoteId, quoteRef)
+          return {
+            lead: workingLead,
+            quoteId,
+            quoteRef,
+            alreadyConverted: false,
+            quoteCreatedByConvert,
+            quoteBefore,
+            quoteIdBefore,
+          }
+        }
+      }
       throw new Error(
         e?.message
           ? `Failed to create booking: ${e.message}`

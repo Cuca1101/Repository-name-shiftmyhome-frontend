@@ -4,7 +4,7 @@ import {
   deleteCustomerLeadById,
   fetchCustomerLeadById,
 } from '../lib/data/customerLeadsRepository'
-import { CUSTOMER_LEAD_STATUS_LABELS } from '../lib/customerLeadStatus'
+import { CUSTOMER_LEAD_STATUS_LABELS, customerLeadBookingRef } from '../lib/customerLeadStatus'
 import { formatDateTimeUK, formatDateUK } from '../lib/formatDateDisplay'
 import LeadCallButton from './admin/LeadCallButton'
 import {
@@ -447,13 +447,15 @@ export default function CustomerLeadDetailAdmin() {
           <Link to="/admin/customer-leads" className="text-sm font-semibold text-brand-700 hover:underline">
             ← Customer Leads
           </Link>
-          <h2 className="mt-2 font-mono text-2xl font-bold text-slate-900">{lead.lead_ref}</h2>
+          <h2 className="mt-2 font-mono text-2xl font-bold text-slate-900">
+            {customerLeadBookingRef(lead) || lead.lead_ref}
+          </h2>
           <p className="mt-1 text-sm text-slate-600">
             {statusLabel}
-            {lead.quote_ref ? (
+            {lead.quote_ref && lead.lead_ref && lead.quote_ref !== lead.lead_ref ? (
               <>
                 {' '}
-                · Quote <span className="font-mono">{lead.quote_ref}</span>
+                · Internal lead id <span className="font-mono text-slate-500">{lead.lead_ref}</span>
               </>
             ) : null}
           </p>
