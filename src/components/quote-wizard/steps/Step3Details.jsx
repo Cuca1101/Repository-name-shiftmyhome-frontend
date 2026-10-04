@@ -18,10 +18,10 @@ export default function Step3Details({
   onGoToStep,
   quoteRef,
   validationMessage = '',
-  /** When true, contact fields live on Step 2 — only extras/access sections render here. */
+  /** When true, contact fields live on Step 2 ? only extras/access sections render here. */
   hideContactSection = false,
   fieldErrors = {},
-  /** Admin phone booking — always show full extras form (not mobile-only / lg:hidden split). */
+  /** Admin phone booking ? always show full extras form (not mobile-only / lg:hidden split). */
   layoutVariant = 'quote',
   accordionLayout = false,
 }) {
@@ -59,7 +59,7 @@ export default function Step3Details({
               : ' mt-6 space-y-10 border-t border-slate-200 pt-6'
         }`}
       >
-      {/* PackageSelector temporarily hidden — re-enable when ready
+      {/* PackageSelector temporarily hidden ? re-enable when ready
       <PackageSelector
         value={data.packageTier || 'standard'}
         onChange={(tier) => onChange({ ...data, packageTier: tier })}
@@ -70,7 +70,7 @@ export default function Step3Details({
         <div>
           <h2 className="text-sm font-bold text-slate-900 md:text-base">Additional details</h2>
           <p className="mt-0.5 text-xs text-slate-600">
-            Optional — add contacts, access notes, or extras before you pay.
+            Optional ? add contacts, access notes, or extras before you pay.
           </p>
         </div>
       ) : null}
@@ -84,9 +84,9 @@ export default function Step3Details({
       >
       {accordionLayout && hideContactSection ? (
         <div className="space-y-1.5 text-sm text-slate-800">
-          <p><span className="text-slate-500">Name · </span>{data.fullName || '—'}</p>
-          <p><span className="text-slate-500">Phone · </span>{data.phone || '—'}</p>
-          <p><span className="text-slate-500">Email · </span>{data.email || '—'}</p>
+          <p><span className="text-slate-500">Name · </span>{data.fullName || '?'}</p>
+          <p><span className="text-slate-500">Phone · </span>{data.phone || '?'}</p>
+          <p><span className="text-slate-500">Email · </span>{data.email || '?'}</p>
           {typeof onGoToStep === 'function' ? (
             <button
               type="button"
@@ -103,7 +103,7 @@ export default function Step3Details({
           <div>
             <h2 className="text-lg font-bold text-slate-900 sm:text-2xl">Job details & contact</h2>
             <p className="mt-1 text-sm text-slate-600">
-              Extras, access notes, and how we reach you — we'll only use your details for this quote.
+              Extras, access notes, and how we reach you ? we'll only use your details for this quote.
             </p>
           </div>
 
@@ -184,7 +184,13 @@ export default function Step3Details({
 
       <QuoteSpecialInstructionsField data={data} onChange={onChange} variant="desktop" />
 
-      <ReviewGroup accordion={accordionLayout} title="Optional extras" icon={Plus} defaultOpen={false}>
+      <ReviewGroup
+        accordion={accordionLayout}
+        title="Optional extras"
+        icon={Plus}
+        defaultOpen={false}
+        accent="blue"
+      >
       <div className="space-y-4">
         <DesktopFurnitureServicesSection
           data={data}

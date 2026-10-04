@@ -24,7 +24,7 @@ export default function QuoteSpecialInstructionsField({ data, onChange, variant 
       }
       data-quote-field="special-instructions"
     >
-      <h3 className={`font-bold text-slate-900 ${isMobile ? 'text-xs' : 'text-sm'}`}>Special instructions</h3>
+      <h3 className={`font-bold text-blue-600 ${isMobile ? 'text-sm' : 'text-base'}`}>Special instructions</h3>
       <p className={`mt-1 text-slate-600 ${isMobile ? 'text-[11px] leading-snug' : 'text-sm'}`}>
         Fragile items, narrow access, parking, or anything the crew should know before they arrive.
       </p>

@@ -165,14 +165,26 @@ function QuoteWizardInner({
         : null,
   }
 
+  const pageChromeTopBack =
+    pageChrome && (step > 1 || showStep1Back) ? (
+      <button
+        type="button"
+        onClick={() => (step > 1 ? back() : navigate('/'))}
+        className="mb-3 inline-flex items-center gap-1 text-sm font-semibold text-slate-600 hover:text-slate-900"
+      >
+        <span aria-hidden>←</span>
+        Back
+      </button>
+    ) : null
+
   const stepNavButtons =
     pageChrome && step < 4 ? (
-      <div className="mt-4 pb-20 sm:pb-0">
+      <div className="mt-4">
         <div className="flex items-stretch gap-6 sm:gap-8">
-          {step > 1 || showStep1Back ? (
+          {step > 1 ? (
             <button
               type="button"
-              onClick={() => (step > 1 ? back() : navigate(-1))}
+              onClick={back}
               className="inline-flex min-h-[52px] shrink-0 items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white px-5 text-sm font-semibold text-slate-800 shadow-sm transition hover:border-slate-300 hover:bg-slate-50 sm:min-w-[7.5rem] sm:px-6"
             >
               <span aria-hidden>←</span>
@@ -197,7 +209,7 @@ function QuoteWizardInner({
         <QuoteFlowHelp className="mt-4" />
       </div>
     ) : pageChrome && step === 4 ? (
-      <div className="mt-4 pb-20 sm:pb-0">
+      <div className="mt-4">
         <button
           type="button"
           onClick={back}
@@ -423,20 +435,11 @@ function QuoteWizardInner({
         ) : isMobileLayout ? (
           <div className="quote-wizard-mobile-stack block min-w-0 max-w-full space-y-1.5">
             <div
-              className={`quote-wizard-form-card box-border min-w-0 w-full max-w-full rounded-xl border border-slate-200 bg-white p-2 shadow-card${compact ? ' quote-wizard-card' : ''}${pageChrome ? ' pb-24' : ''}`}
+              className={`quote-wizard-form-card box-border min-w-0 w-full max-w-full rounded-xl border border-slate-200 bg-white p-2 shadow-card${compact ? ' quote-wizard-card' : ''}`}
             >
               {pageChrome ? (
                 <>
-                  {step > 1 || showStep1Back ? (
-                    <button
-                      type="button"
-                      onClick={() => (step > 1 ? back() : navigate(-1))}
-                      className="mb-2 inline-flex items-center gap-1 text-sm font-semibold text-slate-600 hover:text-slate-900"
-                    >
-                      <span aria-hidden>←</span>
-                      Back
-                    </button>
-                  ) : null}
+                  {pageChromeTopBack}
                   {titleTag === 'h2' ? (
                     <h2 id={titleId} className="text-[1.45rem] font-extrabold tracking-tight text-slate-900">
                       Get your instant quote
@@ -460,15 +463,17 @@ function QuoteWizardInner({
               )}
             </div>
             {step === 3 ? null : <MoveSummary {...summaryProps} />}
-            <MobileQuoteStickyActions
-              step={step}
-              onBack={() => (pageChrome && step === 1 && showStep1Back ? navigate(-1) : back())}
-              onNext={next}
-              nextDisabled={quoteStepTransitionLoading || (step === 3 && !reviewDetailsReady(wizard))}
-              nextLoading={quoteStepTransitionLoading && step === 2}
-              pinned={Boolean(pageChrome)}
-              quoteRef={pageChrome ? quoteRef : ''}
-            />
+            {pageChrome ? (
+              stepNavButtons
+            ) : (
+              <MobileQuoteStickyActions
+                step={step}
+                onBack={back}
+                onNext={next}
+                nextDisabled={quoteStepTransitionLoading || (step === 3 && !reviewDetailsReady(wizard))}
+                nextLoading={quoteStepTransitionLoading && step === 2}
+              />
+            )}
           </div>
         ) : pageChrome ? (
           <div
@@ -479,16 +484,7 @@ function QuoteWizardInner({
             }`}
           >
             <div className="quote-wizard-form-card min-w-0 lg:col-start-1 lg:row-start-1">
-              {step > 1 || showStep1Back ? (
-                <button
-                  type="button"
-                  onClick={() => (step > 1 ? back() : navigate(-1))}
-                  className="mb-3 inline-flex items-center gap-1 text-sm font-semibold text-slate-600 hover:text-slate-900"
-                >
-                  <span aria-hidden>←</span>
-                  Back
-                </button>
-              ) : null}
+              {pageChromeTopBack}
               {titleTag === 'h2' ? (
                 <h2 id={titleId} className="text-[1.7rem] font-extrabold tracking-tight text-slate-900 sm:text-3xl">
                   Get your instant quote

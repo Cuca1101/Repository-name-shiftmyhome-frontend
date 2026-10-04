@@ -263,7 +263,13 @@ export default function MobileStep3Details({
         </p>
       ) : null}
 
-      <ReviewGroup accordion={accordionLayout} title="Optional extras" icon={Plus} defaultOpen={false}>
+      <ReviewGroup
+        accordion={accordionLayout}
+        title="Optional extras"
+        icon={Plus}
+        defaultOpen={false}
+        accent="blue"
+      >
       <div className={`${card} p-2.5 md:p-3`}>
         <div className="flex items-start gap-2.5">
           <div
