@@ -41,7 +41,7 @@ export default function Step4Review({
         pricingSettings={settings}
         promoCode={wizard.promoCode}
         priceWithoutPromo={priceWithoutPromo}
-        className="mb-3 md:hidden"
+        className="mb-3 lg:hidden"
       />
 
       <MobileStep4Review
@@ -54,7 +54,7 @@ export default function Step4Review({
         onDistanceFromRoute={onDistanceFromRoute}
       />
 
-      <div className="min-w-0 max-w-full space-y-4 md:hidden">
+      <div className="min-w-0 max-w-full space-y-4 lg:hidden">
         {quotePage ? null : <Step4BackNav onBack={onBack} className="border-t-0 pt-0" />}
         <div id="quote-wizard-payment" className="scroll-mt-20 pb-1">
           <QuotePaymentSection
@@ -75,7 +75,7 @@ export default function Step4Review({
 
       <DesktopStep4Review onGoToStep={onGoToStep} />
 
-      <div className="hidden space-y-6 md:block">
+      <div className="hidden space-y-6 lg:block">
         {quotePage ? null : <Step4BackNav onBack={onBack} />}
         <div id="quote-wizard-payment" className="scroll-mt-24">
           <QuotePaymentSection

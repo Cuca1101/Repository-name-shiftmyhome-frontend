@@ -46,7 +46,7 @@ function PaymentStepIndicator({ paymentChoice, stripeReady, termsReady }) {
   const step1Active = termsReady || Boolean(paymentChoice)
 
   return (
-    <ol className="mt-3 hidden list-none flex-col gap-1.5 text-xs md:flex md:flex-row md:gap-6">
+    <ol className="mt-3 hidden list-none flex-col gap-1.5 text-xs lg:flex lg:flex-row lg:gap-6">
       <li className={step1Active ? 'font-semibold text-brand-800' : 'text-slate-500'}>
         <span className="font-bold">Step 1</span> — Choose payment option
       </li>
@@ -239,7 +239,7 @@ export default function QuotePaymentSection({
           termsReady={termsReady}
         />
 
-        <p className="mt-2 text-[11px] leading-relaxed text-slate-500 md:hidden">
+        <p className="mt-2 text-[11px] leading-relaxed text-slate-500 lg:hidden">
           <span className="font-semibold text-slate-700">Step 1:</span> Choose payment ·{' '}
           <span className="font-semibold text-slate-700">Step 2:</span> Enter card details
         </p>
@@ -416,10 +416,10 @@ export default function QuotePaymentSection({
           ref={stripeSectionRef}
           className="mt-3 min-w-0 max-md:overflow-visible rounded-xl border border-brand-200/80 bg-slate-50/60 p-2 ring-1 ring-brand-500/10 transition-all duration-300 md:mt-5 md:p-4"
         >
-          <p className="mb-1 hidden text-[10px] font-semibold uppercase tracking-wide text-brand-700 md:block">
+          <p className="mb-1 hidden text-[10px] font-semibold uppercase tracking-wide text-brand-700 lg:block">
             Step 2 — Enter your card details
           </p>
-          <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-brand-700 md:hidden">
+          <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-brand-700 lg:hidden">
             Enter your card details
           </p>
           <p className="mb-3 text-xs leading-snug text-slate-600 md:text-sm">

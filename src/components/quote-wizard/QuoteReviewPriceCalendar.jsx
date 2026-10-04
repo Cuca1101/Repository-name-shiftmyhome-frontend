@@ -229,7 +229,7 @@ export default function QuoteReviewPriceCalendar({
         </div>
 
         {selectedHeading ? (
-          <p className="mb-3 rounded-xl border border-blue-100 bg-blue-50 px-3 py-2 text-sm font-semibold text-slate-900 md:hidden">
+          <p className="mb-3 rounded-xl border border-blue-100 bg-blue-50 px-3 py-2 text-sm font-semibold text-slate-900 lg:hidden">
             {selectedHeading}
             {arrivalLabel ? <span className="font-medium text-slate-600"> · {arrivalLabel}</span> : null}
           </p>
@@ -309,8 +309,8 @@ export default function QuoteReviewPriceCalendar({
                   <span className={`mt-0.5 text-lg font-extrabold leading-none md:text-2xl ${past ? 'text-slate-300' : 'text-black'}`}>
                     {parts.dayNum}
                   </span>
-                  <span className="mt-0.5 hidden text-sm font-bold text-slate-700 md:block">{parts.monthShort}</span>
-                  <span className="mt-1 hidden text-[11px] leading-tight text-slate-500 md:block">{arrivalLabel}</span>
+                  <span className="mt-0.5 hidden text-sm font-bold text-slate-700 lg:block">{parts.monthShort}</span>
+                  <span className="mt-1 hidden text-[11px] leading-tight text-slate-500 lg:block">{arrivalLabel}</span>
                   {showPriceLabels && option && !past ? (
                     <span
                       className={`mt-1.5 max-w-full rounded px-1 py-0.5 text-center text-[8px] font-bold uppercase leading-tight tracking-wide md:text-[10px] ${
@@ -321,8 +321,8 @@ export default function QuoteReviewPriceCalendar({
                             : 'bg-emerald-600 text-white'
                       }`}
                     >
-                      <span className="md:hidden">{isBest ? 'Best' : isWeekend ? 'Wkd' : 'Std'}</span>
-                      <span className="hidden md:inline">{isBest ? 'Best price' : isWeekend ? 'Weekend' : 'Standard'}</span>
+                      <span className="lg:hidden">{isBest ? 'Best' : isWeekend ? 'Wkd' : 'Std'}</span>
+                      <span className="hidden lg:inline">{isBest ? 'Best price' : isWeekend ? 'Weekend' : 'Standard'}</span>
                     </span>
                   ) : null}
                   {price != null && Number.isFinite(price) ? (
@@ -356,7 +356,7 @@ export default function QuoteReviewPriceCalendar({
                     </span>
                   ) : null}
                   {selected ? (
-                    <span className="mt-1 hidden w-full rounded-md bg-blue-600 py-0.5 text-[9px] font-bold tracking-wide text-white md:block">
+                    <span className="mt-1 hidden w-full rounded-md bg-blue-600 py-0.5 text-[9px] font-bold tracking-wide text-white lg:block">
                       SELECTED
                     </span>
                   ) : null}

@@ -333,7 +333,7 @@ export default function MoveSummaryBody({
         <QuotePricingDebugPanel
           pricingBreakdown={breakdown}
           estimatedTotal={breakdown.estimatedTotal}
-          className="hidden rounded-xl border border-slate-200 md:block"
+          className="hidden rounded-xl border border-slate-200 lg:block"
         />
       ) : null}
 

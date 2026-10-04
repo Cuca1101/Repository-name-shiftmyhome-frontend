@@ -127,22 +127,22 @@ export default function Step1Address({
           quoteRef={quoteRef}
           titleClassName="whitespace-nowrap md:whitespace-normal"
         />
-        <p className={`mt-1 text-sm leading-snug text-slate-500 ${quotePage ? '' : 'md:hidden'}`}>
+        <p className={`mt-1 text-sm leading-snug text-slate-500 ${quotePage ? '' : 'lg:hidden'}`}>
           Pickup, delivery and access details.
         </p>
         {quotePage ? null : (
-        <p className="mt-1 hidden text-sm text-slate-600 md:block">
+        <p className="mt-1 hidden text-sm text-slate-600 lg:block">
           Where we’re collecting from and delivering to, plus access for planning.
         </p>
         )}
         {HAS_ADDRESS_SEARCH && !customerAddressCards && (
-          <p className="mt-2 hidden text-sm text-slate-600 md:block">
+          <p className="mt-2 hidden text-sm text-slate-600 lg:block">
             Use the address search and <strong className="font-semibold text-slate-800">select a suggestion</strong>{' '}
             for each location so we can plot the route and distance.
           </p>
         )}
         {HAS_ADDRESS_SEARCH && !customerAddressCards && (
-          <p className="mt-2 text-sm leading-snug text-slate-600 md:hidden">
+          <p className="mt-2 text-sm leading-snug text-slate-600 lg:hidden">
             Use address search and <strong className="font-semibold text-slate-800">select a suggestion</strong> for
             each location to plot the route.
           </p>
@@ -307,7 +307,7 @@ export default function Step1Address({
             ) : null}
             </>
             )}
-            {quotePage ? <QuoteReferenceCard quoteRef={quoteRef} className="md:hidden" /> : null}
+            {quotePage ? <QuoteReferenceCard quoteRef={quoteRef} className="lg:hidden" /> : null}
             </div>
           </>
         ) : HAS_ADDRESS_SEARCH ? (

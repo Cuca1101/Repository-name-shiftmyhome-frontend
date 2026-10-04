@@ -14,7 +14,7 @@ export default function MoveSummary(props) {
 
   return (
     <>
-      <aside className="hidden w-full min-w-0 flex-col gap-4 md:flex lg:sticky lg:top-24 lg:gap-5">
+      <aside className="hidden w-full min-w-0 flex-col gap-4 lg:flex lg:sticky lg:top-24 lg:gap-5">
         {step3Sidebar ? (
           <QuoteReviewSelectedSlot {...stickyPanelProps} className="!shadow-card" />
         ) : null}
@@ -36,7 +36,7 @@ export default function MoveSummary(props) {
       </aside>
 
       {step3Sidebar ? (
-        <div className="space-y-1.5 md:hidden">
+        <div className="space-y-1.5 lg:hidden">
           <QuoteReviewSelectedSlot {...stickyPanelProps} />
           <MobileMoveSummary {...bodyProps} mapVariant={mapVariant} afterSummary={afterSummary} />
           <QuoteReviewPayCta onContinueToPayment={stickyPanelProps.onContinueToPayment} />

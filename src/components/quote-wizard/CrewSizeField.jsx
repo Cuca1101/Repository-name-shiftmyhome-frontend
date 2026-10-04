@@ -165,14 +165,14 @@ export default function CrewSizeField({
         invalid ? 'border-red-300 ring-1 ring-red-200/80' : 'border-slate-200'
       }`}
     >
-      <span className={`${labelCls} md:hidden`} id={labelId}>
+      <span className={`${labelCls} lg:hidden`} id={labelId}>
         Crew size (required for pricing)
       </span>
-      <span className={`${labelCls} hidden md:block`} id={labelId}>
+      <span className={`${labelCls} hidden lg:block`} id={labelId}>
         Crew size (required for pricing)
       </span>
 
-      <div className="md:hidden" role="radiogroup" aria-labelledby={labelId}>
+      <div className="lg:hidden" role="radiogroup" aria-labelledby={labelId}>
         <div className="grid grid-cols-3 items-stretch gap-2">
           {mobileCrewOptions.map((o) => (
             <CrewOptionCard
@@ -186,7 +186,7 @@ export default function CrewSizeField({
         </div>
       </div>
 
-      <div className="hidden md:block" role="radiogroup" aria-labelledby={labelId}>
+      <div className="hidden lg:block" role="radiogroup" aria-labelledby={labelId}>
         <div className={`mt-1 grid items-stretch gap-3 ${desktopGridCols}`}>
           {displayOptions.map((o) => (
             <CrewOptionCard

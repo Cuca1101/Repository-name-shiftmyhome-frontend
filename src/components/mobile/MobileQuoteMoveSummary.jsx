@@ -164,7 +164,7 @@ export default function MobileQuoteMoveSummary({
   const summaryRowSeamless = step1MobileSummary ? { seamless: true } : {}
 
   return (
-    <div className={`${card} max-w-full ${showOnDesktop ? '' : 'md:hidden'}`}>
+    <div className={`${card} max-w-full ${showOnDesktop ? '' : 'lg:hidden'}`}>
       <div
         className={`bg-gradient-to-br from-slate-50/90 to-white px-2.5 py-2 md:px-3 md:py-2.5 ${
           step1MobileSummary ? '' : 'border-b border-slate-100'
@@ -363,7 +363,7 @@ export default function MobileQuoteMoveSummary({
         <QuotePricingDebugPanel
           pricingBreakdown={breakdown}
           estimatedTotal={breakdown.estimatedTotal}
-          className="md:hidden"
+          className="lg:hidden"
         />
       ) : null}
 

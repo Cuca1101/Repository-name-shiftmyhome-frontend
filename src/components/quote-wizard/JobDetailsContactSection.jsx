@@ -49,7 +49,7 @@ export default function JobDetailsContactSection({
       <div
         id="quote-wizard-contact-details-mobile"
         data-quote-field="contact-details"
-        className={`${mobileCard} scroll-mt-24 p-2.5 md:hidden md:p-3`}
+        className={`${mobileCard} scroll-mt-24 p-2.5 lg:hidden md:p-3`}
       >
         <h3 className="text-xs font-bold text-slate-900">Your details</h3>
         <div className="mt-2 space-y-2">
@@ -107,7 +107,7 @@ export default function JobDetailsContactSection({
       <div
         id="quote-wizard-contact-details-desktop"
         data-quote-field="contact-details"
-        className="scroll-mt-24 hidden rounded-2xl border border-brand-100 bg-gradient-to-br from-brand-50/40 to-white p-5 sm:p-6 md:block"
+        className="scroll-mt-24 hidden rounded-2xl border border-brand-100 bg-gradient-to-br from-brand-50/40 to-white p-5 sm:p-6 lg:block"
       >
         <h3 className="text-sm font-bold text-slate-900">Your details</h3>
         <div className="mt-4 grid grid-cols-2 gap-3 xxs:gap-4">

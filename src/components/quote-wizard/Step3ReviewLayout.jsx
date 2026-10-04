@@ -56,7 +56,7 @@ export default function Step3ReviewLayout({
         onChange={(packageTier) => onWizardChange?.((prev) => ({ ...prev, packageTier }))}
       />
 
-      <div className="mt-4 md:hidden">
+      <div className="mt-4 lg:hidden">
         <QuoteReviewYourMoveCard
           quoteRef={quoteRef}
           wizard={wizard}

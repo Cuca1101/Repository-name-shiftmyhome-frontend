@@ -763,8 +763,10 @@
     padding: 0.2rem 0.5rem;
     font-size: 0.625rem;
   }
+}
 
-  /* Quote flow — compact stepper */
+/* Quote flow — compact mobile/tablet layout (through lg breakpoint). */
+@media (max-width: 1023px) {
   .quote-flow-scope #quote-wizard-top > div {
     margin-bottom: 0.25rem;
     padding: 0.375rem 0.5rem;
@@ -861,8 +863,8 @@
   }
 }
 
-/* Homepage /quote section — match embedded mobile density */
-@media (max-width: 767px) {
+/* Homepage /quote section — match embedded mobile/tablet density */
+@media (max-width: 1023px) {
   .quote-wizard-section:not(.quote-wizard-section--embedded) input:not([type='checkbox']):not([type='radio']):not([type='file']),
   .quote-wizard-section:not(.quote-wizard-section--embedded) select,
   .quote-wizard-section:not(.quote-wizard-section--embedded) textarea {
@@ -1079,8 +1081,8 @@
   }
 }
 
-/* Mobile quote wizard: full-width steps, open summary, in-flow nav. */
-@media (max-width: 767px) {
+/* Mobile/tablet quote wizard: full-width steps, open summary, in-flow nav. */
+@media (max-width: 1023px) {
   #quote .quote-route-map {
     height: 128px !important;
     min-height: 128px !important;

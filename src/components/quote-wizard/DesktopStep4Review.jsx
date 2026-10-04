@@ -11,11 +11,11 @@ function EditLink({ label, step, onGoToStep }) {
 }
 
 /**
- * Desktop Step 4 review & payment (md+).
+ * Desktop Step 4 review & payment (lg+).
  */
 export default function DesktopStep4Review({ onGoToStep }) {
   return (
-    <div className="hidden min-w-0 space-y-6 md:block">
+    <div className="hidden min-w-0 space-y-6 lg:block">
       <div>
         <h2 className="text-2xl font-bold text-slate-900">Review &amp; payment</h2>
         <p className="mt-1 text-sm text-slate-600">

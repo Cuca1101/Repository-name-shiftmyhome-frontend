@@ -23,8 +23,9 @@ export function isValidHalfHourSlot(time) {
   return HALF_HOUR_SLOTS_TO_20.includes(time)
 }
 
+/** Quote wizard compact layout through tablet (matches useMobileQuoteLayout). */
 export function isMobileViewport() {
-  return typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches
+  return typeof window !== 'undefined' && window.matchMedia('(max-width: 1023px)').matches
 }
 
 /** @param {string} from HH:mm @param {string} until HH:mm */

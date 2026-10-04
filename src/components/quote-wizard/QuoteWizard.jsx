@@ -12,7 +12,7 @@ import Step3ReviewLayout from './Step3ReviewLayout'
 import Step4Review from './steps/Step4Review'
 import MobileQuoteStickyActions from '../mobile/MobileQuoteStickyActions'
 import QuoteStep2TransitionLoading from './QuoteStep2TransitionLoading'
-import useMobileQuoteLayout from '../../hooks/useMobileQuoteLayout'
+import useMobileQuoteLayout, { QUOTE_MOBILE_LAYOUT_MQ } from '../../hooks/useMobileQuoteLayout'
 import { reviewDetailsReady } from '../../lib/quoteWizardContactFields'
 import { QuoteFlowHelp } from '../WhatsAppButton'
 
@@ -90,7 +90,7 @@ function QuoteWizardInner({
       const el = sidebarAlignRef.current
       if (!el) return
       el.style.paddingTop = '0px'
-      if (window.matchMedia('(max-width: 767px)').matches) return
+      if (window.matchMedia(QUOTE_MOBILE_LAYOUT_MQ).matches) return
       const anchorSelectors =
         step === 2
           ? ['[data-quote-field="crew-size"]']
@@ -209,7 +209,7 @@ function QuoteWizardInner({
         <QuoteFlowHelp className="mt-4" />
       </div>
     ) : step === 4 ? (
-      <div className="mt-6 hidden border-t border-slate-200 pt-6 md:flex md:justify-start">
+      <div className="mt-6 hidden border-t border-slate-200 pt-6 lg:flex lg:justify-start">
         <button
           type="button"
           onClick={back}
@@ -220,7 +220,7 @@ function QuoteWizardInner({
         </button>
       </div>
     ) : step === 3 ? (
-      <div className="mt-4 hidden md:block">
+      <div className="mt-4 hidden lg:block">
         <button
           type="button"
           onClick={back}
@@ -231,7 +231,7 @@ function QuoteWizardInner({
         </button>
       </div>
     ) : step < 4 ? (
-      <div className="mt-4 hidden flex-row flex-wrap justify-between gap-6 sm:mt-10 sm:gap-8 md:flex">
+      <div className="mt-4 hidden flex-row flex-wrap justify-between gap-6 sm:mt-10 sm:gap-8 lg:flex">
         <button
           type="button"
           onClick={back}
@@ -420,15 +420,65 @@ function QuoteWizardInner({
 
         {loadingSettings ? (
           <p className="text-center text-slate-600">Loading…</p>
+        ) : isMobileLayout ? (
+          <div className="quote-wizard-mobile-stack block min-w-0 max-w-full space-y-1.5">
+            <div
+              className={`quote-wizard-form-card box-border min-w-0 w-full max-w-full rounded-xl border border-slate-200 bg-white p-2 shadow-card${compact ? ' quote-wizard-card' : ''}${pageChrome ? ' pb-24' : ''}`}
+            >
+              {pageChrome ? (
+                <>
+                  {step > 1 || showStep1Back ? (
+                    <button
+                      type="button"
+                      onClick={() => (step > 1 ? back() : navigate(-1))}
+                      className="mb-2 inline-flex items-center gap-1 text-sm font-semibold text-slate-600 hover:text-slate-900"
+                    >
+                      <span aria-hidden>←</span>
+                      Back
+                    </button>
+                  ) : null}
+                  {titleTag === 'h2' ? (
+                    <h2 id={titleId} className="text-[1.45rem] font-extrabold tracking-tight text-slate-900">
+                      Get your instant quote
+                    </h2>
+                  ) : (
+                    <h1 id={titleId} className="text-[1.45rem] font-extrabold tracking-tight text-slate-900">
+                      Get your instant quote
+                    </h1>
+                  )}
+                  <p className="mt-1 text-sm leading-snug text-slate-500">
+                    Your price is shown at the review step.
+                  </p>
+                  <div id="quote-wizard-top" className="mt-3">
+                    <WizardProgress step={step} variant="page" />
+                  </div>
+                  <p className="mb-2 mt-1 text-sm text-slate-500">{PAGE_STEP_LINE[step]}</p>
+                  <div className="relative min-w-0">{stepPanelBody}</div>
+                </>
+              ) : (
+                stepPanel
+              )}
+            </div>
+            {step === 3 ? null : <MoveSummary {...summaryProps} />}
+            <MobileQuoteStickyActions
+              step={step}
+              onBack={() => (pageChrome && step === 1 && showStep1Back ? navigate(-1) : back())}
+              onNext={next}
+              nextDisabled={quoteStepTransitionLoading || (step === 3 && !reviewDetailsReady(wizard))}
+              nextLoading={quoteStepTransitionLoading && step === 2}
+              pinned={Boolean(pageChrome)}
+              quoteRef={pageChrome ? quoteRef : ''}
+            />
+          </div>
         ) : pageChrome ? (
           <div
             className={`mx-auto grid w-full max-w-6xl items-start gap-4 ${
               step === 3
-                ? 'md:grid-cols-[minmax(0,1fr)_minmax(260px,32%)] md:gap-6'
-                : 'md:grid-cols-[minmax(0,1fr)_minmax(260px,34%)] lg:grid-cols-[minmax(0,1fr)_minmax(300px,min(100%,380px))] lg:gap-6'
+                ? 'lg:grid-cols-[minmax(0,1fr)_minmax(260px,32%)] lg:gap-6'
+                : 'lg:grid-cols-[minmax(0,1fr)_minmax(300px,min(100%,380px))] lg:gap-6'
             }`}
           >
-            <div className="quote-wizard-form-card min-w-0 md:col-start-1 md:row-start-1">
+            <div className="quote-wizard-form-card min-w-0 lg:col-start-1 lg:row-start-1">
               {step > 1 || showStep1Back ? (
                 <button
                   type="button"
@@ -458,7 +508,7 @@ function QuoteWizardInner({
               <div className="relative min-w-0">{stepPanelBody}</div>
             </div>
             {step === 3 ? (
-              <div className="hidden min-w-0 md:col-start-2 md:row-start-1 md:row-span-2 md:block">
+              <div className="hidden min-w-0 lg:col-start-2 lg:row-start-1 lg:row-span-2 lg:block">
                 <MoveSummary
                   {...summaryProps}
                   afterMap={
@@ -479,30 +529,14 @@ function QuoteWizardInner({
                 />
               </div>
             ) : (
-              <div ref={sidebarAlignRef} className="md:col-start-2 md:row-start-1 md:row-span-2">
+              <div ref={sidebarAlignRef} className="lg:col-start-2 lg:row-start-1 lg:row-span-2">
                 <MoveSummary {...summaryProps} />
               </div>
             )}
-            <div className="md:col-start-1 md:row-start-2">{stepNavButtons}</div>
-          </div>
-        ) : isMobileLayout ? (
-          <div className="quote-wizard-mobile-stack block min-w-0 max-w-full space-y-1.5">
-            <div
-              className={`quote-wizard-form-card box-border min-w-0 w-full max-w-full rounded-xl border border-slate-200 bg-white p-2 shadow-card${compact ? ' quote-wizard-card' : ''}`}
-            >
-              {stepPanel}
-            </div>
-            {step === 3 ? null : <MoveSummary {...summaryProps} />}
-            <MobileQuoteStickyActions
-              step={step}
-              onBack={back}
-              onNext={next}
-              nextDisabled={quoteStepTransitionLoading || (step === 3 && !reviewDetailsReady(wizard))}
-              nextLoading={quoteStepTransitionLoading && step === 2}
-            />
+            <div className="lg:col-start-1 lg:row-start-2">{stepNavButtons}</div>
           </div>
         ) : (
-          <div className="grid items-start gap-4 md:grid-cols-[minmax(0,1fr)_minmax(220px,34%)] lg:grid-cols-[minmax(0,1fr)_minmax(260px,min(100%,340px))] lg:gap-6">
+          <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(260px,min(100%,340px))] lg:gap-6">
             <div className="min-w-0">
               <div
                 className={`quote-wizard-form-card min-w-0 rounded-2xl border border-slate-200 bg-white shadow-card ${
@@ -513,7 +547,7 @@ function QuoteWizardInner({
               </div>
             </div>
             {step === 3 ? (
-              <div className="hidden min-w-0 md:block">
+              <div className="hidden min-w-0 lg:block">
                 <MoveSummary
                   {...summaryProps}
                   afterMap={

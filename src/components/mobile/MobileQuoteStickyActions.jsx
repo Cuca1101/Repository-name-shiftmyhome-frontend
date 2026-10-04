@@ -27,7 +27,7 @@ export default function MobileQuoteStickyActions({
           : 'Continue →'
     return (
       <div
-        className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-[#e7eef6]/95 px-3 pt-2 backdrop-blur md:hidden"
+        className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-[#e7eef6]/95 px-3 pt-2 backdrop-blur lg:hidden"
         style={{ paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))' }}
         role="group"
         aria-label="Quote navigation"
@@ -50,7 +50,7 @@ export default function MobileQuoteStickyActions({
   if (step === 3) {
     return (
       <div
-        className="sticky bottom-0 z-30 mt-3 border-t border-slate-200 bg-white/95 px-1 py-2 backdrop-blur md:hidden"
+        className="sticky bottom-0 z-30 mt-3 border-t border-slate-200 bg-white/95 px-1 py-2 backdrop-blur lg:hidden"
         role="group"
         aria-label="Review navigation"
       >
@@ -78,7 +78,7 @@ export default function MobileQuoteStickyActions({
   if (step === 4) {
     return (
       <div
-        className="mt-2 border-t border-slate-200 pt-2 md:hidden"
+        className="mt-2 border-t border-slate-200 pt-2 lg:hidden"
         role="group"
         aria-label="Review navigation"
       >
@@ -96,7 +96,7 @@ export default function MobileQuoteStickyActions({
 
   return (
     <div
-      className="mt-2 flex gap-5 border-t border-slate-200 pt-2 md:hidden"
+      className="mt-2 flex gap-5 border-t border-slate-200 pt-2 lg:hidden"
       role="group"
       aria-label="Wizard navigation"
     >

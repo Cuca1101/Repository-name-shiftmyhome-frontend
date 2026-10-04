@@ -1,4 +1,4 @@
-ï»¿import { MapPin, Minus, Plus, User, Wrench } from 'lucide-react'
+import { MapPin, Minus, Plus, User, Wrench } from 'lucide-react'
 import {
   isQuoteAddressesConfirmed,
   isQuoteContactComplete,
@@ -132,7 +132,7 @@ export default function MobileStep3Details({
   return (
     <div
       data-quote-step="3"
-      className={`box-border min-w-0 w-full max-w-full space-y-2 md:hidden${
+      className={`box-border min-w-0 w-full max-w-full space-y-2 lg:hidden${
         accordionLayout ? ' mt-4' : hideContactSection ? ' mt-2 border-t border-slate-200 pt-3' : ''
       }`}
     >
@@ -154,7 +154,7 @@ export default function MobileStep3Details({
         </div>
       )}
 
-      {/* PackageSelector temporarily hidden â€” re-enable when ready
+      {/* PackageSelector temporarily hidden — re-enable when ready
       <div className={`${card} p-2.5 md:p-3`}>
         <PackageSelector
           value={data.packageTier || 'standard'}
@@ -172,9 +172,9 @@ export default function MobileStep3Details({
       >
       {accordionLayout && hideContactSection ? (
         <div className="space-y-2 text-sm text-slate-800">
-          <p><span className="text-slate-500">Name Â· </span>{data.fullName || 'â€”'}</p>
-          <p><span className="text-slate-500">Phone Â· </span>{data.phone || 'â€”'}</p>
-          <p><span className="text-slate-500">Email Â· </span>{data.email || 'â€”'}</p>
+          <p><span className="text-slate-500">Name · </span>{data.fullName || '—'}</p>
+          <p><span className="text-slate-500">Phone · </span>{data.phone || '—'}</p>
+          <p><span className="text-slate-500">Email · </span>{data.email || '—'}</p>
           {typeof onGoToStep === 'function' ? (
             <button
               type="button"
@@ -388,7 +388,7 @@ export default function MobileStep3Details({
             value={data.heavyNotes}
             onChange={(e) => set({ heavyNotes: e.target.value })}
             className={`${input} mt-2`}
-            placeholder="e.g. valuable items, appliance disconnection, specific time notesâ€¦"
+            placeholder="e.g. valuable items, appliance disconnection, specific time notes…"
           />
         </label>
       </div>

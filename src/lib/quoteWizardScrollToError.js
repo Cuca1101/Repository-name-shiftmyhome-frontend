@@ -92,7 +92,7 @@ const HEADER_OFFSET_PX = 88
  */
 export function quoteContactFieldSelector(field) {
   const mobile =
-    typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches
+    typeof window !== 'undefined' && window.matchMedia('(max-width: 1023px)').matches
   const suffix = mobile ? 'mobile' : 'desktop'
   return `#quote-wizard-${field}-${suffix}`
 }
@@ -272,7 +272,7 @@ export function scheduleQuoteValidationScroll(options = {}) {
     requestAnimationFrame(() => {
       if (contactField) {
         const mobile =
-          typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches
+          typeof window !== 'undefined' && window.matchMedia('(max-width: 1023px)').matches
         const suffix = mobile ? 'mobile' : 'desktop'
         const section = document.getElementById(`quote-wizard-contact-details-${suffix}`)
         if (section) scrollElementIntoViewWithOffset(section, HEADER_OFFSET_PX)

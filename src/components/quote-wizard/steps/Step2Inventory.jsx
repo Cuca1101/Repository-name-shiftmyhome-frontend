@@ -468,7 +468,7 @@ export default function Step2Inventory({
       />
 
     <div
-      className={`hidden min-w-0 w-full max-w-full md:block ${isAdminLayout ? 'space-y-4' : 'space-y-8'}`}
+      className={`hidden min-w-0 w-full max-w-full lg:block ${isAdminLayout ? 'space-y-4' : 'space-y-8'}`}
     >
       {!isAdminLayout ? (
         <div>
@@ -493,7 +493,7 @@ export default function Step2Inventory({
       )}
 
       {quotePage ? (
-        <div className="mb-2 md:hidden">
+        <div className="mb-2 lg:hidden">
           <MobileStepRefBadge quoteRef={quoteRef} />
         </div>
       ) : null}

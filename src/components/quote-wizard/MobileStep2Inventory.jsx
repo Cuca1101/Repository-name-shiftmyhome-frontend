@@ -59,7 +59,7 @@ export default function MobileStep2Inventory({
   const catalogSectionRef = categoriesRef || useRef(null)
 
   return (
-    <div data-quote-step="2" className="box-border min-w-0 w-full max-w-full space-y-1.5 md:hidden">
+    <div data-quote-step="2" className="box-border min-w-0 w-full max-w-full space-y-1.5 lg:hidden">
       <div className="px-0.5">
         <MobileStepTitleWithRef title="Items" quoteRef={quoteRef} titleClassName="md:text-lg" />
         <p className={`mt-0.5 ${quoteMobileHelper}`}>

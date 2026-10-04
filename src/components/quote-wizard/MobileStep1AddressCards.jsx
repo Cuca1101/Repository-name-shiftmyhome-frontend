@@ -510,7 +510,7 @@ export default function MobileStep1AddressCards({
         </MobileCardRow>
 
         {quotePage ? (
-          <div className="pb-1 pt-1 md:hidden">
+          <div className="pb-1 pt-1 lg:hidden">
             <QuoteReferenceCard quoteRef={quoteRef} />
           </div>
         ) : null}
