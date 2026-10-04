@@ -13,6 +13,7 @@ import { formatGbp, resolveChargeableTotal } from '../lib/adminAgreedPrice'
 import {
   convertCustomerLeadToUnpaidJob,
   getCustomerLeadBookingSummary,
+  revertCustomerLeadConversion,
 } from '../lib/customerLeadBookingConvert'
 import { isSupabaseConfigured, supabase } from '../lib/supabase'
 
@@ -214,10 +215,13 @@ function LeadActionsMenu({
   detailsTo,
   converted,
   busyConvert,
+  busyRevert,
   busyDelete,
   convertDisabled,
+  revertDisabled,
   deleteDisabled,
   onConvert,
+  onRevert,
   onDelete,
 }) {
   const navigate = useNavigate()
@@ -347,18 +351,19 @@ function LeadActionsMenu({
               <button
                 type="button"
                 role="menuitem"
-                disabled
-                title="Converted jobs are marked paid and cannot be undone or deleted"
-                className={`${itemClass} cursor-not-allowed text-slate-400`}
+                disabled={revertDisabled}
+                title="Undo convert — restore lead and remove admin-created job from Available Jobs"
+                className={`${itemClass} text-amber-950 hover:bg-amber-50`}
+                onClick={() => choose(onRevert)}
               >
-                Converted (paid)
+                {busyRevert ? 'Undoing…' : 'Undo convert'}
               </button>
             ) : (
               <button
                 type="button"
                 role="menuitem"
                 disabled={convertDisabled}
-                title="Create paid job from saved lead details (Available Jobs — cannot delete)"
+                title="Create paid job from saved lead details (Available Jobs)"
                 className={`${itemClass} text-emerald-900 hover:bg-emerald-50`}
                 onClick={() => choose(onConvert)}
               >
@@ -380,7 +385,7 @@ function LeadActionsMenu({
         )
       : null
 
-  const triggerBusy = busyConvert || busyDelete
+  const triggerBusy = busyConvert || busyRevert || busyDelete
 
   return (
     <>
@@ -394,7 +399,7 @@ function LeadActionsMenu({
         onClick={() => onOpenChange(!open)}
         className="inline-flex min-h-10 items-center gap-1 whitespace-nowrap rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-800 shadow-sm hover:bg-slate-50 disabled:opacity-50 sm:min-h-8"
       >
-        {busyConvert ? 'Creating…' : busyDelete ? 'Deleting…' : 'Actions'}
+        {busyConvert ? 'Creating…' : busyRevert ? 'Undoing…' : busyDelete ? 'Deleting…' : 'Actions'}
         <svg
           className={`h-3.5 w-3.5 text-slate-500 transition ${open ? 'rotate-180' : ''}`}
           fill="none"
@@ -433,6 +438,7 @@ export default function CustomerLeadsAdmin() {
   const [bulkDeleting, setBulkDeleting] = useState(false)
   const [deletingId, setDeletingId] = useState('')
   const [convertingId, setConvertingId] = useState('')
+  const [revertingId, setRevertingId] = useState('')
   const [actionMsg, setActionMsg] = useState('')
   const [openActionsId, setOpenActionsId] = useState('')
 
@@ -522,7 +528,8 @@ export default function CustomerLeadsAdmin() {
           '',
           'Uses the saved lead details — you do not need to re-enter addresses.',
           'The job will appear in Available Jobs as Paid.',
-          'Lead will show as Converted. Paid jobs cannot be deleted or undone.',
+          'Lead will show as Converted (Paid in Available Jobs).',
+          'You can Undo convert later if the job is still unassigned.',
         ].join('\n'),
       )
       if (!ok) return
@@ -547,6 +554,43 @@ export default function CustomerLeadsAdmin() {
       }
     },
     [load, navigate],
+  )
+
+  const handleRevertLead = useCallback(
+    async (row) => {
+      setError('')
+      setActionMsg('')
+      const ok = window.confirm(
+        [
+          `Undo convert for ${customerLeadBookingRef(row) || row.lead_ref || 'this lead'}?`,
+          '',
+          'Restores the lead as before (not converted).',
+          'Removes the admin-created job from Available Jobs (only if still unassigned, not card-paid).',
+        ].join('\n'),
+      )
+      if (!ok) return
+
+      setRevertingId(String(row.id))
+      try {
+        const result = await revertCustomerLeadConversion({ lead: row })
+        setActionMsg(
+          `Lead restored to ${CUSTOMER_LEAD_STATUS_LABELS[result.previousStatus] || result.previousStatus}.` +
+            (result.quoteDeleted
+              ? ' Job removed.'
+              : result.quoteCancelled
+                ? ' Job cancelled and removed from Available Jobs.'
+                : result.quoteUnreleased
+                  ? ' Job pulled out of Available Jobs.'
+                  : ''),
+        )
+        await load()
+      } catch (e) {
+        setError(e?.message || 'Failed to undo convert.')
+      } finally {
+        setRevertingId('')
+      }
+    },
+    [load],
   )
 
   const filterCounts = useMemo(() => {
@@ -657,8 +701,8 @@ export default function CustomerLeadsAdmin() {
           <p className="mt-1 text-sm text-slate-600">
             Quote wizard and homepage enquiries saved before payment — reference format{' '}
             <code className="rounded bg-slate-100 px-1">SMH-LEAD-000001</code>. Use Create job to
-            convert a lead into a Paid Available Jobs booking. Converted/paid jobs cannot be deleted
-            or undone.
+            convert a lead into a Paid Available Jobs booking. Use Undo convert to put the lead back
+            if the job is still unassigned (card-paid bookings stay protected).
           </p>
         </div>
         <button
@@ -778,6 +822,7 @@ export default function CustomerLeadsAdmin() {
                   const email = row.customer_email
                   const emailHref = mailHref(email)
                   const busyConvert = convertingId === String(row.id)
+                  const busyRevert = revertingId === String(row.id)
                   const zebra = index % 2 === 0 ? 'bg-white' : 'bg-blue-50/50'
                   const rowBg = selected ? 'bg-red-50' : zebra
 
@@ -842,10 +887,13 @@ export default function CustomerLeadsAdmin() {
                           detailsTo={`/admin/customer-leads/${row.id}`}
                           converted={converted}
                           busyConvert={busyConvert}
+                          busyRevert={busyRevert}
                           busyDelete={deletingId === rowId}
-                          convertDisabled={busyConvert || Boolean(convertingId)}
+                          convertDisabled={busyConvert || Boolean(convertingId) || Boolean(revertingId)}
+                          revertDisabled={busyRevert || Boolean(convertingId) || Boolean(revertingId)}
                           deleteDisabled={bulkDeleting || deletingId === rowId}
                           onConvert={() => void handleConvertLead(row)}
+                          onRevert={() => void handleRevertLead(row)}
                           onDelete={() => handleDeleteLead(row)}
                         />
                       </td>

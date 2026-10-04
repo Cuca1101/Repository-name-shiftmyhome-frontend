@@ -28,6 +28,7 @@ import {
 } from '../lib/adminAgreedPrice'
 import {
   convertCustomerLeadToUnpaidJob,
+  revertCustomerLeadConversion,
   saveCustomerLeadAgreedPrice,
 } from '../lib/customerLeadBookingConvert'
 import { isSupabaseConfigured, supabase } from '../lib/supabase'
@@ -184,7 +185,7 @@ export default function CustomerLeadDetailAdmin() {
           })
           if (
             !window.confirm(
-              `${confirmMsg}\n\nThen create a Paid job and send it to Available Jobs (cannot delete or undo).`,
+              `${confirmMsg}\n\nThen create a Paid job and send it to Available Jobs. Undo convert is available while unassigned.`,
             )
           ) {
             return
@@ -209,7 +210,8 @@ export default function CustomerLeadDetailAdmin() {
             `Convert this lead at ${formatGbp(resolveChargeableTotal(lead))}?`,
             '',
             'Creates a Paid job from the saved lead details and sends it to Available Jobs.',
-            'Lead will show as Converted. Paid jobs cannot be deleted or undone.',
+            'Lead will show as Converted (Paid in Available Jobs).',
+            'You can Undo convert later if still unassigned.',
           ].join('\n'),
         )
       ) {
@@ -250,7 +252,7 @@ export default function CustomerLeadDetailAdmin() {
           })
           if (
             !window.confirm(
-              `${confirmMsg}\n\nThen create a Paid job and send it to Available Jobs (cannot delete or undo).`,
+              `${confirmMsg}\n\nThen create a Paid job and send it to Available Jobs. Undo convert is available while unassigned.`,
             )
           ) {
             return
@@ -276,7 +278,7 @@ export default function CustomerLeadDetailAdmin() {
             '',
             'Uses the saved lead details (addresses, inventory, date).',
             'Job goes to Available Jobs as Paid (same as card-paid).',
-            'Lead marked Converted. Cannot delete or undo.',
+            'Lead marked Converted. You can Undo convert later if still unassigned.',
           ].join('\n'),
         )
       ) {
@@ -296,6 +298,41 @@ export default function CustomerLeadDetailAdmin() {
       navigate(`/admin/available-jobs/${encodeURIComponent(result.quoteId)}`)
     } catch (e) {
       setActionMsg(e?.message || 'Failed to create paid job.')
+    } finally {
+      setBusy('')
+    }
+  }
+
+  async function handleUndoConvert() {
+    setBusy('revert')
+    setActionMsg('')
+    try {
+      if (
+        !window.confirm(
+          [
+            'Undo convert?',
+            '',
+            'Lead goes back to how it was (not converted).',
+            'Admin-created job is removed from Available Jobs (only if unassigned, not card-paid).',
+          ].join('\n'),
+        )
+      ) {
+        return
+      }
+      const result = await revertCustomerLeadConversion({ lead })
+      setActionMsg(
+        `Lead restored to ${CUSTOMER_LEAD_STATUS_LABELS[result.previousStatus] || result.previousStatus}.` +
+          (result.quoteDeleted
+            ? ' Job removed.'
+            : result.quoteCancelled
+              ? ' Job cancelled and removed from Available Jobs.'
+              : result.quoteUnreleased
+                ? ' Job pulled out of Available Jobs.'
+                : ''),
+      )
+      await load()
+    } catch (e) {
+      setActionMsg(e?.message || 'Failed to undo convert.')
     } finally {
       setBusy('')
     }
@@ -471,12 +508,15 @@ export default function CustomerLeadDetailAdmin() {
             </a>
           ) : null}
           {isConverted ? (
-            <span
-              className="inline-flex min-h-[44px] items-center rounded-xl border border-emerald-200 bg-emerald-50 px-4 text-sm font-semibold text-emerald-900"
-              title="Converted jobs are marked paid and cannot be undone or deleted"
+            <button
+              type="button"
+              disabled={Boolean(busy)}
+              onClick={() => void handleUndoConvert()}
+              className="inline-flex min-h-[44px] items-center rounded-xl border-2 border-amber-400 bg-amber-100 px-4 text-sm font-bold text-amber-950 hover:bg-amber-200 disabled:opacity-50"
+              title="Undo convert — restore lead and remove admin-created job"
             >
-              Converted (paid)
-            </span>
+              {busy === 'revert' ? 'Undoing…' : 'Undo convert'}
+            </button>
           ) : null}
           {isConverted && convertHref ? (
             <Link
@@ -501,8 +541,9 @@ export default function CustomerLeadDetailAdmin() {
         <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-950">
           <p className="font-semibold">Converted — job marked Paid</p>
           <p className="mt-1">
-            This lead is Converted. The booking appears in Available Jobs as Paid and cannot be
-            deleted or undone (same protection as card-paid bookings).
+            This lead is Converted and the booking appears in Available Jobs as Paid. Use{' '}
+            <strong>Undo convert</strong> to put the lead back and remove the job while it is still
+            unassigned. Real card-paid bookings cannot be undone.
           </p>
         </div>
       ) : null}
@@ -628,6 +669,17 @@ export default function CustomerLeadDetailAdmin() {
                 ? 'Resend paid job to Available Jobs'
                 : 'Create paid job → Available Jobs'}
           </button>
+          {isConverted ? (
+            <button
+              type="button"
+              disabled={Boolean(busy)}
+              onClick={() => void handleUndoConvert()}
+              className="inline-flex min-h-[40px] items-center rounded-lg border border-amber-300 bg-amber-50 px-3 text-sm font-semibold text-amber-950 hover:bg-amber-100 disabled:opacity-50"
+              title="Restore lead and remove admin-created job from Available Jobs"
+            >
+              {busy === 'revert' ? 'Undoing…' : 'Undo convert'}
+            </button>
+          ) : null}
           <button
             type="button"
             disabled={Boolean(busy)}

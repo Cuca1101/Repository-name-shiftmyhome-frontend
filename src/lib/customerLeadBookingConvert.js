@@ -74,6 +74,9 @@ function quoteSnapshotFields(quote) {
     source: quote.source ?? null,
     status: quote.status ?? null,
     payment_status: quote.payment_status ?? null,
+    payment_type: quote.payment_type ?? null,
+    amount_paid: quote.amount_paid ?? 0,
+    paid_at: quote.paid_at ?? null,
     operational_status: quote.operational_status ?? null,
     marketplace_visibility: quote.marketplace_visibility ?? null,
     calculated_total: quote.calculated_total ?? null,
@@ -112,6 +115,19 @@ function buildConvertWizardData(lead, meta) {
 }
 
 /**
+ * Admin Create job convert (may be marked paid offline) vs real Stripe card payment.
+ * @param {Record<string, unknown>} lead
+ * @param {Record<string, unknown> | null | undefined} quote
+ */
+function isAdminLeadConvertBooking(lead, quote) {
+  if (!quote || !readConvertSnapshot(lead)) return false
+  if (!quoteIsAdminPhoneBooking(quote)) return false
+  // Real Stripe charge — never undo as an admin offline convert.
+  if (String(quote.stripe_payment_intent_id || '').trim()) return false
+  return true
+}
+
+/**
  * @param {Record<string, unknown>} lead
  * @param {Record<string, unknown> | null} [quote]
  */
@@ -126,19 +142,23 @@ export function canRevertCustomerLeadConversion(lead, quote = null) {
   if (!quote) {
     return { ok: true, reason: '' }
   }
-  // Paid bookings (card or admin lead-convert) cannot be undone or deleted.
-  if (quoteIsCardPaid(quote) || quote.paid_at) {
-    return { ok: false, reason: 'This booking is paid — cannot undo or delete.' }
-  }
   if (quoteHasAssignedDriver(quote) || quoteHasAssignedPartner(quote)) {
     return { ok: false, reason: 'Job is already assigned — unassign first.' }
   }
   if (quote.bundled_journey_id) {
     return { ok: false, reason: 'Job is on a journey bundle — cannot undo.' }
   }
+  // Admin Create job (including offline-marked Paid) can be undone while unassigned.
+  if (isAdminLeadConvertBooking(lead, quote)) {
+    return { ok: true, reason: '' }
+  }
+  // Real card / deposit payment — protect.
+  if (quoteIsCardPaid(quote) || quote.paid_at) {
+    return { ok: false, reason: 'This booking was paid by card — cannot undo.' }
+  }
   const ps = String(quote.payment_status || '').trim().toLowerCase()
   if (ps && ps !== 'unpaid') {
-    return { ok: false, reason: 'Only unpaid (not card-paid) conversions can be undone.' }
+    return { ok: false, reason: 'Only unpaid or admin-converted bookings can be undone.' }
   }
   return { ok: true, reason: '' }
 }
@@ -718,7 +738,7 @@ async function markLeadConvertedAfterJobReady(p) {
 /**
  * Convert lead → paid Available Jobs booking using saved lead details.
  * Atomic: lead is marked converted only after the job passes Available Jobs checks.
- * Paid convert jobs cannot be deleted or undone (same protection as card-paid bookings).
+ * Offline-marked Paid; Undo convert stays available while unassigned (card Stripe charges stay protected).
  * @param {{
  *   lead: Record<string, unknown>,
  *   createdBy: string,
@@ -797,13 +817,15 @@ export async function convertCustomerLeadToUnpaidJob({
 }
 
 /**
- * Stage unpaid phone booking as pending, then delete (RLS only allows pending deletes).
- * Falls back to cancelling so it leaves Available Jobs.
+ * Stage admin-converted phone booking as pending unpaid, then delete
+ * (RLS only allows pending unpaid deletes). Falls back to cancelling.
+ * Works for offline-marked Paid admin converts (no Stripe payment intent).
  * @param {string} quoteId
  * @returns {Promise<{ deleted: boolean, cancelled: boolean }>}
  */
-async function removeUnpaidConvertedJob(quoteId) {
-  // RLS delete requires operational_status = phone_booking_pending (released jobs use null).
+async function removeAdminConvertedJob(quoteId) {
+  // RLS delete requires operational_status = phone_booking_pending + unpaid.
+  // Clear paid flags first so admin offline-Paid converts can be removed on Undo.
   const { error: stageErr } = await supabase
     .from('quotes')
     .update({
@@ -811,17 +833,19 @@ async function removeUnpaidConvertedJob(quoteId) {
       operational_status: PHONE_BOOKING_PENDING_OPERATIONAL_STATUS,
       marketplace_visibility: 'hidden_from_partners',
       payment_status: 'unpaid',
+      payment_type: null,
+      amount_paid: 0,
       assigned_driver_id: null,
       assigned_driver_name: null,
       assigned_partner_id: null,
       bundled_journey_id: null,
-      // Clear abandoned checkout refs so pending-delete RLS can match.
       stripe_session_id: null,
       stripe_payment_intent_id: null,
       paid_at: null,
     })
     .eq('id', quoteId)
-    .eq('payment_status', 'unpaid')
+    .in('source', ADMIN_PHONE_BOOKING_SOURCES)
+    .is('stripe_payment_intent_id', null)
   if (stageErr) {
     throw new Error(stageErr.message || 'Failed to stage job for undo.')
   }
@@ -833,16 +857,18 @@ async function removeUnpaidConvertedJob(quoteId) {
     .in('source', ADMIN_PHONE_BOOKING_SOURCES)
     .eq('operational_status', PHONE_BOOKING_PENDING_OPERATIONAL_STATUS)
     .eq('payment_status', 'unpaid')
+    .is('stripe_payment_intent_id', null)
+    .is('paid_at', null)
     .select('id')
 
   if (delErr) {
-    throw new Error(delErr.message || 'Failed to remove unpaid job.')
+    throw new Error(delErr.message || 'Failed to remove converted job.')
   }
   if (Array.isArray(deletedRows) && deletedRows.length > 0) {
     return { deleted: true, cancelled: false }
   }
 
-  // Soft remove if RLS still blocks delete (e.g. residual Stripe columns).
+  // Soft remove if RLS still blocks delete.
   const { error: cancelErr } = await supabase
     .from('quotes')
     .update({
@@ -850,6 +876,9 @@ async function removeUnpaidConvertedJob(quoteId) {
       operational_status: 'Cancelled',
       marketplace_visibility: 'cancelled',
       payment_status: 'unpaid',
+      payment_type: null,
+      amount_paid: 0,
+      paid_at: null,
       assigned_driver_id: null,
       assigned_driver_name: null,
       assigned_partner_id: null,
@@ -857,14 +886,14 @@ async function removeUnpaidConvertedJob(quoteId) {
     })
     .eq('id', quoteId)
   if (cancelErr) {
-    throw new Error(cancelErr.message || 'Failed to cancel unpaid job after undo.')
+    throw new Error(cancelErr.message || 'Failed to cancel converted job after undo.')
   }
   return { deleted: false, cancelled: true }
 }
 
 /**
- * Undo an unpaid (non-card) lead → Available Jobs conversion.
- * Restores lead status and removes/unreleases the unpaid phone booking.
+ * Undo an admin lead → Available Jobs conversion (including offline-marked Paid).
+ * Restores lead status and removes/unreleases the phone booking. Card-paid jobs stay protected.
  * @param {{ lead: Record<string, unknown> }} params
  */
 export async function revertCustomerLeadConversion({ lead }) {
@@ -897,7 +926,7 @@ export async function revertCustomerLeadConversion({ lead }) {
       Boolean(snap?.quoteIdBefore) && String(snap.quoteIdBefore) === quoteId
 
     if (createdByConvert && !hadPriorQuote) {
-      const removed = await removeUnpaidConvertedJob(quoteId)
+      const removed = await removeAdminConvertedJob(quoteId)
       quoteDeleted = removed.deleted
       quoteCancelled = removed.cancelled
     } else if (snap?.quoteBefore && typeof snap.quoteBefore === 'object') {
@@ -908,6 +937,9 @@ export async function revertCustomerLeadConversion({ lead }) {
           source: before.source ?? quote.source,
           status: before.status ?? 'New',
           payment_status: before.payment_status ?? 'unpaid',
+          payment_type: before.payment_type ?? null,
+          amount_paid: before.amount_paid ?? 0,
+          paid_at: before.paid_at ?? null,
           operational_status:
             before.operational_status ?? PHONE_BOOKING_PENDING_OPERATIONAL_STATUS,
           marketplace_visibility: before.marketplace_visibility ?? 'hidden_from_partners',
@@ -926,10 +958,13 @@ export async function revertCustomerLeadConversion({ lead }) {
         .eq('id', quoteId)
       if (error) throw new Error(error.message || 'Failed to restore booking.')
       quoteUnreleased = true
-    } else if (quoteIsAdminPhoneBooking(quote) || String(quote.payment_status || '') === 'unpaid') {
-      // No usable snapshot — pull out of Available Jobs (or remove if phone booking).
+    } else if (
+      isAdminLeadConvertBooking(lead, quote) ||
+      quoteIsAdminPhoneBooking(quote) ||
+      String(quote.payment_status || '') === 'unpaid'
+    ) {
       if (quoteIsAdminPhoneBooking(quote)) {
-        const removed = await removeUnpaidConvertedJob(quoteId)
+        const removed = await removeAdminConvertedJob(quoteId)
         quoteDeleted = removed.deleted
         quoteCancelled = removed.cancelled
         if (!removed.deleted) {
@@ -944,6 +979,9 @@ export async function revertCustomerLeadConversion({ lead }) {
             source: ADMIN_PHONE_BOOKING_SOURCE,
             status: 'New',
             payment_status: 'unpaid',
+            payment_type: null,
+            amount_paid: 0,
+            paid_at: null,
             assigned_driver_id: null,
             assigned_driver_name: null,
             assigned_partner_id: null,
@@ -954,7 +992,7 @@ export async function revertCustomerLeadConversion({ lead }) {
         quoteUnreleased = true
       }
     } else {
-      throw new Error('Linked booking is not an unpaid phone job — cannot undo safely.')
+      throw new Error('Linked booking cannot be undone safely (card-paid or not an admin convert).')
     }
   }
 
