@@ -577,6 +577,14 @@ export default function AvailableJobDetails() {
           )}
           <CancelBookingAction quote={q} className="!min-h-0 !rounded-md !px-2.5 !py-1 !text-xs" onApplied={load} />
           <AutoMarketplaceHoldToggle q={q} onUpdated={load} />
+          {!terminal ? (
+            <Link
+              to={`/admin/available-jobs/${q.id}/edit`}
+              className="rounded-md bg-brand-600 px-2.5 py-1 font-semibold text-white hover:bg-brand-700"
+            >
+              Edit Booking
+            </Link>
+          ) : null}
         </div>
       ) : null}
 
@@ -705,14 +713,26 @@ export default function AvailableJobDetails() {
       ) : null}
 
       {!fullPageDispatch && tab === 'details' ? (
-        <AdminJobQuoteDetailsPanel
-          quote={q}
-          jobId={photoJobId}
-          photoQuoteRef={photoQuoteRef}
-          quoteRow={q}
-          linkedJob={linkedJob}
-          legacyPhotoFileNames={legacyPhotoFileNames}
-        />
+        <div className="space-y-4">
+          {!terminal ? (
+            <div className="flex flex-wrap justify-end">
+              <Link
+                to={`${isActiveJobDetailRoute ? '/admin/active-jobs' : '/admin/available-jobs'}/${q.id}/edit`}
+                className="inline-flex min-h-[40px] items-center rounded-xl bg-brand-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-brand-700"
+              >
+                Edit Booking
+              </Link>
+            </div>
+          ) : null}
+          <AdminJobQuoteDetailsPanel
+            quote={q}
+            jobId={photoJobId}
+            photoQuoteRef={photoQuoteRef}
+            quoteRow={q}
+            linkedJob={linkedJob}
+            legacyPhotoFileNames={legacyPhotoFileNames}
+          />
+        </div>
       ) : null}
 
       {!fullPageDispatch && tab === 'pricing' ? (

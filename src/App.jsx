@@ -33,6 +33,7 @@ import ItemsLibraryAdmin from './components/ItemsLibraryAdmin'
 import ReviewsAdmin from './components/ReviewsAdmin'
 import WebsiteCmsAdmin from './components/admin/WebsiteCmsAdmin'
 import PhoneBookingAdmin from './components/PhoneBookingAdmin'
+import EditBookingAdmin from './components/EditBookingAdmin'
 import AuthAccessAdmin from './pages/AuthAccessAdmin'
 import SeoDashboardAdmin from './components/admin/SeoDashboardAdmin'
 import AvailableJobsAdmin from './components/AvailableJobsAdmin'
@@ -243,11 +244,13 @@ export default function App() {
           }
         />
         <Route path="operations-map" element={<OperationsMapPage />} />
+        <Route path="available-jobs/:id/edit" element={<EditBookingAdmin />} />
         <Route path="available-jobs/:id" element={<AvailableJobDetails />} />
         <Route path="available-jobs" element={<AvailableJobsAdmin />} />
         <Route path="journey-planner/view/:journeyId" element={<JourneyViewPage />} />
         <Route path="journey-planner" element={<JourneyPlannerPage />} />
         <Route path="marketplace" element={<MarketplaceJobsAdmin />} />
+        <Route path="active-jobs/:id/edit" element={<EditBookingAdmin />} />
         <Route path="active-jobs/:id" element={<AvailableJobDetails />} />
         <Route path="active-jobs" element={<ActiveJobsAdmin />} />
         <Route path="completed-jobs" element={<CompletedJobsAdmin />} />

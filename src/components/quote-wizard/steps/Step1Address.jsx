@@ -30,6 +30,12 @@ const liftOption =
   'flex min-h-[34px] flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-2 text-xs font-medium leading-snug text-slate-800 transition has-[:checked]:border-brand-500 has-[:checked]:bg-brand-50 has-[:checked]:text-brand-900 sm:min-h-[40px] sm:gap-2 sm:px-3 sm:text-sm'
 const liftRadio = 'h-3.5 w-3.5 shrink-0 border-slate-300 text-brand-600 focus:ring-brand-500 sm:h-4 sm:w-4'
 
+function normalizeDateInputValue(raw) {
+  const s = String(raw || '').trim()
+  const m = s.match(/^(\d{4}-\d{2}-\d{2})/)
+  return m ? m[1] : ''
+}
+
 function LiftYesNoField({ legend, name, value, onSelect }) {
   return (
     <fieldset className={liftFieldset}>
@@ -71,6 +77,8 @@ export default function Step1Address({
   arrivalError = '',
   customerAddressCards = false,
   quotePage = false,
+  /** When false, date input has no min (admin edit of existing bookings). */
+  restrictMoveDateToTodayOrFuture = true,
 }) {
   function set(k, v) {
     const patch = { [k]: v }
@@ -467,8 +475,10 @@ export default function Step1Address({
             <input
               type="date"
               required
-              min={getLocalDateYYYYMMDD()}
-              value={data.moveDate}
+              {...(restrictMoveDateToTodayOrFuture
+                ? { min: getLocalDateYYYYMMDD() }
+                : {})}
+              value={normalizeDateInputValue(data.moveDate)}
               onChange={(e) => set('moveDate', e.target.value)}
               className={input}
             />

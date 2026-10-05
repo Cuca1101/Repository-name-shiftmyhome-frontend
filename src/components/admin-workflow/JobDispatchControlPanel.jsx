@@ -128,6 +128,14 @@ export default function JobDispatchControlPanel({
               onSuccess={(msg) => onNotify?.(msg)}
               onError={(msg) => onNotify?.(msg)}
             />
+            {!terminal && q?.id ? (
+              <Link
+                to={`${backHref.includes('/active-jobs') ? '/admin/active-jobs' : '/admin/available-jobs'}/${q.id}/edit`}
+                className={btnGhost}
+              >
+                Edit Booking
+              </Link>
+            ) : null}
           </div>
         </div>
       </div>

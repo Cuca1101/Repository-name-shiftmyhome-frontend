@@ -1,23 +1,34 @@
-const STEPS = [
+const DEFAULT_STEPS = [
   { n: 1, label: 'Move & access' },
   { n: 2, label: 'Inventory & contact' },
   { n: 3, label: 'Review & extras' },
 ]
 
-const SHORT_LABELS = {
+const DEFAULT_SHORT_LABELS = {
   1: 'Move',
   2: 'Items',
   3: 'Review',
 }
 
-/** @param {{ step: number, onStepClick?: (step: number) => void }} props */
-export default function AdminPhoneBookingProgress({ step, onStepClick }) {
+/**
+ * @param {{
+ *   step: number,
+ *   onStepClick?: (step: number) => void,
+ *   steps?: Array<{ n: number, label: string, shortLabel?: string }>,
+ * }} props
+ */
+export default function AdminPhoneBookingProgress({ step, onStepClick, steps }) {
+  const STEPS = Array.isArray(steps) && steps.length ? steps : DEFAULT_STEPS
+  const SHORT_LABELS = Object.fromEntries(
+    STEPS.map((s) => [s.n, s.shortLabel || DEFAULT_SHORT_LABELS[s.n] || s.label]),
+  )
+
   return (
     <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
       <div className="relative mb-4 h-2 overflow-hidden rounded-full bg-slate-100">
         <div
           className="absolute left-0 top-0 h-full rounded-full bg-gradient-to-r from-brand-600 to-emerald-500 transition-all duration-300 ease-out"
-          style={{ width: `${((step - 1) / (STEPS.length - 1)) * 100}%` }}
+          style={{ width: `${((step - 1) / Math.max(1, STEPS.length - 1)) * 100}%` }}
         />
       </div>
       <ol className="grid grid-cols-3 gap-2 text-sm font-semibold text-slate-500">
