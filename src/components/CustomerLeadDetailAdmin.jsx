@@ -36,6 +36,19 @@ import { formatFloorLabel } from './quote-wizard/FloorSelect'
 import { formatAccessLiftLabel } from '../lib/floorAccess'
 import RecoveryEmailPreviewFrame from './admin/RecoveryEmailPreviewFrame'
 import AdminJobEmailsSentPanel from './admin-workflow/AdminJobEmailsSentPanel'
+import AdminQuotePriceBreakdown from './admin/AdminQuotePriceBreakdown'
+import AdminQuotePricingSumTable from './admin/AdminQuotePricingSumTable'
+import { fetchPricingSettings } from '../lib/data/pricingSettingsRepository'
+import { onPricingSettingsUpdated } from '../lib/pricingSettingsEvents'
+import { calculateQuote } from '../lib/pricingCalculator'
+import { buildQuoteEngineInput } from '../lib/buildQuoteEngineInput'
+import { wizardStateFromCustomerLeadData } from '../lib/quoteRecoveryResume'
+import { resolveServiceLabel } from '../lib/normalizeServiceType'
+import { formatQuoteBreakdownLines } from '../lib/emailQuotePayload'
+import {
+  buildQuotePricingSumTableRows,
+  resolveServicePackageDisplayName,
+} from '../lib/quoteJobAdminModel'
 
 function DetailBlock({ title, children }) {
   return (
@@ -90,6 +103,8 @@ export default function CustomerLeadDetailAdmin() {
   const [pricePanelOpen, setPricePanelOpen] = useState(false)
   const [agreedPriceInput, setAgreedPriceInput] = useState('')
   const [overrideReason, setOverrideReason] = useState('')
+  const [pricingSettings, setPricingSettings] = useState(null)
+  const [pricingSettingsLoading, setPricingSettingsLoading] = useState(true)
 
   const load = useCallback(async () => {
     if (!id) return
@@ -118,6 +133,29 @@ export default function CustomerLeadDetailAdmin() {
     load()
   }, [load])
 
+  useEffect(() => {
+    let cancelled = false
+    async function loadSettings() {
+      setPricingSettingsLoading(true)
+      try {
+        const s = await fetchPricingSettings()
+        if (!cancelled) setPricingSettings(s)
+      } catch {
+        if (!cancelled) setPricingSettings(null)
+      } finally {
+        if (!cancelled) setPricingSettingsLoading(false)
+      }
+    }
+    void loadSettings()
+    const unsubscribe = onPricingSettingsUpdated(() => {
+      void loadSettings()
+    })
+    return () => {
+      cancelled = true
+      unsubscribe()
+    }
+  }, [])
+
   const calculated = useMemo(() => resolveCalculatedTotal(lead), [lead])
   const chargeable = useMemo(() => resolveChargeableTotal(lead), [lead])
   const hasOverride =
@@ -125,6 +163,122 @@ export default function CustomerLeadDetailAdmin() {
     chargeable != null &&
     Math.abs(calculated - chargeable) > 0.009 &&
     lead?.agreed_price != null
+
+  const leadWizard = useMemo(
+    () => (lead ? wizardStateFromCustomerLeadData(lead.wizard_data) : null),
+    [lead],
+  )
+
+  const leadServiceType = useMemo(() => {
+    if (!lead) return ''
+    return (
+      resolveServiceLabel(lead.service_type) ||
+      resolveServiceLabel(leadWizard?.serviceType) ||
+      'House Removals'
+    )
+  }, [lead, leadWizard])
+
+  const leadLineItems = useMemo(() => {
+    const lines = Array.isArray(leadWizard?.inventoryLines) ? leadWizard.inventoryLines : []
+    return lines.map((l) => ({
+      name: l.name,
+      quantity: l.quantity,
+      volumePerUnitM3: l.m3,
+      handlingMultiplier: l.mult ?? 1,
+      weightType: l.weightType,
+      heavyFee: l.heavyFee,
+      appliesHeavyHandlingFee: l.heavyFee,
+      isCustom: l.isCustom,
+    }))
+  }, [leadWizard])
+
+  const leadHeavyItemCount = useMemo(() => {
+    const lines = Array.isArray(leadWizard?.inventoryLines) ? leadWizard.inventoryLines : []
+    let n = 0
+    for (const l of lines) {
+      if (l.weightType === 'heavy') n += Number(l.quantity) || 0
+    }
+    return n
+  }, [leadWizard])
+
+  const liveBreakdown = useMemo(() => {
+    if (!pricingSettings || !leadWizard) return null
+    const hasInventory = leadLineItems.length > 0
+    const hasDistance = Number(leadWizard.distanceMiles) > 0
+    if (!hasInventory && !hasDistance) return null
+    return calculateQuote(
+      pricingSettings,
+      buildQuoteEngineInput({
+        serviceType: leadServiceType,
+        wizard: leadWizard,
+        lineItems: leadLineItems,
+        heavyItemCount: leadHeavyItemCount,
+      }),
+    )
+  }, [
+    pricingSettings,
+    leadWizard,
+    leadLineItems,
+    leadHeavyItemCount,
+    leadServiceType,
+  ])
+
+  const liveEngineTotal =
+    liveBreakdown?.estimatedTotal != null && Number.isFinite(liveBreakdown.estimatedTotal)
+      ? Math.round(Number(liveBreakdown.estimatedTotal) * 100) / 100
+      : null
+
+  const liveDiffersFromSaved =
+    liveEngineTotal != null &&
+    calculated != null &&
+    Math.abs(liveEngineTotal - calculated) > 0.009
+
+  const livePricingSumRows = useMemo(() => {
+    if (!liveBreakdown) return []
+    const packageSnapshot =
+      liveBreakdown.servicePackageSnapshot ||
+      (lead?.wizard_data &&
+      typeof lead.wizard_data === 'object' &&
+      lead.wizard_data.step3 &&
+      typeof lead.wizard_data.step3 === 'object'
+        ? lead.wizard_data.step3.servicePackage
+        : null)
+    return buildQuotePricingSumTableRows(formatQuoteBreakdownLines(liveBreakdown), {
+      packageSnapshot,
+      packageLabel:
+        resolveServicePackageDisplayName(packageSnapshot) ||
+        (leadWizard?.packageTier === 'platinum'
+          ? 'Platinum'
+          : leadWizard?.packageTier === 'premium'
+            ? 'Premium'
+            : leadWizard?.packageTier === 'standard'
+              ? 'Standard'
+              : null),
+    })
+  }, [liveBreakdown, lead, leadWizard])
+
+  const livePackageLabel = useMemo(() => {
+    const fromRows = livePricingSumRows.find((r) => r.isPackage)?.valueText
+    if (fromRows) return fromRows
+    const snap =
+      liveBreakdown?.servicePackageSnapshot ||
+      (lead?.wizard_data &&
+      typeof lead.wizard_data === 'object' &&
+      lead.wizard_data.step3 &&
+      typeof lead.wizard_data.step3 === 'object'
+        ? lead.wizard_data.step3.servicePackage
+        : null)
+    return (
+      resolveServicePackageDisplayName(snap) ||
+      (leadWizard?.packageTier === 'platinum'
+        ? 'Platinum'
+        : leadWizard?.packageTier === 'premium'
+          ? 'Premium'
+          : leadWizard?.packageTier === 'standard'
+            ? 'Standard'
+            : null)
+    )
+  }, [livePricingSumRows, liveBreakdown, lead, leadWizard])
 
   async function withToken() {
     if (!lead?.id) throw new Error('No lead')
@@ -688,6 +842,122 @@ export default function CustomerLeadDetailAdmin() {
           >
             {busy === 'pay' ? 'Creating…' : 'Send payment link'}
           </button>
+        </div>
+      </DetailBlock>
+
+      <DetailBlock title="Pricing & payments">
+        <p className="text-xs leading-relaxed text-slate-500">
+          Pricing Engine line items rebuilt from this lead&apos;s saved move details — same layout as
+          Available Jobs.
+        </p>
+
+        <div className="grid gap-3 sm:grid-cols-3">
+          <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+              Saved calculated
+            </p>
+            <p className="mt-1 text-lg font-bold tabular-nums text-slate-900">
+              {formatGbp(calculated)}
+            </p>
+          </div>
+          <div className="rounded-lg border border-brand-200 bg-brand-50/60 px-3 py-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-brand-700">
+              Chargeable now
+            </p>
+            <p className="mt-1 text-lg font-bold tabular-nums text-brand-900">
+              {formatGbp(chargeable)}
+            </p>
+          </div>
+          <div className="rounded-lg border border-slate-200 bg-white px-3 py-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+              Live engine total
+            </p>
+            <p className="mt-1 text-lg font-bold tabular-nums text-slate-900">
+              {pricingSettingsLoading ? '…' : formatGbp(liveEngineTotal)}
+            </p>
+          </div>
+        </div>
+
+        {liveDiffersFromSaved ? (
+          <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950">
+            Live engine total ({formatGbp(liveEngineTotal)}) differs from the saved calculated price
+            ({formatGbp(calculated)}). Rates or rules may have changed since this quote was captured —
+            the saved total is what the customer was shown / charged unless you override.
+          </p>
+        ) : null}
+
+        {pricingSettingsLoading ? (
+          <p className="text-sm text-slate-500">Loading pricing engine…</p>
+        ) : livePricingSumRows.length > 0 ? (
+          <div className="space-y-3">
+            <AdminQuotePricingSumTable
+              rows={livePricingSumRows}
+              packageBadge={livePackageLabel}
+            />
+            <details className="rounded-xl border border-slate-200 bg-white">
+              <summary className="cursor-pointer px-3 py-2 text-xs font-semibold text-slate-700">
+                Technical pricing detail
+              </summary>
+              <div className="border-t border-slate-100 px-3 pb-3 pt-2">
+                <AdminQuotePriceBreakdown
+                  breakdown={liveBreakdown}
+                  serviceType={leadServiceType}
+                  wizard={leadWizard}
+                  crewSettings={pricingSettings}
+                  compact
+                />
+              </div>
+            </details>
+          </div>
+        ) : (
+          <p className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-3 text-sm text-slate-600">
+            Not enough saved details to rebuild a line-item breakdown (need inventory and/or route
+            distance on the lead). Totals above still come from the stored quote.
+          </p>
+        )}
+
+        <div className="border-t border-slate-100 pt-4">
+          <h4 className="text-xs font-bold uppercase tracking-wide text-slate-500">Payment record</h4>
+          <div className="mt-3 grid gap-2 sm:grid-cols-2">
+            <Row label="Payment status" value={statusLabel} />
+            <Row label="Chargeable total" value={formatGbp(chargeable)} />
+            <Row
+              label="Live checkout amount"
+              value={
+                lead.stripe_payment_link_amount != null
+                  ? formatGbp(Number(lead.stripe_payment_link_amount))
+                  : null
+              }
+            />
+            <Row
+              label="Payment link clicked"
+              value={
+                lead.payment_link_clicked
+                  ? `Yes (${lead.payment_link_click_count || 1})${
+                      lead.payment_link_clicked_at
+                        ? ` · ${formatDateTimeUK(lead.payment_link_clicked_at)}`
+                        : ''
+                    }`
+                  : 'No'
+              }
+            />
+            {lead.payment_failed_at ? (
+              <Row label="Payment failed at" value={formatDateTimeUK(lead.payment_failed_at)} />
+            ) : null}
+            {lead.stripe_payment_link_url ? (
+              <Row label="Checkout link" value={lead.stripe_payment_link_url} />
+            ) : null}
+            {isConverted && convertHref ? (
+              <div className="sm:col-span-2">
+                <Link
+                  to={`${convertHref}?tab=pricing`}
+                  className="text-sm font-semibold text-brand-700 hover:underline"
+                >
+                  Open full Pricing & payments on the booking →
+                </Link>
+              </div>
+            ) : null}
+          </div>
         </div>
       </DetailBlock>
 

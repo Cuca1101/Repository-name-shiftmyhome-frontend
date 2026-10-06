@@ -17,9 +17,10 @@ import {
 import { mergedAdminWorkflowForQuote } from '../lib/quoteAdminWorkflowMerge'
 import { isSupabaseConfigured, supabase } from '../lib/supabase'
 import {
-  buildPricingBreakdownSections,
+  buildQuotePricingSumTableRows,
   parsePricingText,
   resolveFinancials,
+  resolveServicePackageDisplayName,
 } from '../lib/quoteJobAdminModel'
 import { resolveCustomerPaymentSummary } from '../lib/customerPaymentSummary'
 import { buildAdminBookingEmailPreview } from '../lib/adminBookingEmailPreview'
@@ -50,6 +51,7 @@ import {
 } from '../lib/data/bookingWorkflowRepository'
 import { fetchJobAssignmentsByQuoteIds } from '../lib/data/jobAssignmentsRepository'
 import { normalizeJobAdjustments, sumJobAdjustmentsGbp } from '../lib/jobAdjustments'
+import AdminQuotePricingSumTable from './admin/AdminQuotePricingSumTable'
 
 const WORKFLOW_STATUSES = ['New', 'Contacted', 'Quoted', 'Booked', 'Completed', 'Cancelled']
 
@@ -207,7 +209,7 @@ export default function AvailableJobDetails() {
 
   useEffect(() => {
     const t = (searchParams.get('tab') || '').trim().toLowerCase()
-    if (t === 'assignment') setTab('assignment')
+    if (TABS.some((tabDef) => tabDef.id === t)) setTab(t)
   }, [searchParams])
 
   useEffect(() => {
@@ -369,13 +371,24 @@ export default function AvailableJobDetails() {
     if (tab === 'customer' || tab === 'move' || tab === 'inventory') setTab('details')
   }, [tab])
 
-  const pricingParts = useMemo(() => (q ? buildPricingBreakdownSections(q) : null), [q])
-  const pricingLines = useMemo(() => (q ? parsePricingText(q.pricing).lines : []), [q])
   const pricingParsed = useMemo(
     () =>
       q ? parsePricingText(q.pricing) : { lines: [], estimatedTotal: null, volumeM3: null },
     [q],
   )
+  const pricingSumRows = useMemo(() => {
+    if (!q?.pricing) return []
+    const packageSnapshot =
+      q.service_package_snapshot || q.price_breakdown?.servicePackageSnapshot || null
+    return buildQuotePricingSumTableRows(q.pricing, { packageSnapshot })
+  }, [q])
+  const pricingPackageLabel = useMemo(() => {
+    if (!q) return null
+    return resolveServicePackageDisplayName(
+      q.service_package_snapshot || q.price_breakdown?.servicePackageSnapshot,
+      q.pricing,
+    )
+  }, [q])
 
   const stripeRef = q?.stripe_payment_intent_id || q?.stripe_session_id
   const stripeUrl = stripeRef ? stripeDashboardSearchUrl(String(stripeRef)) : null
@@ -737,33 +750,14 @@ export default function AvailableJobDetails() {
 
       {!fullPageDispatch && tab === 'pricing' ? (
         <AdminCard title="Pricing & payments">
-          {!pricingParts || pricingLines.length === 0 ? (
+          {pricingSumRows.length === 0 ? (
             <p className="text-sm text-slate-600">No saved pricing breakdown for this job.</p>
           ) : (
-            <div className="space-y-4 text-sm">
-              {[
-                ['Base', pricingParts.base],
-                ['Distance', pricingParts.distance],
-                ['Volume', pricingParts.volume],
-                ['Floor / access', pricingParts.floorAccess],
-                ['No lift supplement', pricingParts.noLift],
-                ['Heavy items', pricingParts.heavy],
-                ['Adjustments & other', [...pricingParts.extras, ...pricingParts.other]],
-              ].map(([label, rows]) =>
-                rows.length ? (
-                  <div key={label}>
-                    <h4 className="text-xs font-bold uppercase tracking-wide text-slate-500">{label}</h4>
-                    <ul className="mt-2 space-y-1">
-                      {rows.map((row) => (
-                        <li key={row.label} className="flex justify-between gap-4 text-slate-800">
-                          <span className="min-w-0">{row.label}</span>
-                          <span className="shrink-0 tabular-nums font-medium">£{row.amount.toFixed(2)}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                ) : null,
-              )}
+            <div className="space-y-4">
+              <AdminQuotePricingSumTable
+                rows={pricingSumRows}
+                packageBadge={pricingPackageLabel}
+              />
               <div className="border-t border-slate-200 pt-3">
                 <div className="flex justify-between text-base font-bold text-slate-900">
                   <span>Customer total (from quote)</span>
@@ -776,7 +770,8 @@ export default function AvailableJobDetails() {
                   </span>
                 </div>
                 <p className="mt-1 text-xs text-slate-500">
-                  Admin adjustments ({money(adjSum)}) are applied on top; header shows the live customer total.
+                  Admin adjustments ({money(adjSum)}) are applied on top; header shows the live
+                  customer total.
                 </p>
               </div>
             </div>

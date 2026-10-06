@@ -48,13 +48,18 @@ export function parsePricingText(pricing) {
   for (const line of raw.split('\n')) {
     const t = line.trim()
     if (!t) continue
-    const m = t.match(/^(.+?):\s*£([\d,]+(?:\.\d{1,2})?)/)
+    // Last ": £…" / ": −£…" wins — labels may embed earlier £ figures before the real amount.
+    // Trailing notes after the amount are allowed (e.g. Volume: £8.75 (total 0.45 m³)).
+    const m = t.match(/^(.*):\s*([−–-]?)£([\d,]+(?:\.\d{1,2})?)(.*)$/)
     if (!m) continue
     const label = m[1].trim()
-    const amount = parseFloat(m[2].replace(/,/g, ''))
-    if (!Number.isFinite(amount)) continue
+    if (!label) continue
+    const negative = Boolean(m[2])
+    const amountRaw = parseFloat(m[3].replace(/,/g, ''))
+    if (!Number.isFinite(amountRaw)) continue
+    const amount = negative ? -Math.abs(amountRaw) : amountRaw
     lines.push({ label, amount })
-    if (/estimated total/i.test(label)) estimatedTotal = amount
+    if (/estimated total/i.test(label)) estimatedTotal = Math.abs(amount)
     if (/^volume/i.test(label)) {
       const vol = t.match(/total\s*([\d.]+)\s*m³/i)
       if (vol) volumeM3 = parseFloat(vol[1])
@@ -62,6 +67,133 @@ export function parsePricingText(pricing) {
   }
 
   return { lines, estimatedTotal, volumeM3 }
+}
+
+/**
+ * Skip meta / duplicate lines when building the admin Linie | Sumă audit table.
+ * @param {string} label
+ */
+function isPricingSumTableMetaLabel(label) {
+  const L = String(label || '')
+  return (
+    /estimated total/i.test(L) ||
+    /^move price$/i.test(L) ||
+    /^service package$/i.test(L) ||
+    /volume band on inventory/i.test(L)
+  )
+}
+
+/**
+ * "Service package: Standard" has no £ amount — parse from raw pricing text.
+ * @param {unknown} pricing
+ * @returns {string|null}
+ */
+export function parseServicePackageLabelFromPricing(pricing) {
+  for (const line of String(pricing ?? '').split('\n')) {
+    const m = line.trim().match(/^Service package:\s*(.+)$/i)
+    if (m) {
+      const name = m[1].trim()
+      if (name) return name
+    }
+  }
+  return null
+}
+
+/**
+ * @param {unknown} snapshot
+ * @param {unknown} [pricing]
+ * @returns {string|null}
+ */
+export function resolveServicePackageDisplayName(snapshot, pricing) {
+  if (snapshot && typeof snapshot === 'object') {
+    const snap = /** @type {Record<string, unknown>} */ (snapshot)
+    const display = String(snap.display_name || '').trim()
+    if (display) return display
+    const id = String(snap.service_package || snap.id || '').trim().toLowerCase()
+    if (id === 'standard' || id === 'premium' || id === 'platinum') {
+      return id.charAt(0).toUpperCase() + id.slice(1)
+    }
+  }
+  return parseServicePackageLabelFromPricing(pricing)
+}
+
+/**
+ * @param {string} label
+ * @param {number} amount
+ */
+function isPricingDiscountRow(label, amount) {
+  if (amount < 0) return true
+  return /discount|best price|promo code/i.test(String(label || ''))
+}
+
+/**
+ * Admin audit rows: charge lines → Subtotal → discounts → Service package → Estimated total.
+ * Matches the saved quote `pricing` text (and live `formatQuoteBreakdownLines` output).
+ * @param {unknown} pricing
+ * @param {{ packageLabel?: string | null, packageSnapshot?: unknown }} [opts]
+ * @returns {{
+ *   label: string,
+ *   amount: number | null,
+ *   valueText?: string,
+ *   isDiscount?: boolean,
+ *   isSubtotal?: boolean,
+ *   isTotal?: boolean,
+ *   isPackage?: boolean,
+ * }[]}
+ */
+export function buildQuotePricingSumTableRows(pricing, opts = {}) {
+  const { lines, estimatedTotal } = parsePricingText(pricing)
+  /** @type {{ label: string, amount: number, isDiscount?: boolean }[]} */
+  const charges = []
+  /** @type {{ label: string, amount: number, isDiscount?: boolean }[]} */
+  const discounts = []
+
+  for (const row of lines) {
+    if (isPricingSumTableMetaLabel(row.label)) continue
+    if (isPricingDiscountRow(row.label, row.amount)) {
+      discounts.push({
+        label: row.label,
+        amount: -Math.abs(row.amount),
+        isDiscount: true,
+      })
+      continue
+    }
+    if (row.amount === 0) continue
+    charges.push({ label: row.label, amount: row.amount })
+  }
+
+  const subtotal = Math.round(charges.reduce((s, r) => s + r.amount, 0) * 100) / 100
+  /** @type {{
+   *   label: string,
+   *   amount: number | null,
+   *   valueText?: string,
+   *   isDiscount?: boolean,
+   *   isSubtotal?: boolean,
+   *   isTotal?: boolean,
+   *   isPackage?: boolean,
+   * }[]} */
+  const rows = [...charges]
+  if (charges.length > 0) {
+    rows.push({ label: 'Subtotal', amount: subtotal, isSubtotal: true })
+  }
+  rows.push(...discounts)
+
+  const packageLabel =
+    (opts.packageLabel != null && String(opts.packageLabel).trim()) ||
+    resolveServicePackageDisplayName(opts.packageSnapshot, pricing)
+  if (packageLabel) {
+    rows.push({
+      label: 'Service package',
+      amount: null,
+      valueText: packageLabel,
+      isPackage: true,
+    })
+  }
+
+  if (estimatedTotal != null && Number.isFinite(estimatedTotal)) {
+    rows.push({ label: 'Estimated total', amount: estimatedTotal, isTotal: true })
+  }
+  return rows
 }
 
 /**
@@ -93,7 +225,11 @@ function categorizePricingLines(lines) {
     else if (L.includes('no lift')) noLift.push(row)
     else if (L.includes('heavy item')) heavy.push(row)
     else if (/floor\/access|long walk|parking|stairs/i.test(row.label)) floorAccess.push(row)
-    else if (/packing|dismantl|reassembl|fragile|materials|waiting|helper|same-day|weekend|bank holiday|surcharge|minimum/i.test(L))
+    else if (
+      /packing|dismantl|reassembl|fragile|materials|waiting|helper|same-day|weekend|bank holiday|surcharge|minimum|discount|best price|promo/i.test(
+        L,
+      )
+    )
       extras.push(row)
     else if (/estimated total/i.test(L)) {
       /* skip — shown separately */
