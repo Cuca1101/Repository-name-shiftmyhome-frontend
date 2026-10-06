@@ -47,8 +47,10 @@ import { resolveServiceLabel } from '../lib/normalizeServiceType'
 import { formatQuoteBreakdownLines } from '../lib/emailQuotePayload'
 import {
   buildQuotePricingSumTableRows,
+  collectInventoryRowsForHeavyFee,
   resolveServicePackageDisplayName,
 } from '../lib/quoteJobAdminModel'
+import { listSpecialistHeavyItemDetails } from '../lib/inventoryPricing'
 
 function DetailBlock({ title, children }) {
   return (
@@ -101,6 +103,7 @@ export default function CustomerLeadDetailAdmin() {
   const [deleting, setDeleting] = useState(false)
   const [previewHtml, setPreviewHtml] = useState('')
   const [pricePanelOpen, setPricePanelOpen] = useState(false)
+  const [pricingPanelOpen, setPricingPanelOpen] = useState(false)
   const [agreedPriceInput, setAgreedPriceInput] = useState('')
   const [overrideReason, setOverrideReason] = useState('')
   const [pricingSettings, setPricingSettings] = useState(null)
@@ -243,6 +246,9 @@ export default function CustomerLeadDetailAdmin() {
       typeof lead.wizard_data.step3 === 'object'
         ? lead.wizard_data.step3.servicePackage
         : null)
+    const inventoryRows = collectInventoryRowsForHeavyFee({
+      wizardLines: Array.isArray(leadWizard?.inventoryLines) ? leadWizard.inventoryLines : [],
+    })
     return buildQuotePricingSumTableRows(formatQuoteBreakdownLines(liveBreakdown), {
       packageSnapshot,
       packageLabel:
@@ -254,6 +260,7 @@ export default function CustomerLeadDetailAdmin() {
             : leadWizard?.packageTier === 'standard'
               ? 'Standard'
               : null),
+      specialistHeavyItems: listSpecialistHeavyItemDetails(inventoryRows),
     })
   }, [liveBreakdown, lead, leadWizard])
 
@@ -801,6 +808,14 @@ export default function CustomerLeadDetailAdmin() {
           <button
             type="button"
             disabled={Boolean(busy)}
+            onClick={() => setPricingPanelOpen(true)}
+            className="inline-flex min-h-[40px] items-center rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-800 hover:bg-slate-50 disabled:opacity-50"
+          >
+            Pricing & payments
+          </button>
+          <button
+            type="button"
+            disabled={Boolean(busy)}
             onClick={() => void handleSaveAndConvert()}
             className="inline-flex min-h-[40px] items-center rounded-lg bg-brand-600 px-3 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-50"
           >
@@ -845,6 +860,7 @@ export default function CustomerLeadDetailAdmin() {
         </div>
       </DetailBlock>
 
+      {pricingPanelOpen ? (
       <DetailBlock title="Pricing & payments">
         <p className="text-xs leading-relaxed text-slate-500">
           Pricing Engine line items rebuilt from this lead&apos;s saved move details — same layout as
@@ -959,7 +975,18 @@ export default function CustomerLeadDetailAdmin() {
             ) : null}
           </div>
         </div>
+
+        <div className="flex flex-wrap gap-2 border-t border-slate-100 pt-3">
+          <button
+            type="button"
+            onClick={() => setPricingPanelOpen(false)}
+            className="inline-flex min-h-[40px] items-center rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-800 hover:bg-slate-50"
+          >
+            Close
+          </button>
+        </div>
       </DetailBlock>
+      ) : null}
 
       <DetailBlock title="Quote recovery">
         <div className="flex flex-wrap gap-2">

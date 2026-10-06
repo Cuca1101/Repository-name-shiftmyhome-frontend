@@ -52,7 +52,9 @@ export function lineItemAppliesHeavyHandlingFee(row) {
   if (!row || typeof row !== 'object') return false
   if (row.appliesHeavyHandlingFee === true || row.heavyFee === true) return true
   if (row.appliesHeavyHandlingFee === false || row.heavyFee === false) return false
-  return String(row.weightType || '').toLowerCase() === 'heavy'
+  // Email/inventory_text often stores "heavy, heavy" or "large, heavy" in the size band.
+  const wt = String(row.weightType || row.weight_type || '').toLowerCase()
+  return wt === 'heavy' || /\bheavy\b/.test(wt)
 }
 
 /**
@@ -66,4 +68,22 @@ export function countSpecialistHeavyItems(lineItems) {
     }
   }
   return n
+}
+
+/**
+ * Named units that make up the Specialist heavy handling charge (for admin breakdown UI).
+ * @param {Array<Record<string, unknown>>|null|undefined} lineItems
+ * @returns {{ name: string, quantity: number }[]}
+ */
+export function listSpecialistHeavyItemDetails(lineItems) {
+  /** @type {{ name: string, quantity: number }[]} */
+  const out = []
+  for (const row of lineItems || []) {
+    if (!lineItemAppliesHeavyHandlingFee(row)) continue
+    const quantity = Math.max(0, Number(row.quantity) || 0)
+    if (quantity <= 0) continue
+    const name = String(row.name ?? row.item_name ?? 'Item').trim() || 'Item'
+    out.push({ name, quantity })
+  }
+  return out
 }

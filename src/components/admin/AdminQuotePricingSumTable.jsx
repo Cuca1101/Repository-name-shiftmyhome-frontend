@@ -1,5 +1,9 @@
+import { useState } from 'react'
+import { ChevronDown } from 'lucide-react'
+
 /**
  * Clear Linie | Sumă audit table for quote pricing (Available Jobs + Customer Leads).
+ * Rows with `detailItems` (e.g. Specialist heavy handling) expand on click to show which items.
  * @param {{
  *   rows: {
  *     label: string,
@@ -9,6 +13,7 @@
  *     isSubtotal?: boolean,
  *     isTotal?: boolean,
  *     isPackage?: boolean,
+ *     detailItems?: { name: string, quantity: number }[],
  *   }[],
  *   emptyMessage?: string,
  *   packageBadge?: string | null,
@@ -19,11 +24,22 @@ export default function AdminQuotePricingSumTable({
   emptyMessage = 'No pricing breakdown available.',
   packageBadge = null,
 }) {
+  const [expandedKeys, setExpandedKeys] = useState(() => new Set())
+
   if (!Array.isArray(rows) || rows.length === 0) {
     return <p className="text-sm text-slate-600">{emptyMessage}</p>
   }
 
   const badge = packageBadge || rows.find((r) => r.isPackage)?.valueText || null
+
+  function toggleExpand(key) {
+    setExpandedKeys((prev) => {
+      const next = new Set(prev)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      return next
+    })
+  }
 
   return (
     <div className="space-y-3">
@@ -48,10 +64,14 @@ export default function AdminQuotePricingSumTable({
           </thead>
           <tbody>
             {rows.map((row, i) => {
+              const key = `${row.label}-${i}`
               const isSub = Boolean(row.isSubtotal)
               const isTot = Boolean(row.isTotal)
               const isPkg = Boolean(row.isPackage)
               const isDisc = Boolean(row.isDiscount) || Number(row.amount) < 0
+              const details = Array.isArray(row.detailItems) ? row.detailItems : []
+              const expandable = details.length > 0
+              const expanded = expandable && expandedKeys.has(key)
               const rowCls = isTot
                 ? 'border-t-2 border-slate-300 bg-emerald-50/70 font-bold text-slate-900'
                 : isSub
@@ -77,9 +97,52 @@ export default function AdminQuotePricingSumTable({
                     : 'text-slate-900'
 
               return (
-                <tr key={`${row.label}-${i}`} className={rowCls}>
-                  <td className="min-w-0 break-words px-3 py-2.5">{row.label}</td>
-                  <td className={`shrink-0 px-3 py-2.5 text-right tabular-nums ${amountCls}`}>
+                <tr key={key} className={rowCls}>
+                  <td className="min-w-0 break-words px-3 py-2.5" colSpan={1}>
+                    {expandable ? (
+                      <div>
+                        <button
+                          type="button"
+                          onClick={() => toggleExpand(key)}
+                          className="inline-flex max-w-full items-start gap-1.5 text-left font-medium text-slate-900 hover:text-brand-800"
+                          aria-expanded={expanded}
+                        >
+                          <ChevronDown
+                            className={`mt-0.5 h-4 w-4 shrink-0 text-slate-500 transition-transform ${
+                              expanded ? 'rotate-180' : ''
+                            }`}
+                            aria-hidden
+                          />
+                          <span className="min-w-0 break-words">
+                            {row.label}
+                            <span className="mt-0.5 block text-[11px] font-normal text-slate-500">
+                              {expanded ? 'Hide items' : 'Tap to see which items'}
+                            </span>
+                          </span>
+                        </button>
+                        {expanded ? (
+                          <ul className="mt-2 space-y-1 rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-xs text-slate-700">
+                            {details.map((item, di) => (
+                              <li
+                                key={`${item.name}-${di}`}
+                                className="flex justify-between gap-3"
+                              >
+                                <span className="min-w-0 break-words">{item.name}</span>
+                                <span className="shrink-0 tabular-nums text-slate-500">
+                                  ×{item.quantity}
+                                </span>
+                              </li>
+                            ))}
+                          </ul>
+                        ) : null}
+                      </div>
+                    ) : (
+                      row.label
+                    )}
+                  </td>
+                  <td
+                    className={`align-top shrink-0 px-3 py-2.5 text-right tabular-nums ${amountCls}`}
+                  >
                     {amountText}
                   </td>
                 </tr>

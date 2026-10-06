@@ -18,10 +18,14 @@ import { mergedAdminWorkflowForQuote } from '../lib/quoteAdminWorkflowMerge'
 import { isSupabaseConfigured, supabase } from '../lib/supabase'
 import {
   buildQuotePricingSumTableRows,
+  collectInventoryRowsForHeavyFee,
+  parseInventoryFromQuoteRow,
+  parseInventoryTableRows,
   parsePricingText,
   resolveFinancials,
   resolveServicePackageDisplayName,
 } from '../lib/quoteJobAdminModel'
+import { listSpecialistHeavyItemDetails } from '../lib/inventoryPricing'
 import { resolveCustomerPaymentSummary } from '../lib/customerPaymentSummary'
 import { buildAdminBookingEmailPreview } from '../lib/adminBookingEmailPreview'
 import RecoveryEmailPreviewFrame from './admin/RecoveryEmailPreviewFrame'
@@ -380,7 +384,22 @@ export default function AvailableJobDetails() {
     if (!q?.pricing) return []
     const packageSnapshot =
       q.service_package_snapshot || q.price_breakdown?.servicePackageSnapshot || null
-    return buildQuotePricingSumTableRows(q.pricing, { packageSnapshot })
+    const displayRows = parseInventoryFromQuoteRow(q)
+    const fromText = parseInventoryTableRows(q.inventory_text, q.details)
+    const inventoryRows = collectInventoryRowsForHeavyFee({
+      quoteInventory: q.inventory,
+      displayRows: displayRows.length ? displayRows : fromText,
+    })
+    let specialistHeavyItems = listSpecialistHeavyItemDetails(inventoryRows)
+    if (!specialistHeavyItems.length && fromText.length) {
+      specialistHeavyItems = listSpecialistHeavyItemDetails(
+        collectInventoryRowsForHeavyFee({ displayRows: fromText }),
+      )
+    }
+    return buildQuotePricingSumTableRows(q.pricing, {
+      packageSnapshot,
+      specialistHeavyItems,
+    })
   }, [q])
   const pricingPackageLabel = useMemo(() => {
     if (!q) return null

@@ -127,10 +127,65 @@ function isPricingDiscountRow(label, amount) {
 }
 
 /**
+ * Normalise inventory from quote JSON / display rows / wizard lines for heavy-fee lookup.
+ * @param {{
+ *   quoteInventory?: unknown,
+ *   displayRows?: { name?: string, qty?: number, sizeType?: string }[],
+ *   wizardLines?: Array<Record<string, unknown>>,
+ * }} sources
+ * @returns {Array<Record<string, unknown>>}
+ */
+export function collectInventoryRowsForHeavyFee(sources = {}) {
+  /** @type {Array<Record<string, unknown>>} */
+  const out = []
+  const inv = sources.quoteInventory
+  if (Array.isArray(inv) && inv.length) {
+    for (const row of inv) {
+      if (!row || typeof row !== 'object') continue
+      out.push({
+        name: row.item_name ?? row.name ?? 'Item',
+        quantity: row.quantity,
+        weightType: row.weight_type ?? row.weightType ?? row.size_category ?? row.size_type,
+        heavyFee: row.heavyFee ?? row.heavy_fee,
+        appliesHeavyHandlingFee: row.appliesHeavyHandlingFee ?? row.applies_heavy_handling_fee,
+      })
+    }
+    return out
+  }
+  if (Array.isArray(sources.wizardLines) && sources.wizardLines.length) {
+    for (const row of sources.wizardLines) {
+      if (!row || typeof row !== 'object') continue
+      out.push({
+        name: row.name ?? 'Item',
+        quantity: row.quantity,
+        weightType: row.weightType,
+        heavyFee: row.heavyFee,
+        appliesHeavyHandlingFee: row.appliesHeavyHandlingFee ?? row.heavyFee,
+      })
+    }
+    return out
+  }
+  if (Array.isArray(sources.displayRows) && sources.displayRows.length) {
+    for (const row of sources.displayRows) {
+      out.push({
+        name: row.name ?? 'Item',
+        quantity: row.qty,
+        weightType: row.sizeType,
+      })
+    }
+  }
+  return out
+}
+
+/**
  * Admin audit rows: charge lines → Subtotal → discounts → Service package → Estimated total.
  * Matches the saved quote `pricing` text (and live `formatQuoteBreakdownLines` output).
  * @param {unknown} pricing
- * @param {{ packageLabel?: string | null, packageSnapshot?: unknown }} [opts]
+ * @param {{
+ *   packageLabel?: string | null,
+ *   packageSnapshot?: unknown,
+ *   specialistHeavyItems?: { name: string, quantity: number }[] | null,
+ * }} [opts]
  * @returns {{
  *   label: string,
  *   amount: number | null,
@@ -139,11 +194,15 @@ function isPricingDiscountRow(label, amount) {
  *   isSubtotal?: boolean,
  *   isTotal?: boolean,
  *   isPackage?: boolean,
+ *   detailItems?: { name: string, quantity: number }[],
  * }[]}
  */
 export function buildQuotePricingSumTableRows(pricing, opts = {}) {
   const { lines, estimatedTotal } = parsePricingText(pricing)
-  /** @type {{ label: string, amount: number, isDiscount?: boolean }[]} */
+  const specialistHeavyItems = Array.isArray(opts.specialistHeavyItems)
+    ? opts.specialistHeavyItems.filter((i) => i && String(i.name || '').trim())
+    : []
+  /** @type {{ label: string, amount: number, isDiscount?: boolean, detailItems?: { name: string, quantity: number }[] }[]} */
   const charges = []
   /** @type {{ label: string, amount: number, isDiscount?: boolean }[]} */
   const discounts = []
@@ -159,7 +218,12 @@ export function buildQuotePricingSumTableRows(pricing, opts = {}) {
       continue
     }
     if (row.amount === 0) continue
-    charges.push({ label: row.label, amount: row.amount })
+    /** @type {{ label: string, amount: number, detailItems?: { name: string, quantity: number }[] }} */
+    const charge = { label: row.label, amount: row.amount }
+    if (/specialist heavy handling/i.test(row.label) && specialistHeavyItems.length > 0) {
+      charge.detailItems = specialistHeavyItems
+    }
+    charges.push(charge)
   }
 
   const subtotal = Math.round(charges.reduce((s, r) => s + r.amount, 0) * 100) / 100
@@ -171,6 +235,7 @@ export function buildQuotePricingSumTableRows(pricing, opts = {}) {
    *   isSubtotal?: boolean,
    *   isTotal?: boolean,
    *   isPackage?: boolean,
+   *   detailItems?: { name: string, quantity: number }[],
    * }[]} */
   const rows = [...charges]
   if (charges.length > 0) {
@@ -370,8 +435,16 @@ function quoteRowInventoryToRows(q) {
   if (!Array.isArray(inv)) return []
   /** @type {{ name: string, qty: number, volume: string, sizeType: string }[]} */
   const out = []
+  /** @type {string[]} */
+  const summaryChunks = []
   for (const row of inv) {
     if (row && typeof row === 'object' && 'summary' in row) {
+      const keys = Object.keys(row).filter((k) => row[k] != null && row[k] !== '')
+      // Wizard often stores one blob: [{ summary: "• Item ×1 (~… heavy)" }]
+      if (keys.length <= 2 && !('item_name' in row) && !('name' in row && 'quantity' in row)) {
+        summaryChunks.push(String(row.summary ?? ''))
+        continue
+      }
       out.push({ name: String(row.summary), qty: 1, volume: '—', sizeType: '—' })
     } else if (row && typeof row === 'object') {
       const rawVol =
@@ -388,7 +461,11 @@ function quoteRowInventoryToRows(q) {
       })
     }
   }
-  return out
+  if (out.length) return out
+  if (summaryChunks.length) {
+    return parseInventoryTableRows(summaryChunks.join('\n'), null)
+  }
+  return []
 }
 
 /**
