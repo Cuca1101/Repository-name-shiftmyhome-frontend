@@ -39,8 +39,8 @@ function ensureTrackingMarkerStyles() {
     }
     .smh-sprinter-img-wrap.is-live { animation: smh-sprinter-bob 1.8s ease-in-out infinite; }
     .smh-sprinter-img {
-      display:block; width:84px; height:auto; max-height:56px; object-fit:contain;
-      background:transparent;
+      display:block; width:92px; height:auto; max-height:62px; object-fit:contain;
+      background:transparent !important; border:0; outline:0;
     }
     .smh-sprinter-img.is-stale { filter: grayscale(0.35) brightness(0.95); }
     .smh-sprinter-ground {
