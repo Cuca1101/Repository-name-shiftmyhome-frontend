@@ -5,6 +5,8 @@ import 'mapbox-gl/dist/mapbox-gl.css'
 const ROUTE_SOURCE = 'tracking-drive-route'
 const ROUTE_LAYER_CASING = 'tracking-drive-route-casing'
 const ROUTE_LAYER = 'tracking-drive-route-line'
+/** Mercedes Sprinter LWB photo cutout (transparent PNG). */
+const SPRINTER_IMG = '/tracking/mercedes-sprinter-lwb.png'
 
 let markerStylesInjected = false
 function ensureTrackingMarkerStyles() {
@@ -15,10 +17,10 @@ function ensureTrackingMarkerStyles() {
   style.textContent = `
     @keyframes smh-van-bob {
       0%, 100% { transform: translateY(0); }
-      50% { transform: translateY(-3px); }
+      50% { transform: translateY(-4px); }
     }
     .smh-van-marker {
-      display:flex; flex-direction:column; align-items:center; gap:4px;
+      display:flex; flex-direction:column; align-items:center; gap:3px;
       pointer-events:none; user-select:none;
     }
     .smh-van-card {
@@ -35,9 +37,16 @@ function ensureTrackingMarkerStyles() {
       font:600 10px ui-monospace,SFMono-Regular,Menlo,monospace; color:#64748b; text-align:center;
     }
     .smh-van-icon {
-      line-height:0; filter: drop-shadow(0 3px 5px rgba(15,23,42,0.28));
+      line-height:0;
+      filter: drop-shadow(0 4px 8px rgba(15,23,42,0.32));
+      background: transparent !important;
     }
     .smh-van-icon.is-live { animation: smh-van-bob 1.7s ease-in-out infinite; }
+    .smh-van-img {
+      display:block; width:96px; height:auto; max-height:64px;
+      object-fit:contain; background:transparent !important; border:0; outline:0;
+    }
+    .smh-van-img.is-stale { filter: grayscale(0.25) brightness(0.96); opacity:0.92; }
     .smh-van-stale {
       font:700 9px Inter,Segoe UI,system-ui,sans-serif; padding:1px 6px; border-radius:9999px;
       background:#fef3c7; color:#92400e; border:1px solid #fcd34d;
@@ -55,30 +64,8 @@ function ensureTrackingMarkerStyles() {
   document.head.appendChild(style)
 }
 
-/** Clean blue side-profile LWB van (single icon, transparent). */
-function blueVanSvg(live) {
-  const body = live ? '#2563eb' : '#64748b'
-  const dark = live ? '#1d4ed8' : '#475569'
-  return `
-    <svg width="56" height="28" viewBox="0 0 112 56" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-      <ellipse cx="56" cy="50" rx="34" ry="4" fill="rgba(15,23,42,0.18)"/>
-      <path d="M8 34 V18 C8 14.5 10.5 12 14 12 H62 L78 26 H100 C104.5 26 108 29.5 108 34 V38 H8 Z" fill="${body}"/>
-      <path d="M62 12 L74 26 H62 Z" fill="${dark}"/>
-      <rect x="16" y="16" width="14" height="10" rx="2" fill="#dbeafe"/>
-      <rect x="34" y="16" width="12" height="10" rx="2" fill="#bfdbfe"/>
-      <rect x="50" y="16" width="10" height="10" rx="2" fill="#93c5fd"/>
-      <path d="M78 18 L94 18 L100 26 H78 Z" fill="#93c5fd" opacity="0.95"/>
-      <rect x="8" y="36" width="100" height="5" fill="#0f172a"/>
-      <circle cx="30" cy="42" r="7" fill="#0f172a"/>
-      <circle cx="30" cy="42" r="3.2" fill="#cbd5e1"/>
-      <circle cx="86" cy="42" r="7" fill="#0f172a"/>
-      <circle cx="86" cy="42" r="3.2" fill="#cbd5e1"/>
-    </svg>
-  `
-}
-
 /**
- * Driver marker: name card above a single blue van icon.
+ * Driver marker: name card above the Mercedes Sprinter photo (single icon only).
  * @param {{ driverName?: string, quoteRef?: string, live?: boolean }} opts
  */
 function buildVanMarkerElement({ driverName = '', quoteRef = '', live = false } = {}) {
@@ -106,7 +93,12 @@ function buildVanMarkerElement({ driverName = '', quoteRef = '', live = false } 
 
   const icon = document.createElement('div')
   icon.className = live ? 'smh-van-icon is-live' : 'smh-van-icon'
-  icon.innerHTML = blueVanSvg(live)
+  const img = document.createElement('img')
+  img.src = SPRINTER_IMG
+  img.alt = ''
+  img.draggable = false
+  img.className = live ? 'smh-van-img' : 'smh-van-img is-stale'
+  icon.appendChild(img)
   wrap.appendChild(icon)
 
   if (!live) {
