@@ -17,21 +17,26 @@ function jsonResponse(body: unknown, status = 200) {
   })
 }
 
-/** Public tip page success/cancel URLs — prefer SITE_URL, fall back to production apex. */
+/** Public tip page success/cancel URLs — prefer SITE_URL, fall back to production www. */
 function tipSiteBaseUrl() {
-  const raw = (Deno.env.get('SITE_URL') || 'https://shiftmyhome.co.uk').trim().replace(/\/$/, '')
+  const raw = (Deno.env.get('SITE_URL') || 'https://www.shiftmyhome.co.uk').trim().replace(/\/$/, '')
   if (raw.startsWith('https://') || raw.startsWith('http://')) return raw
-  return 'https://shiftmyhome.co.uk'
+  return 'https://www.shiftmyhome.co.uk'
 }
 
-function isJobCompleted(quote: { operational_status?: unknown; status?: unknown }) {
+function isJobCompleted(quote: {
+  operational_status?: unknown
+  status?: unknown
+  completed_at?: unknown
+}) {
+  if (quote?.completed_at) return true
   const op = String(quote?.operational_status || '')
     .trim()
     .toLowerCase()
   const st = String(quote?.status || '')
     .trim()
     .toLowerCase()
-  return op === 'completed' || st === 'completed'
+  return op.includes('completed') || st.includes('completed')
 }
 
 /**
@@ -86,7 +91,7 @@ Deno.serve(async (req) => {
 
     const { data: quote, error: quoteErr } = await supabase
       .from('quotes')
-      .select('id, quote_ref, full_name, email, assigned_driver_id, status, operational_status')
+      .select('id, quote_ref, full_name, email, assigned_driver_id, status, operational_status, completed_at')
       .eq('id', tok.quote_id)
       .maybeSingle()
 

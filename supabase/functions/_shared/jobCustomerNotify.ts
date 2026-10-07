@@ -64,7 +64,9 @@ export function customerStatusLabel(raw: string | null | undefined): string {
 }
 
 export function siteBaseUrl() {
-  return (Deno.env.get('SITE_URL') || 'https://www.shiftmyhome.co.uk').replace(/\/$/, '')
+  const raw = (Deno.env.get('SITE_URL') || 'https://www.shiftmyhome.co.uk').trim().replace(/\/$/, '')
+  if (raw.startsWith('https://') || raw.startsWith('http://')) return raw
+  return 'https://www.shiftmyhome.co.uk'
 }
 
 export function trackingUrl(token: string) {

@@ -60,9 +60,17 @@ export default function JobTipPage() {
     }
     try {
       const client = trackingClient()
-      if (!client) throw new Error('Unavailable')
+      if (!client) {
+        throw new Error(
+          'Tip payments are temporarily unavailable. Please refresh the page or open the tip link again from your email.',
+        )
+      }
+      const tipToken = String(token || '').trim()
+      if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(tipToken)) {
+        throw new Error('Invalid tip link. Please use the Leave a Tip button from your email or booking page.')
+      }
       const { data, error } = await client.functions.invoke('create-job-tip-checkout', {
-        body: { token, amount_gbp: gbp },
+        body: { token: tipToken, amount_gbp: gbp },
       })
       if (error) {
         const detail = await detailFromFunctionsInvokeError(error, FRIENDLY_PAY_ERROR)

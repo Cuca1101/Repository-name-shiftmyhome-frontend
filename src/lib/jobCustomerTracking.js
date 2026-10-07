@@ -5,8 +5,9 @@ import { isSupabaseConfigured, supabase } from './supabase'
 import { isSupabasePublicConfigured, supabasePublic } from './supabasePublicClient'
 
 export function trackingClient() {
+  // Public anon client only — never the admin-authenticated browser client.
+  // An expired admin session on the same device was breaking Track My Driver.
   if (isSupabasePublicConfigured && supabasePublic) return supabasePublic
-  if (isSupabaseConfigured && supabase) return supabase
   return null
 }
 

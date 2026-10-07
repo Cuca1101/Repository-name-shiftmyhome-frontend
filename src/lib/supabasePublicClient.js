@@ -10,27 +10,35 @@ function stripQuotes(v) {
   return s
 }
 
-/** Rejects placeholders and non-JWT keys. */
-function isInvalidAnonKey(k) {
+/** Accept legacy anon JWT (eyJ…) or new publishable key (sb_publishable_…). */
+function isInvalidPublicKey(k) {
   if (!k || k.length < 30) return true
   const lower = k.toLowerCase()
-  if (!k.startsWith('eyJ')) return true
   if (lower.includes('paste')) return true
   if (lower.includes('your_key')) return true
   if (lower.includes('replace')) return true
-  return false
+  if (k.startsWith('eyJ')) return false
+  if (k.startsWith('sb_publishable_')) return false
+  return true
 }
 
 const supabaseUrl = stripQuotes(import.meta.env.VITE_SUPABASE_URL)
 const anonKey = stripQuotes(import.meta.env.VITE_SUPABASE_ANON_KEY)
+const publishableKey = stripQuotes(import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY)
+const publicKey =
+  (!isInvalidPublicKey(anonKey) && anonKey)
+  || (!isInvalidPublicKey(publishableKey) && publishableKey)
+  || ''
 
 /**
  * Supabase client for public website forms only — never uses admin/driver session.
  * Homepage quote request must insert as role `anon` (RLS policies target anon).
+ * Track My Booking / Track My Driver must use this client so an admin login
+ * on the same browser cannot break customer tracking links.
  */
 export const supabasePublic =
-  isSupabaseConfigured && !isInvalidAnonKey(anonKey)
-    ? createClient(supabaseUrl, anonKey, {
+  Boolean(supabaseUrl && publicKey)
+    ? createClient(supabaseUrl, publicKey, {
         auth: {
           persistSession: false,
           autoRefreshToken: false,

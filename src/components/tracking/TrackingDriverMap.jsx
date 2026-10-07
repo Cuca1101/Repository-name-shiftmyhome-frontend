@@ -5,6 +5,7 @@ import 'mapbox-gl/dist/mapbox-gl.css'
 const ROUTE_SOURCE = 'tracking-drive-route'
 const ROUTE_LAYER_CASING = 'tracking-drive-route-casing'
 const ROUTE_LAYER = 'tracking-drive-route-line'
+
 /** Mercedes Sprinter LWB photo cutout (transparent PNG). */
 const SPRINTER_IMG = '/tracking/mercedes-sprinter-lwb.png'
 
@@ -17,23 +18,23 @@ function ensureTrackingMarkerStyles() {
   style.textContent = `
     @keyframes smh-van-bob {
       0%, 100% { transform: translateY(0); }
-      50% { transform: translateY(-4px); }
+      50% { transform: translateY(-3px); }
     }
     .smh-van-marker {
-      display:flex; flex-direction:column; align-items:center; gap:3px;
+      display:flex; flex-direction:column; align-items:center; gap:2px;
       pointer-events:none; user-select:none;
     }
     .smh-van-card {
-      display:flex; flex-direction:column; align-items:center; gap:1px; max-width:160px;
-      padding:5px 10px; border-radius:10px; background:#fff;
+      display:flex; flex-direction:column; align-items:center; gap:1px; max-width:170px;
+      padding:6px 11px; border-radius:10px; background:#fff;
       border:1px solid rgba(15,23,42,0.1); box-shadow:0 2px 10px rgba(15,23,42,0.16);
     }
     .smh-van-name {
-      max-width:144px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+      max-width:154px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
       font:700 12px Inter,Segoe UI,system-ui,sans-serif; color:#0f172a; text-align:center;
     }
     .smh-van-ref {
-      max-width:144px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+      max-width:154px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
       font:600 10px ui-monospace,SFMono-Regular,Menlo,monospace; color:#64748b; text-align:center;
     }
     .smh-van-icon {
@@ -47,6 +48,28 @@ function ensureTrackingMarkerStyles() {
       object-fit:contain; background:transparent !important; border:0; outline:0;
     }
     .smh-van-img.is-stale { filter: grayscale(0.25) brightness(0.96); opacity:0.92; }
+    .smh-van-pointer {
+      display:flex; flex-direction:column; align-items:center; margin-top:-2px;
+      line-height:0;
+    }
+    .smh-van-pointer-stem {
+      width:3px; height:14px; border-radius:2px;
+      background:#0284c7;
+      box-shadow:0 1px 2px rgba(15,23,42,0.25);
+    }
+    .smh-van-pointer-stem.is-stale { background:#64748b; }
+    .smh-van-pointer-dot {
+      width:12px; height:12px; margin-top:-2px; border-radius:9999px;
+      background:#0284c7; border:2px solid #fff;
+      box-shadow:0 0 0 2px rgba(2,132,199,0.35), 0 2px 6px rgba(15,23,42,0.35);
+    }
+    .smh-van-pointer-dot.is-live {
+      box-shadow:0 0 0 3px rgba(2,132,199,0.4), 0 2px 6px rgba(15,23,42,0.35);
+    }
+    .smh-van-pointer-dot.is-stale {
+      background:#64748b;
+      box-shadow:0 0 0 2px rgba(100,116,139,0.35), 0 2px 6px rgba(15,23,42,0.3);
+    }
     .smh-van-stale {
       font:700 9px Inter,Segoe UI,system-ui,sans-serif; padding:1px 6px; border-radius:9999px;
       background:#fef3c7; color:#92400e; border:1px solid #fcd34d;
@@ -65,7 +88,7 @@ function ensureTrackingMarkerStyles() {
 }
 
 /**
- * Driver marker: name card above the Mercedes Sprinter photo (single icon only).
+ * Driver marker: name card + Sprinter photo, with a pointer tip on the exact GPS point.
  * @param {{ driverName?: string, quoteRef?: string, live?: boolean }} opts
  */
 function buildVanMarkerElement({ driverName = '', quoteRef = '', live = false } = {}) {
@@ -91,6 +114,13 @@ function buildVanMarkerElement({ driverName = '', quoteRef = '', live = false } 
   }
   wrap.appendChild(card)
 
+  if (!live) {
+    const stale = document.createElement('div')
+    stale.className = 'smh-van-stale'
+    stale.textContent = 'Last known'
+    wrap.appendChild(stale)
+  }
+
   const icon = document.createElement('div')
   icon.className = live ? 'smh-van-icon is-live' : 'smh-van-icon'
   const img = document.createElement('img')
@@ -101,12 +131,17 @@ function buildVanMarkerElement({ driverName = '', quoteRef = '', live = false } 
   icon.appendChild(img)
   wrap.appendChild(icon)
 
-  if (!live) {
-    const stale = document.createElement('div')
-    stale.className = 'smh-van-stale'
-    stale.textContent = 'Last known'
-    wrap.appendChild(stale)
-  }
+  // Stem + tip sit on the map coordinate (marker anchor: bottom).
+  const pointer = document.createElement('div')
+  pointer.className = 'smh-van-pointer'
+  pointer.setAttribute('aria-hidden', 'true')
+  const stem = document.createElement('div')
+  stem.className = live ? 'smh-van-pointer-stem' : 'smh-van-pointer-stem is-stale'
+  const tip = document.createElement('div')
+  tip.className = live ? 'smh-van-pointer-dot is-live' : 'smh-van-pointer-dot is-stale'
+  pointer.appendChild(stem)
+  pointer.appendChild(tip)
+  wrap.appendChild(pointer)
 
   return wrap
 }
@@ -171,9 +206,9 @@ function upsertRouteLine(map, coordinates) {
       source: ROUTE_SOURCE,
       layout: { 'line-join': 'round', 'line-cap': 'round' },
       paint: {
-        'line-color': '#0f172a',
-        'line-width': 7,
-        'line-opacity': 0.22,
+        'line-color': '#0c4a6e',
+        'line-width': 9,
+        'line-opacity': 0.28,
       },
     })
     map.addLayer({
@@ -183,8 +218,8 @@ function upsertRouteLine(map, coordinates) {
       layout: { 'line-join': 'round', 'line-cap': 'round' },
       paint: {
         'line-color': '#0284c7',
-        'line-width': 4.5,
-        'line-opacity': 0.95,
+        'line-width': 6,
+        'line-opacity': 0.98,
       },
     })
   }
@@ -231,7 +266,7 @@ function fitRouteBounds(map, driver, dest, routeCoordinates) {
 }
 
 /**
- * Customer tracking map with Sprinter van, destination pin, and Mapbox road route.
+ * Customer tracking map with Sprinter marker + GPS pointer, destination pin, and route.
  *
  * @param {{
  *   latitude: number,
@@ -473,27 +508,21 @@ export default function TrackingDriverMap({
   const mapsUrl = `https://www.google.com/maps?q=${encodeURIComponent(`${lat},${lng}`)}`
 
   return (
-    <div className={className}>
+    <div className={`relative ${className}`}>
       <div
         ref={hostRef}
-        className="h-64 w-full overflow-hidden rounded-xl bg-slate-200 sm:h-80"
+        className="h-full min-h-[18rem] w-full overflow-hidden bg-slate-200 sm:min-h-[22rem]"
         role="img"
         aria-label={name ? `Driver ${name} on map` : 'Driver location map'}
       />
       {error ? (
-        <p className="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-900">
+        <p className="absolute inset-x-3 bottom-3 rounded-lg bg-amber-50/95 px-3 py-2 text-xs text-amber-900 shadow-sm">
           Map could not load ({error}).{' '}
           <a href={mapsUrl} target="_blank" rel="noopener noreferrer" className="font-semibold underline">
-            Open location in Google Maps
-          </a>
-        </p>
-      ) : (
-        <p className="mt-2 text-center text-xs text-slate-500">
-          <a href={mapsUrl} target="_blank" rel="noopener noreferrer" className="font-semibold text-brand-700 hover:underline">
             Open in Google Maps
           </a>
         </p>
-      )}
+      ) : null}
     </div>
   )
 }

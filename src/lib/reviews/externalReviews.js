@@ -35,7 +35,8 @@ export const REVIEWS_BADGE_DISMISS_DAYS = 30
 export const REVIEWS_LIVE_STATS_CONNECTED = false
 
 export const GOOGLE_LEAVE_REVIEW_URL =
-  import.meta.env.VITE_GOOGLE_REVIEWS_URL || 'https://g.page/r/CWmwRUPz2dC7EAE/review'
+  String(import.meta.env.VITE_GOOGLE_REVIEWS_URL || '').trim()
+  || 'https://g.page/r/CWmwRUPz2dC7EAE/review'
 
 export const TRUSTPILOT_LEAVE_REVIEW_URL =
   import.meta.env.VITE_TRUSTPILOT_REVIEWS_URL ||
