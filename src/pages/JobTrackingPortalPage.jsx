@@ -268,7 +268,16 @@ export default function JobTrackingPortalPage() {
               </h1>
               <p className="mt-0.5 font-mono text-sm text-slate-600">{data.quote_ref}</p>
             </div>
-            <div className="rounded-full bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white">{statusLabel}</div>
+            <div className="inline-flex items-center gap-1.5 rounded-full bg-sky-100 px-3 py-1.5 text-xs font-semibold text-sky-800">
+              <span aria-hidden="true">🚚</span>
+              <span>
+                {etaDestination?.kind === 'delivery'
+                  ? 'On the way to delivery'
+                  : etaDestination?.kind === 'collection'
+                    ? 'On the way to collection'
+                    : statusLabel}
+              </span>
+            </div>
           </div>
         </header>
 
@@ -287,80 +296,142 @@ export default function JobTrackingPortalPage() {
                     destination={etaView?.destination || null}
                     destinationKind={etaView?.kind || etaDestination?.kind || null}
                   />
-                  <div
-                    className={`mt-3 rounded-xl px-3 py-3 text-sm ${
-                      motion.state === 'moving'
-                        ? 'border border-emerald-200 bg-emerald-50 text-emerald-950'
-                        : motion.state === 'stationary'
-                          ? 'border border-slate-200 bg-slate-50 text-slate-900'
-                          : 'border border-amber-200 bg-amber-50 text-amber-950'
-                    }`}
-                  >
-                    {data.driver?.full_name ? (
-                      <div className="mb-2 border-b border-black/5 pb-2">
-                        <p className="font-bold text-slate-900">{data.driver.full_name}</p>
-                        {data.quote_ref ? (
-                          <p className="mt-0.5 font-mono text-xs text-slate-600">{data.quote_ref}</p>
-                        ) : null}
-                      </div>
-                    ) : null}
-                    <p className="font-semibold">
-                      {motion.state === 'moving'
-                        ? 'Driver moving'
-                        : motion.state === 'stationary'
-                          ? motion.label || 'Stationary'
-                          : 'Waiting for fresh GPS update'}
-                    </p>
-                    {motion.state === 'stale' ? (
-                      <p className="mt-1 text-xs text-amber-800">
-                        Last known location — waiting for a fresh GPS update
-                      </p>
-                    ) : null}
-                    {motion.state === 'stationary' && motion.last_moved_at ? (
-                      <p className="mt-1 text-xs text-slate-600">
-                        Last movement: {formatTimeUK(motion.last_moved_at)}
-                      </p>
-                    ) : null}
-                    <p className="mt-1 text-xs text-slate-600">
-                      GPS updated:{' '}
-                      {motion.updated_at || data.location?.updated_at
-                        ? formatTimeUK(motion.updated_at || data.location?.updated_at)
-                        : '—'}
-                    </p>
-                  </div>
-                  {etaView ? (
+
+                  {etaDestination ? (
                     <div
-                      className={`mt-3 rounded-xl px-3 py-3 text-sm ${
-                        etaView.status === 'ready'
-                          ? 'border border-sky-200 bg-sky-50 text-sky-950'
-                          : 'border border-amber-200 bg-amber-50 text-amber-950'
+                      className={`mt-3 rounded-2xl border px-4 py-3 ${
+                        etaView?.status === 'ready'
+                          ? 'border-emerald-200 bg-emerald-50'
+                          : 'border-amber-200 bg-amber-50'
                       }`}
                     >
-                      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                        {etaView.kind === 'delivery' ? 'On the way to delivery' : 'On the way'}
-                      </p>
-                      {etaView.status === 'ready' && etaView.minutesLabel && etaView.clock ? (
-                        <>
-                          <p className="mt-1 font-semibold">
-                            Arriving at {etaView.placeLabel} in approximately {etaView.minutesLabel}
-                          </p>
-                          <p className="mt-1 text-xs text-slate-700">
-                            {etaView.milesLabel} miles away · ETA {etaView.clock}
-                          </p>
-                        </>
-                      ) : (
-                        <p className="mt-1 font-semibold">
-                          {etaView.message ||
-                            'ETA currently unavailable — waiting for a fresh driver location'}
-                        </p>
-                      )}
-                      {etaView.status !== 'ready' && etaView.routeCoordinates?.length ? (
-                        <p className="mt-1 text-xs text-slate-600">
-                          Showing last known road route until a fresh GPS update arrives.
-                        </p>
-                      ) : null}
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                        <div className="flex items-start gap-3">
+                          <div
+                            className={`mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${
+                              etaView?.status === 'ready' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-800'
+                            }`}
+                            aria-hidden="true"
+                          >
+                            🚗
+                          </div>
+                          <div>
+                            {etaView?.status === 'ready' && etaView.minutesLabel && etaView.clock ? (
+                              <>
+                                <p className="font-semibold text-slate-900">
+                                  Arriving at {etaView.placeLabel} in approximately {etaView.minutesLabel}
+                                </p>
+                                <p className="mt-0.5 text-sm text-slate-600">
+                                  {etaView.milesLabel} miles away · ETA {etaView.clock}
+                                </p>
+                              </>
+                            ) : (
+                              <>
+                                <p className="font-semibold text-slate-900">
+                                  {etaView?.message ||
+                                    'ETA currently unavailable — waiting for a fresh driver location'}
+                                </p>
+                                {etaView?.routeCoordinates?.length ? (
+                                  <p className="mt-0.5 text-sm text-slate-600">
+                                    Showing last known road route until GPS updates.
+                                  </p>
+                                ) : null}
+                              </>
+                            )}
+                          </div>
+                        </div>
+                        {etaView?.status === 'ready' && etaView.minutesLabel && etaView.clock ? (
+                          <div className="grid grid-cols-3 gap-2 border-t border-emerald-100 pt-3 text-center sm:border-l sm:border-t-0 sm:pl-4 sm:pt-0">
+                            <div>
+                              <p className="text-sm font-bold text-slate-900">{etaView.minutesLabel}</p>
+                              <p className="text-[11px] text-slate-500">Estimated time</p>
+                            </div>
+                            <div>
+                              <p className="text-sm font-bold text-slate-900">{etaView.milesLabel} miles</p>
+                              <p className="text-[11px] text-slate-500">Distance</p>
+                            </div>
+                            <div>
+                              <p className="text-sm font-bold text-slate-900">{etaView.clock}</p>
+                              <p className="text-[11px] text-slate-500">Expected arrival</p>
+                            </div>
+                          </div>
+                        ) : null}
+                      </div>
                     </div>
                   ) : null}
+
+                  <div
+                    className={`mt-3 rounded-2xl border px-4 py-3 ${
+                      motion.state === 'moving'
+                        ? 'border-sky-200 bg-sky-50'
+                        : motion.state === 'stationary'
+                          ? 'border-slate-200 bg-slate-50'
+                          : 'border-amber-200 bg-amber-50'
+                    }`}
+                  >
+                    <div className="flex items-start gap-3">
+                      <div
+                        className={`mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${
+                          motion.state === 'moving'
+                            ? 'bg-sky-100 text-sky-700'
+                            : motion.state === 'stationary'
+                              ? 'bg-slate-200 text-slate-700'
+                              : 'bg-amber-100 text-amber-800'
+                        }`}
+                        aria-hidden="true"
+                      >
+                        {motion.state === 'moving' ? '🧭' : motion.state === 'stationary' ? '⏸' : '📡'}
+                      </div>
+                      <div>
+                        <p className="font-semibold text-slate-900">
+                          {motion.state === 'moving'
+                            ? 'Driver moving'
+                            : motion.state === 'stationary'
+                              ? motion.label || 'Stationary'
+                              : 'Waiting for fresh GPS update'}
+                        </p>
+                        {motion.state === 'stale' ? (
+                          <p className="mt-0.5 text-sm text-amber-800">
+                            Last known location — waiting for a fresh GPS update
+                          </p>
+                        ) : (
+                          <p className="mt-0.5 text-sm text-slate-600">
+                            {motion.last_moved_at
+                              ? `Last movement: ${formatTimeUK(motion.last_moved_at)}`
+                              : 'Last movement: —'}
+                            {' · '}
+                            GPS updated:{' '}
+                            {motion.updated_at || data.location?.updated_at
+                              ? formatTimeUK(motion.updated_at || data.location?.updated_at)
+                              : '—'}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {(etaDestination?.kind === 'collection' || etaDestination?.kind === 'delivery') && (
+                    <div className="mt-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                      <div className="flex items-start gap-3">
+                        <div
+                          className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-red-100 text-red-600"
+                          aria-hidden="true"
+                        >
+                          📍
+                        </div>
+                        <div>
+                          <p className="font-semibold text-slate-900">
+                            {etaDestination.kind === 'delivery' ? 'Delivery address' : 'Collection address'}
+                          </p>
+                          <p className="mt-0.5 text-sm text-slate-600">
+                            {etaDestination.kind === 'delivery'
+                              ? data.delivery_address || '—'
+                              : data.pickup_address || '—'}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </>
               ) : (
                 <p className="rounded-xl bg-amber-50 px-3 py-3 text-amber-900">
@@ -370,10 +441,6 @@ export default function JobTrackingPortalPage() {
                       'Location temporarily unavailable. The map appears when your driver is sharing GPS.'}
                 </p>
               )}
-              <Row
-                label="Last update"
-                value={data.location?.updated_at ? formatDateTimeUK(data.location.updated_at) : '—'}
-              />
             </Section>
           ) : (
             <Section title="Job completed">

@@ -5,7 +5,6 @@ import 'mapbox-gl/dist/mapbox-gl.css'
 const ROUTE_SOURCE = 'tracking-drive-route'
 const ROUTE_LAYER_CASING = 'tracking-drive-route-casing'
 const ROUTE_LAYER = 'tracking-drive-route-line'
-const SPRINTER_IMG = '/tracking/mercedes-sprinter-lwb.png'
 
 let markerStylesInjected = false
 function ensureTrackingMarkerStyles() {
@@ -14,63 +13,72 @@ function ensureTrackingMarkerStyles() {
   const style = document.createElement('style')
   style.setAttribute('data-tracking-marker', '1')
   style.textContent = `
-    @keyframes smh-sprinter-bob {
+    @keyframes smh-van-bob {
       0%, 100% { transform: translateY(0); }
-      50% { transform: translateY(-5px); }
+      50% { transform: translateY(-3px); }
     }
-    @keyframes smh-sprinter-pulse {
-      0%, 100% { transform: scale(0.92); opacity: 0.35; }
-      50% { transform: scale(1.12); opacity: 0.12; }
+    .smh-van-marker {
+      display:flex; flex-direction:column; align-items:center; gap:4px;
+      pointer-events:none; user-select:none;
     }
-    @keyframes smh-sprinter-shadow {
-      0%, 100% { transform: scaleX(1); opacity: 0.28; }
-      50% { transform: scaleX(0.82); opacity: 0.16; }
+    .smh-van-card {
+      display:flex; flex-direction:column; align-items:center; gap:1px; max-width:160px;
+      padding:5px 10px; border-radius:10px; background:#fff;
+      border:1px solid rgba(15,23,42,0.1); box-shadow:0 2px 10px rgba(15,23,42,0.16);
     }
-    .smh-sprinter-marker { display:flex; flex-direction:column; align-items:center; gap:2px; pointer-events:none; user-select:none; }
-    .smh-sprinter-stack { position:relative; width:88px; height:62px; display:flex; align-items:flex-end; justify-content:center; }
-    .smh-sprinter-pulse {
-      position:absolute; left:50%; bottom:4px; width:54px; height:18px; margin-left:-27px;
-      border-radius:9999px; background:#0284c7; animation: smh-sprinter-pulse 1.8s ease-in-out infinite;
+    .smh-van-name {
+      max-width:144px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+      font:700 12px Inter,Segoe UI,system-ui,sans-serif; color:#0f172a; text-align:center;
     }
-    .smh-sprinter-pulse.is-stale { background:#94a3b8; animation:none; opacity:0.2; }
-    .smh-sprinter-img-wrap {
-      position:relative; z-index:1; line-height:0;
-      filter: drop-shadow(0 4px 8px rgba(15,23,42,0.28));
+    .smh-van-ref {
+      max-width:144px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+      font:600 10px ui-monospace,SFMono-Regular,Menlo,monospace; color:#64748b; text-align:center;
     }
-    .smh-sprinter-img-wrap.is-live { animation: smh-sprinter-bob 1.8s ease-in-out infinite; }
-    .smh-sprinter-img {
-      display:block; width:92px; height:auto; max-height:62px; object-fit:contain;
-      background:transparent !important; border:0; outline:0;
+    .smh-van-icon {
+      line-height:0; filter: drop-shadow(0 3px 5px rgba(15,23,42,0.28));
     }
-    .smh-sprinter-img.is-stale { filter: grayscale(0.35) brightness(0.95); }
-    .smh-sprinter-ground {
-      position:absolute; left:50%; bottom:2px; width:44px; height:8px; margin-left:-22px;
-      border-radius:9999px; background:rgba(15,23,42,0.28); z-index:0;
-    }
-    .smh-sprinter-ground.is-live { animation: smh-sprinter-shadow 1.8s ease-in-out infinite; }
-    .smh-sprinter-card {
-      display:flex; flex-direction:column; align-items:center; gap:1px; max-width:168px;
-      padding:4px 8px; border-radius:10px; background:#fff;
-      border:1px solid rgba(15,23,42,0.12); box-shadow:0 2px 8px rgba(15,23,42,0.16);
-    }
-    .smh-sprinter-name {
-      max-width:152px; overflow:hidden; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical;
-      font:700 11px Inter,Segoe UI,system-ui,sans-serif; color:#0f172a; text-align:center; line-height:1.2; word-break:break-word;
-    }
-    .smh-sprinter-ref {
-      max-width:152px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
-      font:600 10px ui-monospace,SFMono-Regular,Menlo,monospace; color:#475569; text-align:center;
-    }
-    .smh-sprinter-stale-badge {
+    .smh-van-icon.is-live { animation: smh-van-bob 1.7s ease-in-out infinite; }
+    .smh-van-stale {
       font:700 9px Inter,Segoe UI,system-ui,sans-serif; padding:1px 6px; border-radius:9999px;
       background:#fef3c7; color:#92400e; border:1px solid #fcd34d;
+    }
+    .smh-dest-marker {
+      display:flex; flex-direction:column; align-items:center; gap:3px;
+      pointer-events:none; user-select:none;
+    }
+    .smh-dest-card {
+      padding:4px 9px; border-radius:10px; background:#fff;
+      border:1px solid rgba(15,23,42,0.1); box-shadow:0 2px 8px rgba(15,23,42,0.14);
+      font:700 11px Inter,Segoe UI,system-ui,sans-serif; color:#0f172a; white-space:nowrap;
     }
   `
   document.head.appendChild(style)
 }
 
+/** Clean blue side-profile LWB van (single icon, transparent). */
+function blueVanSvg(live) {
+  const body = live ? '#2563eb' : '#64748b'
+  const dark = live ? '#1d4ed8' : '#475569'
+  return `
+    <svg width="56" height="28" viewBox="0 0 112 56" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <ellipse cx="56" cy="50" rx="34" ry="4" fill="rgba(15,23,42,0.18)"/>
+      <path d="M8 34 V18 C8 14.5 10.5 12 14 12 H62 L78 26 H100 C104.5 26 108 29.5 108 34 V38 H8 Z" fill="${body}"/>
+      <path d="M62 12 L74 26 H62 Z" fill="${dark}"/>
+      <rect x="16" y="16" width="14" height="10" rx="2" fill="#dbeafe"/>
+      <rect x="34" y="16" width="12" height="10" rx="2" fill="#bfdbfe"/>
+      <rect x="50" y="16" width="10" height="10" rx="2" fill="#93c5fd"/>
+      <path d="M78 18 L94 18 L100 26 H78 Z" fill="#93c5fd" opacity="0.95"/>
+      <rect x="8" y="36" width="100" height="5" fill="#0f172a"/>
+      <circle cx="30" cy="42" r="7" fill="#0f172a"/>
+      <circle cx="30" cy="42" r="3.2" fill="#cbd5e1"/>
+      <circle cx="86" cy="42" r="7" fill="#0f172a"/>
+      <circle cx="86" cy="42" r="3.2" fill="#cbd5e1"/>
+    </svg>
+  `
+}
+
 /**
- * Single Mercedes Sprinter LWB photo marker (one icon only) with soft live animation.
+ * Driver marker: name card above a single blue van icon.
  * @param {{ driverName?: string, quoteRef?: string, live?: boolean }} opts
  */
 function buildVanMarkerElement({ driverName = '', quoteRef = '', live = false } = {}) {
@@ -79,48 +87,31 @@ function buildVanMarkerElement({ driverName = '', quoteRef = '', live = false } 
   const ref = String(quoteRef || '').trim()
 
   const wrap = document.createElement('div')
-  wrap.className = 'smh-sprinter-marker'
+  wrap.className = 'smh-van-marker'
   wrap.setAttribute('aria-label', ref ? `Driver ${fullName}, booking ${ref}` : `Driver ${fullName}`)
 
-  const stack = document.createElement('div')
-  stack.className = 'smh-sprinter-stack'
-
-  const pulse = document.createElement('div')
-  pulse.className = live ? 'smh-sprinter-pulse' : 'smh-sprinter-pulse is-stale'
-  stack.appendChild(pulse)
-
-  const ground = document.createElement('div')
-  ground.className = live ? 'smh-sprinter-ground is-live' : 'smh-sprinter-ground'
-  stack.appendChild(ground)
-
-  const imgWrap = document.createElement('div')
-  imgWrap.className = live ? 'smh-sprinter-img-wrap is-live' : 'smh-sprinter-img-wrap'
-  const img = document.createElement('img')
-  img.src = SPRINTER_IMG
-  img.alt = ''
-  img.draggable = false
-  img.className = live ? 'smh-sprinter-img' : 'smh-sprinter-img is-stale'
-  imgWrap.appendChild(img)
-  stack.appendChild(imgWrap)
-  wrap.appendChild(stack)
-
   const card = document.createElement('div')
-  card.className = 'smh-sprinter-card'
+  card.className = 'smh-van-card'
   const nameEl = document.createElement('div')
-  nameEl.className = 'smh-sprinter-name'
+  nameEl.className = 'smh-van-name'
   nameEl.textContent = fullName
   card.appendChild(nameEl)
   if (ref) {
     const refEl = document.createElement('div')
-    refEl.className = 'smh-sprinter-ref'
+    refEl.className = 'smh-van-ref'
     refEl.textContent = ref
     card.appendChild(refEl)
   }
   wrap.appendChild(card)
 
+  const icon = document.createElement('div')
+  icon.className = live ? 'smh-van-icon is-live' : 'smh-van-icon'
+  icon.innerHTML = blueVanSvg(live)
+  wrap.appendChild(icon)
+
   if (!live) {
     const stale = document.createElement('div')
-    stale.className = 'smh-sprinter-stale-badge'
+    stale.className = 'smh-van-stale'
     stale.textContent = 'Last known'
     wrap.appendChild(stale)
   }
@@ -129,32 +120,32 @@ function buildVanMarkerElement({ driverName = '', quoteRef = '', live = false } 
 }
 
 /**
- * Destination marker (collection / delivery) — pin, no full address.
+ * Destination pin + label (Collection address / Delivery address).
  * @param {{ kind?: 'collection' | 'delivery' | string }} opts
  */
 function buildDestinationMarkerElement({ kind = 'collection' } = {}) {
-  const label = kind === 'delivery' ? 'Delivery' : 'Collection'
-  const accent = kind === 'delivery' ? '#059669' : '#dc2626'
+  ensureTrackingMarkerStyles()
+  const label = kind === 'delivery' ? 'Delivery address' : 'Collection address'
+  const accent = kind === 'delivery' ? '#059669' : '#ef4444'
   const wrap = document.createElement('div')
+  wrap.className = 'smh-dest-marker'
   wrap.setAttribute('aria-label', label)
-  wrap.style.cssText =
-    'display:flex;flex-direction:column;align-items:center;gap:2px;pointer-events:none;user-select:none;'
+
+  // Label above pin so the pin tip (bottom) sits exactly on the map coordinate.
+  const card = document.createElement('div')
+  card.className = 'smh-dest-card'
+  card.textContent = label
+  wrap.appendChild(card)
 
   const pin = document.createElement('div')
   pin.innerHTML = `
-    <svg width="28" height="36" viewBox="0 0 28 36" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <svg width="26" height="34" viewBox="0 0 28 36" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
       <path d="M14 0C6.3 0 0 6.1 0 13.6 0 22.4 14 36 14 36S28 22.4 28 13.6C28 6.1 21.7 0 14 0Z" fill="${accent}"/>
       <circle cx="14" cy="13" r="5.5" fill="#fff"/>
     </svg>
   `
-  pin.style.cssText = 'line-height:0;filter:drop-shadow(0 2px 4px rgba(15,23,42,0.35));'
+  pin.style.cssText = 'line-height:0;filter:drop-shadow(0 2px 4px rgba(15,23,42,0.3));'
   wrap.appendChild(pin)
-
-  const card = document.createElement('div')
-  card.textContent = label
-  card.style.cssText =
-    'padding:3px 8px;border-radius:9999px;background:#fff;border:1px solid rgba(15,23,42,0.12);box-shadow:0 2px 6px rgba(15,23,42,0.16);font:700 10px Inter,Segoe UI,system-ui,sans-serif;color:#0f172a;'
-  wrap.appendChild(card)
 
   return wrap
 }
