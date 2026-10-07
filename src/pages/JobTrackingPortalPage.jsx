@@ -185,7 +185,12 @@ export default function JobTrackingPortalPage() {
             <Section title="Live location">
               {showMap ? (
                 <>
-                  <TrackingDriverMap latitude={mapLat} longitude={mapLng} live={liveGps} />
+                  <TrackingDriverMap
+                    latitude={mapLat}
+                    longitude={mapLng}
+                    live={liveGps}
+                    driverName={data.driver?.full_name || ''}
+                  />
                   {!liveGps && data.location?.message ? (
                     <p className="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-900">
                       {data.location.message}
