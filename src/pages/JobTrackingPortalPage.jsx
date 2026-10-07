@@ -11,6 +11,10 @@ import {
 } from '../lib/jobCustomerTracking'
 import { resolveJobPhotoDisplayMeta } from '../lib/jobPhotoDisplayMeta'
 import { GOOGLE_LEAVE_REVIEW_URL } from '../lib/reviews/externalReviews'
+import {
+  resolveTrackingDriverEta,
+  resolveTrackingEtaDestination,
+} from '../lib/trackingDriverEta'
 
 const POLL_MS = 15000
 const MEDIA_REFRESH_MS = 10 * 60 * 1000
@@ -48,8 +52,11 @@ export default function JobTrackingPortalPage() {
   const [media, setMedia] = useState([])
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(true)
+  const [etaView, setEtaView] = useState(null)
   const mediaFetchedAtRef = useRef(0)
   const mediaKeyRef = useRef('')
+  const etaCacheRef = useRef({})
+  const etaRunRef = useRef(0)
 
   const load = useCallback(async () => {
     const t = String(token || '').trim()
@@ -120,6 +127,85 @@ export default function JobTrackingPortalPage() {
   )
   const mapToken = String(import.meta.env.VITE_MAPBOX_TOKEN || '').trim()
   const motion = resolveTrackingMotion(data?.location)
+  const completed = Boolean(data?.completed)
+  const etaDestination = useMemo(
+    () =>
+      completed
+        ? null
+        : resolveTrackingEtaDestination(data?.operational_status, data?.status_raw),
+    [completed, data?.operational_status, data?.status_raw],
+  )
+
+  useEffect(() => {
+    if (!data || completed || !etaDestination || !mapToken) {
+      setEtaView(null)
+      return undefined
+    }
+
+    const destAddress =
+      etaDestination.kind === 'collection'
+        ? String(data.pickup_address || '').trim()
+        : String(data.delivery_address || '').trim()
+    if (!destAddress) {
+      setEtaView(null)
+      return undefined
+    }
+
+    const gpsFresh = Boolean(liveGps && motion.state !== 'stale' && motion.state !== 'unavailable')
+    const runId = ++etaRunRef.current
+
+    ;(async () => {
+      const result = await resolveTrackingDriverEta({
+        token: mapToken,
+        driver: { lng: mapLng, lat: mapLat },
+        destinationAddress: destAddress,
+        kind: etaDestination.kind,
+        placeLabel: etaDestination.placeLabel,
+        gpsFresh,
+        cache: etaCacheRef.current,
+      })
+      if (runId !== etaRunRef.current) return
+      etaCacheRef.current = result.cache || etaCacheRef.current
+      if (!result.active) {
+        setEtaView(null)
+        return
+      }
+      setEtaView({
+        kind: result.kind,
+        placeLabel: result.placeLabel,
+        status: result.status,
+        message: result.message,
+        minutesLabel: result.minutesLabel,
+        clock: result.clock,
+        milesLabel: result.milesLabel,
+      })
+    })().catch(() => {
+      if (runId !== etaRunRef.current) return
+      setEtaView({
+        kind: etaDestination.kind,
+        placeLabel: etaDestination.placeLabel,
+        status: 'error',
+        message: 'ETA temporarily unavailable',
+        minutesLabel: null,
+        clock: null,
+        milesLabel: null,
+      })
+    })
+
+    return undefined
+  }, [
+    completed,
+    data,
+    etaDestination,
+    liveGps,
+    mapLat,
+    mapLng,
+    mapToken,
+    motion.state,
+    data?.location?.updated_at,
+    data?.pickup_address,
+    data?.delivery_address,
+  ])
 
   const inventory = useMemo(() => {
     if (Array.isArray(data?.inventory) && data.inventory.length) return data.inventory
@@ -136,7 +222,6 @@ export default function JobTrackingPortalPage() {
     return groups
   }, [media])
 
-  const completed = Boolean(data?.completed)
   const statusLabel = customerJobStatusLabel(data?.operational_status || data?.status_raw)
 
   if (loading) {
@@ -230,6 +315,40 @@ export default function JobTrackingPortalPage() {
                         : '—'}
                     </p>
                   </div>
+                  {etaView ? (
+                    <div
+                      className={`mt-3 rounded-xl px-3 py-3 text-sm ${
+                        etaView.status === 'ready'
+                          ? 'border border-sky-200 bg-sky-50 text-sky-950'
+                          : 'border border-amber-200 bg-amber-50 text-amber-950'
+                      }`}
+                    >
+                      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                        {etaView.kind === 'delivery' ? 'On the way to delivery' : 'On the way'}
+                      </p>
+                      {etaView.status === 'ready' && etaView.minutesLabel && etaView.clock ? (
+                        <>
+                          <p className="mt-1 font-semibold">
+                            Arriving at {etaView.placeLabel} in approximately {etaView.minutesLabel}{' '}
+                            · ETA {etaView.clock}
+                          </p>
+                          <p className="mt-1 text-xs text-slate-600">
+                            Estimated arrival at {etaView.placeLabel}: {etaView.minutesLabel}
+                          </p>
+                          <p className="mt-0.5 text-xs text-slate-600">
+                            Approx. {etaView.milesLabel} miles away
+                          </p>
+                          <p className="mt-0.5 text-xs text-slate-600">
+                            Expected arrival: {etaView.clock}
+                          </p>
+                        </>
+                      ) : (
+                        <p className="mt-1 font-semibold">
+                          {etaView.message || 'ETA currently unavailable — waiting for a fresh driver location'}
+                        </p>
+                      )}
+                    </div>
+                  ) : null}
                 </>
               ) : (
                 <p className="rounded-xl bg-amber-50 px-3 py-3 text-amber-900">
