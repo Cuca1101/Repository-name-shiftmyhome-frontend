@@ -54,6 +54,7 @@ import AdminAnalyticsPage from './pages/AdminAnalyticsPage'
 import AdminSessionsPage from './pages/AdminSessionsPage'
 import ExtraChargesAdmin from './components/ExtraChargesAdmin'
 import CustomerTipsAdmin from './components/CustomerTipsAdmin'
+import DriverMessagesAdmin from './components/DriverMessagesAdmin'
 import AvailableJobDetails from './components/AvailableJobDetails'
 import JourneyPlannerPage from './components/JourneyPlannerPage'
 import JourneyViewPage from './components/journey-planner/JourneyViewPage'
@@ -280,6 +281,8 @@ export default function App() {
         <Route path="seo" element={<SeoDashboardAdmin />} />
         <Route path="extra-charges" element={<ExtraChargesAdmin />} />
         <Route path="customer-tips" element={<CustomerTipsAdmin />} />
+        <Route path="driver-messages" element={<DriverMessagesAdmin />} />
+        <Route path="support-requests" element={<Navigate to="/admin/driver-messages" replace />} />
       </Route>
       <Route
         path="*"

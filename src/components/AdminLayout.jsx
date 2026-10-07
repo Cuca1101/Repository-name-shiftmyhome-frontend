@@ -1,9 +1,15 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
-import { supabase } from '../lib/supabase'
+import { isSupabaseConfigured, supabase } from '../lib/supabase'
 import { endAdminPresence, watchAdminPresence } from '../lib/adminPresence'
 import { showDemoAdminUi } from '../lib/adminProductionMode'
 import { CallContactsProvider } from '../lib/callContactsContext'
+import {
+  ensureSupportRequestNotificationPermission,
+  playSupportRequestAlertSound,
+  showSupportRequestBrowserNotification,
+  unlockSupportRequestSound,
+} from '../lib/supportRequestAlerts'
 import StripeModeBanner from './admin/StripeModeBanner'
 
 const mainSections = [
@@ -26,6 +32,7 @@ const mainSections = [
       { to: '/admin/operations-map', label: 'Operations Map', end: false, icon: 'crosshair' },
       { to: '/admin/journey-planner', label: 'Journey Planner', end: false, icon: 'map' },
       { to: '/admin/calls', label: 'Call Centre', end: false, icon: 'phone' },
+      { to: '/admin/driver-messages', label: 'Driver Messages', end: false, icon: 'inbox', badgeKey: 'supportUnread' },
     ],
   },
   {
@@ -287,8 +294,13 @@ function pathActive(pathname, item) {
   return pathname === item.to || pathname.startsWith(`${item.to}/`)
 }
 
-function AdminNavItem({ item, pathname, onNavigate }) {
+function AdminNavItem({ item, pathname, onNavigate, badgeCount }) {
   const active = pathActive(pathname, item)
+  const count = Number(badgeCount) > 0 ? Number(badgeCount) : 0
+  const label =
+    count > 0 && item.badgeKey === 'supportUnread'
+      ? `${item.label} (${count})`
+      : item.label
   return (
     <li>
       <NavLink
@@ -304,8 +316,15 @@ function AdminNavItem({ item, pathname, onNavigate }) {
         <span className={active ? 'text-emerald-400' : 'text-slate-500 group-hover:text-slate-300'}>
           <NavIcon name={item.icon} />
         </span>
-        {item.label}
-        {active && <span className="ml-auto h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-400" aria-hidden />}
+        <span className="min-w-0 flex-1 truncate">{label}</span>
+        {count > 0 && item.badgeKey === 'supportUnread' ? (
+          <span className="ml-1 inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-red-500 px-1.5 text-[10px] font-bold text-white">
+            {count > 99 ? '99+' : count}
+          </span>
+        ) : null}
+        {active && count === 0 ? (
+          <span className="ml-auto h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-400" aria-hidden />
+        ) : null}
       </NavLink>
     </li>
   )
@@ -317,8 +336,29 @@ export default function AdminLayout() {
   const pathname = loc.pathname
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [legacyOpen, setLegacyOpen] = useState(() => isLegacySupportPath(pathname))
+  const [supportUnreadCount, setSupportUnreadCount] = useState(0)
+  const [supportToast, setSupportToast] = useState(null)
+  const knownSupportIdsRef = useRef(new Set())
+  const supportHydratedRef = useRef(false)
 
   const closeSidebar = useCallback(() => setSidebarOpen(false), [])
+
+  const refreshSupportUnreadCount = useCallback(async () => {
+    if (!isSupabaseConfigured || !supabase) {
+      setSupportUnreadCount(0)
+      return
+    }
+    try {
+      const { count, error } = await supabase
+        .from('driver_support_requests')
+        .select('id', { count: 'exact', head: true })
+        .is('read_at', null)
+      if (error) throw error
+      setSupportUnreadCount(Number(count) || 0)
+    } catch {
+      /* table may not exist yet */
+    }
+  }, [])
 
   useEffect(() => {
     if (isLegacySupportPath(pathname)) setLegacyOpen(true)
@@ -339,6 +379,84 @@ export default function AdminLayout() {
     return () => mq.removeEventListener('change', onChange)
   }, [])
 
+  useEffect(() => {
+    ensureSupportRequestNotificationPermission()
+    void unlockSupportRequestSound()
+    void refreshSupportUnreadCount()
+  }, [refreshSupportUnreadCount])
+
+  useEffect(() => {
+    if (!isSupabaseConfigured || !supabase) return undefined
+
+    const bootstrap = async () => {
+      try {
+        const { data } = await supabase
+          .from('driver_support_requests')
+          .select('id')
+          .order('created_at', { ascending: false })
+          .limit(200)
+        const ids = new Set((data || []).map((r) => String(r.id)))
+        knownSupportIdsRef.current = ids
+      } catch {
+        knownSupportIdsRef.current = new Set()
+      } finally {
+        supportHydratedRef.current = true
+      }
+    }
+    void bootstrap()
+
+    const channel = supabase
+      .channel('admin-layout-driver-messages')
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'driver_support_requests' },
+        (payload) => {
+          const row = payload?.new || {}
+          const id = row.id ? String(row.id) : ''
+          void refreshSupportUnreadCount()
+          if (!supportHydratedRef.current) return
+          if (id && knownSupportIdsRef.current.has(id)) return
+          if (id) knownSupportIdsRef.current.add(id)
+
+          const urgent = Boolean(row.urgent)
+          const driverName = String(row.driver_name || 'Driver').trim() || 'Driver'
+          const topic = String(row.topic || 'Support').trim() || 'Support'
+          const toast = {
+            id: id || String(Date.now()),
+            urgent,
+            title: urgent ? 'Urgent driver message' : 'New driver message',
+            body: `${driverName} · ${topic}`,
+          }
+          setSupportToast(toast)
+          void playSupportRequestAlertSound({ urgent })
+          showSupportRequestBrowserNotification({
+            title: toast.title,
+            body: toast.body,
+            urgent,
+            onClick: () => navigate('/admin/driver-messages'),
+          })
+        },
+      )
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'driver_support_requests' },
+        () => {
+          void refreshSupportUnreadCount()
+        },
+      )
+      .subscribe()
+
+    return () => {
+      void supabase.removeChannel(channel)
+    }
+  }, [navigate, refreshSupportUnreadCount])
+
+  useEffect(() => {
+    if (!supportToast) return undefined
+    const t = window.setTimeout(() => setSupportToast(null), supportToast.urgent ? 12000 : 7000)
+    return () => window.clearTimeout(t)
+  }, [supportToast])
+
   async function handleLogout() {
     await endAdminPresence()
     if (supabase) await supabase.auth.signOut()
@@ -348,6 +466,7 @@ export default function AdminLayout() {
   const allNavItems = [...mainSections.flatMap((s) => s.items), ...legacySupportSection.items]
 
   const currentTitle = allNavItems.find((item) => pathActive(pathname, item))?.label ?? 'Admin'
+  const badgeCounts = { supportUnread: supportUnreadCount }
 
   return (
     <div className="min-h-screen min-w-0 bg-slate-100/90">
@@ -403,7 +522,13 @@ export default function AdminLayout() {
               </p>
               <ul className="space-y-0.5">
                 {section.items.map((item) => (
-                  <AdminNavItem key={item.to} item={item} pathname={pathname} onNavigate={closeSidebar} />
+                  <AdminNavItem
+                    key={item.to}
+                    item={item}
+                    pathname={pathname}
+                    onNavigate={closeSidebar}
+                    badgeCount={item.badgeKey ? badgeCounts[item.badgeKey] : 0}
+                  />
                 ))}
               </ul>
             </div>
@@ -507,6 +632,47 @@ export default function AdminLayout() {
           </div>
         </main>
       </div>
+
+      {supportToast ? (
+        <div
+          className={`fixed bottom-4 right-4 z-[60] w-[min(100vw-2rem,22rem)] rounded-xl border p-4 shadow-2xl ${
+            supportToast.urgent
+              ? 'border-red-400 bg-red-50 ring-2 ring-red-300'
+              : 'border-slate-200 bg-white'
+          }`}
+          role="status"
+        >
+          <p
+            className={`text-sm font-bold ${
+              supportToast.urgent ? 'text-red-800' : 'text-slate-900'
+            }`}
+          >
+            {supportToast.title}
+          </p>
+          <p className="mt-1 text-xs text-slate-600">{supportToast.body}</p>
+          <div className="mt-3 flex gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                setSupportToast(null)
+                navigate('/admin/driver-messages')
+              }}
+              className={`rounded-lg px-3 py-1.5 text-xs font-semibold text-white ${
+                supportToast.urgent ? 'bg-red-600 hover:bg-red-500' : 'bg-slate-900 hover:bg-slate-800'
+              }`}
+            >
+              Open
+            </button>
+            <button
+              type="button"
+              onClick={() => setSupportToast(null)}
+              className="rounded-lg px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-100"
+            >
+              Dismiss
+            </button>
+          </div>
+        </div>
+      ) : null}
     </div>
   )
 }
