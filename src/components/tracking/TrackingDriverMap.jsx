@@ -5,74 +5,123 @@ import 'mapbox-gl/dist/mapbox-gl.css'
 const ROUTE_SOURCE = 'tracking-drive-route'
 const ROUTE_LAYER_CASING = 'tracking-drive-route-casing'
 const ROUTE_LAYER = 'tracking-drive-route-line'
+const SPRINTER_IMG = '/tracking/mercedes-sprinter-lwb.png'
+
+let markerStylesInjected = false
+function ensureTrackingMarkerStyles() {
+  if (markerStylesInjected || typeof document === 'undefined') return
+  markerStylesInjected = true
+  const style = document.createElement('style')
+  style.setAttribute('data-tracking-marker', '1')
+  style.textContent = `
+    @keyframes smh-sprinter-bob {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-5px); }
+    }
+    @keyframes smh-sprinter-pulse {
+      0%, 100% { transform: scale(0.92); opacity: 0.35; }
+      50% { transform: scale(1.12); opacity: 0.12; }
+    }
+    @keyframes smh-sprinter-shadow {
+      0%, 100% { transform: scaleX(1); opacity: 0.28; }
+      50% { transform: scaleX(0.82); opacity: 0.16; }
+    }
+    .smh-sprinter-marker { display:flex; flex-direction:column; align-items:center; gap:2px; pointer-events:none; user-select:none; }
+    .smh-sprinter-stack { position:relative; width:88px; height:62px; display:flex; align-items:flex-end; justify-content:center; }
+    .smh-sprinter-pulse {
+      position:absolute; left:50%; bottom:4px; width:54px; height:18px; margin-left:-27px;
+      border-radius:9999px; background:#0284c7; animation: smh-sprinter-pulse 1.8s ease-in-out infinite;
+    }
+    .smh-sprinter-pulse.is-stale { background:#94a3b8; animation:none; opacity:0.2; }
+    .smh-sprinter-img-wrap {
+      position:relative; z-index:1; line-height:0;
+      filter: drop-shadow(0 4px 8px rgba(15,23,42,0.28));
+    }
+    .smh-sprinter-img-wrap.is-live { animation: smh-sprinter-bob 1.8s ease-in-out infinite; }
+    .smh-sprinter-img {
+      display:block; width:84px; height:auto; max-height:56px; object-fit:contain;
+      background:transparent;
+    }
+    .smh-sprinter-img.is-stale { filter: grayscale(0.35) brightness(0.95); }
+    .smh-sprinter-ground {
+      position:absolute; left:50%; bottom:2px; width:44px; height:8px; margin-left:-22px;
+      border-radius:9999px; background:rgba(15,23,42,0.28); z-index:0;
+    }
+    .smh-sprinter-ground.is-live { animation: smh-sprinter-shadow 1.8s ease-in-out infinite; }
+    .smh-sprinter-card {
+      display:flex; flex-direction:column; align-items:center; gap:1px; max-width:168px;
+      padding:4px 8px; border-radius:10px; background:#fff;
+      border:1px solid rgba(15,23,42,0.12); box-shadow:0 2px 8px rgba(15,23,42,0.16);
+    }
+    .smh-sprinter-name {
+      max-width:152px; overflow:hidden; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical;
+      font:700 11px Inter,Segoe UI,system-ui,sans-serif; color:#0f172a; text-align:center; line-height:1.2; word-break:break-word;
+    }
+    .smh-sprinter-ref {
+      max-width:152px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+      font:600 10px ui-monospace,SFMono-Regular,Menlo,monospace; color:#475569; text-align:center;
+    }
+    .smh-sprinter-stale-badge {
+      font:700 9px Inter,Segoe UI,system-ui,sans-serif; padding:1px 6px; border-radius:9999px;
+      background:#fef3c7; color:#92400e; border:1px solid #fcd34d;
+    }
+  `
+  document.head.appendChild(style)
+}
 
 /**
- * Single long-wheelbase Mercedes Sprinter van marker (no emoji / dual icons).
+ * Single Mercedes Sprinter LWB photo marker (one icon only) with soft live animation.
  * @param {{ driverName?: string, quoteRef?: string, live?: boolean }} opts
  */
 function buildVanMarkerElement({ driverName = '', quoteRef = '', live = false } = {}) {
+  ensureTrackingMarkerStyles()
   const fullName = String(driverName || 'Your driver').trim() || 'Your driver'
   const ref = String(quoteRef || '').trim()
-  const body = live ? '#0ea5e9' : '#64748b'
-  const cabin = live ? '#0369a1' : '#475569'
-  const glass = '#e0f2fe'
-  const wrap = document.createElement('div')
-  wrap.setAttribute('aria-label', ref ? `Driver ${fullName}, booking ${ref}` : `Driver ${fullName}`)
-  wrap.style.cssText =
-    'display:flex;flex-direction:column;align-items:center;gap:3px;pointer-events:none;user-select:none;'
 
-  const van = document.createElement('div')
-  // Long-wheelbase Sprinter silhouette (cab + extended cargo box)
-  van.innerHTML = `
-    <svg width="72" height="40" viewBox="0 0 96 52" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-      <ellipse cx="48" cy="48" rx="28" ry="3.5" fill="rgba(15,23,42,0.2)"/>
-      <!-- cargo box (long wheelbase) -->
-      <rect x="6" y="12" width="58" height="24" rx="2.5" fill="${body}"/>
-      <rect x="10" y="16" width="12" height="9" rx="1.2" fill="${glass}" opacity="0.85"/>
-      <rect x="26" y="16" width="12" height="9" rx="1.2" fill="${glass}" opacity="0.7"/>
-      <rect x="42" y="16" width="12" height="9" rx="1.2" fill="${glass}" opacity="0.55"/>
-      <!-- cab -->
-      <path d="M64 36 V18 C64 15.2 66.2 13 69 13 H78 L90 24 V36 Z" fill="${cabin}"/>
-      <path d="M78 13 L88 23 H78 Z" fill="#0284c7"/>
-      <rect x="70" y="18" width="12" height="9" rx="1.5" fill="${glass}"/>
-      <!-- bumper / step -->
-      <rect x="6" y="34" width="84" height="4" rx="1" fill="#0f172a"/>
-      <!-- wheels (LWB spacing) -->
-      <circle cx="22" cy="39" r="5.5" fill="#0f172a"/>
-      <circle cx="22" cy="39" r="2.6" fill="#cbd5e1"/>
-      <circle cx="48" cy="39" r="5.5" fill="#0f172a"/>
-      <circle cx="48" cy="39" r="2.6" fill="#cbd5e1"/>
-      <circle cx="78" cy="39" r="5.5" fill="#0f172a"/>
-      <circle cx="78" cy="39" r="2.6" fill="#cbd5e1"/>
-    </svg>
-  `
-  van.style.cssText = 'filter:drop-shadow(0 3px 6px rgba(15,23,42,0.35));line-height:0;'
-  wrap.appendChild(van)
+  const wrap = document.createElement('div')
+  wrap.className = 'smh-sprinter-marker'
+  wrap.setAttribute('aria-label', ref ? `Driver ${fullName}, booking ${ref}` : `Driver ${fullName}`)
+
+  const stack = document.createElement('div')
+  stack.className = 'smh-sprinter-stack'
+
+  const pulse = document.createElement('div')
+  pulse.className = live ? 'smh-sprinter-pulse' : 'smh-sprinter-pulse is-stale'
+  stack.appendChild(pulse)
+
+  const ground = document.createElement('div')
+  ground.className = live ? 'smh-sprinter-ground is-live' : 'smh-sprinter-ground'
+  stack.appendChild(ground)
+
+  const imgWrap = document.createElement('div')
+  imgWrap.className = live ? 'smh-sprinter-img-wrap is-live' : 'smh-sprinter-img-wrap'
+  const img = document.createElement('img')
+  img.src = SPRINTER_IMG
+  img.alt = ''
+  img.draggable = false
+  img.className = live ? 'smh-sprinter-img' : 'smh-sprinter-img is-stale'
+  imgWrap.appendChild(img)
+  stack.appendChild(imgWrap)
+  wrap.appendChild(stack)
 
   const card = document.createElement('div')
-  card.style.cssText =
-    'display:flex;flex-direction:column;align-items:center;gap:2px;max-width:200px;padding:5px 10px;border-radius:10px;background:#fff;border:1px solid rgba(15,23,42,0.12);box-shadow:0 2px 8px rgba(15,23,42,0.18);'
-
+  card.className = 'smh-sprinter-card'
   const nameEl = document.createElement('div')
+  nameEl.className = 'smh-sprinter-name'
   nameEl.textContent = fullName
-  nameEl.style.cssText =
-    'max-width:184px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;font:700 12px Inter,Segoe UI,system-ui,sans-serif;color:#0f172a;text-align:center;line-height:1.25;word-break:break-word;'
   card.appendChild(nameEl)
-
   if (ref) {
     const refEl = document.createElement('div')
+    refEl.className = 'smh-sprinter-ref'
     refEl.textContent = ref
-    refEl.style.cssText =
-      'max-width:184px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font:600 10px ui-monospace,SFMono-Regular,Menlo,monospace;color:#475569;text-align:center;'
     card.appendChild(refEl)
   }
   wrap.appendChild(card)
 
   if (!live) {
     const stale = document.createElement('div')
+    stale.className = 'smh-sprinter-stale-badge'
     stale.textContent = 'Last known'
-    stale.style.cssText =
-      'font:700 9px Inter,Segoe UI,system-ui,sans-serif;padding:1px 6px;border-radius:9999px;background:#fef3c7;color:#92400e;border:1px solid #fcd34d;'
     wrap.appendChild(stale)
   }
 
