@@ -48,15 +48,33 @@ export async function applyJobTipPaidFromCheckout(
         ? String(session.payment_intent.id || '')
         : tip.stripe_payment_intent_id
 
-  await supabase
+  // Idempotent: only one concurrent updater wins (status must still be pending).
+  const { data: updatedRows, error: updateErr } = await supabase
     .from('job_tips')
     .update({
       status: 'paid',
       paid_at: paidAt,
       stripe_payment_intent_id: pi || tip.stripe_payment_intent_id,
       updated_at: paidAt,
+      quote_ref: tip.quote_ref || session.metadata?.quote_ref || session.metadata?.booking_ref || null,
+      customer_name: tip.customer_name || session.metadata?.customer_name || null,
     })
     .eq('id', id)
+    .eq('status', 'pending')
+    .select('id')
+
+  if (updateErr) {
+    console.error('[confirmJobTipPaid] update failed', updateErr.message)
+    return { ok: false, error: updateErr.message }
+  }
+
+  if (!updatedRows?.length) {
+    const { data: again } = await supabase.from('job_tips').select('status, amount_gbp').eq('id', id).maybeSingle()
+    if (again?.status === 'paid') {
+      return { ok: true, alreadyPaid: true, tip_id: id, amount_gbp: Number(again.amount_gbp) }
+    }
+    return { ok: false, error: 'tip_update_race' }
+  }
 
   if (quoteId) {
     const { data: paidTips } = await supabase

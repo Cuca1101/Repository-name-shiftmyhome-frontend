@@ -36,6 +36,7 @@ const mainSections = [
       { to: '/admin/website-leads', label: 'Website Leads / Quote Funnel', end: false, icon: 'inbox' },
       { to: '/admin/customer-leads', label: 'Customer Leads', end: false, icon: 'inbox' },
       { to: '/admin/extra-charges', label: 'Extra Charges', end: false, icon: 'wallet' },
+      { to: '/admin/customer-tips', label: 'Customer Tips', end: false, icon: 'wallet' },
     ],
   },
   {

@@ -147,14 +147,14 @@ export function buildJobCompletedThankYouEmailHtml(params: {
       Your feedback means a lot to us and helps other customers choose a reliable moving company.
     </p>
     <p style="margin:0 0 24px;">
-      <a href="${reviewUrl}" style="display:inline-block;background:#0284c7;color:#ffffff;text-decoration:none;font-weight:700;padding:14px 20px;border-radius:10px;font-size:15px;">⭐ Leave us a Google Review</a>
+      <a href="${reviewUrl}" target="_blank" rel="noopener noreferrer" style="display:inline-block;background:#0284c7;color:#ffffff;text-decoration:none;font-weight:700;padding:14px 20px;border-radius:10px;font-size:15px;">⭐ Leave us a Google Review</a>
     </p>
     <p style="margin:0 0 8px;font-size:16px;font-weight:700;color:#0f172a;">Would you like to thank your moving team?</p>
     <p style="margin:0 0 16px;font-size:14px;line-height:1.55;color:#475569;">
       If you feel the team did a great job, you can optionally leave them a tip. This is completely optional and there is absolutely no obligation.
     </p>
     <p style="margin:0 0 24px;">
-      <a href="${tipUrlSafe}" style="display:inline-block;background:#0f172a;color:#ffffff;text-decoration:none;font-weight:700;padding:14px 20px;border-radius:10px;font-size:15px;">💷 Leave a Tip</a>
+      <a href="${tipUrlSafe}" target="_blank" rel="noopener noreferrer" style="display:inline-block;background:#0f172a;color:#ffffff;text-decoration:none;font-weight:700;padding:14px 20px;border-radius:10px;font-size:15px;">💷 Leave a Tip</a>
     </p>
     <p style="margin:0 0 8px;font-size:15px;line-height:1.55;color:#334155;">Thank you again for trusting ShiftMyHome with your move.</p>
     <p style="margin:0 0 4px;font-size:15px;font-weight:600;color:#0f172a;">The ShiftMyHome Team</p>
@@ -181,13 +181,13 @@ export function buildJobCustomerEmailHtml(params: {
     .join('')
 
   const primary = params.primaryCta
-    ? `<p style="margin:20px 0 10px;"><a href="${esc(params.primaryCta.url)}" style="display:inline-block;background:#0284c7;color:#fff;text-decoration:none;font-weight:700;padding:12px 18px;border-radius:10px;">${esc(params.primaryCta.label)}</a></p>`
+    ? `<p style="margin:20px 0 10px;"><a href="${esc(params.primaryCta.url)}" target="_blank" rel="noopener noreferrer" style="display:inline-block;background:#0284c7;color:#fff;text-decoration:none;font-weight:700;padding:12px 18px;border-radius:10px;">${esc(params.primaryCta.label)}</a></p>`
     : ''
 
   const secondary = (params.secondaryCtas || [])
     .map(
       (c) =>
-        `<a href="${esc(c.url)}" style="display:inline-block;margin:0 8px 8px 0;background:#0f172a;color:#fff;text-decoration:none;font-weight:700;padding:10px 14px;border-radius:10px;font-size:13px;">${esc(c.label)}</a>`,
+        `<a href="${esc(c.url)}" target="_blank" rel="noopener noreferrer" style="display:inline-block;margin:0 8px 8px 0;background:#0f172a;color:#fff;text-decoration:none;font-weight:700;padding:10px 14px;border-radius:10px;font-size:13px;">${esc(c.label)}</a>`,
     )
     .join('')
 

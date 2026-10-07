@@ -61,6 +61,8 @@ export const AVAILABLE_JOB_LIST_COLUMNS = [
   'bundled_journey_id',
   'completed_at',
   'cancelled_at',
+  'tip_total_gbp',
+  'tip_paid_at',
   'auto_marketplace_hold',
   'auto_marketplace_eligible_at',
   'auto_marketplace_sent_at',

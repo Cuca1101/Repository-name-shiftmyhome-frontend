@@ -4,6 +4,7 @@ import { groupJobsByMoveDate } from '../../lib/adminJobMoveDateGroups'
 import { findLinkedJobForQuote } from '../../lib/adminWorkflowFilters'
 import { completedJobDisplayFields, formatAdminMoney } from '../../lib/adminTerminalJobsDisplay'
 import { MANUAL_PAYOUT_CONFIRMED_LABEL } from '../../lib/jobAcceptedPaymentDisplay'
+import { tipBadgeForQuote } from '../../lib/jobTipBadge'
 import JobStatusBadge from './JobStatusBadge'
 
 const TABLE_HEAD = (
@@ -54,6 +55,11 @@ export default function CompletedJobsListTable({ quotes, jobs }) {
                           {row.quoteRef}
                         </Link>
                         <p className="truncate text-xs font-semibold text-slate-900">{row.customer}</p>
+                        {tipBadgeForQuote(q) ? (
+                          <span className="mt-0.5 inline-flex rounded bg-emerald-100 px-1.5 py-px text-[10px] font-bold text-emerald-900">
+                            {tipBadgeForQuote(q).label}
+                          </span>
+                        ) : null}
                         <p className="mt-0.5 text-[10px] text-slate-600 md:hidden">{row.driver}</p>
                       </td>
                       <td className="hidden px-2 py-2 text-[11px] text-slate-800 md:table-cell lg:px-3">

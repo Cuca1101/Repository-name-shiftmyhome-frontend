@@ -115,38 +115,122 @@ export default function JobTrackingPortalPage() {
     }
   }, [load])
 
-  const live = Boolean(data?.tracking_live && data?.location?.available)
-  const mapToken = import.meta.env.VITE_MAPBOX_TOKEN
+  const liveGps = Boolean(data?.tracking_live && data?.location?.available)
+  const mapCoordsAvailable = Boolean(
+    data?.location?.available &&
+      Number.isFinite(Number(data?.location?.latitude)) &&
+      Number.isFinite(Number(data?.location?.longitude)),
+  )
+  /** Show map for live GPS or last-known coords (stale GPS still has lat/lng). */
+  const showMap = mapCoordsAvailable
+  const mapToken = String(import.meta.env.VITE_MAPBOX_TOKEN || '').trim()
+
+  const destroyMap = useCallback(() => {
+    try {
+      markerRef.current?.remove()
+    } catch {
+      /* ignore */
+    }
+    markerRef.current = null
+    try {
+      mapObjRef.current?.remove()
+    } catch {
+      /* ignore */
+    }
+    mapObjRef.current = null
+  }, [])
 
   useEffect(() => {
-    if (!live || !mapToken || !mapRef.current || !data?.location) return
+    if (!showMap || !mapToken || !data?.location) {
+      destroyMap()
+      return undefined
+    }
+
     const lng = Number(data.location.longitude)
     const lat = Number(data.location.latitude)
-    if (!Number.isFinite(lng) || !Number.isFinite(lat)) return
-
-    if (!mapObjRef.current) {
-      mapboxgl.accessToken = mapToken
-      mapObjRef.current = new mapboxgl.Map({
-        container: mapRef.current,
-        style: 'mapbox://styles/mapbox/streets-v12',
-        center: [lng, lat],
-        zoom: 13,
-      })
-      mapObjRef.current.addControl(new mapboxgl.NavigationControl({ visualizePitch: false }), 'top-right')
-      markerRef.current = new mapboxgl.Marker({ color: '#0284c7' }).setLngLat([lng, lat]).addTo(mapObjRef.current)
-    } else {
-      markerRef.current?.setLngLat([lng, lat])
-      mapObjRef.current.easeTo({ center: [lng, lat], duration: 800 })
+    if (!Number.isFinite(lng) || !Number.isFinite(lat)) {
+      destroyMap()
+      return undefined
     }
-  }, [live, mapToken, data?.location?.latitude, data?.location?.longitude])
+
+    let cancelled = false
+    let resizeObserver = null
+    let raf = 0
+
+    const resizeMap = () => {
+      const map = mapObjRef.current
+      if (!map) return
+      try {
+        map.resize()
+      } catch {
+        /* ignore */
+      }
+    }
+
+    const ensureMap = () => {
+      if (cancelled) return
+      const el = mapRef.current
+      if (!el) {
+        raf = window.requestAnimationFrame(ensureMap)
+        return
+      }
+
+      // Container remounted after live flicker — old Mapbox instance is orphaned.
+      const orphaned =
+        mapObjRef.current &&
+        typeof mapObjRef.current.getContainer === 'function' &&
+        mapObjRef.current.getContainer() !== el
+      if (orphaned) destroyMap()
+
+      if (!mapObjRef.current) {
+        mapboxgl.accessToken = mapToken
+        const map = new mapboxgl.Map({
+          container: el,
+          style: 'mapbox://styles/mapbox/streets-v12',
+          center: [lng, lat],
+          zoom: 13,
+        })
+        map.addControl(new mapboxgl.NavigationControl({ visualizePitch: false }), 'top-right')
+        map.on('load', () => {
+          if (cancelled) return
+          resizeMap()
+        })
+        map.on('error', (e) => {
+          console.warn('[JobTrackingPortal] map error', e?.error ?? e)
+        })
+        mapObjRef.current = map
+        markerRef.current = new mapboxgl.Marker({ color: '#0284c7' }).setLngLat([lng, lat]).addTo(map)
+        // Layout may still be settling when the empty h-64 div first mounts.
+        raf = window.requestAnimationFrame(() => {
+          resizeMap()
+          window.setTimeout(resizeMap, 100)
+        })
+      } else {
+        markerRef.current?.setLngLat([lng, lat])
+        mapObjRef.current.easeTo({ center: [lng, lat], duration: 800 })
+        resizeMap()
+      }
+
+      if (typeof ResizeObserver !== 'undefined' && !resizeObserver) {
+        resizeObserver = new ResizeObserver(() => resizeMap())
+        resizeObserver.observe(el)
+      }
+    }
+
+    ensureMap()
+
+    return () => {
+      cancelled = true
+      if (raf) window.cancelAnimationFrame(raf)
+      resizeObserver?.disconnect()
+    }
+  }, [showMap, mapToken, data?.location?.latitude, data?.location?.longitude, data?.location, destroyMap])
 
   useEffect(() => {
     return () => {
-      mapObjRef.current?.remove()
-      mapObjRef.current = null
-      markerRef.current = null
+      destroyMap()
     }
-  }, [])
+  }, [destroyMap])
 
   const inventory = useMemo(() => {
     if (Array.isArray(data?.inventory) && data.inventory.length) return data.inventory
@@ -212,11 +296,26 @@ export default function JobTrackingPortalPage() {
         <main className="mx-auto mt-4 flex max-w-3xl flex-col gap-4 px-4 sm:mt-6 sm:px-6">
           {!completed ? (
             <Section title="Live location">
-              {live && mapToken ? (
-                <div ref={mapRef} className="h-64 w-full overflow-hidden rounded-xl sm:h-80" />
+              {showMap && mapToken ? (
+                <>
+                  <div
+                    ref={mapRef}
+                    className="h-64 w-full overflow-hidden rounded-xl bg-slate-100 sm:h-80"
+                    role="img"
+                    aria-label="Driver location map"
+                  />
+                  {!liveGps && data.location?.message ? (
+                    <p className="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-900">
+                      {data.location.message}
+                    </p>
+                  ) : null}
+                </>
               ) : (
                 <p className="rounded-xl bg-amber-50 px-3 py-3 text-amber-900">
-                  {data.location?.message || 'Location temporarily unavailable'}
+                  {!mapToken
+                    ? 'Map is temporarily unavailable.'
+                    : data.location?.message ||
+                      'Location temporarily unavailable. The map appears when your driver is sharing GPS.'}
                 </p>
               )}
               <Row

@@ -31,13 +31,13 @@ function shell({ title, intro, rows = [], primary, secondary = [], footerNote = 
     )
     .join('')
   const primaryHtml = primary?.url
-    ? `<p style="margin:20px 0 10px;"><a href="${esc(primary.url)}" style="display:inline-block;background:#0284c7;color:#fff;text-decoration:none;font-weight:700;padding:12px 18px;border-radius:10px;">${esc(primary.label)}</a></p>`
+    ? `<p style="margin:20px 0 10px;"><a href="${esc(primary.url)}" target="_blank" rel="noopener noreferrer" style="display:inline-block;background:#0284c7;color:#fff;text-decoration:none;font-weight:700;padding:12px 18px;border-radius:10px;">${esc(primary.label)}</a></p>`
     : ''
   const secondaryHtml = secondary
     .filter((item) => item?.url)
     .map(
       (item) =>
-        `<a href="${esc(item.url)}" style="display:inline-block;margin:0 8px 8px 0;background:#0f172a;color:#fff;text-decoration:none;font-weight:700;padding:10px 14px;border-radius:10px;font-size:13px;">${esc(item.label)}</a>`,
+        `<a href="${esc(item.url)}" target="_blank" rel="noopener noreferrer" style="display:inline-block;margin:0 8px 8px 0;background:#0f172a;color:#fff;text-decoration:none;font-weight:700;padding:10px 14px;border-radius:10px;font-size:13px;">${esc(item.label)}</a>`,
     )
     .join('')
   const footer = footerNote
@@ -86,12 +86,38 @@ export function buildCustomerSentEmailPreview({ quote = {}, eventKey = '', track
 
   if (key === 'status_completed') {
     const first = firstName(quote.full_name)
-    return shell({
-      title: 'Thank you for choosing ShiftMyHome',
-      intro: `Hi ${first}, thank you for choosing ShiftMyHome for your move. We hope everything went smoothly.`,
-      primary: { label: 'Leave us a Google Review', url: GOOGLE_REVIEW_URL },
-      secondary: trackingToken ? [{ label: 'Leave a Tip', url: `${track}/tip` }] : [],
-    })
+    const tipHref = trackingToken ? `${track}/tip` : ''
+    // Match buildJobCompletedThankYouEmailHtml (edge) so Admin Preview matches the sent email.
+    return `<!doctype html><html><body style="margin:0;background:#f8fafc;font-family:Inter,Segoe UI,Arial,sans-serif;color:#0f172a;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f8fafc;padding:24px 12px;"><tr><td align="center">
+  <table width="560" style="max-width:560px;width:100%;background:#fff;border:1px solid #e2e8f0;border-radius:12px;"><tr><td style="padding:28px 24px;">
+    <p style="margin:0 0 16px;font-size:15px;line-height:1.55;color:#334155;">Hi ${esc(first)},</p>
+    <p style="margin:0 0 16px;font-size:15px;line-height:1.55;color:#334155;">
+      Thank you for choosing ShiftMyHome for your move. We hope everything went smoothly and that you were happy with the service provided by our team.
+    </p>
+    <p style="margin:0 0 20px;font-size:15px;line-height:1.55;color:#334155;">
+      Your feedback means a lot to us and helps other customers choose a reliable moving company.
+    </p>
+    <p style="margin:0 0 24px;">
+      <a href="${esc(GOOGLE_REVIEW_URL)}" target="_blank" rel="noopener noreferrer" style="display:inline-block;background:#0284c7;color:#ffffff;text-decoration:none;font-weight:700;padding:14px 20px;border-radius:10px;font-size:15px;">⭐ Leave us a Google Review</a>
+    </p>
+    <p style="margin:0 0 8px;font-size:16px;font-weight:700;color:#0f172a;">Would you like to thank your moving team?</p>
+    <p style="margin:0 0 16px;font-size:14px;line-height:1.55;color:#475569;">
+      If you feel the team did a great job, you can optionally leave them a tip. This is completely optional and there is absolutely no obligation.
+    </p>
+    ${
+      tipHref
+        ? `<p style="margin:0 0 24px;">
+      <a href="${esc(tipHref)}" target="_blank" rel="noopener noreferrer" style="display:inline-block;background:#0f172a;color:#ffffff;text-decoration:none;font-weight:700;padding:14px 20px;border-radius:10px;font-size:15px;">💷 Leave a Tip</a>
+    </p>`
+        : ''
+    }
+    <p style="margin:0 0 8px;font-size:15px;line-height:1.55;color:#334155;">Thank you again for trusting ShiftMyHome with your move.</p>
+    <p style="margin:0 0 4px;font-size:15px;font-weight:600;color:#0f172a;">The ShiftMyHome Team</p>
+    <p style="margin:0;font-size:13px;color:#94a3b8;">Moving made simple.</p>
+  </td></tr></table>
+  </td></tr></table>
+</body></html>`
   }
 
   if (key === 'driver_assigned' || key === 'driver_reassigned') {

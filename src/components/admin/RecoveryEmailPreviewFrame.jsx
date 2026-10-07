@@ -3,6 +3,10 @@ import { useEffect, useRef } from 'react'
 /**
  * Admin-only email preview. Links must never navigate the preview iframe
  * (Stripe Checkout / pay page refuse nested frames and appear stuck loading).
+ *
+ * Open links via a parent-document <a target="_blank"> click — not window.open.
+ * window.open from a parent handler after an iframe click often loses user
+ * activation and is blocked silently (links appear to do nothing).
  */
 export default function RecoveryEmailPreviewFrame({ html }) {
   const iframeRef = useRef(null)
@@ -16,8 +20,27 @@ export default function RecoveryEmailPreviewFrame({ html }) {
 
     const openOutsidePreview = (href) => {
       const url = String(href || '').trim()
-      if (!url || url === '#') return
-      window.open(url, '_blank', 'noopener,noreferrer')
+      if (!url || url === '#' || url.toLowerCase().startsWith('javascript:')) return
+      const link = document.createElement('a')
+      link.href = url
+      link.target = '_blank'
+      link.rel = 'noopener noreferrer'
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+    }
+
+    const prepareAnchors = (root) => {
+      root.querySelectorAll('a[href]').forEach((anchor) => {
+        const href = String(anchor.getAttribute('href') || '').trim()
+        if (!href || href.startsWith('#') || href.toLowerCase().startsWith('javascript:')) return
+        anchor.setAttribute('target', '_blank')
+        const rel = String(anchor.getAttribute('rel') || '')
+        const parts = new Set(rel.split(/\s+/).filter(Boolean))
+        parts.add('noopener')
+        parts.add('noreferrer')
+        anchor.setAttribute('rel', [...parts].join(' '))
+      })
     }
 
     const onClick = (event) => {
@@ -26,7 +49,8 @@ export default function RecoveryEmailPreviewFrame({ html }) {
       const anchor = target.closest('a')
       if (!anchor) return
       const href = anchor.getAttribute('href')
-      if (!href || href.startsWith('#')) return
+      if (!href || href.startsWith('#') || href.toLowerCase().startsWith('javascript:')) return
+      // Keep navigation out of the sandboxed iframe; open in a new tab from the parent.
       event.preventDefault()
       event.stopPropagation()
       openOutsidePreview(anchor.href || href)
@@ -35,6 +59,7 @@ export default function RecoveryEmailPreviewFrame({ html }) {
     const onLoad = () => {
       doc = iframe.contentDocument
       if (!doc) return
+      prepareAnchors(doc)
       doc.addEventListener('click', onClick, true)
     }
 

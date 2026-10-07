@@ -5,6 +5,7 @@ import { dispatchWorkflowBadge } from '../../lib/jobDispatchTimeline'
 import { resolveQuoteCollectionAddress, resolveQuoteDeliveryAddress } from '../../lib/quoteAddressResolve'
 import { resolveAssignedDriverDisplay } from '../../lib/adminJobAcceptedStatus'
 import { getFleetDriversCached } from '../../lib/adminFleetDrivers'
+import { tipBadgeForQuote } from '../../lib/jobTipBadge'
 import JobStatusBadge from './JobStatusBadge'
 import JobAcceptedListPayoutSummary from './JobAcceptedListPayoutSummary'
 
@@ -43,6 +44,11 @@ export default function JobAcceptedListRow({ q, job = null, onUpdated }) {
           {ref}
         </Link>
         <p className="truncate text-xs font-semibold text-slate-900">{customer}</p>
+        {tipBadgeForQuote(q) ? (
+          <span className="mt-0.5 inline-flex rounded bg-emerald-100 px-1.5 py-px text-[10px] font-bold text-emerald-900">
+            {tipBadgeForQuote(q).label}
+          </span>
+        ) : null}
         <p className="mt-0.5 text-[10px] text-slate-700 md:hidden">
           <span className="font-semibold text-slate-600">Driver:</span>{' '}
           <span className="font-semibold text-slate-900">{driver.name || driver.partner || '—'}</span>

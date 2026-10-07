@@ -53,6 +53,7 @@ import CustomerLeadDetailAdmin from './components/CustomerLeadDetailAdmin'
 import AdminAnalyticsPage from './pages/AdminAnalyticsPage'
 import AdminSessionsPage from './pages/AdminSessionsPage'
 import ExtraChargesAdmin from './components/ExtraChargesAdmin'
+import CustomerTipsAdmin from './components/CustomerTipsAdmin'
 import AvailableJobDetails from './components/AvailableJobDetails'
 import JourneyPlannerPage from './components/JourneyPlannerPage'
 import JourneyViewPage from './components/journey-planner/JourneyViewPage'
@@ -278,6 +279,7 @@ export default function App() {
         <Route path="website-cms" element={<WebsiteCmsAdmin />} />
         <Route path="seo" element={<SeoDashboardAdmin />} />
         <Route path="extra-charges" element={<ExtraChargesAdmin />} />
+        <Route path="customer-tips" element={<CustomerTipsAdmin />} />
       </Route>
       <Route
         path="*"

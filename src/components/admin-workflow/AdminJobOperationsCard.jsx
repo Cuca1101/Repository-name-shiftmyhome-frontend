@@ -454,6 +454,12 @@ export default function AdminJobOperationsCard({
       ? warningBadges.filter((badge) => badge.label !== 'No driver assigned' && badge.label !== 'Ready for dispatch')
       : warningBadges
 
+  const tipAmount = Number(q.tip_total_gbp)
+  const tipBadgeLabel =
+    Number.isFinite(tipAmount) && tipAmount > 0
+      ? `Tip £${tipAmount % 1 === 0 ? tipAmount.toFixed(0) : tipAmount.toFixed(2)}`
+      : null
+
   const keyBadges = (
     <div className="flex flex-wrap gap-1" role="status" aria-label="Job status">
       {cardVariant === 'available' ? null : (
@@ -462,6 +468,7 @@ export default function AdminJobOperationsCard({
       {cardVariant === 'available' || payBadge.label !== workflowBadge.label ? (
         <JobStatusBadge label={payBadge.label} tone={payBadge.tone} />
       ) : null}
+      {tipBadgeLabel ? <JobStatusBadge label={tipBadgeLabel} tone="emerald" /> : null}
       {assign ? <JobStatusBadge label={assign.label} tone={assign.tone} /> : null}
       {cardVariant === 'available' && !assign ? (
         <JobStatusBadge label="Unassigned" tone="amber" />

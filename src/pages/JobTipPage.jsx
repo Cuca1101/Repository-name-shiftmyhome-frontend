@@ -1,13 +1,17 @@
 import { useEffect, useState } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
 import SeoHead from '../components/seo/SeoHead'
+import { detailFromFunctionsInvokeError } from '../lib/functionsInvokeError'
 import { trackingClient } from '../lib/jobCustomerTracking'
 
 const SUGGESTED = [5, 10, 20, 30]
+const FRIENDLY_PAY_ERROR = "We couldn't start the secure payment. Please try again."
 
 export default function JobTipPage() {
   const { token } = useParams()
   const [searchParams] = useSearchParams()
+  /** @type {['preset' | 'other', function]} */
+  const [mode, setMode] = useState('preset')
   const [amount, setAmount] = useState(10)
   const [custom, setCustom] = useState('')
   const [busy, setBusy] = useState(false)
@@ -37,21 +41,56 @@ export default function JobTipPage() {
     }
   }, [searchParams])
 
+  function selectedGbp() {
+    if (mode === 'other') {
+      const n = Number(String(custom).trim())
+      return Number.isFinite(n) ? n : NaN
+    }
+    return Number(amount)
+  }
+
   async function pay() {
     setBusy(true)
     setErr('')
-    const gbp = custom.trim() ? Number(custom) : amount
+    const gbp = selectedGbp()
+    if (!Number.isFinite(gbp) || gbp < 1) {
+      setErr('Enter a tip of at least £1.')
+      setBusy(false)
+      return
+    }
     try {
       const client = trackingClient()
       if (!client) throw new Error('Unavailable')
       const { data, error } = await client.functions.invoke('create-job-tip-checkout', {
         body: { token, amount_gbp: gbp },
       })
-      if (error) throw error
-      if (!data?.url) throw new Error(data?.error || 'Could not start tip payment')
+      if (error) {
+        const detail = await detailFromFunctionsInvokeError(error, FRIENDLY_PAY_ERROR)
+        console.error('[JobTipPage] create-job-tip-checkout failed', {
+          message: error?.message,
+          detail,
+          data,
+          amount_gbp: gbp,
+        })
+        throw new Error(FRIENDLY_PAY_ERROR)
+      }
+      if (data?.error) {
+        console.error('[JobTipPage] create-job-tip-checkout body error', data)
+        throw new Error(FRIENDLY_PAY_ERROR)
+      }
+      if (!data?.url) {
+        console.error('[JobTipPage] create-job-tip-checkout missing url', data)
+        throw new Error(FRIENDLY_PAY_ERROR)
+      }
+      console.info('[JobTipPage] redirecting to Stripe Checkout', {
+        amount_gbp: data.amount_gbp ?? gbp,
+        amount_pence: data.amount_pence ?? Math.round(gbp * 100),
+        session_id: data.session_id,
+      })
       window.location.href = data.url
     } catch (ex) {
-      setErr(ex?.message || 'Payment could not be started.')
+      const msg = String(ex?.message || '')
+      setErr(/non-2xx|Edge Function|Failed to send/i.test(msg) ? FRIENDLY_PAY_ERROR : msg || FRIENDLY_PAY_ERROR)
       setBusy(false)
     }
   }
@@ -81,11 +120,12 @@ export default function JobTipPage() {
                   key={n}
                   type="button"
                   onClick={() => {
+                    setMode('preset')
                     setAmount(n)
                     setCustom('')
                   }}
                   className={`min-h-[44px] rounded-xl border px-4 text-sm font-semibold ${
-                    !custom && amount === n
+                    mode === 'preset' && amount === n
                       ? 'border-brand-600 bg-brand-50 text-brand-800'
                       : 'border-slate-200 bg-white text-slate-800'
                   }`}
@@ -96,11 +136,11 @@ export default function JobTipPage() {
               <button
                 type="button"
                 onClick={() => {
-                  setCustom(custom || '')
+                  setMode('other')
                   setAmount(0)
                 }}
                 className={`min-h-[44px] rounded-xl border px-4 text-sm font-semibold ${
-                  custom
+                  mode === 'other'
                     ? 'border-brand-600 bg-brand-50 text-brand-800'
                     : 'border-slate-200 bg-white text-slate-800'
                 }`}
@@ -108,18 +148,29 @@ export default function JobTipPage() {
                 Other amount
               </button>
             </div>
-            <label className="block">
-              <span className="text-sm font-medium text-slate-700">Other amount (£)</span>
-              <input
-                type="number"
-                min="1"
-                step="0.01"
-                className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2.5"
-                value={custom}
-                onChange={(e) => setCustom(e.target.value)}
-                placeholder="Enter amount"
-              />
-            </label>
+            {mode === 'other' ? (
+              <label className="block">
+                <span className="text-sm font-medium text-slate-700">Other amount (£)</span>
+                <input
+                  type="number"
+                  min="1"
+                  step="0.01"
+                  className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2.5"
+                  value={custom}
+                  onChange={(e) => {
+                    setMode('other')
+                    setCustom(e.target.value)
+                  }}
+                  placeholder="Enter amount"
+                  autoFocus
+                />
+              </label>
+            ) : null}
+            {Number.isFinite(selectedGbp()) && selectedGbp() >= 1 ? (
+              <p className="text-sm font-semibold text-slate-900">
+                Selected tip: £{Number(selectedGbp()).toFixed(2)}
+              </p>
+            ) : null}
             {err ? <p className="text-sm text-red-700">{err}</p> : null}
             <button
               type="button"

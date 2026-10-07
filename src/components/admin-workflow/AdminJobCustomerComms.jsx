@@ -48,6 +48,11 @@ export default function AdminJobCustomerComms({ quote, onRefresh }) {
 
   const tipPaidTotal = Number(quote?.tip_total_gbp) || 0
   const tipConfigured = Boolean(String(googleReviewUrl || '').trim())
+  const paidTips = tips
+    .filter((t) => String(t.status || '').toLowerCase() === 'paid')
+    .slice()
+    .sort((a, b) => new Date(b.paid_at || 0).getTime() - new Date(a.paid_at || 0).getTime())
+  const latestPaidTip = paidTips[0] || null
 
   const load = useCallback(async () => {
     if (!quoteId || !isSupabaseConfigured) return
@@ -61,7 +66,9 @@ export default function AdminJobCustomerComms({ quote, onRefresh }) {
     if (supabase) {
       const { data: tipRows } = await supabase
         .from('job_tips')
-        .select('id, amount_gbp, status, paid_at, created_at, driver_id, customer_email')
+        .select(
+          'id, amount_gbp, currency, status, paid_at, created_at, driver_id, customer_email, customer_name, quote_ref, stripe_session_id, stripe_payment_intent_id',
+        )
         .eq('quote_id', quoteId)
         .order('created_at', { ascending: false })
       setTips(tipRows || [])
@@ -256,27 +263,46 @@ export default function AdminJobCustomerComms({ quote, onRefresh }) {
         </div>
       </div>
 
-      {tips.length > 0 ? (
-        <div>
-          <p className="mb-2 text-xs font-semibold uppercase text-slate-500">Tip payments</p>
-          <ul className="space-y-2 text-sm">
-            {tips.map((t) => (
-              <li key={t.id} className="rounded-lg border border-slate-100 bg-slate-50 px-3 py-2">
-                <div className="font-medium text-slate-900">
-                  £{Number(t.amount_gbp || 0).toFixed(2)} · {String(t.status || 'pending')}
-                </div>
-                <div className="text-xs text-slate-600">
-                  {t.paid_at
-                    ? `Paid ${formatDateTimeUK(t.paid_at)}`
-                    : `Created ${formatDateTimeUK(t.created_at)}`}
-                  {quote?.assigned_driver_name ? ` · Crew: ${quote.assigned_driver_name}` : ''}
-                  {t.customer_email ? ` · ${t.customer_email}` : ''}
-                </div>
-              </li>
-            ))}
+      <div className="rounded-xl border border-slate-200 bg-white p-4">
+        <h4 className="text-sm font-bold text-slate-900">Customer Tip</h4>
+        <p className="mt-1 text-xs text-slate-500">
+          Optional tips are separate from booking price, deposit, balance, invoice and driver payout.
+        </p>
+        {latestPaidTip ? (
+          <div className="mt-3 space-y-1 text-sm text-slate-800">
+            <p>
+              <span className="font-semibold">Tip received:</span> £
+              {Number(latestPaidTip.amount_gbp || 0).toFixed(2)}
+              {paidTips.length > 1 ? ` (total £${tipPaidTotal.toFixed(2)})` : ''}
+            </p>
+            <p>
+              <span className="font-semibold">Status:</span> Paid
+            </p>
+            <p>
+              <span className="font-semibold">Paid:</span>{' '}
+              {latestPaidTip.paid_at ? formatDateTimeUK(latestPaidTip.paid_at) : '—'}
+            </p>
+            <p className="break-all">
+              <span className="font-semibold">Stripe payment:</span>{' '}
+              {latestPaidTip.stripe_payment_intent_id || '—'}
+            </p>
+          </div>
+        ) : (
+          <p className="mt-3 text-sm font-medium text-slate-700">No tip received</p>
+        )}
+        {tips.some((t) => String(t.status || '').toLowerCase() === 'pending') ? (
+          <ul className="mt-3 space-y-1 border-t border-slate-100 pt-3 text-xs text-slate-600">
+            {tips
+              .filter((t) => String(t.status || '').toLowerCase() === 'pending')
+              .map((t) => (
+                <li key={t.id}>
+                  Pending checkout £{Number(t.amount_gbp || 0).toFixed(2)} ·{' '}
+                  {formatDateTimeUK(t.created_at)}
+                </li>
+              ))}
           </ul>
-        </div>
-      ) : null}
+        ) : null}
+      </div>
 
       <div>
         <p className="text-xs font-semibold uppercase text-slate-500">Tracking link</p>
