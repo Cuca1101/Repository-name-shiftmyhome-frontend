@@ -83,6 +83,13 @@ function ensureTrackingMarkerStyles() {
       border:1px solid rgba(15,23,42,0.1); box-shadow:0 2px 8px rgba(15,23,42,0.14);
       font:700 11px Inter,Segoe UI,system-ui,sans-serif; color:#0f172a; white-space:nowrap;
     }
+    .smh-track-map-host,
+    .smh-track-map-host .mapboxgl-map,
+    .smh-track-map-host .mapboxgl-canvas-container,
+    .smh-track-map-host .mapboxgl-canvas {
+      width:100% !important;
+      height:100% !important;
+    }
   `
   document.head.appendChild(style)
 }
@@ -356,12 +363,17 @@ export default function TrackingDriverMap({
 
     tearDown()
     setError('')
+    ensureTrackingMarkerStyles()
 
     try {
       mapboxgl.accessToken = token
+      // Fill the React wrapper exactly — never pin a smaller inline height
+      // (that left a white strip under the Mapbox canvas).
       host.style.width = '100%'
-      host.style.minHeight = '16rem'
-      host.style.height = host.style.height || '20rem'
+      host.style.height = '100%'
+      host.style.minHeight = '0'
+      host.style.margin = '0'
+      host.style.padding = '0'
 
       const map = new mapboxgl.Map({
         container: host,
@@ -388,10 +400,13 @@ export default function TrackingDriverMap({
       resize()
       loadTimer = window.setTimeout(resize, 50)
       window.setTimeout(resize, 250)
+      window.setTimeout(resize, 600)
 
       if (typeof ResizeObserver !== 'undefined') {
         resizeObserver = new ResizeObserver(() => resize())
         resizeObserver.observe(host)
+        const wrap = host.parentElement
+        if (wrap) resizeObserver.observe(wrap)
       }
     } catch (ex) {
       console.error('[TrackingDriverMap] init failed', ex)
@@ -508,15 +523,15 @@ export default function TrackingDriverMap({
   const mapsUrl = `https://www.google.com/maps?q=${encodeURIComponent(`${lat},${lng}`)}`
 
   return (
-    <div className={`relative ${className}`}>
+    <div className={`relative w-full overflow-hidden bg-slate-200 ${className || 'h-80'}`}>
       <div
         ref={hostRef}
-        className="h-full min-h-[18rem] w-full overflow-hidden bg-slate-200 sm:min-h-[22rem]"
+        className="smh-track-map-host absolute inset-0 h-full w-full"
         role="img"
         aria-label={name ? `Driver ${name} on map` : 'Driver location map'}
       />
       {error ? (
-        <p className="absolute inset-x-3 bottom-3 rounded-lg bg-amber-50/95 px-3 py-2 text-xs text-amber-900 shadow-sm">
+        <p className="absolute inset-x-3 bottom-3 z-10 rounded-lg bg-amber-50/95 px-3 py-2 text-xs text-amber-900 shadow-sm">
           Map could not load ({error}).{' '}
           <a href={mapsUrl} target="_blank" rel="noopener noreferrer" className="font-semibold underline">
             Open in Google Maps

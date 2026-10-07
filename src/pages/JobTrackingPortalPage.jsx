@@ -25,11 +25,11 @@ function trackingMediaKey(portal) {
   return [...photos, ...waivers].map((p) => String(p.id || p.storage_path || '')).join('|')
 }
 
-function Section({ title, children }) {
+function Section({ title, children, bodyClassName = 'mt-3 space-y-2 text-sm text-slate-700' }) {
   return (
     <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
       <h2 className="text-base font-bold text-slate-900 sm:text-lg">{title}</h2>
-      <div className="mt-3 space-y-2 text-sm text-slate-700">{children}</div>
+      <div className={bodyClassName}>{children}</div>
     </section>
   )
 }
@@ -384,10 +384,10 @@ export default function JobTrackingPortalPage() {
 
         <main className="mx-auto mt-4 flex max-w-3xl flex-col gap-4 px-4 sm:mt-6 sm:px-6">
           {!completed ? (
-            <Section title="Live location">
+            <Section title="Live location" bodyClassName="mt-3 space-y-3 text-sm text-slate-700">
               {showMap ? (
                 <>
-                  <div className="overflow-hidden rounded-2xl border border-slate-200 shadow-sm">
+                  <div className="overflow-hidden rounded-xl border border-slate-200 bg-slate-200">
                     <TrackingDriverMap
                       latitude={mapLat}
                       longitude={mapLng}
@@ -397,13 +397,13 @@ export default function JobTrackingPortalPage() {
                       routeCoordinates={etaView?.routeCoordinates || null}
                       destination={etaView?.destination || null}
                       destinationKind={etaView?.kind || etaDestination?.kind || null}
-                      className="h-80 w-full sm:h-[26rem]"
+                      className="h-[22rem] w-full sm:h-[28rem]"
                     />
                   </div>
 
                   {etaDestination ? (
                     <div
-                      className={`mt-3 rounded-2xl border px-4 py-3.5 ${
+                      className={`rounded-xl border px-4 py-3.5 ${
                         etaView?.status === 'ready'
                           ? 'border-emerald-200 bg-emerald-50'
                           : 'border-amber-200 bg-amber-50'
@@ -475,7 +475,7 @@ export default function JobTrackingPortalPage() {
                   ) : null}
 
                   <div
-                    className={`mt-3 rounded-2xl border px-4 py-3.5 ${
+                    className={`rounded-xl border px-4 py-3.5 ${
                       motion.state === 'moving'
                         ? 'border-sky-200 bg-sky-50'
                         : motion.state === 'stationary'
@@ -524,9 +524,9 @@ export default function JobTrackingPortalPage() {
                   </div>
 
                   {(etaDestination?.kind === 'collection' || etaDestination?.kind === 'delivery') && (
-                    <div className="mt-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3.5">
+                    <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3.5">
                       <div className="flex items-start gap-3">
-                        <div className="mt-0.5 flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-red-100 text-red-600">
+                        <div className="mt-0.5 flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white text-red-600 shadow-sm ring-1 ring-red-100">
                           <IconPin className="h-5 w-5" />
                         </div>
                         <div>
