@@ -6,6 +6,12 @@ const ROUTE_SOURCE = 'tracking-drive-route'
 const ROUTE_LAYER_CASING = 'tracking-drive-route-casing'
 const ROUTE_LAYER = 'tracking-drive-route-line'
 
+/**
+ * Permanent driver vehicle marker asset — do not replace with SVG/icon-only markers.
+ * Product requirement: always use the Mercedes Sprinter photo on the track map.
+ */
+const SPRINTER_IMG = '/tracking/mercedes-sprinter-lwb.png'
+
 let markerStylesInjected = false
 function ensureTrackingMarkerStyles() {
   if (markerStylesInjected || typeof document === 'undefined') return
@@ -15,10 +21,10 @@ function ensureTrackingMarkerStyles() {
   style.textContent = `
     @keyframes smh-van-bob {
       0%, 100% { transform: translateY(0); }
-      50% { transform: translateY(-2px); }
+      50% { transform: translateY(-3px); }
     }
     .smh-van-marker {
-      display:flex; flex-direction:column; align-items:center; gap:3px;
+      display:flex; flex-direction:column; align-items:center; gap:2px;
       pointer-events:none; user-select:none;
     }
     .smh-van-card {
@@ -34,26 +40,32 @@ function ensureTrackingMarkerStyles() {
       max-width:152px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
       font:600 10px ui-monospace,SFMono-Regular,Menlo,monospace; color:#64748b; text-align:center;
     }
-    .smh-van-badge {
-      display:flex; align-items:center; justify-content:center;
-      width:46px; height:46px; border-radius:9999px;
-      background:#0284c7; color:#fff; border:2.5px solid #fff;
-      box-shadow:0 4px 12px rgba(2,132,199,0.45);
+    .smh-van-icon {
+      line-height:0;
+      filter: drop-shadow(0 4px 8px rgba(15,23,42,0.32));
+      background: transparent !important;
     }
-    .smh-van-badge.is-live { animation: smh-van-bob 1.7s ease-in-out infinite; }
-    .smh-van-badge.is-stale { background:#64748b; box-shadow:0 3px 8px rgba(100,116,139,0.35); }
-    .smh-van-badge svg { display:block; width:26px; height:26px; }
+    .smh-van-icon.is-live { animation: smh-van-bob 1.7s ease-in-out infinite; }
+    .smh-van-img {
+      display:block; width:96px; height:auto; max-height:64px;
+      object-fit:contain; background:transparent !important; border:0; outline:0;
+    }
+    .smh-van-img.is-stale { filter: grayscale(0.25) brightness(0.96); opacity:0.92; }
     .smh-van-pointer {
-      display:flex; flex-direction:column; align-items:center; margin-top:-1px; line-height:0;
+      display:flex; flex-direction:column; align-items:center; margin-top:-2px; line-height:0;
     }
     .smh-van-pointer-stem {
-      width:3px; height:12px; border-radius:2px; background:#0284c7;
+      width:3px; height:14px; border-radius:2px; background:#0284c7;
+      box-shadow:0 1px 2px rgba(15,23,42,0.25);
     }
     .smh-van-pointer-stem.is-stale { background:#64748b; }
     .smh-van-pointer-dot {
-      width:11px; height:11px; margin-top:-2px; border-radius:9999px;
+      width:12px; height:12px; margin-top:-2px; border-radius:9999px;
       background:#0284c7; border:2px solid #fff;
-      box-shadow:0 0 0 2px rgba(2,132,199,0.35), 0 2px 6px rgba(15,23,42,0.3);
+      box-shadow:0 0 0 2px rgba(2,132,199,0.35), 0 2px 6px rgba(15,23,42,0.35);
+    }
+    .smh-van-pointer-dot.is-live {
+      box-shadow:0 0 0 3px rgba(2,132,199,0.4), 0 2px 6px rgba(15,23,42,0.35);
     }
     .smh-van-pointer-dot.is-stale {
       background:#64748b;
@@ -93,7 +105,8 @@ function ensureTrackingMarkerStyles() {
 }
 
 /**
- * Blue van marker + name/ref card, tip anchored on exact GPS.
+ * Mercedes Sprinter photo + name/ref card, tip anchored on exact GPS.
+ * Always use SPRINTER_IMG — never swap this for an icon-only marker.
  * @param {{ driverName?: string, quoteRef?: string, live?: boolean }} opts
  */
 function buildVanMarkerElement({ driverName = '', quoteRef = '', live = false } = {}) {
@@ -126,25 +139,24 @@ function buildVanMarkerElement({ driverName = '', quoteRef = '', live = false } 
     wrap.appendChild(stale)
   }
 
-  const badge = document.createElement('div')
-  badge.className = live ? 'smh-van-badge is-live' : 'smh-van-badge is-stale'
-  badge.innerHTML = `
-    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path d="M3 7h11v10H3V7Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
-      <path d="M14 10h4.2L21 13.2V17h-7v-7Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
-      <circle cx="7" cy="18.5" r="1.5" fill="currentColor"/>
-      <circle cx="17.5" cy="18.5" r="1.5" fill="currentColor"/>
-    </svg>
-  `
-  wrap.appendChild(badge)
+  const icon = document.createElement('div')
+  icon.className = live ? 'smh-van-icon is-live' : 'smh-van-icon'
+  const img = document.createElement('img')
+  img.src = SPRINTER_IMG
+  img.alt = 'Mercedes Sprinter'
+  img.draggable = false
+  img.className = live ? 'smh-van-img' : 'smh-van-img is-stale'
+  icon.appendChild(img)
+  wrap.appendChild(icon)
 
+  // Stem + tip sit on the map coordinate (marker anchor: bottom).
   const pointer = document.createElement('div')
   pointer.className = 'smh-van-pointer'
   pointer.setAttribute('aria-hidden', 'true')
   const stem = document.createElement('div')
   stem.className = live ? 'smh-van-pointer-stem' : 'smh-van-pointer-stem is-stale'
   const tip = document.createElement('div')
-  tip.className = live ? 'smh-van-pointer-dot' : 'smh-van-pointer-dot is-stale'
+  tip.className = live ? 'smh-van-pointer-dot is-live' : 'smh-van-pointer-dot is-stale'
   pointer.appendChild(stem)
   pointer.appendChild(tip)
   wrap.appendChild(pointer)
@@ -270,7 +282,7 @@ function fitRouteBounds(map, driver, dest, routeCoordinates) {
 }
 
 /**
- * Customer tracking map: blue van, destination pin, road route, zoom + recenter.
+ * Customer tracking map: Mercedes Sprinter photo marker, destination pin, road route, zoom + recenter.
  *
  * @param {{
  *   latitude: number,
