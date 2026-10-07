@@ -141,10 +141,19 @@ export async function resolveTrackingDriverEta(args) {
     milesLabel: null,
     durationSeconds: null,
     distanceMeters: null,
+    routeCoordinates: null,
+    destination: null,
   }
 
   if (!args.gpsFresh) {
-    return { ...emptyUnavailable, cache: args.cache }
+    const cache = { ...(args.cache || {}) }
+    const coords = Array.isArray(cache.coordinates) && cache.coordinates.length >= 2 ? cache.coordinates : null
+    return {
+      ...emptyUnavailable,
+      routeCoordinates: coords,
+      destination: cache.dest || null,
+      cache,
+    }
   }
 
   if (!token || !args.destinationAddress?.trim()) {
@@ -159,6 +168,8 @@ export async function resolveTrackingDriverEta(args) {
       milesLabel: null,
       durationSeconds: null,
       distanceMeters: null,
+      routeCoordinates: null,
+      destination: null,
       cache: args.cache,
     }
   }
@@ -174,7 +185,16 @@ export async function resolveTrackingDriverEta(args) {
   const destKey = `${args.kind}|${String(args.destinationAddress).trim().toLowerCase()}`
   let cache = { ...(args.cache || {}) }
   if (cache.destKey !== destKey) {
-    cache = { destKey, dest: null, from: null, fetchedAt: null, durationSeconds: null, distanceMeters: null, kind: args.kind }
+    cache = {
+      destKey,
+      dest: null,
+      from: null,
+      fetchedAt: null,
+      durationSeconds: null,
+      distanceMeters: null,
+      coordinates: null,
+      kind: args.kind,
+    }
   }
 
   const { geocodeAddress } = await import('./mapboxRouteApi.js')
@@ -201,6 +221,8 @@ export async function resolveTrackingDriverEta(args) {
       milesLabel: null,
       durationSeconds: null,
       distanceMeters: null,
+      routeCoordinates: null,
+      destination: null,
       cache,
     }
   }
@@ -215,7 +237,7 @@ export async function resolveTrackingDriverEta(args) {
   if (needsFetch) {
     const route = await fetchMapboxDrivingRoute(driver, cache.dest, token)
     if (!route) {
-      // Keep previous good ETA if we have one and GPS is still fresh
+      // Keep previous good ETA/route if we have one and GPS is still fresh
       if (cache.durationSeconds != null && Number.isFinite(cache.durationSeconds)) {
         const timing = formatTrackingEtaTiming(cache.durationSeconds, now)
         return {
@@ -229,6 +251,8 @@ export async function resolveTrackingDriverEta(args) {
           milesLabel: formatTrackingEtaMiles(cache.distanceMeters || 0),
           durationSeconds: cache.durationSeconds,
           distanceMeters: cache.distanceMeters,
+          routeCoordinates: cache.coordinates || null,
+          destination: cache.dest,
           cache,
         }
       }
@@ -243,6 +267,8 @@ export async function resolveTrackingDriverEta(args) {
         milesLabel: null,
         durationSeconds: null,
         distanceMeters: null,
+        routeCoordinates: null,
+        destination: cache.dest,
         cache,
       }
     }
@@ -252,6 +278,7 @@ export async function resolveTrackingDriverEta(args) {
       fetchedAt: now,
       durationSeconds: route.durationSeconds,
       distanceMeters: route.distanceMeters,
+      coordinates: route.coordinates,
       kind: args.kind,
     }
   }
@@ -268,6 +295,8 @@ export async function resolveTrackingDriverEta(args) {
     milesLabel: formatTrackingEtaMiles(cache.distanceMeters || 0),
     durationSeconds: cache.durationSeconds,
     distanceMeters: cache.distanceMeters,
+    routeCoordinates: cache.coordinates || null,
+    destination: cache.dest,
     cache,
   }
 }

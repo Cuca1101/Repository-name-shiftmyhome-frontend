@@ -139,6 +139,7 @@ export default function JobTrackingPortalPage() {
   useEffect(() => {
     if (!data || completed || !etaDestination || !mapToken) {
       setEtaView(null)
+      if (!etaDestination) etaCacheRef.current = {}
       return undefined
     }
 
@@ -178,6 +179,8 @@ export default function JobTrackingPortalPage() {
         minutesLabel: result.minutesLabel,
         clock: result.clock,
         milesLabel: result.milesLabel,
+        routeCoordinates: result.routeCoordinates || null,
+        destination: result.destination || null,
       })
     })().catch(() => {
       if (runId !== etaRunRef.current) return
@@ -189,6 +192,8 @@ export default function JobTrackingPortalPage() {
         minutesLabel: null,
         clock: null,
         milesLabel: null,
+        routeCoordinates: null,
+        destination: null,
       })
     })
 
@@ -278,6 +283,9 @@ export default function JobTrackingPortalPage() {
                     live={liveGps}
                     driverName={data.driver?.full_name || ''}
                     quoteRef={data.quote_ref || ''}
+                    routeCoordinates={etaView?.routeCoordinates || null}
+                    destination={etaView?.destination || null}
+                    destinationKind={etaView?.kind || etaDestination?.kind || null}
                   />
                   <div
                     className={`mt-3 rounded-xl px-3 py-3 text-sm ${
@@ -329,22 +337,17 @@ export default function JobTrackingPortalPage() {
                       {etaView.status === 'ready' && etaView.minutesLabel && etaView.clock ? (
                         <>
                           <p className="mt-1 font-semibold">
-                            Arriving at {etaView.placeLabel} in approximately {etaView.minutesLabel}{' '}
-                            · ETA {etaView.clock}
+                            Arriving at {etaView.placeLabel} in {etaView.minutesLabel} ·{' '}
+                            {etaView.milesLabel} miles · ETA {etaView.clock}
                           </p>
                           <p className="mt-1 text-xs text-slate-600">
-                            Estimated arrival at {etaView.placeLabel}: {etaView.minutesLabel}
-                          </p>
-                          <p className="mt-0.5 text-xs text-slate-600">
-                            Approx. {etaView.milesLabel} miles away
-                          </p>
-                          <p className="mt-0.5 text-xs text-slate-600">
                             Expected arrival: {etaView.clock}
                           </p>
                         </>
                       ) : (
                         <p className="mt-1 font-semibold">
-                          {etaView.message || 'ETA currently unavailable — waiting for a fresh driver location'}
+                          {etaView.message ||
+                            'ETA currently unavailable — waiting for a fresh driver location'}
                         </p>
                       )}
                     </div>

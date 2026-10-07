@@ -41,6 +41,23 @@ console.log('far', {
 if (r1.status !== 'ready') throw new Error('expected ready ETA')
 if (!(r1.durationSeconds > 300)) throw new Error('expected multi-minute drive')
 if (!(Number(r1.milesLabel) >= 2)) throw new Error(`expected miles >=2, got ${r1.milesLabel}`)
+const coords = r1.routeCoordinates
+if (!Array.isArray(coords) || coords.length < 8) {
+  throw new Error(`expected multi-point road polyline, got ${coords?.length}`)
+}
+// Not a straight line: a mid vertex should diverge from the chord driver→dest
+const a = coords[0]
+const b = coords[coords.length - 1]
+const mid = coords[Math.floor(coords.length / 2)]
+const chordLat = a[1] + (b[1] - a[1]) * 0.5
+const chordLng = a[0] + (b[0] - a[0]) * 0.5
+const midDrift =
+  Math.hypot(Number(mid[0]) - chordLng, Number(mid[1]) - chordLat) * 111111
+console.log('route points', coords.length, 'midDriftM~', Math.round(midDrift))
+if (midDrift < 40) {
+  throw new Error('route looks like a straight line (midpoint too close to chord)')
+}
+if (!r1.destination?.lng) throw new Error('missing destination coords')
 
 const timing = formatTrackingEtaTiming(r1.durationSeconds)
 console.log('timing', timing)
