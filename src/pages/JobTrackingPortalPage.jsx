@@ -27,11 +27,25 @@ function trackingMediaKey(portal) {
 
 function Section({ title, children, bodyClassName = 'mt-3 space-y-2 text-sm text-slate-700' }) {
   return (
-    <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+    <section className="rounded-2xl border border-slate-200/90 bg-white p-4 shadow-[0_1px_3px_rgba(15,23,42,0.06)] sm:p-5">
       <h2 className="text-base font-bold text-slate-900 sm:text-lg">{title}</h2>
       <div className={bodyClassName}>{children}</div>
     </section>
   )
+}
+
+/** Customer-facing motion copy matching the track mockup. */
+function motionHeadline(motion) {
+  if (motion?.state === 'moving') return 'Driver moving'
+  if (motion?.state === 'stationary') return 'Driver stopped'
+  if (motion?.state === 'stale') return 'GPS unavailable'
+  return 'GPS unavailable'
+}
+
+function statusBadgeLabel(etaDestination, statusLabel) {
+  if (etaDestination?.kind === 'delivery') return 'On the way to delivery'
+  if (etaDestination?.kind === 'collection') return 'On the way to collection'
+  return statusLabel
 }
 
 function Row({ label, value }) {
@@ -351,6 +365,23 @@ export default function JobTrackingPortalPage() {
     )
   }
 
+  const badgeText = statusBadgeLabel(etaDestination, statusLabel)
+  const destKind = etaView?.kind || etaDestination?.kind || null
+  const destAddress =
+    destKind === 'delivery'
+      ? data.delivery_address
+      : destKind === 'collection'
+        ? data.pickup_address
+        : null
+  const gpsUpdatedAt = motion.updated_at || data.location?.updated_at
+  const etaReady = Boolean(
+    etaView?.status === 'ready'
+    && etaView.minutesLabel
+    && etaView.clock
+    && etaView.milesLabel
+    && etaView.milesLabel !== '—',
+  )
+
   return (
     <>
       <SeoHead
@@ -359,71 +390,64 @@ export default function JobTrackingPortalPage() {
         path={`/track/${token}`}
         robots="noindex, nofollow"
       />
-      <div className="min-h-screen bg-slate-50 pb-16">
-        <header className="border-b border-slate-200 bg-white">
-          <div className="mx-auto flex max-w-3xl flex-wrap items-start justify-between gap-3 px-4 py-5 sm:px-6">
+      <div className="min-h-screen bg-[#f4f7fb] pb-16">
+        <header className="bg-transparent">
+          <div className="mx-auto flex max-w-4xl flex-wrap items-start justify-between gap-3 px-4 pb-2 pt-6 sm:px-6 sm:pt-8">
             <div>
-              <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-sky-600">ShiftMyHome</p>
-              <h1 className="mt-1 text-2xl font-bold tracking-tight text-slate-900 sm:text-[1.75rem]">
+              <h1 className="text-[1.75rem] font-bold tracking-tight text-slate-900 sm:text-3xl">
                 {viewEvidence || completed ? 'Job evidence' : 'Track my driver'}
               </h1>
-              <p className="mt-1 font-mono text-sm font-medium text-slate-500">{data.quote_ref}</p>
+              <p className="mt-1.5 font-mono text-[15px] font-medium text-slate-500">{data.quote_ref}</p>
             </div>
-            <div className="inline-flex items-center gap-2 rounded-full bg-sky-100 px-3.5 py-2 text-xs font-semibold text-sky-800 shadow-sm">
-              <IconTruck className="h-4 w-4 text-sky-700" />
-              <span>
-                {etaDestination?.kind === 'delivery'
-                  ? 'On the way to delivery'
-                  : etaDestination?.kind === 'collection'
-                    ? 'On the way to collection'
-                    : statusLabel}
-              </span>
+            <div className="inline-flex items-center gap-2 rounded-full bg-sky-100 px-3.5 py-2 text-xs font-semibold text-sky-800 sm:text-[13px]">
+              <IconTruck className="h-4 w-4 shrink-0 text-sky-700" />
+              <span>{badgeText}</span>
             </div>
           </div>
         </header>
 
-        <main className="mx-auto mt-4 flex max-w-3xl flex-col gap-4 px-4 sm:mt-6 sm:px-6">
+        <main className="mx-auto mt-3 flex max-w-4xl flex-col gap-4 px-4 sm:mt-4 sm:gap-5 sm:px-6">
           {!completed ? (
-            <Section title="Live location" bodyClassName="mt-3 space-y-3 text-sm text-slate-700">
+            <Section title="Live location" bodyClassName="mt-3.5 space-y-3 text-sm text-slate-700 sm:space-y-3.5">
               {showMap ? (
                 <>
-                  <div className="overflow-hidden rounded-xl border border-slate-200 bg-slate-200">
+                  <div className="overflow-hidden rounded-xl border border-slate-200/80 bg-slate-200 shadow-sm">
                     <TrackingDriverMap
                       latitude={mapLat}
                       longitude={mapLng}
-                      live={liveGps}
+                      live={liveGps && motion.state !== 'stale'}
                       driverName={data.driver?.full_name || ''}
                       quoteRef={data.quote_ref || ''}
                       routeCoordinates={etaView?.routeCoordinates || null}
                       destination={etaView?.destination || null}
-                      destinationKind={etaView?.kind || etaDestination?.kind || null}
-                      className="h-[22rem] w-full sm:h-[28rem]"
+                      destinationKind={destKind}
+                      className="h-[20rem] w-full sm:h-[26rem] lg:h-[28rem]"
                     />
                   </div>
 
                   {etaDestination ? (
                     <div
-                      className={`rounded-xl border px-4 py-3.5 ${
-                        etaView?.status === 'ready'
+                      className={`rounded-xl border px-4 py-3.5 sm:px-5 ${
+                        etaReady
                           ? 'border-emerald-200 bg-emerald-50'
                           : 'border-amber-200 bg-amber-50'
                       }`}
                     >
-                      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                        <div className="flex items-start gap-3">
+                      <div className="flex flex-col gap-3.5 sm:flex-row sm:items-center sm:justify-between">
+                        <div className="flex min-w-0 items-start gap-3">
                           <div
                             className={`mt-0.5 flex h-11 w-11 shrink-0 items-center justify-center rounded-full ${
-                              etaView?.status === 'ready'
+                              etaReady
                                 ? 'bg-emerald-100 text-emerald-700'
                                 : 'bg-amber-100 text-amber-800'
                             }`}
                           >
                             <IconCar />
                           </div>
-                          <div>
-                            {etaView?.status === 'ready' && etaView.minutesLabel && etaView.clock ? (
+                          <div className="min-w-0">
+                            {etaReady ? (
                               <>
-                                <p className="text-[15px] font-bold text-slate-900">
+                                <p className="text-[15px] font-bold leading-snug text-slate-900 sm:text-base">
                                   Arriving at {etaView.placeLabel} in approximately {etaView.minutesLabel}
                                 </p>
                                 <p className="mt-0.5 text-sm text-slate-600">
@@ -432,7 +456,7 @@ export default function JobTrackingPortalPage() {
                               </>
                             ) : (
                               <>
-                                <p className="text-[15px] font-bold text-slate-900">
+                                <p className="text-[15px] font-bold leading-snug text-slate-900 sm:text-base">
                                   {etaView?.message ||
                                     'ETA currently unavailable — waiting for a fresh driver location'}
                                 </p>
@@ -445,8 +469,8 @@ export default function JobTrackingPortalPage() {
                             )}
                           </div>
                         </div>
-                        {etaView?.status === 'ready' && etaView.minutesLabel && etaView.clock ? (
-                          <div className="grid grid-cols-3 gap-1 border-t border-emerald-200/80 pt-3 text-center sm:min-w-[240px] sm:border-l sm:border-t-0 sm:pl-4 sm:pt-0">
+                        {etaReady ? (
+                          <div className="grid grid-cols-3 gap-0 border-t border-emerald-200/80 pt-3 text-center sm:min-w-[260px] sm:border-l sm:border-t-0 sm:pl-5 sm:pt-0">
                             <div className="flex flex-col items-center gap-1 px-1">
                               <IconClock className="h-4 w-4 text-emerald-700" />
                               <p className="text-sm font-bold text-slate-900">{etaView.minutesLabel}</p>
@@ -475,73 +499,65 @@ export default function JobTrackingPortalPage() {
                   ) : null}
 
                   <div
-                    className={`rounded-xl border px-4 py-3.5 ${
+                    className={`rounded-xl border px-4 py-3.5 sm:px-5 ${
                       motion.state === 'moving'
                         ? 'border-sky-200 bg-sky-50'
                         : motion.state === 'stationary'
-                          ? 'border-slate-200 bg-slate-50'
+                          ? 'border-sky-100 bg-sky-50/70'
                           : 'border-amber-200 bg-amber-50'
                     }`}
                   >
                     <div className="flex items-start gap-3">
                       <div
                         className={`mt-0.5 flex h-11 w-11 shrink-0 items-center justify-center rounded-full ${
-                          motion.state === 'moving'
+                          motion.state === 'moving' || motion.state === 'stationary'
                             ? 'bg-sky-100 text-sky-700'
-                            : motion.state === 'stationary'
-                              ? 'bg-slate-200 text-slate-700'
-                              : 'bg-amber-100 text-amber-800'
+                            : 'bg-amber-100 text-amber-800'
                         }`}
                       >
                         <IconCompass />
                       </div>
                       <div>
-                        <p className="text-[15px] font-bold text-slate-900">
-                          {motion.state === 'moving'
-                            ? 'Driver moving'
-                            : motion.state === 'stationary'
-                              ? motion.label || 'Stationary'
-                              : 'Waiting for fresh GPS update'}
+                        <p
+                          className={`text-[15px] font-bold sm:text-base ${
+                            motion.state === 'moving' || motion.state === 'stationary'
+                              ? 'text-sky-900'
+                              : 'text-amber-900'
+                          }`}
+                        >
+                          {motionHeadline(motion)}
                         </p>
-                        {motion.state === 'stale' ? (
-                          <p className="mt-0.5 text-sm text-amber-800">
-                            Last known location — waiting for a fresh GPS update
-                          </p>
-                        ) : (
-                          <p className="mt-0.5 text-sm text-slate-600">
-                            {motion.last_moved_at
-                              ? `Last movement: ${formatTimeUK(motion.last_moved_at)}`
-                              : 'Last movement: —'}
-                            {' · '}
-                            GPS updated:{' '}
-                            {motion.updated_at || data.location?.updated_at
-                              ? formatTimeUK(motion.updated_at || data.location?.updated_at)
-                              : '—'}
-                          </p>
-                        )}
+                        <p
+                          className={`mt-0.5 text-sm ${
+                            motion.state === 'stale' || motion.state === 'unavailable'
+                              ? 'text-amber-800'
+                              : 'text-slate-600'
+                          }`}
+                        >
+                          Last movement:{' '}
+                          {motion.last_moved_at ? formatTimeUK(motion.last_moved_at) : '—'}
+                          {' · '}
+                          GPS updated: {gpsUpdatedAt ? formatTimeUK(gpsUpdatedAt) : '—'}
+                        </p>
                       </div>
                     </div>
                   </div>
 
-                  {(etaDestination?.kind === 'collection' || etaDestination?.kind === 'delivery') && (
-                    <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3.5">
+                  {destKind && destAddress ? (
+                    <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3.5 sm:px-5">
                       <div className="flex items-start gap-3">
                         <div className="mt-0.5 flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white text-red-600 shadow-sm ring-1 ring-red-100">
                           <IconPin className="h-5 w-5" />
                         </div>
                         <div>
-                          <p className="text-[15px] font-bold text-slate-900">
-                            {etaDestination.kind === 'delivery' ? 'Delivery address' : 'Collection address'}
+                          <p className="text-[15px] font-bold text-slate-900 sm:text-base">
+                            {destKind === 'delivery' ? 'Delivery address' : 'Collection address'}
                           </p>
-                          <p className="mt-0.5 text-sm leading-relaxed text-slate-600">
-                            {etaDestination.kind === 'delivery'
-                              ? data.delivery_address || '—'
-                              : data.pickup_address || '—'}
-                          </p>
+                          <p className="mt-0.5 text-sm leading-relaxed text-slate-600">{destAddress}</p>
                         </div>
                       </div>
                     </div>
-                  )}
+                  ) : null}
                 </>
               ) : (
                 <p className="rounded-xl bg-amber-50 px-3 py-3 text-amber-900">

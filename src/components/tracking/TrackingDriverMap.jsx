@@ -6,9 +6,6 @@ const ROUTE_SOURCE = 'tracking-drive-route'
 const ROUTE_LAYER_CASING = 'tracking-drive-route-casing'
 const ROUTE_LAYER = 'tracking-drive-route-line'
 
-/** Mercedes Sprinter LWB photo cutout (transparent PNG). */
-const SPRINTER_IMG = '/tracking/mercedes-sprinter-lwb.png'
-
 let markerStylesInjected = false
 function ensureTrackingMarkerStyles() {
   if (markerStylesInjected || typeof document === 'undefined') return
@@ -18,53 +15,45 @@ function ensureTrackingMarkerStyles() {
   style.textContent = `
     @keyframes smh-van-bob {
       0%, 100% { transform: translateY(0); }
-      50% { transform: translateY(-3px); }
+      50% { transform: translateY(-2px); }
     }
     .smh-van-marker {
-      display:flex; flex-direction:column; align-items:center; gap:2px;
+      display:flex; flex-direction:column; align-items:center; gap:3px;
       pointer-events:none; user-select:none;
     }
     .smh-van-card {
-      display:flex; flex-direction:column; align-items:center; gap:1px; max-width:170px;
+      display:flex; flex-direction:column; align-items:center; gap:1px; max-width:168px;
       padding:6px 11px; border-radius:10px; background:#fff;
       border:1px solid rgba(15,23,42,0.1); box-shadow:0 2px 10px rgba(15,23,42,0.16);
     }
     .smh-van-name {
-      max-width:154px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+      max-width:152px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
       font:700 12px Inter,Segoe UI,system-ui,sans-serif; color:#0f172a; text-align:center;
     }
     .smh-van-ref {
-      max-width:154px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+      max-width:152px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
       font:600 10px ui-monospace,SFMono-Regular,Menlo,monospace; color:#64748b; text-align:center;
     }
-    .smh-van-icon {
-      line-height:0;
-      filter: drop-shadow(0 4px 8px rgba(15,23,42,0.32));
-      background: transparent !important;
+    .smh-van-badge {
+      display:flex; align-items:center; justify-content:center;
+      width:46px; height:46px; border-radius:9999px;
+      background:#0284c7; color:#fff; border:2.5px solid #fff;
+      box-shadow:0 4px 12px rgba(2,132,199,0.45);
     }
-    .smh-van-icon.is-live { animation: smh-van-bob 1.7s ease-in-out infinite; }
-    .smh-van-img {
-      display:block; width:96px; height:auto; max-height:64px;
-      object-fit:contain; background:transparent !important; border:0; outline:0;
-    }
-    .smh-van-img.is-stale { filter: grayscale(0.25) brightness(0.96); opacity:0.92; }
+    .smh-van-badge.is-live { animation: smh-van-bob 1.7s ease-in-out infinite; }
+    .smh-van-badge.is-stale { background:#64748b; box-shadow:0 3px 8px rgba(100,116,139,0.35); }
+    .smh-van-badge svg { display:block; width:26px; height:26px; }
     .smh-van-pointer {
-      display:flex; flex-direction:column; align-items:center; margin-top:-2px;
-      line-height:0;
+      display:flex; flex-direction:column; align-items:center; margin-top:-1px; line-height:0;
     }
     .smh-van-pointer-stem {
-      width:3px; height:14px; border-radius:2px;
-      background:#0284c7;
-      box-shadow:0 1px 2px rgba(15,23,42,0.25);
+      width:3px; height:12px; border-radius:2px; background:#0284c7;
     }
     .smh-van-pointer-stem.is-stale { background:#64748b; }
     .smh-van-pointer-dot {
-      width:12px; height:12px; margin-top:-2px; border-radius:9999px;
+      width:11px; height:11px; margin-top:-2px; border-radius:9999px;
       background:#0284c7; border:2px solid #fff;
-      box-shadow:0 0 0 2px rgba(2,132,199,0.35), 0 2px 6px rgba(15,23,42,0.35);
-    }
-    .smh-van-pointer-dot.is-live {
-      box-shadow:0 0 0 3px rgba(2,132,199,0.4), 0 2px 6px rgba(15,23,42,0.35);
+      box-shadow:0 0 0 2px rgba(2,132,199,0.35), 0 2px 6px rgba(15,23,42,0.3);
     }
     .smh-van-pointer-dot.is-stale {
       background:#64748b;
@@ -90,12 +79,21 @@ function ensureTrackingMarkerStyles() {
       width:100% !important;
       height:100% !important;
     }
+    .smh-track-recenter {
+      position:absolute; top:98px; right:10px; z-index:2;
+      width:29px; height:29px; border:0; border-radius:4px;
+      background:#fff; color:#0f172a; cursor:pointer;
+      box-shadow:0 0 0 2px rgba(0,0,0,0.1);
+      display:flex; align-items:center; justify-content:center;
+    }
+    .smh-track-recenter:hover { background:#f8fafc; }
+    .smh-track-recenter svg { width:16px; height:16px; display:block; }
   `
   document.head.appendChild(style)
 }
 
 /**
- * Driver marker: name card + Sprinter photo, with a pointer tip on the exact GPS point.
+ * Blue van marker + name/ref card, tip anchored on exact GPS.
  * @param {{ driverName?: string, quoteRef?: string, live?: boolean }} opts
  */
 function buildVanMarkerElement({ driverName = '', quoteRef = '', live = false } = {}) {
@@ -128,24 +126,25 @@ function buildVanMarkerElement({ driverName = '', quoteRef = '', live = false } 
     wrap.appendChild(stale)
   }
 
-  const icon = document.createElement('div')
-  icon.className = live ? 'smh-van-icon is-live' : 'smh-van-icon'
-  const img = document.createElement('img')
-  img.src = SPRINTER_IMG
-  img.alt = ''
-  img.draggable = false
-  img.className = live ? 'smh-van-img' : 'smh-van-img is-stale'
-  icon.appendChild(img)
-  wrap.appendChild(icon)
+  const badge = document.createElement('div')
+  badge.className = live ? 'smh-van-badge is-live' : 'smh-van-badge is-stale'
+  badge.innerHTML = `
+    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="M3 7h11v10H3V7Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+      <path d="M14 10h4.2L21 13.2V17h-7v-7Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+      <circle cx="7" cy="18.5" r="1.5" fill="currentColor"/>
+      <circle cx="17.5" cy="18.5" r="1.5" fill="currentColor"/>
+    </svg>
+  `
+  wrap.appendChild(badge)
 
-  // Stem + tip sit on the map coordinate (marker anchor: bottom).
   const pointer = document.createElement('div')
   pointer.className = 'smh-van-pointer'
   pointer.setAttribute('aria-hidden', 'true')
   const stem = document.createElement('div')
   stem.className = live ? 'smh-van-pointer-stem' : 'smh-van-pointer-stem is-stale'
   const tip = document.createElement('div')
-  tip.className = live ? 'smh-van-pointer-dot is-live' : 'smh-van-pointer-dot is-stale'
+  tip.className = live ? 'smh-van-pointer-dot' : 'smh-van-pointer-dot is-stale'
   pointer.appendChild(stem)
   pointer.appendChild(tip)
   wrap.appendChild(pointer)
@@ -154,7 +153,6 @@ function buildVanMarkerElement({ driverName = '', quoteRef = '', live = false } 
 }
 
 /**
- * Destination pin + label (Collection address / Delivery address).
  * @param {{ kind?: 'collection' | 'delivery' | string }} opts
  */
 function buildDestinationMarkerElement({ kind = 'collection' } = {}) {
@@ -165,7 +163,6 @@ function buildDestinationMarkerElement({ kind = 'collection' } = {}) {
   wrap.className = 'smh-dest-marker'
   wrap.setAttribute('aria-label', label)
 
-  // Label above pin so the pin tip (bottom) sits exactly on the map coordinate.
   const card = document.createElement('div')
   card.className = 'smh-dest-card'
   card.textContent = label
@@ -262,7 +259,7 @@ function fitRouteBounds(map, driver, dest, routeCoordinates) {
   if (count < 1) return
   try {
     map.fitBounds(bounds, {
-      padding: { top: 72, bottom: 56, left: 48, right: 48 },
+      padding: { top: 80, bottom: 64, left: 56, right: 56 },
       maxZoom: 14.5,
       duration: 650,
       essential: true,
@@ -273,7 +270,7 @@ function fitRouteBounds(map, driver, dest, routeCoordinates) {
 }
 
 /**
- * Customer tracking map with Sprinter marker + GPS pointer, destination pin, and route.
+ * Customer tracking map: blue van, destination pin, road route, zoom + recenter.
  *
  * @param {{
  *   latitude: number,
@@ -299,12 +296,15 @@ export default function TrackingDriverMap({
   className = '',
 }) {
   const hostRef = useRef(null)
+  const wrapRef = useRef(null)
   const mapRef = useRef(null)
   const driverMarkerRef = useRef(null)
   const destMarkerRef = useRef(null)
   const mapReadyRef = useRef(false)
   const lastFitKeyRef = useRef('')
   const driverMetaKeyRef = useRef('')
+  const routeCoordsRef = useRef(routeCoordinates)
+  const destRef = useRef(destination)
   const [error, setError] = useState('')
   const token = String(import.meta.env.VITE_MAPBOX_TOKEN || '').trim()
 
@@ -319,6 +319,9 @@ export default function TrackingDriverMap({
   const stopKind = destinationKind === 'delivery' ? 'delivery' : 'collection'
   const driverMetaKey = `${live ? 1 : 0}|${name}|${bookingRef}`
 
+  routeCoordsRef.current = routeCoordinates
+  destRef.current = destination
+
   useEffect(() => {
     if (!token) {
       setError('Map token missing.')
@@ -329,7 +332,7 @@ export default function TrackingDriverMap({
 
     let cancelled = false
     let resizeObserver = null
-    let loadTimer = 0
+    const timers = []
 
     const tearDown = () => {
       mapReadyRef.current = false
@@ -367,8 +370,6 @@ export default function TrackingDriverMap({
 
     try {
       mapboxgl.accessToken = token
-      // Fill the React wrapper exactly — never pin a smaller inline height
-      // (that left a white strip under the Mapbox canvas).
       host.style.width = '100%'
       host.style.height = '100%'
       host.style.minHeight = '0'
@@ -398,15 +399,14 @@ export default function TrackingDriverMap({
       })
 
       resize()
-      loadTimer = window.setTimeout(resize, 50)
-      window.setTimeout(resize, 250)
-      window.setTimeout(resize, 600)
+      timers.push(window.setTimeout(resize, 50))
+      timers.push(window.setTimeout(resize, 250))
+      timers.push(window.setTimeout(resize, 600))
 
       if (typeof ResizeObserver !== 'undefined') {
         resizeObserver = new ResizeObserver(() => resize())
         resizeObserver.observe(host)
-        const wrap = host.parentElement
-        if (wrap) resizeObserver.observe(wrap)
+        if (wrapRef.current) resizeObserver.observe(wrapRef.current)
       }
     } catch (ex) {
       console.error('[TrackingDriverMap] init failed', ex)
@@ -416,7 +416,7 @@ export default function TrackingDriverMap({
 
     return () => {
       cancelled = true
-      if (loadTimer) window.clearTimeout(loadTimer)
+      for (const id of timers) window.clearTimeout(id)
       resizeObserver?.disconnect()
       tearDown()
     }
@@ -504,6 +504,20 @@ export default function TrackingDriverMap({
     return undefined
   }, [destOk, destLng, destLat, stopKind, routeCoordinates, lat, lng])
 
+  const recenter = () => {
+    const map = mapRef.current
+    if (!map || !coordsOk) return
+    const dest = destRef.current
+    const dLng = Number(dest?.lng)
+    const dLat = Number(dest?.lat)
+    fitRouteBounds(
+      map,
+      { lng, lat },
+      Number.isFinite(dLng) && Number.isFinite(dLat) ? { lng: dLng, lat: dLat } : null,
+      routeCoordsRef.current,
+    )
+  }
+
   if (!token) {
     return (
       <p className="rounded-xl bg-amber-50 px-3 py-3 text-sm text-amber-900">
@@ -523,13 +537,28 @@ export default function TrackingDriverMap({
   const mapsUrl = `https://www.google.com/maps?q=${encodeURIComponent(`${lat},${lng}`)}`
 
   return (
-    <div className={`relative w-full overflow-hidden bg-slate-200 ${className || 'h-80'}`}>
+    <div
+      ref={wrapRef}
+      className={`relative w-full overflow-hidden bg-slate-200 ${className || 'h-80'}`}
+    >
       <div
         ref={hostRef}
         className="smh-track-map-host absolute inset-0 h-full w-full"
         role="img"
         aria-label={name ? `Driver ${name} on map` : 'Driver location map'}
       />
+      <button
+        type="button"
+        className="smh-track-recenter"
+        title="Recenter on route"
+        aria-label="Recenter on route"
+        onClick={recenter}
+      >
+        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <circle cx="12" cy="12" r="3" stroke="currentColor" strokeWidth="1.8" />
+          <path d="M12 3v3M12 18v3M3 12h3M18 12h3" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+        </svg>
+      </button>
       {error ? (
         <p className="absolute inset-x-3 bottom-3 z-10 rounded-lg bg-amber-50/95 px-3 py-2 text-xs text-amber-900 shadow-sm">
           Map could not load ({error}).{' '}
