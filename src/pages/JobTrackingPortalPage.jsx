@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
 import SeoHead from '../components/seo/SeoHead'
 import TrackingDriverMap from '../components/tracking/TrackingDriverMap'
+import { formatTimeUK, resolveTrackingMotion } from '../lib/driverMotionStatus'
 import { formatDateTimeUK, formatDateUK } from '../lib/formatDateDisplay'
 import {
   customerJobStatusLabel,
@@ -118,6 +119,7 @@ export default function JobTrackingPortalPage() {
     data?.location?.available && Number.isFinite(mapLat) && Number.isFinite(mapLng),
   )
   const mapToken = String(import.meta.env.VITE_MAPBOX_TOKEN || '').trim()
+  const motion = resolveTrackingMotion(data?.location)
 
   const inventory = useMemo(() => {
     if (Array.isArray(data?.inventory) && data.inventory.length) return data.inventory
@@ -190,12 +192,44 @@ export default function JobTrackingPortalPage() {
                     longitude={mapLng}
                     live={liveGps}
                     driverName={data.driver?.full_name || ''}
+                    quoteRef={data.quote_ref || ''}
                   />
-                  {!liveGps && data.location?.message ? (
-                    <p className="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-900">
-                      {data.location.message}
+                  <div
+                    className={`mt-3 rounded-xl px-3 py-3 text-sm ${
+                      motion.state === 'moving'
+                        ? 'border border-emerald-200 bg-emerald-50 text-emerald-950'
+                        : motion.state === 'stationary'
+                          ? 'border border-slate-200 bg-slate-50 text-slate-900'
+                          : 'border border-amber-200 bg-amber-50 text-amber-950'
+                    }`}
+                  >
+                    {data.driver?.full_name ? (
+                      <div className="mb-2 border-b border-black/5 pb-2">
+                        <p className="font-bold text-slate-900">{data.driver.full_name}</p>
+                        {data.quote_ref ? (
+                          <p className="mt-0.5 font-mono text-xs text-slate-600">{data.quote_ref}</p>
+                        ) : null}
+                      </div>
+                    ) : null}
+                    <p className="font-semibold">
+                      {motion.state === 'moving'
+                        ? '🟢 Driver moving'
+                        : motion.state === 'stationary'
+                          ? `⏸ ${motion.label || 'Stationary'}`
+                          : motion.label || 'Last known location — waiting for a fresh GPS update'}
                     </p>
-                  ) : null}
+                    {motion.state === 'stationary' && motion.last_moved_at ? (
+                      <p className="mt-1 text-xs text-slate-600">
+                        Last movement: {formatTimeUK(motion.last_moved_at)}
+                      </p>
+                    ) : null}
+                    <p className="mt-1 text-xs text-slate-600">
+                      GPS updated:{' '}
+                      {motion.updated_at || data.location?.updated_at
+                        ? formatTimeUK(motion.updated_at || data.location?.updated_at)
+                        : '—'}
+                    </p>
+                  </div>
                 </>
               ) : (
                 <p className="rounded-xl bg-amber-50 px-3 py-3 text-amber-900">

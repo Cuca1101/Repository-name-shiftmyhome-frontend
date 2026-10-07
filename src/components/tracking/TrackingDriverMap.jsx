@@ -3,17 +3,17 @@ import mapboxgl from 'mapbox-gl'
 import 'mapbox-gl/dist/mapbox-gl.css'
 
 /**
- * Custom van pin + driver name label for the customer track map.
- * @param {{ driverName?: string, live?: boolean }} opts
+ * Custom van pin + full driver name + job reference for the customer track map.
+ * @param {{ driverName?: string, quoteRef?: string, live?: boolean }} opts
  */
-function buildVanMarkerElement({ driverName = '', live = false } = {}) {
-  const label = String(driverName || 'Your driver').trim() || 'Your driver'
-  const shortName = label.split(/\s+/)[0] || label
+function buildVanMarkerElement({ driverName = '', quoteRef = '', live = false } = {}) {
+  const fullName = String(driverName || 'Your driver').trim() || 'Your driver'
+  const ref = String(quoteRef || '').trim()
   const accent = live ? '#0284c7' : '#475569'
   const wrap = document.createElement('div')
-  wrap.setAttribute('aria-label', `Driver ${label}`)
+  wrap.setAttribute('aria-label', ref ? `Driver ${fullName}, booking ${ref}` : `Driver ${fullName}`)
   wrap.style.cssText =
-    'display:flex;flex-direction:column;align-items:center;gap:4px;pointer-events:none;user-select:none;'
+    'display:flex;flex-direction:column;align-items:center;gap:3px;pointer-events:none;user-select:none;'
 
   const van = document.createElement('div')
   van.innerHTML = `
@@ -34,11 +34,24 @@ function buildVanMarkerElement({ driverName = '', live = false } = {}) {
   van.style.cssText = 'filter:drop-shadow(0 3px 6px rgba(15,23,42,0.35));line-height:0;'
   wrap.appendChild(van)
 
+  const card = document.createElement('div')
+  card.style.cssText =
+    'display:flex;flex-direction:column;align-items:center;gap:2px;max-width:200px;padding:5px 10px;border-radius:10px;background:#fff;border:1px solid rgba(15,23,42,0.12);box-shadow:0 2px 8px rgba(15,23,42,0.18);'
+
   const nameEl = document.createElement('div')
-  nameEl.textContent = shortName.slice(0, 18)
+  nameEl.textContent = fullName
   nameEl.style.cssText =
-    'max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font:700 12px Inter,Segoe UI,system-ui,sans-serif;padding:3px 8px;border-radius:9999px;background:#fff;border:1px solid rgba(15,23,42,0.12);color:#0f172a;box-shadow:0 2px 8px rgba(15,23,42,0.18);'
-  wrap.appendChild(nameEl)
+    'max-width:184px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;font:700 12px Inter,Segoe UI,system-ui,sans-serif;color:#0f172a;text-align:center;line-height:1.25;word-break:break-word;'
+  card.appendChild(nameEl)
+
+  if (ref) {
+    const refEl = document.createElement('div')
+    refEl.textContent = ref
+    refEl.style.cssText =
+      'max-width:184px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font:600 10px ui-monospace,SFMono-Regular,Menlo,monospace;color:#475569;text-align:center;'
+    card.appendChild(refEl)
+  }
+  wrap.appendChild(card)
 
   if (!live) {
     const stale = document.createElement('div')
@@ -58,6 +71,7 @@ function buildVanMarkerElement({ driverName = '', live = false } = {}) {
  *   longitude: number,
  *   live?: boolean,
  *   driverName?: string,
+ *   quoteRef?: string,
  *   className?: string,
  * }} props
  */
@@ -66,6 +80,7 @@ export default function TrackingDriverMap({
   longitude,
   live = false,
   driverName = '',
+  quoteRef = '',
   className = '',
 }) {
   const hostRef = useRef(null)
@@ -78,6 +93,7 @@ export default function TrackingDriverMap({
   const lng = Number(longitude)
   const coordsOk = Number.isFinite(lat) && Number.isFinite(lng)
   const name = String(driverName || '').trim()
+  const bookingRef = String(quoteRef || '').trim()
 
   useEffect(() => {
     if (!token || !coordsOk) {
@@ -134,7 +150,7 @@ export default function TrackingDriverMap({
       mapRef.current = map
       map.addControl(new mapboxgl.NavigationControl({ visualizePitch: false }), 'top-right')
 
-      const el = buildVanMarkerElement({ driverName: name, live })
+      const el = buildVanMarkerElement({ driverName: name, quoteRef: bookingRef, live })
       markerRef.current = new mapboxgl.Marker({ element: el, anchor: 'bottom' })
         .setLngLat([lng, lat])
         .addTo(map)
@@ -170,7 +186,7 @@ export default function TrackingDriverMap({
       resizeObserver?.disconnect()
       tearDown()
     }
-  }, [token, coordsOk, lat, lng, live, name])
+  }, [token, coordsOk, lat, lng, live, name, bookingRef])
 
   if (!token) {
     return (
