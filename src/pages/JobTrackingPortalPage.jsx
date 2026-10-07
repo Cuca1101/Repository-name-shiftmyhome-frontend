@@ -306,11 +306,16 @@ export default function JobTrackingPortalPage() {
                     ) : null}
                     <p className="font-semibold">
                       {motion.state === 'moving'
-                        ? '🟢 Driver moving'
+                        ? 'Driver moving'
                         : motion.state === 'stationary'
-                          ? `⏸ ${motion.label || 'Stationary'}`
-                          : motion.label || 'Last known location — waiting for a fresh GPS update'}
+                          ? motion.label || 'Stationary'
+                          : 'Waiting for fresh GPS update'}
                     </p>
+                    {motion.state === 'stale' ? (
+                      <p className="mt-1 text-xs text-amber-800">
+                        Last known location — waiting for a fresh GPS update
+                      </p>
+                    ) : null}
                     {motion.state === 'stationary' && motion.last_moved_at ? (
                       <p className="mt-1 text-xs text-slate-600">
                         Last movement: {formatTimeUK(motion.last_moved_at)}
@@ -337,11 +342,10 @@ export default function JobTrackingPortalPage() {
                       {etaView.status === 'ready' && etaView.minutesLabel && etaView.clock ? (
                         <>
                           <p className="mt-1 font-semibold">
-                            Arriving at {etaView.placeLabel} in {etaView.minutesLabel} ·{' '}
-                            {etaView.milesLabel} miles · ETA {etaView.clock}
+                            Arriving at {etaView.placeLabel} in approximately {etaView.minutesLabel}
                           </p>
-                          <p className="mt-1 text-xs text-slate-600">
-                            Expected arrival: {etaView.clock}
+                          <p className="mt-1 text-xs text-slate-700">
+                            {etaView.milesLabel} miles away · ETA {etaView.clock}
                           </p>
                         </>
                       ) : (
@@ -350,6 +354,11 @@ export default function JobTrackingPortalPage() {
                             'ETA currently unavailable — waiting for a fresh driver location'}
                         </p>
                       )}
+                      {etaView.status !== 'ready' && etaView.routeCoordinates?.length ? (
+                        <p className="mt-1 text-xs text-slate-600">
+                          Showing last known road route until a fresh GPS update arrives.
+                        </p>
+                      ) : null}
                     </div>
                   ) : null}
                 </>

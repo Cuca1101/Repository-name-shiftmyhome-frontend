@@ -1,5 +1,7 @@
 /**
  * Customer track-page driving ETA (Mapbox Directions) from driver GPS → collection/delivery.
+ * Always builds a road route from last-known driver coords when available.
+ * Live ETA numbers are only shown when gpsFresh is true.
  */
 import { haversineMetres } from './jobLocationAnalytics.js'
 import { formatTimeUK } from './driverMotionStatus.js'
@@ -37,19 +39,27 @@ export function normalizeTrackingStatusKey(raw) {
 
 /**
  * Which stop to route to, or null when ETA should be hidden.
+ * Checks both operational_status and status_raw so "Assigned"+"on_way" still works.
+ *
  * @param {string | null | undefined} operationalStatus
  * @param {string | null | undefined} statusRaw
  * @returns {{ kind: 'collection' | 'delivery', placeLabel: string } | null}
  */
 export function resolveTrackingEtaDestination(operationalStatus, statusRaw) {
-  const s = normalizeTrackingStatusKey(operationalStatus || statusRaw)
-  if (['on_way', 'started', 'start'].includes(s)) {
-    return { kind: 'collection', placeLabel: 'collection' }
-  }
-  if (['pickup_completed', 'in_transit', 'in_progress'].includes(s)) {
+  const keys = [operationalStatus, statusRaw].map(normalizeTrackingStatusKey).filter(Boolean)
+
+  const has = (list) => keys.some((s) => list.includes(s))
+
+  // Terminal / at-stop stages hide en-route ETA (prefer these over older statuses).
+  if (has(['completed', 'cancelled', 'arrived_delivery', 'unloading'])) return null
+  if (has(['arrived', 'arrived_pickup', 'loading', 'loaded'])) return null
+
+  if (has(['pickup_completed', 'in_transit', 'in_progress', 'on_way_to_delivery'])) {
     return { kind: 'delivery', placeLabel: 'delivery' }
   }
-  // Arrived / loading / unloading / completed — no en-route ETA
+  if (has(['on_way', 'started', 'start', 'on_the_way', 'on_way_to_collection'])) {
+    return { kind: 'collection', placeLabel: 'collection' }
+  }
   return null
 }
 
@@ -105,8 +115,7 @@ export function shouldRefreshTrackingEta(prev, next, lastFetchedAt, now = Date.n
 }
 
 /**
- * Fetch (or reuse) driving ETA from driver → destination address.
- * Geocodes destination once per address; throttles Directions via shouldRefreshTrackingEta.
+ * Build road route + optional live ETA from driver coords → destination address.
  *
  * @param {{
  *   token: string,
@@ -115,52 +124,26 @@ export function shouldRefreshTrackingEta(prev, next, lastFetchedAt, now = Date.n
  *   kind: 'collection' | 'delivery',
  *   placeLabel: string,
  *   gpsFresh: boolean,
- *   cache: {
- *     destKey?: string,
- *     dest?: { lng: number, lat: number } | null,
- *     from?: { lng: number, lat: number } | null,
- *     fetchedAt?: number | null,
- *     durationSeconds?: number | null,
- *     distanceMeters?: number | null,
- *     kind?: string | null,
- *   },
+ *   cache: Record<string, unknown>,
  *   force?: boolean,
  * }} args
  */
 export async function resolveTrackingDriverEta(args) {
   const token = String(args.token || '').trim()
   const placeLabel = args.placeLabel || args.kind
-  const emptyUnavailable = {
+  const gpsFresh = Boolean(args.gpsFresh)
+
+  const base = {
     active: true,
     kind: args.kind,
     placeLabel,
-    status: 'unavailable',
-    message: 'ETA currently unavailable — waiting for a fresh driver location',
-    minutesLabel: null,
-    clock: null,
-    milesLabel: null,
-    durationSeconds: null,
-    distanceMeters: null,
     routeCoordinates: null,
     destination: null,
   }
 
-  if (!args.gpsFresh) {
-    const cache = { ...(args.cache || {}) }
-    const coords = Array.isArray(cache.coordinates) && cache.coordinates.length >= 2 ? cache.coordinates : null
-    return {
-      ...emptyUnavailable,
-      routeCoordinates: coords,
-      destination: cache.dest || null,
-      cache,
-    }
-  }
-
   if (!token || !args.destinationAddress?.trim()) {
     return {
-      active: true,
-      kind: args.kind,
-      placeLabel,
+      ...base,
       status: 'error',
       message: 'ETA temporarily unavailable',
       minutesLabel: null,
@@ -168,8 +151,6 @@ export async function resolveTrackingDriverEta(args) {
       milesLabel: null,
       durationSeconds: null,
       distanceMeters: null,
-      routeCoordinates: null,
-      destination: null,
       cache: args.cache,
     }
   }
@@ -179,7 +160,17 @@ export async function resolveTrackingDriverEta(args) {
     lat: Number(args.driver?.lat),
   }
   if (!Number.isFinite(driver.lng) || !Number.isFinite(driver.lat)) {
-    return { ...emptyUnavailable, cache: args.cache }
+    return {
+      ...base,
+      status: 'unavailable',
+      message: 'ETA currently unavailable — waiting for a fresh driver location',
+      minutesLabel: null,
+      clock: null,
+      milesLabel: null,
+      durationSeconds: null,
+      distanceMeters: null,
+      cache: args.cache,
+    }
   }
 
   const destKey = `${args.kind}|${String(args.destinationAddress).trim().toLowerCase()}`
@@ -201,7 +192,6 @@ export async function resolveTrackingDriverEta(args) {
   const { fetchMapboxDrivingRoute } = await import('./operationsMapDirections.js')
 
   if (!cache.dest) {
-    // Prefer shared browser geocode cache when available; fall back to direct geocode for Node tests.
     try {
       const { geocodeAddressCached } = await import('./operationsMapGeocodeCache.js')
       cache.dest = await geocodeAddressCached(args.destinationAddress, token)
@@ -211,9 +201,7 @@ export async function resolveTrackingDriverEta(args) {
   }
   if (!cache.dest) {
     return {
-      active: true,
-      kind: args.kind,
-      placeLabel,
+      ...base,
       status: 'error',
       message: 'ETA temporarily unavailable',
       minutesLabel: null,
@@ -221,73 +209,76 @@ export async function resolveTrackingDriverEta(args) {
       milesLabel: null,
       durationSeconds: null,
       distanceMeters: null,
-      routeCoordinates: null,
-      destination: null,
       cache,
     }
   }
 
   const now = Date.now()
   const kindChanged = cache.kind != null && cache.kind !== args.kind
+  const hasRoute = Array.isArray(cache.coordinates) && cache.coordinates.length >= 2
+
+  // Stale GPS: still build a last-known road route once, but do not keep re-hitting Directions.
+  // Fresh GPS: throttle by movement / age as usual.
   const needsFetch =
     args.force ||
     kindChanged ||
-    shouldRefreshTrackingEta(cache.from, driver, cache.fetchedAt, now)
+    !hasRoute ||
+    (gpsFresh && shouldRefreshTrackingEta(cache.from, driver, cache.fetchedAt, now))
 
   if (needsFetch) {
     const route = await fetchMapboxDrivingRoute(driver, cache.dest, token)
-    if (!route) {
-      // Keep previous good ETA/route if we have one and GPS is still fresh
-      if (cache.durationSeconds != null && Number.isFinite(cache.durationSeconds)) {
-        const timing = formatTrackingEtaTiming(cache.durationSeconds, now)
-        return {
-          active: true,
-          kind: args.kind,
-          placeLabel,
-          status: 'ready',
-          message: null,
-          minutesLabel: timing.minutesLabel,
-          clock: timing.clock,
-          milesLabel: formatTrackingEtaMiles(cache.distanceMeters || 0),
-          durationSeconds: cache.durationSeconds,
-          distanceMeters: cache.distanceMeters,
-          routeCoordinates: cache.coordinates || null,
-          destination: cache.dest,
-          cache,
-        }
-      }
-      return {
-        active: true,
+    if (route?.coordinates?.length >= 2) {
+      cache = {
+        ...cache,
+        from: { ...driver },
+        fetchedAt: now,
+        durationSeconds: route.durationSeconds,
+        distanceMeters: route.distanceMeters,
+        coordinates: route.coordinates,
         kind: args.kind,
-        placeLabel,
-        status: 'error',
-        message: 'ETA temporarily unavailable',
-        minutesLabel: null,
-        clock: null,
-        milesLabel: null,
-        durationSeconds: null,
-        distanceMeters: null,
-        routeCoordinates: null,
-        destination: cache.dest,
-        cache,
       }
     }
-    cache = {
-      ...cache,
-      from: { ...driver },
-      fetchedAt: now,
-      durationSeconds: route.durationSeconds,
-      distanceMeters: route.distanceMeters,
-      coordinates: route.coordinates,
-      kind: args.kind,
+  }
+
+  const routeCoordinates =
+    Array.isArray(cache.coordinates) && cache.coordinates.length >= 2 ? cache.coordinates : null
+
+  // Never present ETA as live when GPS is stale — keep route + dest visible.
+  if (!gpsFresh) {
+    return {
+      ...base,
+      status: 'unavailable',
+      message: 'ETA currently unavailable — waiting for a fresh driver location',
+      minutesLabel: null,
+      clock: null,
+      milesLabel: null,
+      durationSeconds: cache.durationSeconds ?? null,
+      distanceMeters: cache.distanceMeters ?? null,
+      routeCoordinates,
+      destination: cache.dest,
+      cache,
+    }
+  }
+
+  if (cache.durationSeconds == null || !Number.isFinite(cache.durationSeconds)) {
+    return {
+      ...base,
+      status: 'error',
+      message: 'ETA temporarily unavailable',
+      minutesLabel: null,
+      clock: null,
+      milesLabel: null,
+      durationSeconds: null,
+      distanceMeters: null,
+      routeCoordinates,
+      destination: cache.dest,
+      cache,
     }
   }
 
   const timing = formatTrackingEtaTiming(cache.durationSeconds, now)
   return {
-    active: true,
-    kind: args.kind,
-    placeLabel,
+    ...base,
     status: 'ready',
     message: null,
     minutesLabel: timing.minutesLabel,
@@ -295,7 +286,7 @@ export async function resolveTrackingDriverEta(args) {
     milesLabel: formatTrackingEtaMiles(cache.distanceMeters || 0),
     durationSeconds: cache.durationSeconds,
     distanceMeters: cache.distanceMeters,
-    routeCoordinates: cache.coordinates || null,
+    routeCoordinates,
     destination: cache.dest,
     cache,
   }

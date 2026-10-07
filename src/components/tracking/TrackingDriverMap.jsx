@@ -7,41 +7,46 @@ const ROUTE_LAYER_CASING = 'tracking-drive-route-casing'
 const ROUTE_LAYER = 'tracking-drive-route-line'
 
 /**
- * Driver marker: van + truck emoji for a clear live-tracking pin.
+ * Single long-wheelbase Mercedes Sprinter van marker (no emoji / dual icons).
  * @param {{ driverName?: string, quoteRef?: string, live?: boolean }} opts
  */
 function buildVanMarkerElement({ driverName = '', quoteRef = '', live = false } = {}) {
   const fullName = String(driverName || 'Your driver').trim() || 'Your driver'
   const ref = String(quoteRef || '').trim()
-  const accent = live ? '#0284c7' : '#475569'
+  const body = live ? '#0ea5e9' : '#64748b'
+  const cabin = live ? '#0369a1' : '#475569'
+  const glass = '#e0f2fe'
   const wrap = document.createElement('div')
   wrap.setAttribute('aria-label', ref ? `Driver ${fullName}, booking ${ref}` : `Driver ${fullName}`)
   wrap.style.cssText =
     'display:flex;flex-direction:column;align-items:center;gap:3px;pointer-events:none;user-select:none;'
 
-  const badge = document.createElement('div')
-  badge.textContent = '🚚'
-  badge.style.cssText =
-    'font-size:22px;line-height:1;filter:drop-shadow(0 2px 3px rgba(15,23,42,0.35));'
-  wrap.appendChild(badge)
-
   const van = document.createElement('div')
+  // Long-wheelbase Sprinter silhouette (cab + extended cargo box)
   van.innerHTML = `
-    <svg width="44" height="30" viewBox="0 0 64 44" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-      <ellipse cx="32" cy="40" rx="18" ry="3.5" fill="rgba(15,23,42,0.18)"/>
-      <path d="M6 28 V16.5 C6 14 8 12 10.5 12 H34 L44 20 H54 C56.2 20 58 21.8 58 24 V28 Z" fill="${accent}"/>
-      <path d="M34 12 L42.5 20 H34 Z" fill="#0369a1"/>
-      <rect x="12" y="15" width="10" height="7" rx="1.5" fill="#e0f2fe"/>
-      <rect x="24" y="15" width="8" height="7" rx="1.5" fill="#bae6fd"/>
-      <path d="M36 15.5 L41 20 H36 Z" fill="#7dd3fc"/>
-      <rect x="6" y="27" width="52" height="4" fill="#0f172a"/>
-      <circle cx="18" cy="32" r="5" fill="#0f172a"/>
-      <circle cx="18" cy="32" r="2.4" fill="#cbd5e1"/>
-      <circle cx="48" cy="32" r="5" fill="#0f172a"/>
-      <circle cx="48" cy="32" r="2.4" fill="#cbd5e1"/>
+    <svg width="72" height="40" viewBox="0 0 96 52" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <ellipse cx="48" cy="48" rx="28" ry="3.5" fill="rgba(15,23,42,0.2)"/>
+      <!-- cargo box (long wheelbase) -->
+      <rect x="6" y="12" width="58" height="24" rx="2.5" fill="${body}"/>
+      <rect x="10" y="16" width="12" height="9" rx="1.2" fill="${glass}" opacity="0.85"/>
+      <rect x="26" y="16" width="12" height="9" rx="1.2" fill="${glass}" opacity="0.7"/>
+      <rect x="42" y="16" width="12" height="9" rx="1.2" fill="${glass}" opacity="0.55"/>
+      <!-- cab -->
+      <path d="M64 36 V18 C64 15.2 66.2 13 69 13 H78 L90 24 V36 Z" fill="${cabin}"/>
+      <path d="M78 13 L88 23 H78 Z" fill="#0284c7"/>
+      <rect x="70" y="18" width="12" height="9" rx="1.5" fill="${glass}"/>
+      <!-- bumper / step -->
+      <rect x="6" y="34" width="84" height="4" rx="1" fill="#0f172a"/>
+      <!-- wheels (LWB spacing) -->
+      <circle cx="22" cy="39" r="5.5" fill="#0f172a"/>
+      <circle cx="22" cy="39" r="2.6" fill="#cbd5e1"/>
+      <circle cx="48" cy="39" r="5.5" fill="#0f172a"/>
+      <circle cx="48" cy="39" r="2.6" fill="#cbd5e1"/>
+      <circle cx="78" cy="39" r="5.5" fill="#0f172a"/>
+      <circle cx="78" cy="39" r="2.6" fill="#cbd5e1"/>
     </svg>
   `
-  van.style.cssText = 'filter:drop-shadow(0 3px 6px rgba(15,23,42,0.35));line-height:0;margin-top:-6px;'
+  van.style.cssText = 'filter:drop-shadow(0 3px 6px rgba(15,23,42,0.35));line-height:0;'
   wrap.appendChild(van)
 
   const card = document.createElement('div')
@@ -75,20 +80,25 @@ function buildVanMarkerElement({ driverName = '', quoteRef = '', live = false } 
 }
 
 /**
- * Destination marker (collection / delivery) — pin emoji, no full address.
+ * Destination marker (collection / delivery) — pin, no full address.
  * @param {{ kind?: 'collection' | 'delivery' | string }} opts
  */
 function buildDestinationMarkerElement({ kind = 'collection' } = {}) {
   const label = kind === 'delivery' ? 'Delivery' : 'Collection'
+  const accent = kind === 'delivery' ? '#059669' : '#dc2626'
   const wrap = document.createElement('div')
   wrap.setAttribute('aria-label', label)
   wrap.style.cssText =
     'display:flex;flex-direction:column;align-items:center;gap:2px;pointer-events:none;user-select:none;'
 
   const pin = document.createElement('div')
-  pin.textContent = '📍'
-  pin.style.cssText =
-    'font-size:28px;line-height:1;filter:drop-shadow(0 2px 4px rgba(15,23,42,0.35));'
+  pin.innerHTML = `
+    <svg width="28" height="36" viewBox="0 0 28 36" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <path d="M14 0C6.3 0 0 6.1 0 13.6 0 22.4 14 36 14 36S28 22.4 28 13.6C28 6.1 21.7 0 14 0Z" fill="${accent}"/>
+      <circle cx="14" cy="13" r="5.5" fill="#fff"/>
+    </svg>
+  `
+  pin.style.cssText = 'line-height:0;filter:drop-shadow(0 2px 4px rgba(15,23,42,0.35));'
   wrap.appendChild(pin)
 
   const card = document.createElement('div')
@@ -118,7 +128,7 @@ function upsertRouteLine(map, coordinates) {
     },
   }
 
-  const source = map.getSource(ROUTE_SOURCE)
+  const source = /** @type {mapboxgl.GeoJSONSource | undefined} */ (map.getSource(ROUTE_SOURCE))
   if (source) {
     source.setData(geojson)
   } else if (coords.length >= 2) {
@@ -145,10 +155,6 @@ function upsertRouteLine(map, coordinates) {
         'line-opacity': 0.95,
       },
     })
-  }
-
-  if (coords.length < 2 && map.getSource(ROUTE_SOURCE)) {
-    source?.setData(geojson)
   }
 }
 
@@ -193,8 +199,7 @@ function fitRouteBounds(map, driver, dest, routeCoordinates) {
 }
 
 /**
- * Customer tracking map with live van marker, destination pin, and Mapbox road route.
- * Map instance stays mounted; driver/route update in place.
+ * Customer tracking map with Sprinter van, destination pin, and Mapbox road route.
  *
  * @param {{
  *   latitude: number,
@@ -225,6 +230,7 @@ export default function TrackingDriverMap({
   const destMarkerRef = useRef(null)
   const mapReadyRef = useRef(false)
   const lastFitKeyRef = useRef('')
+  const driverMetaKeyRef = useRef('')
   const [error, setError] = useState('')
   const token = String(import.meta.env.VITE_MAPBOX_TOKEN || '').trim()
 
@@ -237,8 +243,8 @@ export default function TrackingDriverMap({
   const destLat = Number(destination?.lat)
   const destOk = Number.isFinite(destLng) && Number.isFinite(destLat)
   const stopKind = destinationKind === 'delivery' ? 'delivery' : 'collection'
+  const driverMetaKey = `${live ? 1 : 0}|${name}|${bookingRef}`
 
-  // Create map once
   useEffect(() => {
     if (!token) {
       setError('Map token missing.')
@@ -332,14 +338,9 @@ export default function TrackingDriverMap({
       resizeObserver?.disconnect()
       tearDown()
     }
-    // Intentionally only recreate when the Mapbox token changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token])
 
-  const driverMetaKey = `${live ? 1 : 0}|${name}|${bookingRef}`
-  const driverMetaKeyRef = useRef('')
-
-  // Update driver marker in place (move often; rebuild chrome only when meta changes)
   useEffect(() => {
     const map = mapRef.current
     if (!map || !coordsOk) return undefined
@@ -363,15 +364,11 @@ export default function TrackingDriverMap({
       driverMarkerRef.current.setLngLat([lng, lat])
     }
 
-    if (mapReadyRef.current || map.isStyleLoaded()) {
-      apply()
-    } else {
-      map.once('load', apply)
-    }
+    if (mapReadyRef.current || map.isStyleLoaded()) apply()
+    else map.once('load', apply)
     return undefined
   }, [coordsOk, lat, lng, live, name, bookingRef, driverMetaKey])
 
-  // Destination pin + road route + fit bounds
   useEffect(() => {
     const map = mapRef.current
     if (!map) return undefined
@@ -381,23 +378,15 @@ export default function TrackingDriverMap({
       if (!m) return
 
       if (destOk) {
-        if (!destMarkerRef.current) {
-          const el = buildDestinationMarkerElement({ kind: stopKind })
-          destMarkerRef.current = new mapboxgl.Marker({ element: el, anchor: 'bottom' })
-            .setLngLat([destLng, destLat])
-            .addTo(m)
-        } else {
-          destMarkerRef.current.setLngLat([destLng, destLat])
-          const el = buildDestinationMarkerElement({ kind: stopKind })
-          try {
-            destMarkerRef.current.remove()
-            destMarkerRef.current = new mapboxgl.Marker({ element: el, anchor: 'bottom' })
-              .setLngLat([destLng, destLat])
-              .addTo(m)
-          } catch {
-            /* ignore */
-          }
+        try {
+          destMarkerRef.current?.remove()
+        } catch {
+          /* ignore */
         }
+        const el = buildDestinationMarkerElement({ kind: stopKind })
+        destMarkerRef.current = new mapboxgl.Marker({ element: el, anchor: 'bottom' })
+          .setLngLat([destLng, destLat])
+          .addTo(m)
       } else if (destMarkerRef.current) {
         try {
           destMarkerRef.current.remove()
@@ -428,11 +417,8 @@ export default function TrackingDriverMap({
       }
     }
 
-    if (mapReadyRef.current || map.isStyleLoaded()) {
-      apply()
-    } else {
-      map.once('load', apply)
-    }
+    if (mapReadyRef.current || map.isStyleLoaded()) apply()
+    else map.once('load', apply)
     return undefined
   }, [destOk, destLng, destLat, stopKind, routeCoordinates, lat, lng])
 

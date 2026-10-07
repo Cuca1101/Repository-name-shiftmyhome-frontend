@@ -116,11 +116,18 @@ const stale = await resolveTrackingDriverEta({
   kind: 'collection',
   placeLabel: 'collection',
   gpsFresh: false,
-  cache,
+  cache: {},
 })
 if (stale.status !== 'unavailable') throw new Error('stale must be unavailable')
 if (!/waiting for a fresh driver location/i.test(stale.message || '')) {
   throw new Error(`bad stale message: ${stale.message}`)
+}
+if (!Array.isArray(stale.routeCoordinates) || stale.routeCoordinates.length < 8) {
+  throw new Error('stale cold-load must still return a road route')
+}
+if (!stale.destination?.lng) throw new Error('stale cold-load must still return destination')
+if (stale.clock || stale.minutesLabel) {
+  throw new Error('stale must not present live ETA clock/minutes')
 }
 
 console.log('ok live tracking eta mapbox')

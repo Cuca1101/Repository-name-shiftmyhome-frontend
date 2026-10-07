@@ -16,6 +16,11 @@ function assert(cond, msg) {
 }
 
 {
+  const d = resolveTrackingEtaDestination('Assigned', 'on_way')
+  assert(d?.kind === 'collection', 'status_raw on_way wins over Assigned')
+}
+
+{
   const d = resolveTrackingEtaDestination('Arrived', 'arrived')
   assert(d == null, 'arrived → no ETA')
 }
