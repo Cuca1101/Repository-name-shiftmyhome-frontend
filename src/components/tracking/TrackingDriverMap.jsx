@@ -13,9 +13,8 @@ const ROUTE_LAYER = 'tracking-drive-route-line'
 const SPRINTER_IMG = '/tracking/mercedes-sprinter-lwb.png'
 
 /**
- * Sprinter cutout is a side profile (wheels down). Never rotate it onto its roof —
- * only mirror left/right from heading so the nose points with travel.
- * PNG faces roughly right (east).
+ * Sprinter cutout is a side profile (wheels down). Keep a fixed upright orientation —
+ * no rotation and no left/right mirroring from heading.
  */
 const ANIM_MS = 1200
 const MIN_ANIM_MOVE_M = 4
@@ -211,19 +210,13 @@ function buildVanMarkerElement({ driverName = '', quoteRef = '', live = false } 
   return wrap
 }
 
-function setMarkerHeading(marker, headingDeg) {
+function setMarkerHeading(marker) {
   if (!marker) return
   const el = marker.getElement?.()
   const rotator = el?.querySelector?.('[data-rotator="1"]')
   if (!rotator) return
-  // Keep wheels down (head up). Mirror when heading is westbound (~90–270°).
-  if (!Number.isFinite(headingDeg)) {
-    rotator.style.transform = 'scaleX(1)'
-    return
-  }
-  const h = ((headingDeg % 360) + 360) % 360
-  const faceLeft = h > 90 && h < 270
-  rotator.style.transform = faceLeft ? 'scaleX(-1)' : 'scaleX(1)'
+  // Fixed orientation: wheels down, never flip or rotate with heading.
+  rotator.style.transform = 'none'
 }
 
 /**
