@@ -54,9 +54,13 @@ assert(resolveTrackingEtaDestination('Assigned', 'Booked') == null, 'ETA dest nu
 assert(resolveTrackingEtaDestination('On way', 'on_way')?.kind === 'collection', 'ETA after Start Job')
 
 assert(
-  resolveGpsStatusHeadline({ state: 'moving' }, true, { journeyActive: false })
+  resolveGpsStatusHeadline({ state: 'moving' }, true, { journeyActive: false }) === 'Moving',
+  'show Moving before Start Job when GPS is moving',
+)
+assert(
+  resolveGpsStatusHeadline({ state: 'stationary' }, true, { journeyActive: false })
     === 'Waiting for driver to depart',
-  'GPS move ignored before Start Job',
+  'waiting copy when parked before Start Job',
 )
 assert(resolveGpsStatusHeadline({ state: 'moving' }, true, { journeyActive: true }) === 'Moving', 'moving')
 assert(resolveGpsStatusHeadline({ state: 'stationary' }, true, { journeyActive: true }) === 'Stopped', 'stopped')

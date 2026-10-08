@@ -160,19 +160,20 @@ export function resolveTrackingJobStage(operationalStatus, statusRaw) {
 
 /**
  * Customer GPS / journey status labels for the blue status card.
- * GPS movement alone must never imply the journey has started.
+ * Show real motion (Moving / Stopped) whenever GPS is fresh — even before Start Job.
+ * ETA / “on the way” claims stay gated separately via journeyActive / showLiveEta.
  *
  * @param {{ state?: string } | null | undefined} motion
  * @param {boolean} gpsFresh
  * @param {{ journeyActive?: boolean }} [opts]
  */
 export function resolveGpsStatusHeadline(motion, gpsFresh, opts = {}) {
-  if (!opts.journeyActive) {
-    return 'Waiting for driver to depart'
-  }
   const state = String(motion?.state || '').toLowerCase()
   if (state === 'moving' && gpsFresh) return 'Moving'
-  if (state === 'stationary' && gpsFresh) return 'Stopped'
+  if (state === 'stationary' && gpsFresh) {
+    return opts.journeyActive ? 'Stopped' : 'Waiting for driver to depart'
+  }
+  if (!opts.journeyActive) return 'Waiting for driver to depart'
   if (state === 'stale' || (!gpsFresh && state !== 'unavailable')) return 'GPS delayed'
   return 'GPS unavailable'
 }

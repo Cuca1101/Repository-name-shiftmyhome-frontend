@@ -419,7 +419,8 @@ export default function JobTrackingPortalPage() {
   )
   const journeyActive = Boolean(jobStage.journeyActive)
   const gpsStatusHeadline = resolveGpsStatusHeadline(motion, gpsFresh, { journeyActive })
-  const gpsStatusLive = journeyActive && gpsFresh && (motion.state === 'moving' || motion.state === 'stationary')
+  const gpsStatusLive = gpsFresh && (motion.state === 'moving' || motion.state === 'stationary')
+  const mapLive = gpsFresh && (journeyActive || motion.state === 'moving')
   const collectionAddress = data.pickup_address || null
   const showCollectionAddress = Boolean(
     destAddress || (jobStage.placeLabel === 'collection' && collectionAddress),
@@ -471,7 +472,7 @@ export default function JobTrackingPortalPage() {
                       latitude={mapLat}
                       longitude={mapLng}
                       heading={Number.isFinite(mapHeading) ? mapHeading : null}
-                      live={journeyActive && gpsFresh}
+                      live={mapLive}
                       driverName={data.driver?.full_name || ''}
                       quoteRef={data.quote_ref || ''}
                       routeCoordinates={
@@ -572,7 +573,9 @@ export default function JobTrackingPortalPage() {
                                 <p className="text-[15px] font-bold leading-snug text-slate-900 sm:text-base">
                                   {etaView?.message
                                     || (gpsFresh
-                                      ? 'Calculating arrival time…'
+                                      ? (motion.state === 'moving'
+                                        ? 'Driver is moving — calculating arrival time…'
+                                        : 'Calculating arrival time…')
                                       : 'ETA paused — waiting for a fresh driver location')}
                                 </p>
                                 <p className="mt-0.5 text-sm text-slate-600">
