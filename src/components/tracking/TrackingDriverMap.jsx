@@ -59,7 +59,7 @@ function ensureTrackingMarkerStyles() {
     }
     .smh-van-icon.is-live { animation: smh-van-bob 1.7s ease-in-out infinite; }
     .smh-van-img {
-      display:block; width:96px; height:auto; max-height:64px;
+      display:block; width:64px; height:auto; max-height:42px;
       object-fit:contain; background:transparent !important; border:0; outline:0;
     }
     .smh-van-img.is-stale { filter: grayscale(0.25) brightness(0.96); opacity:0.92; }
@@ -67,17 +67,17 @@ function ensureTrackingMarkerStyles() {
       display:flex; flex-direction:column; align-items:center; margin-top:-2px; line-height:0;
     }
     .smh-van-pointer-stem {
-      width:3px; height:14px; border-radius:2px; background:#0284c7;
+      width:2px; height:10px; border-radius:2px; background:#0284c7;
       box-shadow:0 1px 2px rgba(15,23,42,0.25);
     }
     .smh-van-pointer-stem.is-stale { background:#64748b; }
     .smh-van-pointer-dot {
-      width:12px; height:12px; margin-top:-2px; border-radius:9999px;
+      width:9px; height:9px; margin-top:-2px; border-radius:9999px;
       background:#0284c7; border:2px solid #fff;
       box-shadow:0 0 0 2px rgba(2,132,199,0.35), 0 2px 6px rgba(15,23,42,0.35);
     }
     .smh-van-pointer-dot.is-live {
-      box-shadow:0 0 0 3px rgba(2,132,199,0.4), 0 2px 6px rgba(15,23,42,0.35);
+      box-shadow:0 0 0 2px rgba(2,132,199,0.4), 0 2px 6px rgba(15,23,42,0.35);
     }
     .smh-van-pointer-dot.is-stale {
       background:#64748b;
@@ -247,14 +247,24 @@ function buildDestinationMarkerElement({ kind = 'collection' } = {}) {
   return wrap
 }
 
+/** Collection = orange, delivery = green. */
+function routePaintForKind(kind) {
+  if (kind === 'delivery') {
+    return { casing: '#065f46', line: '#059669' }
+  }
+  return { casing: '#9a3412', line: '#ea580c' }
+}
+
 /**
  * @param {mapboxgl.Map} map
  * @param {number[][] | null | undefined} coordinates
+ * @param {'collection' | 'delivery' | string} [kind]
  */
-function upsertRouteLine(map, coordinates) {
+function upsertRouteLine(map, coordinates, kind = 'collection') {
   const coords = Array.isArray(coordinates)
     ? coordinates.filter((c) => Array.isArray(c) && c.length >= 2 && Number.isFinite(c[0]) && Number.isFinite(c[1]))
     : []
+  const colors = routePaintForKind(kind)
 
   const geojson = {
     type: 'Feature',
@@ -268,6 +278,16 @@ function upsertRouteLine(map, coordinates) {
   const source = /** @type {mapboxgl.GeoJSONSource | undefined} */ (map.getSource(ROUTE_SOURCE))
   if (source) {
     source.setData(geojson)
+    if (map.getLayer(ROUTE_LAYER_CASING)) {
+      map.setPaintProperty(ROUTE_LAYER_CASING, 'line-color', colors.casing)
+      map.setPaintProperty(ROUTE_LAYER_CASING, 'line-width', 5)
+      map.setPaintProperty(ROUTE_LAYER_CASING, 'line-opacity', 0.25)
+    }
+    if (map.getLayer(ROUTE_LAYER)) {
+      map.setPaintProperty(ROUTE_LAYER, 'line-color', colors.line)
+      map.setPaintProperty(ROUTE_LAYER, 'line-width', 3.25)
+      map.setPaintProperty(ROUTE_LAYER, 'line-opacity', 0.98)
+    }
   } else if (coords.length >= 2) {
     map.addSource(ROUTE_SOURCE, { type: 'geojson', data: geojson })
     map.addLayer({
@@ -276,9 +296,9 @@ function upsertRouteLine(map, coordinates) {
       source: ROUTE_SOURCE,
       layout: { 'line-join': 'round', 'line-cap': 'round' },
       paint: {
-        'line-color': '#0c4a6e',
-        'line-width': 9,
-        'line-opacity': 0.28,
+        'line-color': colors.casing,
+        'line-width': 5,
+        'line-opacity': 0.25,
       },
     })
     map.addLayer({
@@ -287,8 +307,8 @@ function upsertRouteLine(map, coordinates) {
       source: ROUTE_SOURCE,
       layout: { 'line-join': 'round', 'line-cap': 'round' },
       paint: {
-        'line-color': '#0284c7',
-        'line-width': 6,
+        'line-color': colors.line,
+        'line-width': 3.25,
         'line-opacity': 0.98,
       },
     })
@@ -656,7 +676,7 @@ export default function TrackingDriverMap({
       }
 
       try {
-        upsertRouteLine(m, routeCoordinates)
+        upsertRouteLine(m, routeCoordinates, stopKind)
       } catch (ex) {
         console.warn('[TrackingDriverMap] route update failed', ex)
       }
