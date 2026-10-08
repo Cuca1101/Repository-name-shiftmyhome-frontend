@@ -244,6 +244,7 @@ export default function JobTrackingPortalPage() {
             placeLabel: null,
             showLiveEta: false,
             arrivedMessage: null,
+            stageMessage: null,
           }
         : resolveTrackingJobStage(data?.operational_status, data?.status_raw),
     [completed, data?.operational_status, data?.status_raw],
@@ -452,7 +453,7 @@ export default function JobTrackingPortalPage() {
                     />
                   </div>
 
-                  {/* Green ETA / arrived panel */}
+                  {/* Green ETA / arrived / collected panel */}
                   {jobStage.arrivedMessage ? (
                     <div className="rounded-xl border border-emerald-200 bg-[#ecfdf5] px-4 py-3.5 sm:px-5">
                       <div className="flex items-start gap-3">
@@ -489,6 +490,11 @@ export default function JobTrackingPortalPage() {
                             <IconCar />
                           </div>
                           <div className="min-w-0">
+                            {jobStage.stageMessage ? (
+                              <p className="mb-1 text-[13px] font-semibold text-emerald-800">
+                                {jobStage.stageMessage}
+                              </p>
+                            ) : null}
                             {etaReady ? (
                               <>
                                 <p className="text-[15px] font-bold leading-snug text-slate-900 sm:text-base">

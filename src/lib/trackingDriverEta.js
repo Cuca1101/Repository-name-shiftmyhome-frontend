@@ -52,9 +52,11 @@ export function resolveTrackingEtaDestination(operationalStatus, statusRaw) {
 
   // Terminal / at-stop stages hide en-route ETA (prefer these over older statuses).
   if (has(['completed', 'cancelled', 'arrived_delivery', 'unloading'])) return null
-  if (has(['arrived', 'arrived_pickup', 'loading', 'loaded'])) return null
+  // Still at collection (not yet loaded) — no driving ETA to delivery yet.
+  if (has(['arrived', 'arrived_pickup', 'loading'])) return null
 
-  if (has(['pickup_completed', 'in_transit', 'in_progress', 'on_way_to_delivery'])) {
+  // Collected / loaded / in transit → route + ETA to delivery.
+  if (has(['pickup_completed', 'loaded', 'in_transit', 'in_progress', 'on_way_to_delivery'])) {
     return { kind: 'delivery', placeLabel: 'delivery' }
   }
   if (has(['on_way', 'started', 'start', 'on_the_way', 'on_way_to_collection'])) {

@@ -4,7 +4,7 @@
 import { normalizeTrackingStatusKey } from './trackingDriverEta.js'
 
 /**
- * @typedef {'en_route_collection' | 'arrived_collection' | 'en_route_delivery' | 'arrived_delivery' | 'completed' | 'cancelled' | 'pending'} TrackingJobStage
+ * @typedef {'en_route_collection' | 'arrived_collection' | 'collected' | 'en_route_delivery' | 'arrived_delivery' | 'completed' | 'cancelled' | 'pending'} TrackingJobStage
  */
 
 /**
@@ -17,6 +17,7 @@ import { normalizeTrackingStatusKey } from './trackingDriverEta.js'
  *   placeLabel: string | null,
  *   showLiveEta: boolean,
  *   arrivedMessage: string | null,
+ *   stageMessage: string | null,
  * }}
  */
 export function resolveTrackingJobStage(operationalStatus, statusRaw) {
@@ -31,6 +32,7 @@ export function resolveTrackingJobStage(operationalStatus, statusRaw) {
       placeLabel: null,
       showLiveEta: false,
       arrivedMessage: null,
+      stageMessage: null,
     }
   }
   if (has(['completed'])) {
@@ -41,6 +43,7 @@ export function resolveTrackingJobStage(operationalStatus, statusRaw) {
       placeLabel: null,
       showLiveEta: false,
       arrivedMessage: null,
+      stageMessage: null,
     }
   }
   if (has(['arrived_delivery', 'unloading'])) {
@@ -51,9 +54,22 @@ export function resolveTrackingJobStage(operationalStatus, statusRaw) {
       placeLabel: 'delivery',
       showLiveEta: false,
       arrivedMessage: 'Driver arrived at delivery',
+      stageMessage: null,
     }
   }
-  if (has(['pickup_completed', 'in_transit', 'in_progress', 'on_way_to_delivery'])) {
+  // Loaded / pickup done → items collected; next step is delivery.
+  if (has(['pickup_completed', 'loaded'])) {
+    return {
+      stage: 'collected',
+      badge: 'On the way to delivery',
+      etaKind: 'delivery',
+      placeLabel: 'delivery',
+      showLiveEta: true,
+      arrivedMessage: null,
+      stageMessage: 'Job collected — next your driver will deliver',
+    }
+  }
+  if (has(['in_transit', 'in_progress', 'on_way_to_delivery'])) {
     return {
       stage: 'en_route_delivery',
       badge: 'On the way to delivery',
@@ -61,9 +77,10 @@ export function resolveTrackingJobStage(operationalStatus, statusRaw) {
       placeLabel: 'delivery',
       showLiveEta: true,
       arrivedMessage: null,
+      stageMessage: 'Job collected — on the way to delivery',
     }
   }
-  if (has(['arrived', 'arrived_pickup', 'loading', 'loaded'])) {
+  if (has(['arrived', 'arrived_pickup', 'loading'])) {
     return {
       stage: 'arrived_collection',
       badge: 'Arrived at collection',
@@ -71,6 +88,7 @@ export function resolveTrackingJobStage(operationalStatus, statusRaw) {
       placeLabel: 'collection',
       showLiveEta: false,
       arrivedMessage: 'Driver arrived at collection',
+      stageMessage: null,
     }
   }
   if (has(['on_way', 'started', 'start', 'on_the_way', 'on_way_to_collection'])) {
@@ -81,6 +99,7 @@ export function resolveTrackingJobStage(operationalStatus, statusRaw) {
       placeLabel: 'collection',
       showLiveEta: true,
       arrivedMessage: null,
+      stageMessage: null,
     }
   }
   if (
@@ -101,6 +120,7 @@ export function resolveTrackingJobStage(operationalStatus, statusRaw) {
       placeLabel: 'collection',
       showLiveEta: true,
       arrivedMessage: null,
+      stageMessage: null,
     }
   }
   return {
@@ -110,6 +130,7 @@ export function resolveTrackingJobStage(operationalStatus, statusRaw) {
     placeLabel: null,
     showLiveEta: false,
     arrivedMessage: null,
+    stageMessage: null,
   }
 }
 
