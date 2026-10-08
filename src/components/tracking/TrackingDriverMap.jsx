@@ -225,7 +225,7 @@ function setMarkerHeading(marker) {
 function buildDestinationMarkerElement({ kind = 'collection' } = {}) {
   ensureTrackingMarkerStyles()
   const label = kind === 'delivery' ? 'Delivery address' : 'Collection address'
-  const accent = kind === 'delivery' ? '#059669' : '#ef4444'
+  const accent = kind === 'delivery' ? '#059669' : '#ea580c'
   const wrap = document.createElement('div')
   wrap.className = 'smh-dest-marker'
   wrap.setAttribute('aria-label', label)
