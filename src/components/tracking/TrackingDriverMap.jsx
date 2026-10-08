@@ -60,7 +60,7 @@ function ensureTrackingMarkerStyles() {
     }
     .smh-van-icon.is-live { animation: smh-van-bob 1.7s ease-in-out infinite; }
     .smh-van-img {
-      display:block; width:48px; height:auto; max-height:32px;
+      display:block; width:58px; height:auto; max-height:40px;
       object-fit:contain; background:transparent !important; border:0; outline:0;
     }
     .smh-van-img.is-stale { filter: grayscale(0.25) brightness(0.96); opacity:0.92; }
