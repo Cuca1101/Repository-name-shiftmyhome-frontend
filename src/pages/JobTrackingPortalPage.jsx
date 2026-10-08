@@ -18,6 +18,8 @@ import {
 import { resolveGpsStatusHeadline, resolveTrackingJobStage } from '../lib/trackingJobStage'
 
 const POLL_MS = 10000
+/** Poll faster while waiting for Start Job so the orange collection route appears quickly. */
+const POLL_AWAITING_MS = 5000
 const MEDIA_REFRESH_MS = 10 * 60 * 1000
 
 function trackingMediaKey(portal) {
@@ -200,19 +202,6 @@ export default function JobTrackingPortalPage() {
     }
   }, [token])
 
-  useEffect(() => {
-    void load({ force: true })
-    const id = window.setInterval(() => void load(), POLL_MS)
-    const onVisible = () => {
-      if (document.visibilityState === 'visible') void load({ force: true })
-    }
-    document.addEventListener('visibilitychange', onVisible)
-    return () => {
-      window.clearInterval(id)
-      document.removeEventListener('visibilitychange', onVisible)
-    }
-  }, [load])
-
   const mapLat = Number(data?.location?.latitude)
   const mapLng = Number(data?.location?.longitude)
   const mapHeading = Number(data?.location?.heading)
@@ -251,14 +240,43 @@ export default function JobTrackingPortalPage() {
         : resolveTrackingJobStage(data?.operational_status, data?.status_raw),
     [completed, data?.operational_status, data?.status_raw],
   )
-  const etaDestination = jobStage.showLiveEta && jobStage.etaKind
-    ? { kind: jobStage.etaKind, placeLabel: jobStage.placeLabel }
-    : null
+
+  const pollMs = jobStage.stage === 'awaiting_departure' ? POLL_AWAITING_MS : POLL_MS
+
+  useEffect(() => {
+    void load({ force: true })
+    const id = window.setInterval(() => void load(), pollMs)
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') void load({ force: true })
+    }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => {
+      window.clearInterval(id)
+      document.removeEventListener('visibilitychange', onVisible)
+    }
+  }, [load, pollMs])
+  const etaDestination = useMemo(() => {
+    if (!jobStage.showLiveEta || !jobStage.etaKind) return null
+    return { kind: jobStage.etaKind, placeLabel: jobStage.placeLabel || jobStage.etaKind }
+  }, [jobStage.showLiveEta, jobStage.etaKind, jobStage.placeLabel])
+
+  const prevStageRef = useRef(jobStage.stage)
+  useEffect(() => {
+    const prev = prevStageRef.current
+    prevStageRef.current = jobStage.stage
+    // Start Job: clear route cache so the orange collection line builds immediately.
+    if (prev === 'awaiting_departure' && jobStage.stage === 'en_route_collection') {
+      etaCacheRef.current = {}
+      setEtaView(null)
+    }
+  }, [jobStage.stage])
 
   useEffect(() => {
     if (!data || completed || !etaDestination || !mapToken) {
-      setEtaView(null)
-      if (!etaDestination) etaCacheRef.current = {}
+      if (!etaDestination) {
+        setEtaView(null)
+        etaCacheRef.current = {}
+      }
       return undefined
     }
 
@@ -266,7 +284,7 @@ export default function JobTrackingPortalPage() {
       etaDestination.kind === 'collection'
         ? String(data.pickup_address || '').trim()
         : String(data.delivery_address || '').trim()
-    if (!destAddress) {
+    if (!destAddress || !Number.isFinite(mapLat) || !Number.isFinite(mapLng)) {
       setEtaView(null)
       return undefined
     }
@@ -286,6 +304,7 @@ export default function JobTrackingPortalPage() {
         placeLabel: etaDestination.placeLabel,
         gpsFresh: freshForEta,
         cache: etaCacheRef.current,
+        force: jobStage.stage === 'en_route_collection' && !etaCacheRef.current?.coordinates,
       })
       if (runId !== etaRunRef.current) return
       etaCacheRef.current = result.cache || etaCacheRef.current
@@ -329,6 +348,7 @@ export default function JobTrackingPortalPage() {
     mapLng,
     mapToken,
     motion.state,
+    jobStage.stage,
     data?.location?.updated_at,
     data?.tracking_live,
     data?.pickup_address,
@@ -464,7 +484,11 @@ export default function JobTrackingPortalPage() {
                           ? etaView?.destination || null
                           : null
                       }
-                      destinationKind={destKind}
+                      destinationKind={
+                        jobStage.etaKind
+                        || destKind
+                        || (jobStage.stage === 'en_route_collection' ? 'collection' : null)
+                      }
                       className="h-[19rem] w-full sm:h-[25rem] lg:h-[28rem]"
                     />
                   </div>
