@@ -12,9 +12,11 @@ const ROUTE_LAYER = 'tracking-drive-route-line'
  */
 const SPRINTER_IMG = '/tracking/mercedes-sprinter-lwb.png'
 
-/** Sprinter PNG faces roughly right; subtract so heading 0° (north) points up. */
-const SPRINTER_HEADING_OFFSET_DEG = 90
-
+/**
+ * Sprinter cutout is a side profile (wheels down). Never rotate it onto its roof —
+ * only mirror left/right from heading so the nose points with travel.
+ * PNG faces roughly right (east).
+ */
 const ANIM_MS = 1200
 const MIN_ANIM_MOVE_M = 4
 const MIN_HEADING_MOVE_M = 12
@@ -49,17 +51,17 @@ function ensureTrackingMarkerStyles() {
     }
     .smh-van-rotator {
       display:flex; flex-direction:column; align-items:center;
-      transform-origin: 50% 85%;
+      transform-origin: 50% 100%;
       will-change: transform;
     }
     .smh-van-icon {
       line-height:0;
-      filter: drop-shadow(0 4px 8px rgba(15,23,42,0.32));
+      filter: drop-shadow(0 3px 6px rgba(15,23,42,0.3));
       background: transparent !important;
     }
     .smh-van-icon.is-live { animation: smh-van-bob 1.7s ease-in-out infinite; }
     .smh-van-img {
-      display:block; width:64px; height:auto; max-height:42px;
+      display:block; width:48px; height:auto; max-height:32px;
       object-fit:contain; background:transparent !important; border:0; outline:0;
     }
     .smh-van-img.is-stale { filter: grayscale(0.25) brightness(0.96); opacity:0.92; }
@@ -210,12 +212,18 @@ function buildVanMarkerElement({ driverName = '', quoteRef = '', live = false } 
 }
 
 function setMarkerHeading(marker, headingDeg) {
-  if (!marker || !Number.isFinite(headingDeg)) return
+  if (!marker) return
   const el = marker.getElement?.()
   const rotator = el?.querySelector?.('[data-rotator="1"]')
   if (!rotator) return
-  const rot = headingDeg - SPRINTER_HEADING_OFFSET_DEG
-  rotator.style.transform = `rotate(${rot}deg)`
+  // Keep wheels down (head up). Mirror when heading is westbound (~90–270°).
+  if (!Number.isFinite(headingDeg)) {
+    rotator.style.transform = 'scaleX(1)'
+    return
+  }
+  const h = ((headingDeg % 360) + 360) % 360
+  const faceLeft = h > 90 && h < 270
+  rotator.style.transform = faceLeft ? 'scaleX(-1)' : 'scaleX(1)'
 }
 
 /**
