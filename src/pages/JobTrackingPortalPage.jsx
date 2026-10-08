@@ -12,11 +12,12 @@ import {
 import { resolveJobPhotoDisplayMeta } from '../lib/jobPhotoDisplayMeta'
 import { GOOGLE_LEAVE_REVIEW_URL } from '../lib/reviews/externalReviews'
 import {
+  isTrackingGpsFresh,
   resolveTrackingDriverEta,
-  resolveTrackingEtaDestination,
 } from '../lib/trackingDriverEta'
+import { resolveGpsStatusHeadline, resolveTrackingJobStage } from '../lib/trackingJobStage'
 
-const POLL_MS = 15000
+const POLL_MS = 10000
 const MEDIA_REFRESH_MS = 10 * 60 * 1000
 
 function trackingMediaKey(portal) {
@@ -32,20 +33,6 @@ function Section({ title, children, bodyClassName = 'mt-3 space-y-2 text-sm text
       <div className={bodyClassName}>{children}</div>
     </section>
   )
-}
-
-/** Customer-facing motion copy matching the track mockup. */
-function motionHeadline(motion) {
-  if (motion?.state === 'moving') return 'Driver moving'
-  if (motion?.state === 'stationary') return 'Driver stopped'
-  if (motion?.state === 'stale') return 'GPS unavailable'
-  return 'GPS unavailable'
-}
-
-function statusBadgeLabel(etaDestination, statusLabel) {
-  if (etaDestination?.kind === 'delivery') return 'On the way to delivery'
-  if (etaDestination?.kind === 'collection') return 'On the way to collection'
-  return statusLabel
 }
 
 function Row({ label, value }) {
@@ -226,14 +213,18 @@ export default function JobTrackingPortalPage() {
     }
   }, [load])
 
-  const liveGps = Boolean(data?.tracking_live && data?.location?.available)
   const mapLat = Number(data?.location?.latitude)
   const mapLng = Number(data?.location?.longitude)
+  const mapHeading = Number(data?.location?.heading)
   const showMap = Boolean(
     data?.location?.available && Number.isFinite(mapLat) && Number.isFinite(mapLng),
   )
   const mapToken = String(import.meta.env.VITE_MAPBOX_TOKEN || '').trim()
   const motion = resolveTrackingMotion(data?.location)
+  const gpsFresh = isTrackingGpsFresh({
+    trackingLive: data?.tracking_live,
+    location: data?.location,
+  })
   // RPC may leave operational_status stale while quotes.status / completed_at is done.
   const completed = Boolean(
     data?.completed
@@ -243,13 +234,23 @@ export default function JobTrackingPortalPage() {
   )
   const googleReviewHref = String(GOOGLE_LEAVE_REVIEW_URL || '').trim()
     || 'https://g.page/r/CWmwRUPz2dC7EAE/review'
-  const etaDestination = useMemo(
+  const jobStage = useMemo(
     () =>
       completed
-        ? null
-        : resolveTrackingEtaDestination(data?.operational_status, data?.status_raw),
+        ? {
+            stage: 'completed',
+            badge: 'Completed',
+            etaKind: null,
+            placeLabel: null,
+            showLiveEta: false,
+            arrivedMessage: null,
+          }
+        : resolveTrackingJobStage(data?.operational_status, data?.status_raw),
     [completed, data?.operational_status, data?.status_raw],
   )
+  const etaDestination = jobStage.showLiveEta && jobStage.etaKind
+    ? { kind: jobStage.etaKind, placeLabel: jobStage.placeLabel }
+    : null
 
   useEffect(() => {
     if (!data || completed || !etaDestination || !mapToken) {
@@ -267,8 +268,11 @@ export default function JobTrackingPortalPage() {
       return undefined
     }
 
-    const gpsFresh = Boolean(liveGps && motion.state !== 'stale' && motion.state !== 'unavailable')
     const runId = ++etaRunRef.current
+    const freshForEta = isTrackingGpsFresh({
+      trackingLive: data?.tracking_live,
+      location: data?.location,
+    })
 
     ;(async () => {
       const result = await resolveTrackingDriverEta({
@@ -277,7 +281,7 @@ export default function JobTrackingPortalPage() {
         destinationAddress: destAddress,
         kind: etaDestination.kind,
         placeLabel: etaDestination.placeLabel,
-        gpsFresh,
+        gpsFresh: freshForEta,
         cache: etaCacheRef.current,
       })
       if (runId !== etaRunRef.current) return
@@ -317,12 +321,13 @@ export default function JobTrackingPortalPage() {
     completed,
     data,
     etaDestination,
-    liveGps,
+    gpsFresh,
     mapLat,
     mapLng,
     mapToken,
     motion.state,
     data?.location?.updated_at,
+    data?.tracking_live,
     data?.pickup_address,
     data?.delivery_address,
   ])
@@ -365,22 +370,36 @@ export default function JobTrackingPortalPage() {
     )
   }
 
-  const badgeText = statusBadgeLabel(etaDestination, statusLabel)
-  const destKind = etaView?.kind || etaDestination?.kind || null
+  const badgeText = jobStage.badge || statusLabel
+  const destKind =
+    etaView?.kind
+    || jobStage.etaKind
+    || (jobStage.placeLabel === 'delivery' ? 'delivery' : jobStage.placeLabel === 'collection' ? 'collection' : null)
   const destAddress =
     destKind === 'delivery'
       ? data.delivery_address
       : destKind === 'collection'
         ? data.pickup_address
-        : null
+        : jobStage.placeLabel === 'delivery'
+          ? data.delivery_address
+          : jobStage.placeLabel === 'collection'
+            ? data.pickup_address
+            : null
   const gpsUpdatedAt = motion.updated_at || data.location?.updated_at
   const etaReady = Boolean(
-    etaView?.status === 'ready'
+    gpsFresh
+    && etaView?.status === 'ready'
     && etaView.minutesLabel
     && etaView.clock
     && etaView.milesLabel
     && etaView.milesLabel !== '—',
   )
+  const gpsStatusHeadline = resolveGpsStatusHeadline(motion, gpsFresh)
+  const gpsStatusLive = gpsFresh && (motion.state === 'moving' || motion.state === 'stationary')
+  const addressTitle =
+    destKind === 'delivery' || jobStage.placeLabel === 'delivery'
+      ? 'Delivery address'
+      : 'Collection address'
 
   return (
     <>
@@ -390,46 +409,71 @@ export default function JobTrackingPortalPage() {
         path={`/track/${token}`}
         robots="noindex, nofollow"
       />
-      <div className="min-h-screen bg-[#f4f7fb] pb-16">
-        <header className="bg-transparent">
-          <div className="mx-auto flex max-w-4xl flex-wrap items-start justify-between gap-3 px-4 pb-2 pt-6 sm:px-6 sm:pt-8">
+      <div className="min-h-screen bg-[#eef3f8] pb-16">
+        <header className="border-b border-slate-200/70 bg-white">
+          <div className="mx-auto flex max-w-[880px] flex-wrap items-start justify-between gap-3 px-4 py-5 sm:px-6 sm:py-6">
             <div>
-              <h1 className="text-[1.75rem] font-bold tracking-tight text-slate-900 sm:text-3xl">
+              <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-sky-600">
+                ShiftMyHome
+              </p>
+              <h1 className="mt-1 text-[1.75rem] font-bold tracking-tight text-slate-900 sm:text-[2rem]">
                 {viewEvidence || completed ? 'Job evidence' : 'Track my driver'}
               </h1>
-              <p className="mt-1.5 font-mono text-[15px] font-medium text-slate-500">{data.quote_ref}</p>
+              <p className="mt-1 font-mono text-sm font-medium text-slate-500 sm:text-[15px]">
+                {data.quote_ref}
+              </p>
             </div>
-            <div className="inline-flex items-center gap-2 rounded-full bg-sky-100 px-3.5 py-2 text-xs font-semibold text-sky-800 sm:text-[13px]">
+            <div className="inline-flex items-center gap-2 rounded-full bg-sky-100 px-3.5 py-2 text-xs font-semibold text-sky-800 shadow-sm sm:text-[13px]">
               <IconTruck className="h-4 w-4 shrink-0 text-sky-700" />
               <span>{badgeText}</span>
             </div>
           </div>
         </header>
 
-        <main className="mx-auto mt-3 flex max-w-4xl flex-col gap-4 px-4 sm:mt-4 sm:gap-5 sm:px-6">
+        <main className="mx-auto mt-4 flex max-w-[880px] flex-col gap-4 px-4 sm:mt-5 sm:gap-5 sm:px-6">
           {!completed ? (
-            <Section title="Live location" bodyClassName="mt-3.5 space-y-3 text-sm text-slate-700 sm:space-y-3.5">
+            <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-[0_2px_12px_rgba(15,23,42,0.06)] sm:p-5">
+              <h2 className="text-base font-bold text-slate-900 sm:text-lg">Live location</h2>
+
               {showMap ? (
-                <>
-                  <div className="overflow-hidden rounded-xl border border-slate-200/80 bg-slate-200 shadow-sm">
+                <div className="mt-3.5 space-y-3 sm:space-y-3.5">
+                  <div className="overflow-hidden rounded-xl border border-slate-200 bg-slate-200">
                     <TrackingDriverMap
                       latitude={mapLat}
                       longitude={mapLng}
-                      live={liveGps && motion.state !== 'stale'}
+                      heading={Number.isFinite(mapHeading) ? mapHeading : null}
+                      live={gpsFresh}
                       driverName={data.driver?.full_name || ''}
                       quoteRef={data.quote_ref || ''}
                       routeCoordinates={etaView?.routeCoordinates || null}
                       destination={etaView?.destination || null}
                       destinationKind={destKind}
-                      className="h-[20rem] w-full sm:h-[26rem] lg:h-[28rem]"
+                      className="h-[19rem] w-full sm:h-[25rem] lg:h-[28rem]"
                     />
                   </div>
 
-                  {etaDestination ? (
+                  {/* Green ETA / arrived panel */}
+                  {jobStage.arrivedMessage ? (
+                    <div className="rounded-xl border border-emerald-200 bg-[#ecfdf5] px-4 py-3.5 sm:px-5">
+                      <div className="flex items-start gap-3">
+                        <div className="mt-0.5 flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-emerald-700">
+                          <IconCar />
+                        </div>
+                        <div>
+                          <p className="text-[15px] font-bold text-slate-900 sm:text-base">
+                            {jobStage.arrivedMessage}
+                          </p>
+                          <p className="mt-0.5 text-sm text-slate-600">
+                            Live ETA pauses while the driver is at this stop.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  ) : etaDestination ? (
                     <div
                       className={`rounded-xl border px-4 py-3.5 sm:px-5 ${
                         etaReady
-                          ? 'border-emerald-200 bg-emerald-50'
+                          ? 'border-emerald-200 bg-[#ecfdf5]'
                           : 'border-amber-200 bg-amber-50'
                       }`}
                     >
@@ -448,23 +492,31 @@ export default function JobTrackingPortalPage() {
                             {etaReady ? (
                               <>
                                 <p className="text-[15px] font-bold leading-snug text-slate-900 sm:text-base">
-                                  Arriving at {etaView.placeLabel} in approximately {etaView.minutesLabel}
+                                  Arriving at {etaView.placeLabel} in approximately{' '}
+                                  {etaView.minutesLabel}
                                 </p>
                                 <p className="mt-0.5 text-sm text-slate-600">
                                   {etaView.milesLabel} miles away · ETA {etaView.clock}
+                                  {' · '}
+                                  Destination:{' '}
+                                  {etaView.placeLabel === 'delivery' ? 'Delivery' : 'Collection'}
                                 </p>
                               </>
                             ) : (
                               <>
                                 <p className="text-[15px] font-bold leading-snug text-slate-900 sm:text-base">
-                                  {etaView?.message ||
-                                    'ETA currently unavailable — waiting for a fresh driver location'}
+                                  {etaView?.message
+                                    || (gpsFresh
+                                      ? 'Calculating arrival time…'
+                                      : 'ETA paused — waiting for a fresh driver location')}
                                 </p>
-                                {etaView?.routeCoordinates?.length ? (
-                                  <p className="mt-0.5 text-sm text-slate-600">
-                                    Showing last known road route until GPS updates.
-                                  </p>
-                                ) : null}
+                                <p className="mt-0.5 text-sm text-slate-600">
+                                  Destination:{' '}
+                                  {etaDestination.placeLabel === 'delivery' ? 'Delivery' : 'Collection'}
+                                  {etaView?.routeCoordinates?.length
+                                    ? ' · Showing last known road route'
+                                    : ''}
+                                </p>
                               </>
                             )}
                           </div>
@@ -480,7 +532,9 @@ export default function JobTrackingPortalPage() {
                             </div>
                             <div className="flex flex-col items-center gap-1 border-x border-emerald-200/70 px-1">
                               <IconPin className="h-4 w-4 text-emerald-700" />
-                              <p className="text-sm font-bold text-slate-900">{etaView.milesLabel} miles</p>
+                              <p className="text-sm font-bold text-slate-900">
+                                {etaView.milesLabel} miles
+                              </p>
                               <p className="text-[10px] font-medium uppercase tracking-wide text-slate-500">
                                 Distance
                               </p>
@@ -498,19 +552,18 @@ export default function JobTrackingPortalPage() {
                     </div>
                   ) : null}
 
+                  {/* Blue GPS / movement status */}
                   <div
                     className={`rounded-xl border px-4 py-3.5 sm:px-5 ${
-                      motion.state === 'moving'
-                        ? 'border-sky-200 bg-sky-50'
-                        : motion.state === 'stationary'
-                          ? 'border-sky-100 bg-sky-50/70'
-                          : 'border-amber-200 bg-amber-50'
+                      gpsStatusLive
+                        ? 'border-sky-200 bg-[#eff6ff]'
+                        : 'border-amber-200 bg-amber-50'
                     }`}
                   >
                     <div className="flex items-start gap-3">
                       <div
                         className={`mt-0.5 flex h-11 w-11 shrink-0 items-center justify-center rounded-full ${
-                          motion.state === 'moving' || motion.state === 'stationary'
+                          gpsStatusLive
                             ? 'bg-sky-100 text-sky-700'
                             : 'bg-amber-100 text-amber-800'
                         }`}
@@ -520,30 +573,24 @@ export default function JobTrackingPortalPage() {
                       <div>
                         <p
                           className={`text-[15px] font-bold sm:text-base ${
-                            motion.state === 'moving' || motion.state === 'stationary'
-                              ? 'text-sky-900'
-                              : 'text-amber-900'
+                            gpsStatusLive ? 'text-sky-900' : 'text-amber-900'
                           }`}
                         >
-                          {motionHeadline(motion)}
+                          {gpsStatusHeadline}
                         </p>
-                        <p
-                          className={`mt-0.5 text-sm ${
-                            motion.state === 'stale' || motion.state === 'unavailable'
-                              ? 'text-amber-800'
-                              : 'text-slate-600'
-                          }`}
-                        >
-                          Last movement:{' '}
-                          {motion.last_moved_at ? formatTimeUK(motion.last_moved_at) : '—'}
-                          {' · '}
-                          GPS updated: {gpsUpdatedAt ? formatTimeUK(gpsUpdatedAt) : '—'}
+                        <p className={`mt-0.5 text-sm ${gpsStatusLive ? 'text-slate-600' : 'text-amber-800'}`}>
+                          Last GPS update: {gpsUpdatedAt ? formatTimeUK(gpsUpdatedAt) : '—'}
+                          {motion.last_moved_at
+                            ? ` · Last movement: ${formatTimeUK(motion.last_moved_at)}`
+                            : ''}
+                          {!gpsFresh && showMap ? ' · Showing last known position' : ''}
                         </p>
                       </div>
                     </div>
                   </div>
 
-                  {destKind && destAddress ? (
+                  {/* Destination address card */}
+                  {destAddress ? (
                     <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3.5 sm:px-5">
                       <div className="flex items-start gap-3">
                         <div className="mt-0.5 flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white text-red-600 shadow-sm ring-1 ring-red-100">
@@ -551,23 +598,23 @@ export default function JobTrackingPortalPage() {
                         </div>
                         <div>
                           <p className="text-[15px] font-bold text-slate-900 sm:text-base">
-                            {destKind === 'delivery' ? 'Delivery address' : 'Collection address'}
+                            {addressTitle}
                           </p>
                           <p className="mt-0.5 text-sm leading-relaxed text-slate-600">{destAddress}</p>
                         </div>
                       </div>
                     </div>
                   ) : null}
-                </>
+                </div>
               ) : (
-                <p className="rounded-xl bg-amber-50 px-3 py-3 text-amber-900">
+                <p className="mt-3.5 rounded-xl bg-amber-50 px-3 py-3 text-sm text-amber-900">
                   {!mapToken
                     ? 'Map is temporarily unavailable.'
                     : data.location?.message ||
                       'Location temporarily unavailable. The map appears when your driver is sharing GPS.'}
                 </p>
               )}
-            </Section>
+            </section>
           ) : (
             <Section title="Job completed">
               <p className="text-slate-700">

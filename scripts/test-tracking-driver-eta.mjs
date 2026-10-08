@@ -36,6 +36,16 @@ function assert(cond, msg) {
 }
 
 {
+  const d = resolveTrackingEtaDestination('Assigned', 'assigned')
+  assert(d?.kind === 'collection', 'assigned → collection route/ETA')
+}
+
+{
+  const d = resolveTrackingEtaDestination('Accepted', 'confirmed')
+  assert(d?.kind === 'collection', 'accepted/confirmed → collection')
+}
+
+{
   const t = formatTrackingEtaTiming(12 * 60, Date.parse('2026-10-07T15:07:00Z'))
   assert(t.minutesLabel === '12 min', `minutes ${t.minutesLabel}`)
   assert(/^\d{2}:\d{2}$/.test(t.clock), `clock ${t.clock}`)

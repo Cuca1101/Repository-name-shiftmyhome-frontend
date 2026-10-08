@@ -12,6 +12,13 @@ const ROUTE_LAYER = 'tracking-drive-route-line'
  */
 const SPRINTER_IMG = '/tracking/mercedes-sprinter-lwb.png'
 
+/** Sprinter PNG faces roughly right; subtract so heading 0° (north) points up. */
+const SPRINTER_HEADING_OFFSET_DEG = 90
+
+const ANIM_MS = 1200
+const MIN_ANIM_MOVE_M = 4
+const MIN_HEADING_MOVE_M = 12
+
 let markerStylesInjected = false
 function ensureTrackingMarkerStyles() {
   if (markerStylesInjected || typeof document === 'undefined') return
@@ -39,6 +46,11 @@ function ensureTrackingMarkerStyles() {
     .smh-van-ref {
       max-width:152px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
       font:600 10px ui-monospace,SFMono-Regular,Menlo,monospace; color:#64748b; text-align:center;
+    }
+    .smh-van-rotator {
+      display:flex; flex-direction:column; align-items:center;
+      transform-origin: 50% 85%;
+      will-change: transform;
     }
     .smh-van-icon {
       line-height:0;
@@ -91,17 +103,46 @@ function ensureTrackingMarkerStyles() {
       width:100% !important;
       height:100% !important;
     }
-    .smh-track-recenter {
-      position:absolute; top:98px; right:10px; z-index:2;
-      width:29px; height:29px; border:0; border-radius:4px;
-      background:#fff; color:#0f172a; cursor:pointer;
-      box-shadow:0 0 0 2px rgba(0,0,0,0.1);
-      display:flex; align-items:center; justify-content:center;
+    .smh-track-follow {
+      position:absolute; left:12px; bottom:12px; z-index:2;
+      display:inline-flex; align-items:center; gap:6px;
+      height:36px; padding:0 12px; border:0; border-radius:9999px;
+      background:#0284c7; color:#fff; cursor:pointer;
+      font:700 12px Inter,Segoe UI,system-ui,sans-serif;
+      box-shadow:0 2px 10px rgba(2,132,199,0.4);
     }
-    .smh-track-recenter:hover { background:#f8fafc; }
-    .smh-track-recenter svg { width:16px; height:16px; display:block; }
+    .smh-track-follow[data-active="1"] {
+      background:#fff; color:#0369a1;
+      box-shadow:0 0 0 2px rgba(2,132,199,0.35), 0 2px 8px rgba(15,23,42,0.12);
+    }
+    .smh-track-follow svg { width:16px; height:16px; display:block; }
   `
   document.head.appendChild(style)
+}
+
+function haversineMetres(lng1, lat1, lng2, lat2) {
+  const R = 6371000
+  const toRad = (d) => (d * Math.PI) / 180
+  const dLat = toRad(lat2 - lat1)
+  const dLng = toRad(lng2 - lng1)
+  const a =
+    Math.sin(dLat / 2) ** 2
+    + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2
+  return 2 * R * Math.asin(Math.sqrt(a))
+}
+
+/** @returns {number} degrees 0–360, north = 0 */
+function bearingDegrees(from, to) {
+  const φ1 = (from.lat * Math.PI) / 180
+  const φ2 = (to.lat * Math.PI) / 180
+  const Δλ = ((to.lng - from.lng) * Math.PI) / 180
+  const y = Math.sin(Δλ) * Math.cos(φ2)
+  const x = Math.cos(φ1) * Math.sin(φ2) - Math.sin(φ1) * Math.cos(φ2) * Math.cos(Δλ)
+  return (((Math.atan2(y, x) * 180) / Math.PI) + 360) % 360
+}
+
+function easeInOut(t) {
+  return t < 0.5 ? 2 * t * t : 1 - (-2 * t + 2) ** 2 / 2
 }
 
 /**
@@ -139,6 +180,10 @@ function buildVanMarkerElement({ driverName = '', quoteRef = '', live = false } 
     wrap.appendChild(stale)
   }
 
+  const rotator = document.createElement('div')
+  rotator.className = 'smh-van-rotator'
+  rotator.dataset.rotator = '1'
+
   const icon = document.createElement('div')
   icon.className = live ? 'smh-van-icon is-live' : 'smh-van-icon'
   const img = document.createElement('img')
@@ -147,9 +192,8 @@ function buildVanMarkerElement({ driverName = '', quoteRef = '', live = false } 
   img.draggable = false
   img.className = live ? 'smh-van-img' : 'smh-van-img is-stale'
   icon.appendChild(img)
-  wrap.appendChild(icon)
+  rotator.appendChild(icon)
 
-  // Stem + tip sit on the map coordinate (marker anchor: bottom).
   const pointer = document.createElement('div')
   pointer.className = 'smh-van-pointer'
   pointer.setAttribute('aria-hidden', 'true')
@@ -159,9 +203,19 @@ function buildVanMarkerElement({ driverName = '', quoteRef = '', live = false } 
   tip.className = live ? 'smh-van-pointer-dot is-live' : 'smh-van-pointer-dot is-stale'
   pointer.appendChild(stem)
   pointer.appendChild(tip)
-  wrap.appendChild(pointer)
+  rotator.appendChild(pointer)
 
+  wrap.appendChild(rotator)
   return wrap
+}
+
+function setMarkerHeading(marker, headingDeg) {
+  if (!marker || !Number.isFinite(headingDeg)) return
+  const el = marker.getElement?.()
+  const rotator = el?.querySelector?.('[data-rotator="1"]')
+  if (!rotator) return
+  const rot = headingDeg - SPRINTER_HEADING_OFFSET_DEG
+  rotator.style.transform = `rotate(${rot}deg)`
 }
 
 /**
@@ -271,9 +325,9 @@ function fitRouteBounds(map, driver, dest, routeCoordinates) {
   if (count < 1) return
   try {
     map.fitBounds(bounds, {
-      padding: { top: 80, bottom: 64, left: 56, right: 56 },
-      maxZoom: 14.5,
-      duration: 650,
+      padding: { top: 80, bottom: 72, left: 56, right: 56 },
+      maxZoom: 15,
+      duration: 700,
       essential: true,
     })
   } catch {
@@ -282,11 +336,12 @@ function fitRouteBounds(map, driver, dest, routeCoordinates) {
 }
 
 /**
- * Customer tracking map: Mercedes Sprinter photo marker, destination pin, road route, zoom + recenter.
+ * Uber-style customer tracking map: Sprinter marker, smooth GPS moves, heading, follow.
  *
  * @param {{
  *   latitude: number,
  *   longitude: number,
+ *   heading?: number | null,
  *   live?: boolean,
  *   driverName?: string,
  *   quoteRef?: string,
@@ -299,6 +354,7 @@ function fitRouteBounds(map, driver, dest, routeCoordinates) {
 export default function TrackingDriverMap({
   latitude,
   longitude,
+  heading = null,
   live = false,
   driverName = '',
   quoteRef = '',
@@ -315,9 +371,15 @@ export default function TrackingDriverMap({
   const mapReadyRef = useRef(false)
   const lastFitKeyRef = useRef('')
   const driverMetaKeyRef = useRef('')
+  const animFrameRef = useRef(0)
+  const displayPosRef = useRef(/** @type {{ lng: number, lat: number } | null } */ (null))
+  const headingRef = useRef(/** @type {number | null} */ (null))
+  const followRef = useRef(true)
+  const userInteractRef = useRef(false)
   const routeCoordsRef = useRef(routeCoordinates)
   const destRef = useRef(destination)
   const [error, setError] = useState('')
+  const [following, setFollowing] = useState(true)
   const token = String(import.meta.env.VITE_MAPBOX_TOKEN || '').trim()
 
   const lat = Number(latitude)
@@ -330,9 +392,11 @@ export default function TrackingDriverMap({
   const destOk = Number.isFinite(destLng) && Number.isFinite(destLat)
   const stopKind = destinationKind === 'delivery' ? 'delivery' : 'collection'
   const driverMetaKey = `${live ? 1 : 0}|${name}|${bookingRef}`
+  const headingNum = Number(heading)
 
   routeCoordsRef.current = routeCoordinates
   destRef.current = destination
+  followRef.current = following
 
   useEffect(() => {
     if (!token) {
@@ -348,6 +412,10 @@ export default function TrackingDriverMap({
 
     const tearDown = () => {
       mapReadyRef.current = false
+      if (animFrameRef.current) {
+        cancelAnimationFrame(animFrameRef.current)
+        animFrameRef.current = 0
+      }
       try {
         driverMarkerRef.current?.remove()
       } catch {
@@ -366,6 +434,7 @@ export default function TrackingDriverMap({
         /* ignore */
       }
       mapRef.current = null
+      displayPosRef.current = null
     }
 
     const resize = () => {
@@ -392,11 +461,26 @@ export default function TrackingDriverMap({
         container: host,
         style: 'mapbox://styles/mapbox/streets-v12',
         center: coordsOk ? [lng, lat] : [-3.5, 55.0],
-        zoom: 12,
+        zoom: 13,
         attributionControl: true,
       })
       mapRef.current = map
       map.addControl(new mapboxgl.NavigationControl({ visualizePitch: false }), 'top-right')
+
+      const onUserInteract = () => {
+        if (userInteractRef.current) return
+        userInteractRef.current = true
+        followRef.current = false
+        setFollowing(false)
+      }
+      map.on('dragstart', onUserInteract)
+      map.on('zoomstart', (e) => {
+        // Programmatic easeTo/fitBounds also fire zoomstart — only treat as user when originalEvent set.
+        if (e?.originalEvent) onUserInteract()
+      })
+      map.on('rotatestart', (e) => {
+        if (e?.originalEvent) onUserInteract()
+      })
 
       map.on('load', () => {
         if (cancelled) return
@@ -439,11 +523,17 @@ export default function TrackingDriverMap({
     const map = mapRef.current
     if (!map || !coordsOk) return undefined
 
-    const apply = () => {
+    const target = { lng, lat }
+
+    const applyMarker = () => {
       if (!mapRef.current) return
       const metaChanged = driverMetaKeyRef.current !== driverMetaKey
       if (!driverMarkerRef.current || metaChanged) {
         driverMetaKeyRef.current = driverMetaKey
+        if (animFrameRef.current) {
+          cancelAnimationFrame(animFrameRef.current)
+          animFrameRef.current = 0
+        }
         try {
           driverMarkerRef.current?.remove()
         } catch {
@@ -451,17 +541,92 @@ export default function TrackingDriverMap({
         }
         const el = buildVanMarkerElement({ driverName: name, quoteRef: bookingRef, live })
         driverMarkerRef.current = new mapboxgl.Marker({ element: el, anchor: 'bottom' })
-          .setLngLat([lng, lat])
+          .setLngLat([target.lng, target.lat])
           .addTo(mapRef.current)
+        displayPosRef.current = { ...target }
+        if (Number.isFinite(headingNum)) {
+          headingRef.current = headingNum
+          setMarkerHeading(driverMarkerRef.current, headingNum)
+        }
         return
       }
-      driverMarkerRef.current.setLngLat([lng, lat])
+
+      const from = displayPosRef.current || target
+      const moveM = haversineMetres(from.lng, from.lat, target.lng, target.lat)
+
+      let nextHeading = Number.isFinite(headingNum) ? headingNum : null
+      if (nextHeading == null && moveM >= MIN_HEADING_MOVE_M) {
+        nextHeading = bearingDegrees(from, target)
+      }
+      if (nextHeading != null) {
+        headingRef.current = nextHeading
+        setMarkerHeading(driverMarkerRef.current, nextHeading)
+      }
+
+      if (!live || moveM < MIN_ANIM_MOVE_M) {
+        if (animFrameRef.current) {
+          cancelAnimationFrame(animFrameRef.current)
+          animFrameRef.current = 0
+        }
+        driverMarkerRef.current.setLngLat([target.lng, target.lat])
+        displayPosRef.current = { ...target }
+        if (followRef.current && live) {
+          try {
+            mapRef.current.easeTo({
+              center: [target.lng, target.lat],
+              duration: 400,
+              essential: true,
+            })
+          } catch {
+            /* ignore */
+          }
+        }
+        return
+      }
+
+      if (animFrameRef.current) {
+        cancelAnimationFrame(animFrameRef.current)
+        animFrameRef.current = 0
+      }
+      const start = performance.now()
+      const startPos = { ...from }
+      const run = (now) => {
+        const t = Math.min(1, (now - start) / ANIM_MS)
+        const e = easeInOut(t)
+        const cur = {
+          lng: startPos.lng + (target.lng - startPos.lng) * e,
+          lat: startPos.lat + (target.lat - startPos.lat) * e,
+        }
+        displayPosRef.current = cur
+        try {
+          driverMarkerRef.current?.setLngLat([cur.lng, cur.lat])
+        } catch {
+          /* ignore */
+        }
+        if (followRef.current && mapRef.current) {
+          try {
+            mapRef.current.easeTo({
+              center: [cur.lng, cur.lat],
+              duration: 0,
+              essential: true,
+            })
+          } catch {
+            /* ignore */
+          }
+        }
+        if (t < 1) {
+          animFrameRef.current = requestAnimationFrame(run)
+        } else {
+          animFrameRef.current = 0
+        }
+      }
+      animFrameRef.current = requestAnimationFrame(run)
     }
 
-    if (mapReadyRef.current || map.isStyleLoaded()) apply()
-    else map.once('load', apply)
+    if (mapReadyRef.current || map.isStyleLoaded()) applyMarker()
+    else map.once('load', applyMarker)
     return undefined
-  }, [coordsOk, lat, lng, live, name, bookingRef, driverMetaKey])
+  }, [coordsOk, lat, lng, live, name, bookingRef, driverMetaKey, headingNum])
 
   useEffect(() => {
     const map = mapRef.current
@@ -500,14 +665,19 @@ export default function TrackingDriverMap({
         ? `${routeCoordinates.length}:${routeCoordinates[0]?.join(',')}:${routeCoordinates[routeCoordinates.length - 1]?.join(',')}`
         : 'none'
       const fitKey = `${destOk ? `${destLng.toFixed(4)},${destLat.toFixed(4)}` : 'nodest'}|${routeKey}|${stopKind}`
+      // Fit full route when destination/route changes, or when follow was just re-enabled via fitKey change.
       if (fitKey !== lastFitKeyRef.current) {
         lastFitKeyRef.current = fitKey
-        fitRouteBounds(
-          m,
-          { lng, lat },
-          destOk ? { lng: destLng, lat: destLat } : null,
-          routeCoordinates,
-        )
+        if (!followRef.current) {
+          // still update route line; don't steal camera
+        } else {
+          fitRouteBounds(
+            m,
+            { lng, lat },
+            destOk ? { lng: destLng, lat: destLat } : null,
+            routeCoordinates,
+          )
+        }
       }
     }
 
@@ -516,7 +686,10 @@ export default function TrackingDriverMap({
     return undefined
   }, [destOk, destLng, destLat, stopKind, routeCoordinates, lat, lng])
 
-  const recenter = () => {
+  const enableFollow = () => {
+    userInteractRef.current = false
+    followRef.current = true
+    setFollowing(true)
     const map = mapRef.current
     if (!map || !coordsOk) return
     const dest = destRef.current
@@ -561,18 +734,21 @@ export default function TrackingDriverMap({
       />
       <button
         type="button"
-        className="smh-track-recenter"
-        title="Recenter on route"
-        aria-label="Recenter on route"
-        onClick={recenter}
+        className="smh-track-follow"
+        data-active={following ? '1' : '0'}
+        title={following ? 'Following driver' : 'Follow driver'}
+        aria-label={following ? 'Following driver' : 'Follow driver'}
+        aria-pressed={following}
+        onClick={enableFollow}
       >
         <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
           <circle cx="12" cy="12" r="3" stroke="currentColor" strokeWidth="1.8" />
           <path d="M12 3v3M12 18v3M3 12h3M18 12h3" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
         </svg>
+        {following ? 'Following' : 'Follow driver'}
       </button>
       {error ? (
-        <p className="absolute inset-x-3 bottom-3 z-10 rounded-lg bg-amber-50/95 px-3 py-2 text-xs text-amber-900 shadow-sm">
+        <p className="absolute inset-x-3 bottom-14 z-10 rounded-lg bg-amber-50/95 px-3 py-2 text-xs text-amber-900 shadow-sm">
           Map could not load ({error}).{' '}
           <a href={mapsUrl} target="_blank" rel="noopener noreferrer" className="font-semibold underline">
             Open in Google Maps

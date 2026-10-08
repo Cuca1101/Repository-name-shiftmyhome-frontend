@@ -60,7 +60,48 @@ export function resolveTrackingEtaDestination(operationalStatus, statusRaw) {
   if (has(['on_way', 'started', 'start', 'on_the_way', 'on_way_to_collection'])) {
     return { kind: 'collection', placeLabel: 'collection' }
   }
+  // Assigned / accepted: still route to collection so the customer sees a real path + ETA
+  // as soon as the driver has GPS (matches Track my driver mock).
+  if (
+    has([
+      'assigned',
+      'accepted',
+      'confirmed',
+      'booked',
+      'paid',
+      'deposit_paid',
+      'driver_assigned',
+    ])
+  ) {
+    return { kind: 'collection', placeLabel: 'collection' }
+  }
   return null
+}
+
+/** Fresh enough for live ETA (customer portal). Aligns with RPC live window. */
+export const TRACKING_GPS_FRESH_MS = 5 * 60 * 1000
+
+/**
+ * Whether driver GPS should be treated as live for ETA (not last-known-only).
+ * @param {{
+ *   trackingLive?: boolean,
+ *   location?: { live?: boolean, available?: boolean, updated_at?: string | null, motion?: { state?: string } | null } | null,
+ *   now?: number,
+ * }} args
+ */
+export function isTrackingGpsFresh(args = {}) {
+  const loc = args.location
+  if (!loc?.available) return false
+  const state = String(loc.motion?.state || '').toLowerCase()
+  // Never treat last-known / missing GPS as live (Uber-style).
+  if (state === 'unavailable' || state === 'stale') return false
+  const updatedMs = loc.updated_at ? Date.parse(String(loc.updated_at)) : NaN
+  const now = args.now ?? Date.now()
+  const ageOk = Number.isFinite(updatedMs) && now - updatedMs <= TRACKING_GPS_FRESH_MS
+  if (!ageOk) return false
+  if (args.trackingLive && loc.live) return true
+  if (loc.live === true) return true
+  return state === 'moving' || state === 'stationary'
 }
 
 /**
