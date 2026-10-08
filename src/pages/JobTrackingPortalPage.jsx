@@ -243,8 +243,10 @@ export default function JobTrackingPortalPage() {
             etaKind: null,
             placeLabel: null,
             showLiveEta: false,
+            journeyActive: false,
             arrivedMessage: null,
             stageMessage: null,
+            waitingMessage: null,
           }
         : resolveTrackingJobStage(data?.operational_status, data?.status_raw),
     [completed, data?.operational_status, data?.status_raw],
@@ -395,9 +397,15 @@ export default function JobTrackingPortalPage() {
     && etaView.milesLabel
     && etaView.milesLabel !== '—',
   )
-  const gpsStatusHeadline = resolveGpsStatusHeadline(motion, gpsFresh)
-  const gpsStatusLive = gpsFresh && (motion.state === 'moving' || motion.state === 'stationary')
-  const addressTitle =
+  const journeyActive = Boolean(jobStage.journeyActive)
+  const gpsStatusHeadline = resolveGpsStatusHeadline(motion, gpsFresh, { journeyActive })
+  const gpsStatusLive = journeyActive && gpsFresh && (motion.state === 'moving' || motion.state === 'stationary')
+  const collectionAddress = data.pickup_address || null
+  const showCollectionAddress = Boolean(
+    destAddress || (jobStage.placeLabel === 'collection' && collectionAddress),
+  )
+  const addressCardText = destAddress || collectionAddress
+  const addressCardTitle =
     destKind === 'delivery' || jobStage.placeLabel === 'delivery'
       ? 'Delivery address'
       : 'Collection address'
@@ -443,15 +451,42 @@ export default function JobTrackingPortalPage() {
                       latitude={mapLat}
                       longitude={mapLng}
                       heading={Number.isFinite(mapHeading) ? mapHeading : null}
-                      live={gpsFresh}
+                      live={journeyActive && gpsFresh}
                       driverName={data.driver?.full_name || ''}
                       quoteRef={data.quote_ref || ''}
-                      routeCoordinates={etaView?.routeCoordinates || null}
-                      destination={etaView?.destination || null}
+                      routeCoordinates={
+                        journeyActive && jobStage.showLiveEta
+                          ? etaView?.routeCoordinates || null
+                          : null
+                      }
+                      destination={
+                        journeyActive && jobStage.showLiveEta
+                          ? etaView?.destination || null
+                          : null
+                      }
                       destinationKind={destKind}
                       className="h-[19rem] w-full sm:h-[25rem] lg:h-[28rem]"
                     />
                   </div>
+
+                  {/* Waiting for Start Job — no ETA / no “travelling” claim */}
+                  {jobStage.stage === 'awaiting_departure' ? (
+                    <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3.5 sm:px-5">
+                      <div className="flex items-start gap-3">
+                        <div className="mt-0.5 flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-amber-100 text-amber-800">
+                          <IconCar />
+                        </div>
+                        <div>
+                          <p className="text-[15px] font-bold text-slate-900 sm:text-base">
+                            {jobStage.stageMessage}
+                          </p>
+                          <p className="mt-0.5 text-sm text-amber-900">
+                            {jobStage.waitingMessage}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  ) : null}
 
                   {/* Green ETA / arrived / collected panel */}
                   {jobStage.arrivedMessage ? (
@@ -596,7 +631,7 @@ export default function JobTrackingPortalPage() {
                   </div>
 
                   {/* Destination address card */}
-                  {destAddress ? (
+                  {showCollectionAddress && addressCardText ? (
                     <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3.5 sm:px-5">
                       <div className="flex items-start gap-3">
                         <div className="mt-0.5 flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white text-red-600 shadow-sm ring-1 ring-red-100">
@@ -604,21 +639,56 @@ export default function JobTrackingPortalPage() {
                         </div>
                         <div>
                           <p className="text-[15px] font-bold text-slate-900 sm:text-base">
-                            {addressTitle}
+                            {addressCardTitle}
                           </p>
-                          <p className="mt-0.5 text-sm leading-relaxed text-slate-600">{destAddress}</p>
+                          <p className="mt-0.5 text-sm leading-relaxed text-slate-600">{addressCardText}</p>
                         </div>
                       </div>
                     </div>
                   ) : null}
                 </div>
               ) : (
-                <p className="mt-3.5 rounded-xl bg-amber-50 px-3 py-3 text-sm text-amber-900">
-                  {!mapToken
-                    ? 'Map is temporarily unavailable.'
-                    : data.location?.message ||
-                      'Location temporarily unavailable. The map appears when your driver is sharing GPS.'}
-                </p>
+                <div className="mt-3.5 space-y-3 sm:space-y-3.5">
+                  {jobStage.stage === 'awaiting_departure' ? (
+                    <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3.5 sm:px-5">
+                      <div className="flex items-start gap-3">
+                        <div className="mt-0.5 flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-amber-100 text-amber-800">
+                          <IconCar />
+                        </div>
+                        <div>
+                          <p className="text-[15px] font-bold text-slate-900 sm:text-base">
+                            {jobStage.stageMessage}
+                          </p>
+                          <p className="mt-0.5 text-sm text-amber-900">
+                            {jobStage.waitingMessage}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="rounded-xl bg-amber-50 px-3 py-3 text-sm text-amber-900">
+                      {!mapToken
+                        ? 'Map is temporarily unavailable.'
+                        : data.location?.message ||
+                          'Location temporarily unavailable. The map appears when your driver is sharing GPS.'}
+                    </p>
+                  )}
+                  {showCollectionAddress && addressCardText ? (
+                    <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3.5 sm:px-5">
+                      <div className="flex items-start gap-3">
+                        <div className="mt-0.5 flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white text-red-600 shadow-sm ring-1 ring-red-100">
+                          <IconPin className="h-5 w-5" />
+                        </div>
+                        <div>
+                          <p className="text-[15px] font-bold text-slate-900 sm:text-base">
+                            {addressCardTitle}
+                          </p>
+                          <p className="mt-0.5 text-sm leading-relaxed text-slate-600">{addressCardText}</p>
+                        </div>
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
               )}
             </section>
           ) : (

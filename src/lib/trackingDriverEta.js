@@ -59,22 +59,8 @@ export function resolveTrackingEtaDestination(operationalStatus, statusRaw) {
   if (has(['pickup_completed', 'loaded', 'in_transit', 'in_progress', 'on_way_to_delivery'])) {
     return { kind: 'delivery', placeLabel: 'delivery' }
   }
+  // Only after Start Job (on_way / started) — never for assigned-only.
   if (has(['on_way', 'started', 'start', 'on_the_way', 'on_way_to_collection'])) {
-    return { kind: 'collection', placeLabel: 'collection' }
-  }
-  // Assigned / accepted: still route to collection so the customer sees a real path + ETA
-  // as soon as the driver has GPS (matches Track my driver mock).
-  if (
-    has([
-      'assigned',
-      'accepted',
-      'confirmed',
-      'booked',
-      'paid',
-      'deposit_paid',
-      'driver_assigned',
-    ])
-  ) {
     return { kind: 'collection', placeLabel: 'collection' }
   }
   return null
@@ -269,7 +255,9 @@ export async function resolveTrackingDriverEta(args) {
     (gpsFresh && shouldRefreshTrackingEta(cache.from, driver, cache.fetchedAt, now))
 
   if (needsFetch) {
-    const route = await fetchMapboxDrivingRoute(driver, cache.dest, token)
+    const route = await fetchMapboxDrivingRoute(driver, cache.dest, token, {
+      profile: 'driving-traffic',
+    })
     if (route?.coordinates?.length >= 2) {
       cache = {
         ...cache,

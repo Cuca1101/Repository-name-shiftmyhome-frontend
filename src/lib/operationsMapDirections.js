@@ -21,9 +21,10 @@ export function formatDriveDuration(seconds) {
  * @param {{ lng: number, lat: number }} pickup
  * @param {{ lng: number, lat: number }} delivery
  * @param {string} token
+ * @param {{ profile?: 'driving' | 'driving-traffic' }} [opts]
  * @returns {Promise<{ coordinates: number[][], durationSeconds: number, distanceMeters: number } | null>}
  */
-export async function fetchMapboxDrivingRoute(pickup, delivery, token) {
+export async function fetchMapboxDrivingRoute(pickup, delivery, token, opts = {}) {
   const t = String(token || '').trim()
   if (!t) return null
   const plng = Number(pickup?.lng)
@@ -40,45 +41,50 @@ export async function fetchMapboxDrivingRoute(pickup, delivery, token) {
     return null
   }
 
-  const params = new URLSearchParams({
-    access_token: t,
-    geometries: 'geojson',
-    overview: 'full',
-    steps: 'false',
-    alternatives: 'false',
-  })
-  const url = `https://api.mapbox.com/directions/v5/mapbox/driving/${plng},${plat};${dlng},${dlat}?${params}`
+  const preferred = opts.profile === 'driving-traffic' ? 'driving-traffic' : 'driving'
+  const profiles = preferred === 'driving-traffic' ? ['driving-traffic', 'driving'] : ['driving']
 
-  for (let attempt = 0; attempt < 2; attempt += 1) {
-    try {
-      const res = await fetch(url)
-      if (!res.ok) {
-        if (attempt === 0 && (res.status === 429 || res.status >= 500)) {
-          await new Promise((r) => setTimeout(r, 400))
-          continue
+  for (const profile of profiles) {
+    const params = new URLSearchParams({
+      access_token: t,
+      geometries: 'geojson',
+      overview: 'full',
+      steps: 'false',
+      alternatives: 'false',
+    })
+    const url = `https://api.mapbox.com/directions/v5/mapbox/${profile}/${plng},${plat};${dlng},${dlat}?${params}`
+
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      try {
+        const res = await fetch(url)
+        if (!res.ok) {
+          if (attempt === 0 && (res.status === 429 || res.status >= 500)) {
+            await new Promise((r) => setTimeout(r, 400))
+            continue
+          }
+          break
         }
-        return null
+        const json = await res.json()
+        const route = json?.routes?.[0]
+        if (!route) break
+
+        const rawCoords = route.geometry?.coordinates
+        if (!Array.isArray(rawCoords) || rawCoords.length < 2) break
+        const normalized = sanitizeLineCoords(rawCoords)
+        if (normalized.length < 2) break
+
+        const durationSeconds = Number(route.duration)
+        const distanceMeters = Number(route.distance)
+
+        return {
+          coordinates: normalized,
+          durationSeconds: Number.isFinite(durationSeconds) ? durationSeconds : 0,
+          distanceMeters: Number.isFinite(distanceMeters) ? distanceMeters : 0,
+        }
+      } catch {
+        if (attempt === 0) continue
+        break
       }
-      const json = await res.json()
-      const route = json?.routes?.[0]
-      if (!route) return null
-
-      const rawCoords = route.geometry?.coordinates
-      if (!Array.isArray(rawCoords) || rawCoords.length < 2) return null
-      const normalized = sanitizeLineCoords(rawCoords)
-      if (normalized.length < 2) return null
-
-      const durationSeconds = Number(route.duration)
-      const distanceMeters = Number(route.distance)
-
-      return {
-        coordinates: normalized,
-        durationSeconds: Number.isFinite(durationSeconds) ? durationSeconds : 0,
-        distanceMeters: Number.isFinite(distanceMeters) ? distanceMeters : 0,
-      }
-    } catch {
-      if (attempt === 0) continue
-      return null
     }
   }
   return null

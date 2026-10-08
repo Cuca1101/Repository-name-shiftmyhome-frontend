@@ -37,12 +37,12 @@ function assert(cond, msg) {
 
 {
   const d = resolveTrackingEtaDestination('Assigned', 'assigned')
-  assert(d?.kind === 'collection', 'assigned → collection route/ETA')
+  assert(d == null, 'assigned alone → no collection ETA until Start Job')
 }
 
 {
   const d = resolveTrackingEtaDestination('Accepted', 'confirmed')
-  assert(d?.kind === 'collection', 'accepted/confirmed → collection')
+  assert(d == null, 'accepted/confirmed → no ETA until Start Job')
 }
 
 {
