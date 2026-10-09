@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import Logo from '../components/Logo'
-import { formatAuthError } from '../lib/authErrors'
+import { formatPasswordResetError } from '../lib/authErrors'
 import {
   PASSWORD_RESET_PATH,
   PASSWORD_RESET_REDIRECT,
@@ -81,7 +81,7 @@ export default function DriverResetPasswordPage() {
         redirectTo: PASSWORD_RESET_REDIRECT,
       })
       if (resetError) {
-        setError(formatAuthError(resetError))
+        setError(formatPasswordResetError(resetError))
         return
       }
       setInfo('Check your email for the reset link. It opens this page so you can choose a new password.')
@@ -106,7 +106,7 @@ export default function DriverResetPasswordPage() {
     try {
       const { error: updateError } = await supabase.auth.updateUser({ password })
       if (updateError) {
-        setError(formatAuthError(updateError))
+        setError(formatPasswordResetError(updateError))
         return
       }
       await supabase.auth.signOut()

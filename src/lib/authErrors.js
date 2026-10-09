@@ -30,3 +30,23 @@ export function formatAuthError(err) {
   if (raw) return raw
   return 'Sign-in failed. Check Supabase is configured and a user exists (Authentication → Users).'
 }
+
+/**
+ * Reset-email errors. A failed or rate-limited send must stay visible.
+ * @param {{ message?: string; status?: number } | null | undefined} err
+ * @returns {string}
+ */
+export function formatPasswordResetError(err) {
+  const raw = (err?.message || '').trim()
+  const lower = raw.toLowerCase()
+  if (
+    err?.status === 429
+    || lower.includes('rate limit')
+    || lower.includes('too many')
+    || lower.includes('over_email_send_rate_limit')
+  ) {
+    return 'Too many reset emails were sent. Wait about an hour and try again.'
+  }
+  if (raw) return raw
+  return 'The reset email could not be sent. Try again in a few minutes.'
+}
