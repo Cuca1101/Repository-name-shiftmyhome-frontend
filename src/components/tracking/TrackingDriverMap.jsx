@@ -117,6 +117,44 @@ function ensureTrackingMarkerStyles() {
       box-shadow:0 0 0 2px rgba(2,132,199,0.35), 0 2px 8px rgba(15,23,42,0.12);
     }
     .smh-track-follow svg { width:16px; height:16px; display:block; }
+    .smh-track-controls {
+      position:relative; z-index:3; flex:0 0 auto;
+      display:flex; flex-wrap:wrap; gap:8px;
+      padding:8px; background:#fff;
+      border-bottom:1px solid rgba(15,23,42,0.08);
+    }
+    .smh-track-controls .smh-track-follow,
+    .smh-track-controls .smh-track-route {
+      position:static; pointer-events:auto;
+      min-height:44px; height:auto; padding:0 14px;
+      font-size:13px; line-height:1;
+    }
+    .smh-track-route {
+      display:inline-flex; align-items:center; justify-content:center;
+      border:0; border-radius:9999px; cursor:pointer;
+      background:#fff; color:#0369a1;
+      font:700 13px Inter,Segoe UI,system-ui,sans-serif;
+      box-shadow:0 2px 8px rgba(15,23,42,0.16);
+    }
+    .smh-track-route[data-active="1"] {
+      background:#0284c7; color:#fff;
+      box-shadow:0 2px 10px rgba(2,132,199,0.4);
+    }
+    .smh-stop-pin {
+      display:flex; flex-direction:column; align-items:center;
+      pointer-events:none; user-select:none; z-index:4;
+    }
+    .smh-stop-num {
+      width:34px; height:34px; border-radius:9999px;
+      display:flex; align-items:center; justify-content:center;
+      color:#fff; border:3px solid #fff;
+      font:800 16px Inter,Segoe UI,system-ui,sans-serif;
+      box-shadow:0 2px 8px rgba(15,23,42,0.4);
+    }
+    .smh-stop-pin.is-active .smh-stop-num {
+      box-shadow:0 0 0 4px rgba(255,255,255,0.95), 0 2px 10px rgba(15,23,42,0.45);
+    }
+    .smh-stop-stem { width:3px; height:12px; border-radius:2px; }
   `
   document.head.appendChild(style)
 }
@@ -158,6 +196,7 @@ function buildVanMarkerElement({ driverName = '', quoteRef = '', live = false } 
 
   const wrap = document.createElement('div')
   wrap.className = 'smh-van-marker'
+  wrap.style.zIndex = '8'
   wrap.setAttribute('aria-label', ref ? `Driver ${fullName}, booking ${ref}` : `Driver ${fullName}`)
 
   const card = document.createElement('div')
@@ -248,7 +287,39 @@ function buildDestinationMarkerElement({ kind = 'collection' } = {}) {
   return wrap
 }
 
-/** Collection = orange, delivery = green. */
+const COLLECTION_PIN = '#0284c7'
+const DELIVERY_PIN = '#e11d48'
+
+function buildNumberedStopMarker(number, color, label) {
+  ensureTrackingMarkerStyles()
+  const wrap = document.createElement('div')
+  wrap.className = 'smh-stop-pin'
+  wrap.style.zIndex = '12'
+  wrap.setAttribute('aria-label', label)
+  const num = document.createElement('span')
+  num.className = 'smh-stop-num'
+  num.style.background = color
+  num.textContent = String(number)
+  const stem = document.createElement('span')
+  stem.className = 'smh-stop-stem'
+  stem.style.background = color
+  wrap.appendChild(num)
+  wrap.appendChild(stem)
+  return wrap
+}
+
+function pointOffset(from, to, shift, metres = 160) {
+  if (!from || !to) return [0, 0]
+  const lng1 = Number(from.lng)
+  const lat1 = Number(from.lat)
+  const lng2 = Number(to.lng)
+  const lat2 = Number(to.lat)
+  if (![lng1, lat1, lng2, lat2].every(Number.isFinite)) return [0, 0]
+  if (haversineMetres(lng1, lat1, lng2, lat2) > metres) return [0, 0]
+  return shift
+}
+
+/** Collection = orange, delivery = green. The booked job route stays ShiftMyHome blue. */
 function routePaintForKind(kind) {
   if (kind === 'delivery') {
     return { casing: '#065f46', line: '#059669' }
@@ -261,11 +332,11 @@ function routePaintForKind(kind) {
  * @param {number[][] | null | undefined} coordinates
  * @param {'collection' | 'delivery' | string} [kind]
  */
-function upsertRouteLine(map, coordinates, kind = 'collection') {
+function upsertRouteLine(map, coordinates, kind = 'collection', paint = null) {
   const coords = Array.isArray(coordinates)
     ? coordinates.filter((c) => Array.isArray(c) && c.length >= 2 && Number.isFinite(c[0]) && Number.isFinite(c[1]))
     : []
-  const colors = routePaintForKind(kind)
+  const colors = paint || routePaintForKind(kind)
 
   const geojson = {
     type: 'Feature',
@@ -346,7 +417,7 @@ function fitRouteBounds(map, driver, dest, routeCoordinates) {
   if (count < 1) return
   try {
     map.fitBounds(bounds, {
-      padding: { top: 80, bottom: 72, left: 56, right: 56 },
+      padding: { top: 72, bottom: 96, left: 48, right: 48 },
       maxZoom: 15,
       duration: 700,
       essential: true,
@@ -354,6 +425,85 @@ function fitRouteBounds(map, driver, dest, routeCoordinates) {
   } catch {
     /* ignore fit errors */
   }
+}
+
+/**
+ * Fit the booked route, both stops, and the van, with padding for the controls.
+ * @param {mapboxgl.Map} map
+ * @param {{ lng: number, lat: number } | null} driver
+ * @param {Array<{ lng: number, lat: number } | null | undefined>} stops
+ * @param {number[][] | null | undefined} routeCoordinates
+ */
+function fitOverview(map, driver, stops, routeCoordinates) {
+  const bounds = new mapboxgl.LngLatBounds()
+  let count = 0
+  const add = (lng, lat) => {
+    if (!Number.isFinite(lng) || !Number.isFinite(lat)) return
+    bounds.extend([lng, lat])
+    count += 1
+  }
+  add(Number(driver?.lng), Number(driver?.lat))
+  for (const stop of stops || []) add(Number(stop?.lng), Number(stop?.lat))
+  if (Array.isArray(routeCoordinates)) {
+    for (const c of routeCoordinates) {
+      if (!Array.isArray(c) || c.length < 2) continue
+      add(Number(c[0]), Number(c[1]))
+    }
+  }
+  if (count < 1) return
+  try {
+    if (count < 2 && Number.isFinite(Number(driver?.lng))) {
+      map.easeTo({
+        center: [Number(driver.lng), Number(driver.lat)],
+        zoom: 14,
+        duration: 600,
+        essential: true,
+      })
+      return
+    }
+    map.fitBounds(bounds, {
+      padding: { top: 48, bottom: 36, left: 36, right: 36 },
+      maxZoom: 15,
+      duration: 700,
+      essential: true,
+    })
+  } catch {
+    /* ignore fit errors */
+  }
+}
+
+function syncNumberedPin(slotRef, map, point, number, color, label, offset, active) {
+  if (!point || !Number.isFinite(point.lng) || !Number.isFinite(point.lat)) {
+    try {
+      slotRef.current?.remove()
+    } catch {
+      /* ignore */
+    }
+    slotRef.current = null
+    return
+  }
+  const marker = slotRef.current
+  if (!marker || marker.__pin !== number) {
+    try {
+      marker?.remove()
+    } catch {
+      /* ignore */
+    }
+    const el = buildNumberedStopMarker(number, color, label)
+    el.classList.toggle('is-active', Boolean(active))
+    slotRef.current = new mapboxgl.Marker({ element: el, anchor: 'bottom', offset })
+      .setLngLat([point.lng, point.lat])
+      .addTo(map)
+    slotRef.current.__pin = number
+    return
+  }
+  marker.setLngLat([point.lng, point.lat])
+  try {
+    marker.setOffset(offset)
+  } catch {
+    /* ignore */
+  }
+  marker.getElement()?.classList.toggle('is-active', Boolean(active))
 }
 
 /**
@@ -369,6 +519,10 @@ function fitRouteBounds(map, driver, dest, routeCoordinates) {
  *   routeCoordinates?: number[][] | null,
  *   destination?: { lng: number, lat: number } | null,
  *   destinationKind?: 'collection' | 'delivery' | string | null,
+ *   collection?: { lng: number, lat: number } | null,
+ *   delivery?: { lng: number, lat: number } | null,
+ *   jobRouteCoordinates?: number[][] | null,
+ *   routeControls?: boolean,
  *   className?: string,
  * }} props
  */
@@ -382,6 +536,10 @@ export default function TrackingDriverMap({
   routeCoordinates = null,
   destination = null,
   destinationKind = null,
+  collection = null,
+  delivery = null,
+  jobRouteCoordinates = null,
+  routeControls = false,
   className = '',
 }) {
   const hostRef = useRef(null)
@@ -389,18 +547,20 @@ export default function TrackingDriverMap({
   const mapRef = useRef(null)
   const driverMarkerRef = useRef(null)
   const destMarkerRef = useRef(null)
+  const collectionMarkerRef = useRef(null)
+  const deliveryMarkerRef = useRef(null)
   const mapReadyRef = useRef(false)
   const lastFitKeyRef = useRef('')
   const driverMetaKeyRef = useRef('')
   const animFrameRef = useRef(0)
   const displayPosRef = useRef(/** @type {{ lng: number, lat: number } | null } */ (null))
   const headingRef = useRef(/** @type {number | null} */ (null))
-  const followRef = useRef(true)
+  const followRef = useRef(!routeControls)
   const userInteractRef = useRef(false)
   const routeCoordsRef = useRef(routeCoordinates)
   const destRef = useRef(destination)
   const [error, setError] = useState('')
-  const [following, setFollowing] = useState(true)
+  const [camera, setCamera] = useState(routeControls ? 'overview' : 'follow')
   const token = String(import.meta.env.VITE_MAPBOX_TOKEN || '').trim()
 
   const lat = Number(latitude)
@@ -415,9 +575,22 @@ export default function TrackingDriverMap({
   const driverMetaKey = `${live ? 1 : 0}|${name}|${bookingRef}`
   const headingNum = Number(heading)
 
-  routeCoordsRef.current = routeCoordinates
+  const collectionLng = Number(collection?.lng)
+  const collectionLat = Number(collection?.lat)
+  const deliveryLng = Number(delivery?.lng)
+  const deliveryLat = Number(delivery?.lat)
+  const collectionOk = Number.isFinite(collectionLng) && Number.isFinite(collectionLat)
+  const deliveryOk = Number.isFinite(deliveryLng) && Number.isFinite(deliveryLat)
+  const collectionPoint = collectionOk ? { lng: collectionLng, lat: collectionLat } : null
+  const deliveryPoint = deliveryOk ? { lng: deliveryLng, lat: deliveryLat } : null
+  const lineCoordinates = (Array.isArray(jobRouteCoordinates) && jobRouteCoordinates.length >= 2)
+    ? jobRouteCoordinates
+    : routeCoordinates
+  const jobLine = Array.isArray(jobRouteCoordinates) && jobRouteCoordinates.length >= 2
+
+  routeCoordsRef.current = lineCoordinates
   destRef.current = destination
-  followRef.current = following
+  followRef.current = camera === 'follow'
 
   useEffect(() => {
     if (!token) {
@@ -449,6 +622,18 @@ export default function TrackingDriverMap({
         /* ignore */
       }
       destMarkerRef.current = null
+      try {
+        collectionMarkerRef.current?.remove()
+      } catch {
+        /* ignore */
+      }
+      collectionMarkerRef.current = null
+      try {
+        deliveryMarkerRef.current?.remove()
+      } catch {
+        /* ignore */
+      }
+      deliveryMarkerRef.current = null
       try {
         mapRef.current?.remove()
       } catch {
@@ -492,7 +677,7 @@ export default function TrackingDriverMap({
         if (userInteractRef.current) return
         userInteractRef.current = true
         followRef.current = false
-        setFollowing(false)
+        setCamera('free')
       }
       map.on('dragstart', onUserInteract)
       map.on('zoomstart', (e) => {
@@ -591,7 +776,7 @@ export default function TrackingDriverMap({
         }
         driverMarkerRef.current.setLngLat([target.lng, target.lat])
         displayPosRef.current = { ...target }
-        if (followRef.current && live) {
+        if (followRef.current) {
           try {
             mapRef.current.easeTo({
               center: [target.lng, target.lat],
@@ -656,47 +841,98 @@ export default function TrackingDriverMap({
     const apply = () => {
       const m = mapRef.current
       if (!m) return
+      const driver = { lng, lat }
+      const bothStops = Boolean(collectionPoint && deliveryPoint)
 
-      if (destOk) {
+      if (bothStops) {
+        const colShift = pointOffset(collectionPoint, driver, [-84, -4], 200)
+        let delShift = pointOffset(deliveryPoint, collectionPoint, [40, 0], 80)
+        const nearVan = pointOffset(deliveryPoint, driver, [84, -4], 200)
+        if (nearVan[0] || nearVan[1]) delShift = nearVan
+        syncNumberedPin(
+          collectionMarkerRef,
+          m,
+          collectionPoint,
+          1,
+          COLLECTION_PIN,
+          'Collection 1',
+          colShift,
+          stopKind !== 'delivery',
+        )
+        syncNumberedPin(
+          deliveryMarkerRef,
+          m,
+          deliveryPoint,
+          2,
+          DELIVERY_PIN,
+          'Delivery 2',
+          delShift,
+          stopKind === 'delivery',
+        )
         try {
           destMarkerRef.current?.remove()
         } catch {
           /* ignore */
         }
-        const el = buildDestinationMarkerElement({ kind: stopKind })
-        destMarkerRef.current = new mapboxgl.Marker({ element: el, anchor: 'bottom' })
-          .setLngLat([destLng, destLat])
-          .addTo(m)
-      } else if (destMarkerRef.current) {
+        destMarkerRef.current = null
+      } else {
         try {
-          destMarkerRef.current.remove()
+          collectionMarkerRef.current?.remove()
         } catch {
           /* ignore */
         }
-        destMarkerRef.current = null
+        collectionMarkerRef.current = null
+        try {
+          deliveryMarkerRef.current?.remove()
+        } catch {
+          /* ignore */
+        }
+        deliveryMarkerRef.current = null
+        if (destOk) {
+          try {
+            destMarkerRef.current?.remove()
+          } catch {
+            /* ignore */
+          }
+          const el = buildDestinationMarkerElement({ kind: stopKind })
+          destMarkerRef.current = new mapboxgl.Marker({ element: el, anchor: 'bottom' })
+            .setLngLat([destLng, destLat])
+            .addTo(m)
+        } else if (destMarkerRef.current) {
+          try {
+            destMarkerRef.current.remove()
+          } catch {
+            /* ignore */
+          }
+          destMarkerRef.current = null
+        }
       }
 
       try {
-        upsertRouteLine(m, routeCoordinates, stopKind)
+        upsertRouteLine(
+          m,
+          lineCoordinates,
+          stopKind,
+          jobLine ? { casing: '#075985', line: '#0284c7' } : null,
+        )
       } catch (ex) {
         console.warn('[TrackingDriverMap] route update failed', ex)
       }
 
-      const routeKey = Array.isArray(routeCoordinates)
-        ? `${routeCoordinates.length}:${routeCoordinates[0]?.join(',')}:${routeCoordinates[routeCoordinates.length - 1]?.join(',')}`
+      const routeKey = Array.isArray(lineCoordinates)
+        ? `${lineCoordinates.length}:${lineCoordinates[0]?.join(',')}:${lineCoordinates[lineCoordinates.length - 1]?.join(',')}`
         : 'none'
-      const fitKey = `${destOk ? `${destLng.toFixed(4)},${destLat.toFixed(4)}` : 'nodest'}|${routeKey}|${stopKind}`
-      // Fit full route when destination/route changes, or when follow was just re-enabled via fitKey change.
+      const fitKey = `${collectionPoint ? `${collectionLng.toFixed(4)},${collectionLat.toFixed(4)}` : 'nocol'}|${deliveryPoint ? `${deliveryLng.toFixed(4)},${deliveryLat.toFixed(4)}` : 'nodel'}|${destOk ? `${destLng.toFixed(4)},${destLat.toFixed(4)}` : 'nodest'}|${routeKey}`
       if (fitKey !== lastFitKeyRef.current) {
         lastFitKeyRef.current = fitKey
-        if (!followRef.current) {
-          // still update route line; don't steal camera
-        } else {
+        if (routeControls && camera === 'overview') {
+          fitOverview(m, driver, [collectionPoint, deliveryPoint], lineCoordinates)
+        } else if (!routeControls && followRef.current) {
           fitRouteBounds(
             m,
-            { lng, lat },
+            driver,
             destOk ? { lng: destLng, lat: destLat } : null,
-            routeCoordinates,
+            lineCoordinates,
           )
         }
       }
@@ -705,14 +941,56 @@ export default function TrackingDriverMap({
     if (mapReadyRef.current || map.isStyleLoaded()) apply()
     else map.once('load', apply)
     return undefined
-  }, [destOk, destLng, destLat, stopKind, routeCoordinates, lat, lng])
+  }, [
+    collectionLng,
+    collectionLat,
+    deliveryLng,
+    deliveryLat,
+    destOk,
+    destLng,
+    destLat,
+    stopKind,
+    jobLine,
+    lat,
+    lng,
+    routeControls,
+    camera,
+    lineCoordinates,
+  ])
+
+  const viewFullRoute = () => {
+    userInteractRef.current = false
+    followRef.current = false
+    setCamera('overview')
+    const map = mapRef.current
+    if (!map || !coordsOk) return
+    fitOverview(
+      map,
+      { lng, lat },
+      [collectionPoint, deliveryPoint, destOk ? { lng: destLng, lat: destLat } : null],
+      routeCoordsRef.current,
+    )
+  }
 
   const enableFollow = () => {
     userInteractRef.current = false
     followRef.current = true
-    setFollowing(true)
+    setCamera('follow')
     const map = mapRef.current
     if (!map || !coordsOk) return
+    if (routeControls) {
+      try {
+        map.easeTo({
+          center: [lng, lat],
+          zoom: 15,
+          duration: 500,
+          essential: true,
+        })
+      } catch {
+        /* ignore */
+      }
+      return
+    }
     const dest = destRef.current
     const dLng = Number(dest?.lng)
     const dLat = Number(dest?.lat)
@@ -745,29 +1023,58 @@ export default function TrackingDriverMap({
   return (
     <div
       ref={wrapRef}
-      className={`relative w-full overflow-hidden bg-slate-200 ${className || 'h-80'}`}
+      className={`relative flex w-full flex-col overflow-hidden bg-slate-200 ${className || 'h-80'}`}
     >
-      <div
-        ref={hostRef}
-        className="smh-track-map-host absolute inset-0 h-full w-full"
-        role="img"
-        aria-label={name ? `Driver ${name} on map` : 'Driver location map'}
-      />
-      <button
-        type="button"
-        className="smh-track-follow"
-        data-active={following ? '1' : '0'}
-        title={following ? 'Following driver' : 'Follow driver'}
-        aria-label={following ? 'Following driver' : 'Follow driver'}
-        aria-pressed={following}
-        onClick={enableFollow}
-      >
-        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-          <circle cx="12" cy="12" r="3" stroke="currentColor" strokeWidth="1.8" />
-          <path d="M12 3v3M12 18v3M3 12h3M18 12h3" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-        </svg>
-        {following ? 'Following' : 'Follow driver'}
-      </button>
+      {routeControls ? (
+        <div className="smh-track-controls">
+          <button
+            type="button"
+            className="smh-track-route"
+            data-active={camera === 'overview' ? '1' : '0'}
+            aria-pressed={camera === 'overview'}
+            onClick={viewFullRoute}
+          >
+            View full route
+          </button>
+          <button
+            type="button"
+            className="smh-track-follow"
+            data-active={camera === 'follow' ? '1' : '0'}
+            aria-pressed={camera === 'follow'}
+            onClick={enableFollow}
+          >
+            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <circle cx="12" cy="12" r="3" stroke="currentColor" strokeWidth="1.8" />
+              <path d="M12 3v3M12 18v3M3 12h3M18 12h3" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+            </svg>
+            {camera === 'follow' ? 'Following' : 'Follow driver'}
+          </button>
+        </div>
+      ) : null}
+      <div className="relative min-h-0 w-full flex-1">
+        <div
+          ref={hostRef}
+          className="smh-track-map-host absolute inset-0 h-full w-full"
+          role="img"
+          aria-label={name ? `Driver ${name} on map` : 'Driver location map'}
+        />
+        {routeControls ? null : (
+          <button
+            type="button"
+            className="smh-track-follow"
+            data-active={camera === 'follow' ? '1' : '0'}
+            title={camera === 'follow' ? 'Following driver' : 'Follow driver'}
+            aria-label={camera === 'follow' ? 'Following driver' : 'Follow driver'}
+            aria-pressed={camera === 'follow'}
+            onClick={enableFollow}
+          >
+            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <circle cx="12" cy="12" r="3" stroke="currentColor" strokeWidth="1.8" />
+              <path d="M12 3v3M12 18v3M3 12h3M18 12h3" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+            </svg>
+            {camera === 'follow' ? 'Following' : 'Follow driver'}
+          </button>
+        )}
       {error ? (
         <p className="absolute inset-x-3 bottom-14 z-10 rounded-lg bg-amber-50/95 px-3 py-2 text-xs text-amber-900 shadow-sm">
           Map could not load ({error}).{' '}
@@ -776,6 +1083,7 @@ export default function TrackingDriverMap({
           </a>
         </p>
       ) : null}
+      </div>
     </div>
   )
 }

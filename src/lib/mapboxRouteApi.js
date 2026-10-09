@@ -59,7 +59,7 @@ export async function geocodeAddress(query, token) {
     url.searchParams.set('access_token', token)
     url.searchParams.set('limit', '1')
     url.searchParams.set('country', 'gb')
-    const res = await fetch(url.toString())
+    const res = await fetch(url.toString(), { signal: AbortSignal.timeout(8000) })
     if (!res.ok) return null
     const data = await res.json()
     const c = data.features?.[0]?.center

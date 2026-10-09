@@ -21,7 +21,7 @@ export function formatDriveDuration(seconds) {
  * @param {{ lng: number, lat: number }} pickup
  * @param {{ lng: number, lat: number }} delivery
  * @param {string} token
- * @param {{ profile?: 'driving' | 'driving-traffic' }} [opts]
+ * @param {{ profile?: 'driving' | 'driving-traffic', timeoutMs?: number }} [opts]
  * @returns {Promise<{ coordinates: number[][], durationSeconds: number, distanceMeters: number } | null>}
  */
 export async function fetchMapboxDrivingRoute(pickup, delivery, token, opts = {}) {
@@ -43,6 +43,7 @@ export async function fetchMapboxDrivingRoute(pickup, delivery, token, opts = {}
 
   const preferred = opts.profile === 'driving-traffic' ? 'driving-traffic' : 'driving'
   const profiles = preferred === 'driving-traffic' ? ['driving-traffic', 'driving'] : ['driving']
+  const timeoutMs = Number.isFinite(opts.timeoutMs) && opts.timeoutMs > 0 ? opts.timeoutMs : 8000
 
   for (const profile of profiles) {
     const params = new URLSearchParams({
@@ -56,7 +57,7 @@ export async function fetchMapboxDrivingRoute(pickup, delivery, token, opts = {}
 
     for (let attempt = 0; attempt < 2; attempt += 1) {
       try {
-        const res = await fetch(url)
+        const res = await fetch(url, { signal: AbortSignal.timeout(timeoutMs) })
         if (!res.ok) {
           if (attempt === 0 && (res.status === 429 || res.status >= 500)) {
             await new Promise((r) => setTimeout(r, 400))

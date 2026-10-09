@@ -12,8 +12,15 @@ import {
 import { resolveJobPhotoDisplayMeta } from '../lib/jobPhotoDisplayMeta'
 import { GOOGLE_LEAVE_REVIEW_URL } from '../lib/reviews/externalReviews'
 import {
+  ETA_CALCULATING_TIMEOUT_MS,
+  ETA_UNAVAILABLE_MESSAGE,
+  formatTrackingLocationLabel,
+  isTrackingEtaDisplayReady,
   isTrackingGpsFresh,
+  resolveJobRoadRoute,
   resolveTrackingDriverEta,
+  resolveTrackingGpsState,
+  trackingEtaAddress,
 } from '../lib/trackingDriverEta'
 import { resolveGpsStatusHeadline, resolveTrackingJobStage } from '../lib/trackingJobStage'
 
@@ -129,6 +136,34 @@ export default function JobTrackingPortalPage() {
   const mediaKeyRef = useRef('')
   const etaCacheRef = useRef({})
   const etaRunRef = useRef(0)
+  const etaForceRef = useRef(false)
+  const [etaRetry, setEtaRetry] = useState(0)
+  const [jobRoute, setJobRoute] = useState(null)
+  const [jobRouteRetry, setJobRouteRetry] = useState(0)
+  const [nowMs, setNowMs] = useState(() => Date.now())
+  const [etaClock, setEtaClock] = useState(0)
+  const jobRouteKeyRef = useRef('')
+
+  useEffect(() => {
+    const id = window.setInterval(() => setNowMs(Date.now()), 1000)
+    return () => window.clearInterval(id)
+  }, [])
+
+  useEffect(() => {
+    const id = window.setInterval(() => setEtaClock((n) => n + 1), 60000)
+    return () => window.clearInterval(id)
+  }, [])
+
+  useEffect(() => {
+    const reset = () => window.scrollTo(0, 0)
+    reset()
+    const frame = window.requestAnimationFrame(reset)
+    const timer = window.setTimeout(reset, 50)
+    return () => {
+      window.cancelAnimationFrame(frame)
+      window.clearTimeout(timer)
+    }
+  }, [token, loading])
 
   const load = useCallback(async (opts = {}) => {
     const { force = false } = opts
@@ -260,6 +295,51 @@ export default function JobTrackingPortalPage() {
     return { kind: jobStage.etaKind, placeLabel: jobStage.placeLabel || jobStage.etaKind }
   }, [jobStage.showLiveEta, jobStage.etaKind, jobStage.placeLabel])
 
+  const pickupAddress = String(data?.pickup_address || '').trim()
+  const deliveryAddress = String(data?.delivery_address || '').trim()
+  const etaPosKey = Number.isFinite(mapLat) && Number.isFinite(mapLng)
+    ? `${mapLat.toFixed(3)},${mapLng.toFixed(3)}`
+    : ''
+  const gpsState = resolveTrackingGpsState({
+    trackingLive: data?.tracking_live,
+    location: data?.location,
+  })
+  const etaStopPoint = etaDestination?.kind === 'delivery'
+    ? jobRoute?.delivery || null
+    : jobRoute?.collection || null
+  const etaStopKey = etaStopPoint
+    ? `${Number(etaStopPoint.lng).toFixed(4)},${Number(etaStopPoint.lat).toFixed(4)}`
+    : ''
+
+  useEffect(() => {
+    if (!mapToken || !pickupAddress || !deliveryAddress) return undefined
+    const key = `${pickupAddress}|${deliveryAddress}|${jobRouteRetry}`
+    if (jobRouteKeyRef.current === key) return undefined
+    jobRouteKeyRef.current = key
+    let cancelled = false
+    resolveJobRoadRoute({
+      token: mapToken,
+      pickupAddress,
+      deliveryAddress,
+    }).then((result) => {
+      if (!cancelled) setJobRoute(result)
+    }).catch(() => {
+      if (!cancelled) {
+        setJobRoute({
+          status: 'error',
+          message: 'Route could not be loaded. Try again.',
+          collection: null,
+          delivery: null,
+          coordinates: null,
+        })
+      }
+    })
+    return () => {
+      cancelled = true
+      if (jobRouteKeyRef.current === key) jobRouteKeyRef.current = ''
+    }
+  }, [pickupAddress, deliveryAddress, mapToken, jobRouteRetry])
+
   const prevStageRef = useRef(jobStage.stage)
   useEffect(() => {
     const prev = prevStageRef.current
@@ -276,24 +356,105 @@ export default function JobTrackingPortalPage() {
       if (!etaDestination) {
         setEtaView(null)
         etaCacheRef.current = {}
+      } else if (!mapToken) {
+        setEtaView({
+          kind: etaDestination.kind,
+          placeLabel: etaDestination.placeLabel,
+          status: 'error',
+          message: ETA_UNAVAILABLE_MESSAGE,
+          phrase: null,
+          minutesLabel: null,
+          clock: null,
+          milesLabel: null,
+          routeCoordinates: null,
+          destination: null,
+          updatedAt: null,
+          canRetry: true,
+        })
       }
       return undefined
     }
 
-    const destAddress =
-      etaDestination.kind === 'collection'
-        ? String(data.pickup_address || '').trim()
-        : String(data.delivery_address || '').trim()
+    const destAddress = trackingEtaAddress(
+      etaDestination.kind,
+      pickupAddress,
+      deliveryAddress,
+    )
     if (!destAddress || !Number.isFinite(mapLat) || !Number.isFinite(mapLng)) {
-      setEtaView(null)
+      setEtaView({
+        kind: etaDestination.kind,
+        placeLabel: etaDestination.placeLabel,
+        status: gpsState === 'unavailable' || !Number.isFinite(mapLat) ? 'unavailable' : 'error',
+        message: !destAddress ? ETA_UNAVAILABLE_MESSAGE : 'GPS unavailable',
+        phrase: null,
+        minutesLabel: null,
+        clock: null,
+        milesLabel: null,
+        routeCoordinates: null,
+        destination: null,
+        updatedAt: data?.location?.updated_at || null,
+        canRetry: !destAddress,
+      })
       return undefined
     }
 
     const runId = ++etaRunRef.current
-    const freshForEta = isTrackingGpsFresh({
-      trackingLive: data?.tracking_live,
-      location: data?.location,
+    const force = etaForceRef.current
+    setEtaView((prev) => {
+      if (prev?.phrase && (prev.status === 'ready' || prev.status === 'stale')) return prev
+      if (prev?.status === 'error' && !force) return prev
+      if (gpsState !== 'fresh') {
+        return {
+          kind: etaDestination.kind,
+          placeLabel: etaDestination.placeLabel,
+          status: 'unavailable',
+          message: gpsState === 'unavailable' ? 'GPS unavailable' : 'GPS delayed',
+          phrase: null,
+          minutesLabel: null,
+          clock: null,
+          milesLabel: null,
+          routeCoordinates: prev?.routeCoordinates || null,
+          destination: prev?.destination || null,
+          updatedAt: data?.location?.updated_at || null,
+          canRetry: false,
+        }
+      }
+      return {
+        kind: etaDestination.kind,
+        placeLabel: etaDestination.placeLabel,
+        status: 'calculating',
+        message: 'Calculating arrival time…',
+        phrase: null,
+        minutesLabel: null,
+        clock: null,
+        milesLabel: null,
+        routeCoordinates: prev?.routeCoordinates || null,
+        destination: prev?.destination || null,
+        updatedAt: null,
+        canRetry: false,
+      }
     })
+
+    const timer = window.setTimeout(() => {
+      if (runId !== etaRunRef.current) return
+      setEtaView((prev) => {
+        if (prev?.status === 'ready' || prev?.status === 'stale') return prev
+        return {
+          kind: etaDestination.kind,
+          placeLabel: etaDestination.placeLabel,
+          status: 'error',
+          message: ETA_UNAVAILABLE_MESSAGE,
+          phrase: null,
+          minutesLabel: null,
+          clock: null,
+          milesLabel: null,
+          routeCoordinates: prev?.routeCoordinates || null,
+          destination: prev?.destination || null,
+          updatedAt: null,
+          canRetry: true,
+        }
+      })
+    }, ETA_CALCULATING_TIMEOUT_MS)
 
     ;(async () => {
       const result = await resolveTrackingDriverEta({
@@ -302,11 +463,15 @@ export default function JobTrackingPortalPage() {
         destinationAddress: destAddress,
         kind: etaDestination.kind,
         placeLabel: etaDestination.placeLabel,
-        gpsFresh: freshForEta,
+        gpsFresh: gpsState === 'fresh',
+        gpsState,
+        gpsUpdatedAt: data?.location?.updated_at || null,
+        destinationPoint: etaStopPoint,
         cache: etaCacheRef.current,
-        force: jobStage.stage === 'en_route_collection' && !etaCacheRef.current?.coordinates,
+        force,
       })
       if (runId !== etaRunRef.current) return
+      if (result.status === 'ready' || result.status === 'stale') etaForceRef.current = false
       etaCacheRef.current = result.cache || etaCacheRef.current
       if (!result.active) {
         setEtaView(null)
@@ -319,9 +484,12 @@ export default function JobTrackingPortalPage() {
         message: result.message,
         minutesLabel: result.minutesLabel,
         clock: result.clock,
+        phrase: result.phrase || null,
         milesLabel: result.milesLabel,
         routeCoordinates: result.routeCoordinates || null,
         destination: result.destination || null,
+        updatedAt: result.updatedAt || null,
+        canRetry: result.status === 'error',
       })
     })().catch(() => {
       if (runId !== etaRunRef.current) return
@@ -329,30 +497,33 @@ export default function JobTrackingPortalPage() {
         kind: etaDestination.kind,
         placeLabel: etaDestination.placeLabel,
         status: 'error',
-        message: 'ETA temporarily unavailable',
+        message: ETA_UNAVAILABLE_MESSAGE,
         minutesLabel: null,
         clock: null,
+        phrase: null,
         milesLabel: null,
         routeCoordinates: null,
         destination: null,
+        updatedAt: null,
+        canRetry: true,
       })
+    }).finally(() => {
+      window.clearTimeout(timer)
     })
 
-    return undefined
+    return () => window.clearTimeout(timer)
   }, [
     completed,
-    data,
     etaDestination,
-    gpsFresh,
-    mapLat,
-    mapLng,
+    gpsState,
+    etaPosKey,
     mapToken,
-    motion.state,
     jobStage.stage,
-    data?.location?.updated_at,
-    data?.tracking_live,
-    data?.pickup_address,
-    data?.delivery_address,
+    pickupAddress,
+    deliveryAddress,
+    etaRetry,
+    etaClock,
+    etaStopKey,
   ])
 
   const inventory = useMemo(() => {
@@ -374,7 +545,9 @@ export default function JobTrackingPortalPage() {
 
   if (loading) {
     return (
-      <div className="mx-auto max-w-lg px-4 py-16 text-center text-slate-600">Loading your booking…</div>
+      <div className="mx-auto max-w-lg px-4 py-8">
+        <p className="py-10 text-center text-slate-600">Loading your booking…</p>
+      </div>
     )
   }
 
@@ -382,7 +555,7 @@ export default function JobTrackingPortalPage() {
     return (
       <>
         <SeoHead title="Tracking | ShiftMyHome" path={`/track/${token || ''}`} robots="noindex, nofollow" />
-        <div className="mx-auto max-w-lg px-4 py-16 text-center">
+        <div className="mx-auto max-w-lg px-4 py-8 text-center">
           <h1 className="text-2xl font-bold text-slate-900">Unable to open tracking</h1>
           <p className="mt-3 text-sm text-slate-600">{error}</p>
           <Link to="/" className="mt-8 inline-flex text-sm font-semibold text-brand-700 hover:underline">
@@ -408,15 +581,16 @@ export default function JobTrackingPortalPage() {
           : jobStage.placeLabel === 'collection'
             ? data.pickup_address
             : null
-  const gpsUpdatedAt = motion.updated_at || data.location?.updated_at
-  const etaReady = Boolean(
-    gpsFresh
-    && etaView?.status === 'ready'
-    && etaView.minutesLabel
-    && etaView.clock
-    && etaView.milesLabel
-    && etaView.milesLabel !== '—',
-  )
+  const gpsUpdatedAt = data.location?.updated_at || motion.updated_at || null
+  const gpsLabel = formatTrackingLocationLabel(gpsUpdatedAt, nowMs)
+  const etaReady = isTrackingEtaDisplayReady(etaView, gpsFresh)
+  const etaStale = Boolean(etaView?.status === 'stale' && etaView.phrase)
+  const etaError = etaView?.status === 'error'
+  const retryEta = () => {
+    etaForceRef.current = true
+    etaCacheRef.current = { ...etaCacheRef.current, failedAt: null, coordinates: null, durationSeconds: null }
+    setEtaRetry((n) => n + 1)
+  }
   const journeyActive = Boolean(jobStage.journeyActive)
   const gpsStatusHeadline = resolveGpsStatusHeadline(motion, gpsFresh, { journeyActive })
   const gpsStatusLive = gpsFresh && (motion.state === 'moving' || motion.state === 'stationary')
@@ -439,7 +613,7 @@ export default function JobTrackingPortalPage() {
         path={`/track/${token}`}
         robots="noindex, nofollow"
       />
-      <div className="min-h-screen bg-[#eef3f8] pb-16">
+      <div className="min-h-screen overflow-x-hidden bg-[#eef3f8] pb-16">
         <header className="border-b border-slate-200/70 bg-white">
           <div className="mx-auto flex max-w-[880px] flex-wrap items-start justify-between gap-3 px-4 py-5 sm:px-6 sm:py-6">
             <div>
@@ -460,7 +634,7 @@ export default function JobTrackingPortalPage() {
           </div>
         </header>
 
-        <main className="mx-auto mt-4 flex max-w-[880px] flex-col gap-4 px-4 sm:mt-5 sm:gap-5 sm:px-6">
+        <main className="mx-auto mt-4 flex min-w-0 max-w-[880px] flex-col gap-4 overflow-x-hidden px-4 sm:mt-5 sm:gap-5 sm:px-6">
           {!completed ? (
             <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-[0_2px_12px_rgba(15,23,42,0.06)] sm:p-5">
               <h2 className="text-base font-bold text-slate-900 sm:text-lg">Live location</h2>
@@ -475,23 +649,32 @@ export default function JobTrackingPortalPage() {
                       live={mapLive}
                       driverName={data.driver?.full_name || ''}
                       quoteRef={data.quote_ref || ''}
-                      routeCoordinates={
-                        journeyActive && jobStage.showLiveEta
-                          ? etaView?.routeCoordinates || null
-                          : null
-                      }
-                      destination={
-                        journeyActive && jobStage.showLiveEta
-                          ? etaView?.destination || null
-                          : null
-                      }
+                      routeControls
+                      collection={jobRoute?.collection || null}
+                      delivery={jobRoute?.delivery || null}
+                      jobRouteCoordinates={jobRoute?.coordinates || null}
                       destinationKind={
                         jobStage.etaKind
                         || destKind
                         || (jobStage.stage === 'en_route_collection' ? 'collection' : null)
                       }
-                      className="h-[19rem] w-full sm:h-[25rem] lg:h-[28rem]"
+                      className="h-[min(58dvh,22rem)] w-full max-w-full sm:h-[min(50dvh,26rem)] lg:h-[28rem]"
                     />
+                    {jobRoute?.status === 'error' ? (
+                      <p className="border-t border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950">
+                        {jobRoute.message || 'Route could not be loaded. Try again.'}{' '}
+                        <button
+                          type="button"
+                          className="font-semibold underline"
+                          onClick={() => {
+                            jobRouteKeyRef.current = ''
+                            setJobRouteRetry((n) => n + 1)
+                          }}
+                        >
+                          Try again
+                        </button>
+                      </p>
+                    ) : null}
                   </div>
 
                   {/* Waiting for Start Job — no ETA / no “travelling” claim */}
@@ -555,41 +738,47 @@ export default function JobTrackingPortalPage() {
                                 {jobStage.stageMessage}
                               </p>
                             ) : null}
-                            {etaReady ? (
+                            {etaReady || etaStale ? (
                               <>
                                 <p className="text-[15px] font-bold leading-snug text-slate-900 sm:text-base">
-                                  Arriving at {etaView.placeLabel} in approximately{' '}
-                                  {etaView.minutesLabel}
+                                  {etaView.phrase}
                                 </p>
                                 <p className="mt-0.5 text-sm text-slate-600">
-                                  {etaView.milesLabel} miles away · ETA {etaView.clock}
-                                  {' · '}
+                                  {etaStale
+                                    ? `Updated at ${etaView.updatedAt ? formatTimeUK(etaView.updatedAt) : '—'} · GPS delayed`
+                                    : null}
+                                  {etaStale ? ' · ' : ''}
                                   Destination:{' '}
-                                  {etaView.placeLabel === 'delivery' ? 'Delivery' : 'Collection'}
+                                  {etaView.placeLabel === 'delivery' ? 'Delivery · pin 2' : 'Collection · pin 1'}
                                 </p>
                               </>
                             ) : (
                               <>
                                 <p className="text-[15px] font-bold leading-snug text-slate-900 sm:text-base">
-                                  {etaView?.message
-                                    || (gpsFresh
-                                      ? (motion.state === 'moving'
-                                        ? 'Driver is moving — calculating arrival time…'
-                                        : 'Calculating arrival time…')
-                                      : 'ETA paused — waiting for a fresh driver location')}
+                                  {etaError
+                                    ? (etaView?.message || ETA_UNAVAILABLE_MESSAGE)
+                                    : etaView?.status === 'unavailable'
+                                      ? (etaView.message || 'GPS unavailable')
+                                      : 'Calculating arrival time…'}
                                 </p>
                                 <p className="mt-0.5 text-sm text-slate-600">
                                   Destination:{' '}
-                                  {etaDestination.placeLabel === 'delivery' ? 'Delivery' : 'Collection'}
-                                  {etaView?.routeCoordinates?.length
-                                    ? ' · Showing last known road route'
-                                    : ''}
+                                  {etaDestination.placeLabel === 'delivery' ? 'Delivery · pin 2' : 'Collection · pin 1'}
                                 </p>
+                                {etaError ? (
+                                  <button
+                                    type="button"
+                                    onClick={retryEta}
+                                    className="mt-2 inline-flex min-h-11 items-center rounded-lg border border-amber-300 bg-white px-3 text-sm font-semibold text-amber-950"
+                                  >
+                                    Try again
+                                  </button>
+                                ) : null}
                               </>
                             )}
                           </div>
                         </div>
-                        {etaReady ? (
+                        {etaReady || etaStale ? (
                           <div className="grid grid-cols-3 gap-0 border-t border-emerald-200/80 pt-3 text-center sm:min-w-[260px] sm:border-l sm:border-t-0 sm:pl-5 sm:pt-0">
                             <div className="flex flex-col items-center gap-1 px-1">
                               <IconClock className="h-4 w-4 text-emerald-700" />
@@ -640,18 +829,14 @@ export default function JobTrackingPortalPage() {
                       </div>
                       <div>
                         <p
-                          className={`text-[15px] font-bold sm:text-base ${
-                            gpsStatusLive ? 'text-sky-900' : 'text-amber-900'
+                          className={`text-[15px] font-bold leading-snug sm:text-base ${
+                            gpsLabel.stale ? 'text-amber-950' : 'text-sky-900'
                           }`}
                         >
-                          {gpsStatusHeadline}
+                          {gpsLabel.text}
                         </p>
                         <p className={`mt-0.5 text-sm ${gpsStatusLive ? 'text-slate-600' : 'text-amber-800'}`}>
-                          Last GPS update: {gpsUpdatedAt ? formatTimeUK(gpsUpdatedAt) : '—'}
-                          {motion.last_moved_at
-                            ? ` · Last movement: ${formatTimeUK(motion.last_moved_at)}`
-                            : ''}
-                          {!gpsFresh && showMap ? ' · Showing last known position' : ''}
+                          {gpsStatusHeadline}
                         </p>
                       </div>
                     </div>
@@ -696,8 +881,9 @@ export default function JobTrackingPortalPage() {
                     <p className="rounded-xl bg-amber-50 px-3 py-3 text-sm text-amber-900">
                       {!mapToken
                         ? 'Map is temporarily unavailable.'
-                        : data.location?.message ||
-                          'Location temporarily unavailable. The map appears when your driver is sharing GPS.'}
+                        : jobStage.arrivedMessage
+                          ? jobStage.arrivedMessage
+                          : 'GPS unavailable. Arrival time cannot be calculated until the driver shares a location.'}
                     </p>
                   )}
                   {showCollectionAddress && addressCardText ? (

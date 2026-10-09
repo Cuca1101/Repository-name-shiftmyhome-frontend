@@ -118,16 +118,15 @@ const stale = await resolveTrackingDriverEta({
   gpsFresh: false,
   cache: {},
 })
-if (stale.status !== 'unavailable') throw new Error('stale must be unavailable')
-if (!/waiting for a fresh driver location/i.test(stale.message || '')) {
-  throw new Error(`bad stale message: ${stale.message}`)
-}
+if (stale.status !== 'stale') throw new Error(`stale estimate status ${stale.status}`)
+if (stale.message !== 'GPS delayed') throw new Error(`bad stale message: ${stale.message}`)
 if (!Array.isArray(stale.routeCoordinates) || stale.routeCoordinates.length < 8) {
   throw new Error('stale cold-load must still return a road route')
 }
 if (!stale.destination?.lng) throw new Error('stale cold-load must still return destination')
-if (stale.clock || stale.minutesLabel) {
-  throw new Error('stale must not present live ETA clock/minutes')
+if (!stale.phrase || !/Approximately/.test(stale.phrase)) {
+  throw new Error(`stale estimate must keep the last duration: ${stale.phrase}`)
 }
+if (!stale.updatedAt) throw new Error('stale estimate must record when it was updated')
 
 console.log('ok live tracking eta mapbox')

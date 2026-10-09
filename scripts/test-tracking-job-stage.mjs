@@ -64,6 +64,12 @@ assert(
 )
 assert(resolveGpsStatusHeadline({ state: 'moving' }, true, { journeyActive: true }) === 'Moving', 'moving')
 assert(resolveGpsStatusHeadline({ state: 'stationary' }, true, { journeyActive: true }) === 'Stopped', 'stopped')
+{
+  const movingStop = resolveTrackingJobStage('On way', 'on_way')
+  assert(movingStop.arrivedMessage == null, 'Stopped must not confirm arrival')
+  assert(movingStop.showLiveEta === true, 'ETA stays available while only stopped')
+  assert(resolveGpsStatusHeadline({ state: 'stationary' }, true, { journeyActive: true }) === 'Stopped', 'headline stays Stopped')
+}
 assert(resolveGpsStatusHeadline({ state: 'stale' }, false, { journeyActive: true }) === 'GPS delayed', 'delayed')
 assert(
   resolveGpsStatusHeadline({ state: 'unavailable' }, false, { journeyActive: true }) === 'GPS unavailable',

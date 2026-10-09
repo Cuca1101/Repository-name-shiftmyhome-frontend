@@ -1,8 +1,13 @@
 import {
+  ETA_UNAVAILABLE_MESSAGE,
   formatTrackingEtaMiles,
   formatTrackingEtaTiming,
+  isTrackingEtaDisplayReady,
+  isTrackingGpsFresh,
   resolveTrackingEtaDestination,
+  resolveTrackingGpsState,
   shouldRefreshTrackingEta,
+  trackingEtaAddress,
   ETA_MOVE_THRESHOLD_M,
 } from '../src/lib/trackingDriverEta.js'
 
@@ -49,10 +54,44 @@ function assert(cond, msg) {
   const t = formatTrackingEtaTiming(12 * 60, Date.parse('2026-10-07T15:07:00Z'))
   assert(t.minutesLabel === '12 min', `minutes ${t.minutesLabel}`)
   assert(/^\d{2}:\d{2}$/.test(t.clock), `clock ${t.clock}`)
+  assert(
+    t.phrase === `Approximately 12 minutes · Estimated arrival ${t.clock}`,
+    `phrase ${t.phrase}`,
+  )
+}
+
+{
+  const near = formatTrackingEtaTiming(1.117, Date.parse('2026-10-09T22:38:00Z'))
+  assert(near.minutesLabel === '1 min', `near minutes ${near.minutesLabel}`)
+  assert(
+    near.phrase === `Approximately 1 minute · Estimated arrival ${near.clock}`,
+    `near phrase ${near.phrase}`,
+  )
+  assert(
+    isTrackingEtaDisplayReady(
+      { status: 'ready', phrase: near.phrase, clock: near.clock, minutesLabel: near.minutesLabel, milesLabel: '<0.1' },
+      true,
+    ),
+    'short approach must still display',
+  )
 }
 
 {
   assert(formatTrackingEtaMiles(6920) === '4.3', 'miles format')
+  assert(formatTrackingEtaMiles(6.052) === '<0.1', 'metres beside the stop must not become an em dash')
+  assert(formatTrackingEtaMiles(0) === '—', 'zero miles')
+}
+
+{
+  assert(trackingEtaAddress('collection', '43 Kingswood Drive', '34 Govanhill Street') === '43 Kingswood Drive', 'collection address')
+  assert(trackingEtaAddress('delivery', '43 Kingswood Drive', '34 Govanhill Street') === '34 Govanhill Street', 'delivery address')
+}
+
+{
+  const loc = { available: true, live: true, updated_at: new Date().toISOString(), motion: { state: 'stationary' } }
+  assert(resolveTrackingGpsState({ trackingLive: true, location: loc }) === 'fresh', 'stopped is still fresh GPS')
+  assert(isTrackingGpsFresh({ trackingLive: true, location: loc }) === true, 'stopped is not missing GPS')
+  assert(ETA_UNAVAILABLE_MESSAGE === 'Arrival time temporarily unavailable', 'unavailable copy')
 }
 
 {
