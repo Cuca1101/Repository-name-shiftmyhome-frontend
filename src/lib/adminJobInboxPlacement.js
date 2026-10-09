@@ -4,7 +4,6 @@ import { quoteVisibleInAdminLists } from './adminProductionFilters'
 import {
   quoteHasAssignedDriver,
   quoteHasAssignedPartner,
-  quoteHasInProgressWorkflowStatus,
   quoteIsAdminPhoneBookingReleased,
   quoteIsCardPaid,
   quoteMarketplaceJobAccepted,
@@ -27,8 +26,8 @@ export function quoteIsTerminalForAdmin(q) {
     .trim()
     .toLowerCase()
   if (op === 'cancelled') return true
-  if (q?.completed_at && !quoteHasInProgressWorkflowStatus(q)) return true
-  if (op === 'completed' && !quoteHasInProgressWorkflowStatus(q)) return true
+  if (q?.completed_at) return true
+  if (op === 'completed') return true
   return false
 }
 

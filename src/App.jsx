@@ -23,6 +23,7 @@ import CookiePreferencesPage from './pages/CookiePreferencesPage'
 import BlogPage from './pages/BlogPage'
 import ServiceQuotePage from './pages/ServiceQuotePage'
 import AdminLogin from './pages/AdminLogin'
+import DriverResetPasswordPage from './pages/DriverResetPasswordPage'
 import AdminHome from './pages/AdminHome'
 import BookingsAdmin from './components/BookingsAdmin'
 import JobCardsAdmin from './components/JobCardsAdmin'
@@ -215,6 +216,7 @@ export default function App() {
           }
         />
       ))}
+      <Route path="/driver/reset-password" element={<DriverResetPasswordPage />} />
       <Route path="/admin/login" element={<AdminLogin />} />
       <Route
         path="/admin"

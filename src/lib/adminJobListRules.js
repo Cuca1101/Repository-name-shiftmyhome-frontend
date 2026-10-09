@@ -108,7 +108,8 @@ const IN_PROGRESS_WORKFLOW_STATUSES = new Set([
 ])
 
 /**
- * Driver/mobile workflow still running (ignore stale completed_at from an earlier mistaken complete).
+ * Driver/mobile workflow status (on way, arrived, and so on).
+ * Does not override a real completion — see quoteIsCompleted.
  * @param {Record<string, unknown>} q
  */
 export function quoteHasInProgressWorkflowStatus(q) {
@@ -198,7 +199,8 @@ export function quotePassesActiveStrict(q) {
   if (stLower === 'completed' || stLower === 'cancelled') return false
   const st = String(q.status ?? '').trim()
   if (st === 'Completed' || st === 'Cancelled') return false
-  if (q.completed_at && !quoteHasInProgressWorkflowStatus(q)) return false
+  // completed_at stays terminal even if a stale on_way/assigned status is also present.
+  if (q.completed_at) return false
   if (q.cancelled_at) return false
   const op = quoteOperationalStatusLower(q)
   if (op === 'completed' || op === 'cancelled') return false

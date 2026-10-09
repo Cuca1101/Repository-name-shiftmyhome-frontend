@@ -1,5 +1,6 @@
 import type Stripe from 'npm:stripe@14.21.0'
 import type { SupabaseClient } from 'npm:@supabase/supabase-js@2'
+import { omitStatusIfQuoteCompleted } from './preserveCompletedQuoteStatus.ts'
 
 type PaymentEventKind = 'paid' | 'failed'
 
@@ -99,6 +100,12 @@ export async function updateQuoteFromCheckoutSession(
           stripe_payment_intent_id: paymentIntentId,
         }
 
+  const quotePatch = await omitStatusIfQuoteCompleted(
+    supabase,
+    { quoteId, quoteRef },
+    quoteRow,
+  )
+
   let updatedQuoteId: string | null = null
   let updatedBookingId: string | null = null
 
@@ -110,7 +117,7 @@ export async function updateQuoteFromCheckoutSession(
   }
 
   if (quoteId && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(quoteId)) {
-    const { error } = await supabase.from('quotes').update(quoteRow).eq('id', quoteId)
+    const { error } = await supabase.from('quotes').update(quotePatch).eq('id', quoteId)
     if (!error) {
       updatedQuoteId = quoteId
     }
@@ -119,7 +126,7 @@ export async function updateQuoteFromCheckoutSession(
   if (!updatedQuoteId && quoteRef) {
     const { data, error } = await supabase
       .from('quotes')
-      .update(quoteRow)
+      .update(quotePatch)
       .eq('quote_ref', quoteRef)
       .select('id')
       .maybeSingle()

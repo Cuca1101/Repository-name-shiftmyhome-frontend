@@ -90,10 +90,10 @@ export function quoteIsCompleted(q, job, assignment) {
   if (quoteStatusIsCompleted(q)) return true
   const op = quoteOperationalStatusLower(q)
   if (op === 'completed') return true
+  if (q.completed_at) return true
+  if (job && String(job.status) === 'Completed') return true
   if (quoteHasInProgressWorkflowStatus(q)) return false
   if (String(q.status) === 'Completed') return true
-  if (job && String(job.status) === 'Completed') return true
-  if (q.completed_at) return true
   const o = ov(q)
   if (String(o.marketplaceVisibility || '') === 'completed') return true
   if ((o.workflowCompletedAt || '').trim()) return true
@@ -126,7 +126,8 @@ export function quoteIsInCompletedJobsInbox(q, job, assignment) {
   if (quoteStatusIsCompleted(q)) return true
   const op = quoteOperationalStatusLower(q)
   if (op === 'completed') return true
-  if (!op && (String(q.status) === 'Completed' || q.completed_at)) return true
+  if (q.completed_at) return true
+  if (!op && String(q.status) === 'Completed') return true
   if (!op && job && String(job.status) === 'Completed') return true
   return false
 }

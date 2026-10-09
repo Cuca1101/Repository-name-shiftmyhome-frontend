@@ -124,6 +124,11 @@ export default function AdminLogin() {
           >
             {loading ? 'Signing in…' : 'Sign in'}
           </button>
+          <p className="text-right text-sm">
+            <Link to="/driver/reset-password" className="font-medium text-brand-700 hover:underline">
+              Forgot password?
+            </Link>
+          </p>
         </form>
 
         <p className="mt-6 text-center text-sm text-slate-500">

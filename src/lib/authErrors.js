@@ -13,7 +13,7 @@ export function formatAuthError(err) {
     lower.includes('invalid_grant') ||
     err.status === 400
   ) {
-    return 'Wrong email or password. If you forgot your password, reset it from Supabase Dashboard → Authentication → Users.'
+    return 'Wrong email or password. Use Forgot password to email yourself a reset link.'
   }
   if (lower.includes('email not confirmed') || lower.includes('confirm')) {
     return 'This account needs a confirmed email. In Supabase: Authentication → Users → select user → confirm, or temporarily disable “Confirm email” under Email provider.'
