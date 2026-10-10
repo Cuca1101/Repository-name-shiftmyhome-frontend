@@ -590,7 +590,7 @@ function DriverCard({ booking, token, tracking }) {
           ? 'Not on the way yet'
           : presentation.message || stage.badge || 'On the job'}
       </p>
-      <Link to={trackTo} className="mt-3 flex w-full items-center justify-center rounded-xl border border-slate-200 px-4 py-3 text-sm font-bold text-slate-800 hover:bg-slate-50">
+      <Link to={trackTo} className="mt-3 flex w-full items-center justify-center rounded-xl bg-emerald-600 px-4 py-3 text-sm font-bold text-white shadow-sm hover:bg-emerald-700">
         Track my driver
       </Link>
       <p className="mt-2 text-center text-xs text-slate-500">

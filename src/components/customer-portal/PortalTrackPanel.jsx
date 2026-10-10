@@ -100,7 +100,7 @@ export default function PortalTrackPanel({ token }) {
         {token ? (
           <Link
             to={`/track/${token}`}
-            className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-xl bg-slate-900 px-4 text-sm font-semibold text-white"
+            className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-xl bg-emerald-600 px-4 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700"
           >
             Track my driver
           </Link>
