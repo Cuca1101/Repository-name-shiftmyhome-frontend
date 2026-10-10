@@ -179,7 +179,7 @@ export default function CustomerPortalBookingsPage() {
           ) : null}
           <p className="mt-1 text-sm text-slate-500">Manage your move, payments and updates in one place.</p>
         </div>
-        <Link to="/quote?from=account" className="inline-flex items-center justify-center gap-2 rounded-xl bg-brand-600 px-4 py-3 text-sm font-bold text-white shadow-sm hover:bg-brand-700">
+        <Link to={access.portalTo('/portal/book')} className="inline-flex items-center justify-center gap-2 rounded-xl bg-brand-600 px-4 py-3 text-sm font-bold text-white shadow-sm hover:bg-brand-700">
           <span aria-hidden>+</span> New booking
         </Link>
       </div>

@@ -610,7 +610,6 @@ export default function JobTrackingPortalPage() {
         </header>
 
         <main className="mx-auto mt-4 flex min-w-0 max-w-[880px] flex-col gap-4 overflow-x-hidden px-4 sm:mt-5 sm:gap-5 sm:px-6">
-          <MoveTimeline token={token} completedAt={data.completed_at || null} />
           {!completed ? (
             <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-[0_2px_12px_rgba(15,23,42,0.06)] sm:p-5">
               {showMap ? (
@@ -883,6 +882,8 @@ export default function JobTrackingPortalPage() {
             <Row label="Registration" value={data.driver?.vehicle_registration} />
             {!data.driver ? <p className="text-slate-500">Driver details will appear once assigned.</p> : null}
           </Section>
+
+          <MoveTimeline token={token} completedAt={data.completed_at || null} collapsible />
 
           <Section title="Booking">
             <Row label="Reference" value={data.quote_ref} />

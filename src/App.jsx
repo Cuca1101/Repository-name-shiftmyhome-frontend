@@ -18,6 +18,7 @@ import { PortalSessionProvider } from './components/customer-portal/PortalShell'
 import CustomerPortalLoginPage from './pages/CustomerPortalLoginPage'
 import CustomerPortalAuthPage from './pages/CustomerPortalAuthPage'
 import CustomerPortalBookingsPage from './pages/CustomerPortalBookingsPage'
+import CustomerPortalBookPage from './pages/CustomerPortalBookPage'
 import CustomerPortalBookingPage from './pages/CustomerPortalBookingPage'
 import CustomerPortalEditPage from './pages/CustomerPortalEditPage'
 import CustomerPortalForgotPasswordPage from './pages/CustomerPortalForgotPasswordPage'
@@ -138,6 +139,7 @@ export default function App() {
       <Route path="/portal" element={<CustomerPortalLoginPage />} />
       <Route path="/portal/auth" element={<CustomerPortalAuthPage />} />
       <Route path="/portal/bookings" element={<CustomerPortalBookingsPage />} />
+      <Route path="/portal/book" element={<CustomerPortalBookPage />} />
       <Route path="/portal/bookings/:id" element={<CustomerPortalBookingPage />} />
       <Route path="/portal/bookings/:id/edit" element={<CustomerPortalEditPage />} />
       <Route path="/portal/account" element={<CustomerPortalAccountPage />} />

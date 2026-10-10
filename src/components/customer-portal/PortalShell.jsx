@@ -136,7 +136,7 @@ export function PortalSessionProvider() {
 
 const NAV = [
   { to: '/portal/bookings', label: 'My bookings', icon: 'bookings', end: false },
-  { to: '/quote?from=account', label: 'New booking', icon: 'plus' },
+  { to: '/portal/book', label: 'New booking', icon: 'plus', end: true },
   { to: '/portal/account', label: 'Account settings', icon: 'settings' },
   { to: '/portal/help', label: 'Help & support', icon: 'help' },
 ]

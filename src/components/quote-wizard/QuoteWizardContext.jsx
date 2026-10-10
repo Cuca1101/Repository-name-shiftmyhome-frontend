@@ -203,18 +203,26 @@ export function QuoteWizardProvider({ children, serviceType: serviceTypeProp, al
   useEffect(() => {
     if (bootstrap.isResumed || accountPrefillRef.current) return undefined
     const params = new URLSearchParams(window.location.search)
-    const fromAccount = params.get('from') === 'account'
+    const internalBooking = window.location.pathname === '/portal/book'
+    const fromAccount = internalBooking || params.get('from') === 'account'
+    const customerId = params.get('customer') || ''
     let cancelled = false
     authenticatedCustomerEmail()
       .then(async (accountEmail) => {
         if (cancelled) return
         if (!accountEmail && !fromAccount) return
-        const contact = fromAccount ? await getPortalContact().catch(() => null) : null
+        const contact = fromAccount
+          ? await getPortalContact(
+              internalBooking && customerId ? { mode: 'admin', customerId } : undefined,
+            ).catch(() => null)
+          : null
         if (cancelled) return
         accountPrefillRef.current = true
         setWizard((current) => {
           const next = contact ? portalContactPrefill(current, contact) : { ...current }
-          if (accountEmail) next.email = accountEmail
+          const lockedEmail = String(contact?.email || accountEmail || '').trim()
+          if (internalBooking && lockedEmail) next.email = lockedEmail
+          else if (accountEmail) next.email = accountEmail
           return next
         })
       })

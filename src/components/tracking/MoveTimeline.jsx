@@ -22,9 +22,11 @@ export default function MoveTimeline({
   quoteId = '',
   quoteRef = '',
   completedAt = null,
+  collapsible = false,
 }) {
   const [events, setEvents] = useState([])
   const [photos, setPhotos] = useState([])
+  const [open, setOpen] = useState(!collapsible)
   const [ready, setReady] = useState(false)
   const [loadError, setLoadError] = useState('')
   const [correctionFor, setCorrectionFor] = useState('')
@@ -137,7 +139,28 @@ export default function MoveTimeline({
 
   return (
     <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
-      <h2 className="text-base font-bold text-slate-900 sm:text-lg">Move timeline</h2>
+      {collapsible ? (
+        <button
+          type="button"
+          aria-expanded={open}
+          onClick={() => setOpen((value) => !value)}
+          className="flex w-full items-center justify-between gap-3 text-left"
+        >
+          <span>
+            <h2 className="text-base font-bold text-slate-900 sm:text-lg">Move timeline</h2>
+            <p className="mt-0.5 text-sm text-slate-500">{open ? 'Hide the stages' : 'Show the stages'}</p>
+          </span>
+          <span className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-600 transition-transform ${open ? 'rotate-180' : ''}`} aria-hidden>
+            <svg viewBox="0 0 20 20" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M5 8l5 5 5-5" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </span>
+        </button>
+      ) : (
+        <h2 className="text-base font-bold text-slate-900 sm:text-lg">Move timeline</h2>
+      )}
+      {open ? (
+      <>
       <p className="mt-1 text-sm text-slate-500">
         Times are shown in UK time. Stages without a recorded driver action stay as {NOT_RECORDED}.
       </p>
@@ -243,6 +266,8 @@ export default function MoveTimeline({
       ) : null}
       {notice ? <p className="mt-3 text-sm text-slate-700">{notice}</p> : null}
       {!isSupabaseConfigured && admin ? <p className="mt-3 text-sm text-slate-500">Timeline storage is not configured.</p> : null}
+      </>
+      ) : null}
     </section>
   )
 }

@@ -1,4 +1,4 @@
-import { useSearchParams } from 'react-router-dom'
+import { useLocation, useSearchParams } from 'react-router-dom'
 import { useAuthenticatedCustomerEmail } from '../../lib/useAuthenticatedCustomerEmail'
 import { applyWizardPatch } from '../../lib/wizardStateUpdate'
 import { quoteMobileInput, quoteMobileLabel } from '../../lib/quoteMobileUiClasses'
@@ -33,10 +33,13 @@ export default function JobDetailsContactSection({
   flexibleContact = false,
   lockSignedInEmail = true,
 }) {
+  const location = useLocation()
   const [searchParams] = useSearchParams()
-  const fromAccount = searchParams.get('from') === 'account'
+  const internalBooking = location.pathname === '/portal/book'
+  const fromAccount = internalBooking || searchParams.get('from') === 'account'
   const signedInEmail = useAuthenticatedCustomerEmail()
-  const accountEmail = lockSignedInEmail ? signedInEmail : ''
+  const profileEmail = internalBooking ? String(data.email ?? '').trim() : ''
+  const accountEmail = lockSignedInEmail ? (signedInEmail || profileEmail) : ''
   const emailValue = accountEmail || String(data.email ?? '')
 
   function set(k, v) {
