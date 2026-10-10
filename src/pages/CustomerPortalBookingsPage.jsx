@@ -588,15 +588,16 @@ function DriverCard({ booking, token, tracking }) {
         <ClockIcon />
         {presentation.awaitingStart || !data
           ? 'Not on the way yet'
-          : presentation.message || stage.badge || 'On the job'}
+          : stage.badge || 'On the job'}
       </p>
       <Link to={trackTo} className="mt-3 flex w-full items-center justify-center rounded-xl bg-emerald-600 px-4 py-3 text-sm font-bold text-white shadow-sm hover:bg-emerald-700">
         Track my driver
       </Link>
       <p className="mt-2 text-center text-xs text-slate-500">
-        {presentation.awaitingStart || !presentation.showLivePosition
-          ? 'Tracking becomes available when your driver starts the journey.'
-          : 'Live position is shown only while the GPS update is fresh.'}
+        {presentation.message
+          || (presentation.showLivePosition
+            ? 'Live position updates while the GPS signal is fresh.'
+            : 'Tracking becomes available when your driver starts the journey.')}
       </p>
     </section>
   )

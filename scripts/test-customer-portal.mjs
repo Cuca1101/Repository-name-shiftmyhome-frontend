@@ -273,9 +273,11 @@ assert(
   model.portalTrackingPresentation({ stage: 'awaiting_departure', gpsFresh: true, hasCoords: true }).awaitingStart,
   'before start the driver has not left for collection',
 )
+const staleGps = model.portalTrackingPresentation({ stage: 'en_route_collection', gpsFresh: false, hasCoords: true })
+assert(staleGps.showLivePosition && !staleGps.live, 'a saved position still shows when GPS is delayed')
 assert(
-  !model.portalTrackingPresentation({ stage: 'en_route_collection', gpsFresh: false, hasCoords: true }).showLivePosition,
-  'stale GPS is not shown as live',
+  !model.portalTrackingPresentation({ stage: 'en_route_collection', gpsFresh: false, hasCoords: false }).showLivePosition,
+  'without coordinates the map stays hidden',
 )
 assert(
   model.portalTrackingPresentation({ stage: 'en_route_collection', gpsFresh: true, hasCoords: true }).showLivePosition,

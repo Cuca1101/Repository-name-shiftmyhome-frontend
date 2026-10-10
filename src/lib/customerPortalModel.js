@@ -401,32 +401,36 @@ export function classifyMagicLinkError(message) {
 }
 
 /**
- * Live map only when the job has started and GPS is fresh.
+ * Show the driver map once the job has started and a position exists.
+ * A position older than the live window stays on the map as the last known point.
  * @param {{ stage?: string, gpsFresh?: boolean, hasCoords?: boolean }} args
  */
 export function portalTrackingPresentation(args) {
   const stage = String(args.stage || '')
   if (stage === 'completed' || stage === 'cancelled') {
-    return { showLivePosition: false, awaitingStart: false, message: '' }
+    return { showLivePosition: false, awaitingStart: false, live: false, message: '' }
   }
   if (stage === 'awaiting_departure' || stage === 'pending' || !stage) {
     return {
       showLivePosition: false,
       awaitingStart: true,
+      live: false,
       message: 'Your driver has not started towards collection yet.',
     }
   }
-  if (!args.gpsFresh) {
+  if (args.hasCoords) {
     return {
-      showLivePosition: false,
+      showLivePosition: true,
       awaitingStart: false,
-      message: 'Your driver is on the job. A live location is not available right now.',
+      live: Boolean(args.gpsFresh),
+      message: args.gpsFresh ? '' : 'Showing the last known position. A new GPS update has not arrived yet.',
     }
   }
   return {
-    showLivePosition: Boolean(args.hasCoords),
+    showLivePosition: false,
     awaitingStart: false,
-    message: '',
+    live: false,
+    message: 'Your driver is on the job. A live location is not available right now.',
   }
 }
 
