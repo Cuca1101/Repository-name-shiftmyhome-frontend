@@ -34,7 +34,9 @@ export async function onRequest(context) {
     path.startsWith('/quote/pay/') ||
     path.startsWith('/track/') ||
     path === '/payment-success' ||
-    path === '/payment-cancelled'
+    path === '/payment-cancelled' ||
+    path === '/portal' ||
+    path.startsWith('/portal/')
 
   if (isSpa) {
     // Fetch the built React shell and return it under the original URL (no redirect).

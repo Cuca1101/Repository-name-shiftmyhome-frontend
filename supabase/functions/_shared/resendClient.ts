@@ -38,6 +38,8 @@ export async function sendResendEmail(params: {
   text?: string
   idempotencyKey?: string
   logTag?: string
+  /** Optional display-name override. Other emails keep the shared from-address. */
+  from?: string
 }): Promise<ResendSendResult> {
   const apiKey = resendApiKey()
   if (!apiKey) {
@@ -56,7 +58,7 @@ export async function sendResendEmail(params: {
   const result = await sendResendEmailMinimal({
     logTag: params.logTag || 'resend',
     apiKey,
-    from: resendFromEmail(),
+    from: params.from || resendFromEmail(),
     to: toList,
     subject: params.subject,
     html: params.html,

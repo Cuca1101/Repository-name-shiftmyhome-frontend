@@ -1205,6 +1205,11 @@
 /st-andrews-man-with-van/ /man-with-van-st-andrews/ 301
 # END legacy city canonical redirects (auto-generated)
 
+# Customer portal. Password-reset links must open the app, not the 404 page.
+/portal               /index.html  200
+/portal/              /index.html  200
+/portal/*             /index.html  200
+
 # Customer SPA routes (resume / pay / track / payment result)
 /quote/resume/:token  /index.html  200
 /quote/pay/:token     /index.html  200

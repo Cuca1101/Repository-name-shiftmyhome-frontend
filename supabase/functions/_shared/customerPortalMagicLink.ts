@@ -37,20 +37,33 @@ export async function buildPortalMagicUrl(
 /**
  * Recovery link for the same auth user as the magic link.
  * createUser is only used when no user exists, and it never sets a role.
+ * The link always opens the public site, never the browser that requested it.
  */
+const CUSTOMER_RESET_ORIGIN = 'https://www.shiftmyhome.co.uk'
+const CUSTOMER_RESET_PATH = '/portal/reset-password'
+const CUSTOMER_RESET_SUBJECT = 'Reset your ShiftMyHome password'
+const CUSTOMER_LOGO_URL = `${CUSTOMER_RESET_ORIGIN}/logo.png`
+
 export async function buildPortalRecoveryUrl(
   supabase: SupabaseClient,
   email: string,
-  siteOrigin = siteBaseUrl(),
+  _siteOrigin = siteBaseUrl(),
 ): Promise<{ ok: true; url: string } | { ok: false; error: string }> {
   const to = String(email || '').trim().toLowerCase()
   if (!to || !to.includes('@')) return { ok: false, error: 'invalid_email' }
-  const origin = siteOrigin.replace(/\/$/, '')
-  const redirectTo = `${origin}/portal/reset-password`
+  const redirectTo = `${CUSTOMER_RESET_ORIGIN}${CUSTOMER_RESET_PATH}`
   const generated = await generateAuthLink(supabase, to, redirectTo, 'recovery')
   if (!generated.ok) return generated
-  const url = `${origin}/portal/reset-password?token_hash=${encodeURIComponent(generated.tokenHash)}&type=recovery`
+  const url = `${redirectTo}?token_hash=${encodeURIComponent(generated.tokenHash)}&type=recovery`
   return { ok: true, url }
+}
+
+/** Same mailbox as other mail, with the customer-facing name ShiftMyHome. */
+function customerRecoveryFrom(): string {
+  const raw = (Deno.env.get('RESEND_FROM_EMAIL') || 'ShiftMyHome <bookings@shiftmyhome.co.uk>').trim()
+  const match = raw.match(/<([^>]+)>/)
+  const address = (match?.[1] || 'bookings@shiftmyhome.co.uk').trim()
+  return `ShiftMyHome <${address}>`
 }
 
 async function generateAuthLink(
@@ -120,29 +133,30 @@ export function portalSignInEmail(params: { url: string; quoteRef?: string; firs
 }
 
 export function portalRecoveryEmail(params: { url: string }) {
-  const company = (Deno.env.get('COMPANY_NAME') || 'ShiftMyHome').trim()
-  const subject = 'Reset your ShiftMyHome password'
+  const brand = 'ShiftMyHome'
+  const subject = CUSTOMER_RESET_SUBJECT
   const html = `<!doctype html><html><body style="margin:0;background:#f8fafc;font-family:Inter,Segoe UI,Arial,sans-serif;color:#0f172a;">
   <table width="100%" cellpadding="0" cellspacing="0" style="background:#f8fafc;padding:24px 12px;"><tr><td align="center">
   <table width="560" style="max-width:560px;width:100%;background:#fff;border:1px solid #e2e8f0;border-radius:14px;"><tr><td style="padding:28px 24px;">
-    <p style="margin:0 0 8px;font-size:13px;font-weight:800;letter-spacing:-0.02em;color:#0f172a;">ShiftMy<span style="color:#2563eb;">Home</span></p>
+    <p style="margin:0 0 18px;"><img src="${esc(CUSTOMER_LOGO_URL)}" width="220" alt="ShiftMyHome" style="display:block;width:220px;max-width:100%;height:auto;border:0;" /></p>
     <h1 style="margin:0 0 12px;font-size:22px;line-height:1.3;">Choose a new password</h1>
     <p style="margin:0 0 20px;font-size:15px;line-height:1.55;color:#334155;">This link expires automatically. You can still sign in with an email link afterwards. A password is optional.</p>
     <p style="margin:0 0 20px;"><a href="${esc(params.url)}" style="display:inline-block;background:#0284c7;color:#fff;text-decoration:none;font-weight:700;padding:14px 18px;border-radius:10px;">Choose a new password</a></p>
-    <p style="margin:0;font-size:13px;line-height:1.5;color:#64748b;">If the button does not work, copy this link into your browser:<br>${esc(params.url)}</p>
-    <p style="margin:16px 0 0;font-size:13px;color:#94a3b8;">${esc(company)}</p>
+    <p style="margin:0;font-size:13px;line-height:1.5;color:#64748b;">If the button does not work, copy this link into your browser:<br><a href="${esc(params.url)}" style="color:#0369a1;word-break:break-all;">${esc(params.url)}</a></p>
+    <p style="margin:16px 0 0;font-size:13px;color:#94a3b8;">${esc(brand)}</p>
   </td></tr></table>
   </td></tr></table></body></html>`
-  const text = `Choose a new password. This link expires automatically.\n\n${params.url}\n\n${company}`
-  return { subject: `[${company}] ${subject}`, html, text }
+  const text = `Choose a new password. This link expires automatically.\n\n${params.url}\n\n${brand}`
+  return { subject, html, text }
 }
 
 export async function sendPortalRecoveryEmail(params: { supabase: SupabaseClient; email: string; siteOrigin?: string }) {
-  const link = await buildPortalRecoveryUrl(params.supabase, params.email, params.siteOrigin)
+  const link = await buildPortalRecoveryUrl(params.supabase, params.email)
   if (!link.ok) return link
   const rendered = portalRecoveryEmail({ url: link.url })
   const sent = await sendResendEmail({
     to: params.email,
+    from: customerRecoveryFrom(),
     subject: rendered.subject,
     html: rendered.html,
     text: rendered.text,
