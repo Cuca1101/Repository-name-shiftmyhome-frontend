@@ -18,6 +18,7 @@
     "seo:crawl:report": "node scripts/seo-crawl-report.mjs",
     "db:apply-062": "node scripts/apply-migration-062.mjs",
     "test:extra-charge-pricing": "node scripts/test-extra-charge-pricing.mjs",
+    "test:customer-portal": "node scripts/test-customer-portal.mjs",
     "logo:generate": "node scripts/generate-logo-transparent.mjs",
     "images:brand": "node scripts/brand-service-images.mjs",
     "images:brand-services": "node scripts/brand-service-images.mjs"

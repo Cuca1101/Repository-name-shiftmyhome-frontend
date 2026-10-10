@@ -8,15 +8,15 @@ import {
   getFallbackSpeedMph,
   resolveCrewLabourDistanceRates,
   resolveTravelHoursForCrewLabour,
-} from './crewPricingRules'
+} from './crewPricingRules.js'
 import {
   effectiveFloorLevelsForPricing,
   floorNeedsLiftQuestion,
   fullNoLiftStairsAccessAmount,
   resolveAccessVolumeScale,
   resolveWithLiftAccessPercentOfNoLift,
-} from './floorAccess'
-import { resolveAccessChargeRates } from './pricingSettingValue'
+} from './floorAccess.js'
+import { resolveAccessChargeRates } from './pricingSettingValue.js'
 
 const money = (n) => Math.round((Number(n) || 0) * 100) / 100
 

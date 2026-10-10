@@ -16,6 +16,8 @@ import {
 } from '../lib/availableJobLocalStore'
 import { mergedAdminWorkflowForQuote } from '../lib/quoteAdminWorkflowMerge'
 import { isSupabaseConfigured, supabase } from '../lib/supabase'
+import CustomerAmendmentAdminBanner from './customer-portal/CustomerAmendmentAdminBanner'
+import MoveTimeline from './tracking/MoveTimeline'
 import {
   buildQuotePricingSumTableRows,
   collectInventoryRowsForHeavyFee,
@@ -586,6 +588,8 @@ export default function AvailableJobDetails() {
       </div>
       ) : null}
 
+      {q?.id ? <CustomerAmendmentAdminBanner quoteId={String(q.id)} /> : null}
+
       {tab === 'overview' && !fullPageDispatch && quotePassesAvailableJobsStrict(q) ? (
         <div className="flex flex-wrap items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs">
           {listedOnMarketplace ? (
@@ -645,6 +649,12 @@ export default function AvailableJobDetails() {
             onCancelJob={() => overrideActionsRef.current?.openMarkCancelled?.()}
             onReload={load}
             onNotify={showToast}
+          />
+          <MoveTimeline
+            variant="admin"
+            quoteId={q.id}
+            quoteRef={q.quote_ref || ''}
+            completedAt={q.completed_at || null}
           />
           {fullPageDispatch || tab === 'overview' ? (
             <ServicePackageAllowanceCard

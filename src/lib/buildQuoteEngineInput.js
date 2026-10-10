@@ -1,7 +1,7 @@
-import { parsePackingMaterialQuantities } from './packingMaterialsCatalog'
-import { floorNeedsLiftQuestion, liftValueForFloor } from './floorAccess'
-import { getLocalDateYYYYMMDD } from './moveDateLocal'
-import { isBankHolidayDate, isWeekendDate } from './pricingCalculator'
+import { parsePackingMaterialQuantities } from './packingMaterialsCatalog.js'
+import { floorNeedsLiftQuestion, liftValueForFloor } from './floorAccess.js'
+import { getLocalDateYYYYMMDD } from './moveDateLocal.js'
+import { isBankHolidayDate, isWeekendDate } from './pricingCalculator.js'
 
 /**
  * Shared input for calculateQuote — quote wizard, admin booking, promo previews.

@@ -32,9 +32,13 @@ Deno.serve(async (req) => {
   const { data: portal } = await supabase.rpc('public_get_job_tracking', { p_token: token })
   if (!portal?.ok) return jsonResponse({ error: portal?.error || 'invalid_token' }, 400)
 
-  const photos = Array.isArray(portal.photos) ? portal.photos : []
-  const waivers = Array.isArray(portal.waivers) ? portal.waivers : []
-  const all = [...photos, ...waivers]
+  const { data: evidence, error: evidenceError } = await supabase.rpc('tracking_evidence_photos', { p_token: token })
+  const stored = Array.isArray(evidence) ? evidence : []
+  const fallback = [
+    ...(Array.isArray(portal.photos) ? portal.photos : []),
+    ...(Array.isArray(portal.waivers) ? portal.waivers : []),
+  ]
+  const all = !evidenceError && stored.length ? stored : fallback
 
   const withUrls = []
   for (const p of all) {

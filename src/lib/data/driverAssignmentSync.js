@@ -1,7 +1,14 @@
 import { quotePatchForAdminDriverAssign } from '../driverOperationalStatus'
 import { sendJobCustomerNotify } from '../jobCustomerTracking'
+import { notifyDriverJobAssignedPush, notifyDriverJobRemovedPush } from '../sendDriverPush'
 import { isSupabaseConfigured, supabase } from '../supabase'
 import { cancelJobAssignmentForQuote, upsertJobAssignment } from './jobAssignmentsRepository'
+
+/** Statuses that mean the driver should get a new-job FCM alert. */
+function isActiveAssignmentStatus(status) {
+  const s = String(status || '').trim().toLowerCase()
+  return s === 'active' || s === 'assigned' || s === 'accepted'
+}
 
 /**
  * @param {Record<string, unknown>} quote
@@ -49,6 +56,12 @@ export async function syncJobAssignmentFromQuoteAssign(quoteId, driverId, quote,
       status,
       scheduledDate: quote ? scheduledDateFromQuote(quote) : undefined,
     })
+    // Background ring: FCM wakes the phone when the app is not in foreground.
+    if (isActiveAssignmentStatus(status)) {
+      void notifyDriverJobAssignedPush(did, quote ? { ...quote, id: qid } : { id: qid }).catch(
+        () => {},
+      )
+    }
     return { synced: true }
   } catch (e) {
     if (import.meta.env.DEV) {
@@ -177,6 +190,7 @@ export async function clearDriverFromQuote(quoteId, quoteWorkflowPatch, updateQu
   }
   if (priorDriverId) {
     await clearDriverLocationJobLink(priorDriverId)
+    void notifyDriverJobRemovedPush(priorDriverId, { id: quoteId }).catch(() => {})
   }
 }
 

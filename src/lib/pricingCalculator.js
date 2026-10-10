@@ -11,38 +11,38 @@ import {
   resolveMinimumJobPriceForCrew,
   resolveTravelHoursForCrewLabour,
   usesDistanceBasedCrewLabour,
-} from './crewPricingRules'
-import { buildStandardPricingDisplayRows } from './pricingBreakdownDisplay'
+} from './crewPricingRules.js'
+import { buildStandardPricingDisplayRows } from './pricingBreakdownDisplay.js'
 import {
   effectiveFloorLevelsForPricing,
   floorNeedsLiftQuestion,
   fullNoLiftStairsAccessAmount,
   resolveAccessVolumeScale,
   resolveWithLiftAccessPercentOfNoLift,
-} from './floorAccess'
-import { mergePricingSettingsWithDefaults } from './pricingSettingsMerge'
-import { buildPricingDebugDetail } from './pricingDebugDetail'
-import { resolveVolumePricingMultiplier } from './volumePricingMultiplier'
-import { resolveWeekdayBestPriceDiscount } from './calendarDayPricing'
-import { resolveAccessChargeRates, resolveDepositAmountGbp as resolveDepositFromSettings } from './pricingSettingValue'
-import { getEffectiveReassemblyItemCount } from './quoteWizardReassembly'
+} from './floorAccess.js'
+import { mergePricingSettingsWithDefaults } from './pricingSettingsMerge.js'
+import { buildPricingDebugDetail } from './pricingDebugDetail.js'
+import { resolveVolumePricingMultiplier } from './volumePricingMultiplier.js'
+import { resolveWeekdayBestPriceDiscount } from './calendarDayPricing.js'
+import { resolveAccessChargeRates, resolveDepositAmountGbp as resolveDepositFromSettings } from './pricingSettingValue.js'
+import { getEffectiveReassemblyItemCount } from './quoteWizardReassembly.js'
 import {
   PACKING_MATERIALS_CATALOG,
   resolvePackingMaterialUnitPrices,
-} from './packingMaterialsCatalog'
-import { getBankHolidayName, isBankHolidayDate } from './ukBankHolidays'
+} from './packingMaterialsCatalog.js'
+import { getBankHolidayName, isBankHolidayDate } from './ukBankHolidays.js'
 import {
   countHeavyItemsForCrew,
   countSpecialistHeavyItems,
   sumInventoryVolumeRaw,
-} from './inventoryPricing'
+} from './inventoryPricing.js'
 
 export {
   sumInventoryVolumeRaw,
   countHeavyItemsForCrew,
   countSpecialistHeavyItems,
   lineItemAppliesHeavyHandlingFee,
-} from './inventoryPricing'
+} from './inventoryPricing.js'
 
 /**
  * @typedef {Object} CustomSizeM3
@@ -369,7 +369,7 @@ export function resolveWeekendSurchargeForDate(settings, isoDate) {
   return { apply: false, percent: 0, label: '' }
 }
 
-export { isBankHolidayDate, getBankHolidayName } from './ukBankHolidays'
+export { isBankHolidayDate, getBankHolidayName } from './ukBankHolidays.js'
 
 /**
  * Raw physical inventory volume (m³) for capacity and pricing.

@@ -30,6 +30,7 @@ import {
   validateAdminPhoneBookingStep,
 } from '../../lib/adminPhoneBooking'
 import { supabase } from '../../lib/supabase'
+import { CustomerIdentitySummary } from './CustomerKindBadge'
 
 const inputClass =
   'mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 shadow-sm outline-none transition placeholder:text-slate-400 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/25'
@@ -717,6 +718,7 @@ export default function AdminPhoneBookingForm({
                   {fieldErrors.email}
                 </p>
               ) : null}
+              <CustomerIdentitySummary email={wizard.email} previewNext />
               {fieldErrors.crewSize ? (
                 <p className="mt-2 text-sm font-medium text-red-700" role="alert">
                   {fieldErrors.crewSize}

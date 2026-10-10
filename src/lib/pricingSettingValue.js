@@ -4,7 +4,7 @@
  *
  * Do not calculate pricing in UI components. Use shared pricing engine only.
  */
-import { getDefaultPricingSettings } from './defaultPricingSettings'
+import { getDefaultPricingSettings } from './defaultPricingSettings.js'
 
 /**
  * @param {import('./pricingCalculator.js').PricingSettings | null | undefined} settings

@@ -1,5 +1,5 @@
-import { SERVICE_TYPES } from '../constants/serviceTypes'
-import { defaultServicePackages } from './servicePackages'
+import { SERVICE_TYPES } from '../constants/serviceTypes.js'
+import { defaultServicePackages } from './servicePackages.js'
 
 /**
  * Offline / fallback pricing when Supabase `pricing_settings` is unavailable.

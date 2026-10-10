@@ -5,7 +5,7 @@
  * From 15 m³ up: flat bands — 15–20 (under 20), 20–30, 30+.
  */
 
-import { getDefaultPricingSettings } from './defaultPricingSettings'
+import { getDefaultPricingSettings } from './defaultPricingSettings.js'
 
 /** @typedef {'volumeMultiplier0To3M3'|'volumeMultiplier3To8M3'|'volumeMultiplier8To15M3'|'volumeMultiplier15To20M3'|'volumeMultiplier20To30M3'|'volumeMultiplier30PlusM3'} VolumeMultiplierSettingKey */
 

@@ -1,6 +1,6 @@
 /** @typedef {{ oneManAllowed: boolean, minimumCrew: number, message: string }} CrewRestrictions */
 
-import { resolveFallbackSpeedMph } from './pricingSettingValue'
+import { resolveFallbackSpeedMph } from './pricingSettingValue.js'
 
 export const HOUSE_REMOVALS_SERVICE = 'House Removals'
 

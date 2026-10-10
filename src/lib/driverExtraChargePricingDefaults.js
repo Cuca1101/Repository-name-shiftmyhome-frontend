@@ -1,5 +1,5 @@
-import { getDefaultPricingSettings } from './defaultPricingSettings'
-import { VOLUME_MULTIPLIER_SETTING_KEYS } from './volumePricingMultiplier'
+import { getDefaultPricingSettings } from './defaultPricingSettings.js'
+import { VOLUME_MULTIPLIER_SETTING_KEYS } from './volumePricingMultiplier.js'
 
 /**
  * Keys used only by driver app extra charges (estimate-extra-charge).

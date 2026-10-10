@@ -60,12 +60,24 @@ export function customerJobStatusLabel(raw) {
 export function photoSectionForType(photoType, stopType) {
   const t = String(photoType || '').toLowerCase()
   const stop = String(stopType || '').toLowerCase()
-  if (t === 'damage') return 'damage'
   if (t === 'waiver_signature' || t === 'pod_signature') return 'waiver'
-  if (t === 'delivery' || stop === 'delivery') return 'delivery'
-  if (t === 'pickup' || t === 'collection' || stop === 'pickup' || stop === 'collection') return 'pickup'
+  if (t === 'damage') return 'damage'
   if (t === 'loaded' || stop === 'loaded' || /load/i.test(t)) return 'loaded'
+  if (stop === 'dropoff' || stop === 'delivery' || t === 'delivery') return 'delivery'
+  if (stop === 'pickup' || stop === 'collection' || t === 'pickup' || t === 'collection') return 'pickup'
+  if (t === 'proof') return 'proof'
   return 'general'
+}
+
+/** @param {Array<Record<string, unknown>> | null | undefined} photos */
+export function groupJobPhotos(photos) {
+  const groups = { pickup: [], loaded: [], delivery: [], damage: [], waiver: [], proof: [], general: [] }
+  for (const photo of photos || []) {
+    const key = photoSectionForType(photo?.photo_type, photo?.stop_type)
+    if (!groups[key]) groups[key] = []
+    groups[key].push(photo)
+  }
+  return groups
 }
 
 /**

@@ -6,6 +6,7 @@ import { sendExtraChargePaidConfirmationEmail } from '../_shared/extraChargePaid
 import { applyJobTipPaidFromCheckout } from '../_shared/confirmJobTipPaid.ts'
 import { runAfterPaymentVerifiedHooks } from '../_shared/afterPaymentVerifiedHooks.ts'
 import { guardStripeSecretKey, respondStripeConfigFailure } from '../_shared/stripeSecretGuard.ts'
+import { applyPaidCustomerAmendment } from '../_shared/applyCustomerAmendment.ts'
 
 /**
  * Stripe webhook for ShiftMyHome (embedded Payment Element + PaymentIntent + tip Checkout).
@@ -82,8 +83,21 @@ Deno.serve(async (req) => {
   if (event.type === 'payment_intent.succeeded') {
     const pi = event.data.object as Stripe.PaymentIntent
 
-    // Handle extra charge payments separately
-    if (pi.metadata?.payment_type === 'extra_charge' && pi.metadata?.extra_charge_request_id) {
+    if (
+      pi.metadata?.payment_type === 'customer_booking_amendment' &&
+      pi.metadata?.customer_booking_amendment_id
+    ) {
+      const amendmentResult = await applyPaidCustomerAmendment(supabase, {
+        amendmentId: pi.metadata.customer_booking_amendment_id,
+        paymentIntentId: pi.id,
+      })
+      console.log('[stripe-webhook] customer amendment paid', {
+        amendment_id: pi.metadata.customer_booking_amendment_id,
+        payment_intent_id: pi.id,
+        status: amendmentResult.status || null,
+        ok: amendmentResult.ok,
+      })
+    } else if (pi.metadata?.payment_type === 'extra_charge' && pi.metadata?.extra_charge_request_id) {
       const ecrId = pi.metadata.extra_charge_request_id
       const amountPaid = Math.max(0, (typeof pi.amount_received === 'number' ? pi.amount_received : pi.amount ?? 0) / 100)
       const { error: ecrErr } = await supabase
@@ -173,7 +187,21 @@ Deno.serve(async (req) => {
 
   if (event.type === 'payment_intent.payment_failed') {
     const pi = event.data.object as Stripe.PaymentIntent
-    if (pi.metadata?.payment_type === 'extra_charge' && pi.metadata?.extra_charge_request_id) {
+    if (
+      pi.metadata?.payment_type === 'customer_booking_amendment' &&
+      pi.metadata?.customer_booking_amendment_id
+    ) {
+      await supabase
+        .from('customer_booking_amendments')
+        .update({ status: 'payment_failed', updated_at: new Date().toISOString() })
+        .eq('id', pi.metadata.customer_booking_amendment_id)
+        .eq('status', 'pending_payment')
+        .is('paid_at', null)
+      console.log('[stripe-webhook] customer amendment payment failed', {
+        amendment_id: pi.metadata.customer_booking_amendment_id,
+        payment_intent_id: pi.id,
+      })
+    } else if (pi.metadata?.payment_type === 'extra_charge' && pi.metadata?.extra_charge_request_id) {
       console.log('[stripe-webhook] extra charge payment failed', {
         extra_charge_request_id: pi.metadata.extra_charge_request_id,
         payment_intent_id: pi.id,
@@ -186,7 +214,22 @@ Deno.serve(async (req) => {
   // Optional tip Checkout Sessions (create-job-tip-checkout) — does not touch booking payment fields.
   if (event.type === 'checkout.session.completed') {
     const session = event.data.object as Stripe.Checkout.Session
-    if (session.metadata?.payment_type === 'tip' && session.metadata?.tip_id) {
+    if (
+      session.metadata?.payment_type === 'customer_booking_amendment' &&
+      session.metadata?.customer_booking_amendment_id &&
+      session.payment_status === 'paid'
+    ) {
+      const amendmentResult = await applyPaidCustomerAmendment(supabase, {
+        amendmentId: session.metadata.customer_booking_amendment_id,
+        paymentIntentId: typeof session.payment_intent === 'string' ? session.payment_intent : null,
+        sessionId: session.id,
+      })
+      console.log('[stripe-webhook] customer amendment checkout', {
+        amendment_id: session.metadata.customer_booking_amendment_id,
+        ok: amendmentResult.ok,
+        status: amendmentResult.status || null,
+      })
+    } else if (session.metadata?.payment_type === 'tip' && session.metadata?.tip_id) {
       const tipResult = await applyJobTipPaidFromCheckout(supabase, session.metadata.tip_id, session)
       console.log('[stripe-webhook] tip checkout completed', {
         tip_id: session.metadata.tip_id,

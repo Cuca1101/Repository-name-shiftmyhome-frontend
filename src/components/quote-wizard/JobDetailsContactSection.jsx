@@ -1,3 +1,5 @@
+import { useSearchParams } from 'react-router-dom'
+import { useAuthenticatedCustomerEmail } from '../../lib/useAuthenticatedCustomerEmail'
 import { applyWizardPatch } from '../../lib/wizardStateUpdate'
 import { quoteMobileInput, quoteMobileLabel } from '../../lib/quoteMobileUiClasses'
 import QuotePromoCodeField from './QuotePromoCodeField'
@@ -18,6 +20,7 @@ const mobileCard =
  *   breakdown?: import('../../lib/pricingCalculator.js').QuoteBreakdown | null,
  *   priceWithoutPromo?: number | null,
  *   flexibleContact?: boolean,
+ *   lockSignedInEmail?: boolean,
  * }} props
  */
 export default function JobDetailsContactSection({
@@ -28,7 +31,14 @@ export default function JobDetailsContactSection({
   breakdown = null,
   priceWithoutPromo = null,
   flexibleContact = false,
+  lockSignedInEmail = true,
 }) {
+  const [searchParams] = useSearchParams()
+  const fromAccount = searchParams.get('from') === 'account'
+  const signedInEmail = useAuthenticatedCustomerEmail()
+  const accountEmail = lockSignedInEmail ? signedInEmail : ''
+  const emailValue = accountEmail || String(data.email ?? '')
+
   function set(k, v) {
     applyWizardPatch(onChange, { [k]: v })
   }
@@ -44,6 +54,15 @@ export default function JobDetailsContactSection({
           Job details &amp; contact
         </h2>
         <p className="mt-1 text-[10px] leading-snug text-slate-600 md:text-sm">{contactHint}</p>
+        {accountEmail ? (
+          <p className="mt-1 text-[10px] leading-snug text-slate-600 md:text-sm">
+            This booking is added to your signed-in account. The email cannot be changed to another person.
+          </p>
+        ) : fromAccount ? (
+          <p className="mt-1 text-[10px] leading-snug text-slate-600 md:text-sm">
+            Sign in to add this booking to an existing account.
+          </p>
+        ) : null}
       </div>
 
       <div
@@ -87,8 +106,11 @@ export default function JobDetailsContactSection({
               required={!flexibleContact}
               type="email"
               autoComplete="email"
-              value={String(data.email ?? '')}
-              onChange={(e) => set('email', e.target.value)}
+              readOnly={Boolean(accountEmail)}
+              value={emailValue}
+              onChange={(e) => {
+                if (!accountEmail) set('email', e.target.value)
+              }}
               className={quoteMobileInput}
             />
           </label>
@@ -145,8 +167,11 @@ export default function JobDetailsContactSection({
               required={!flexibleContact}
               type="email"
               autoComplete="email"
-              value={String(data.email ?? '')}
-              onChange={(e) => set('email', e.target.value)}
+              readOnly={Boolean(accountEmail)}
+              value={emailValue}
+              onChange={(e) => {
+                if (!accountEmail) set('email', e.target.value)
+              }}
               className={desktopInput}
             />
           </label>

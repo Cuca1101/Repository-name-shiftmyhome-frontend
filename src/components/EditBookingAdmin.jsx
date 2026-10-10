@@ -1,5 +1,6 @@
 import { Link, useLocation, useParams } from 'react-router-dom'
 import AdminEditBookingForm from './admin/AdminEditBookingForm'
+import CustomerAmendmentAdminBanner from './customer-portal/CustomerAmendmentAdminBanner'
 
 /**
  * Admin → Edit Booking (from Available / Active job details).
@@ -23,11 +24,14 @@ export default function EditBookingAdmin() {
   }
 
   return (
-    <AdminEditBookingForm
-      key={id}
-      quoteId={id}
-      backHref={backHref}
-      backLabel={backLabel}
-    />
+    <div className="space-y-3">
+      <CustomerAmendmentAdminBanner quoteId={id} />
+      <AdminEditBookingForm
+        key={id}
+        quoteId={id}
+        backHref={backHref}
+        backLabel={backLabel}
+      />
+    </div>
   )
 }

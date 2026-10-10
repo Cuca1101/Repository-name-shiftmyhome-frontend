@@ -44,6 +44,9 @@ export async function updateQuoteFromPaymentIntent(
   const quoteId = asString(pi.metadata?.quote_id)
   const quoteRef = asString(pi.metadata?.quote_ref)
   const paymentType = asString(pi.metadata?.payment_type)
+  if (paymentType === 'customer_booking_amendment') {
+    return { ok: false, error: 'amendment_payment' }
+  }
   const resolvedPaymentType = paymentType === 'deposit' || paymentType === 'full' ? paymentType : 'full'
 
   if (!bookingId && !quoteId && !quoteRef) {

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useLocation } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
 import Logo from '../Logo'
 import NavSloganBar from '../NavSloganBar'
 import HomeSectionLink from '../HomeSectionLink'
@@ -18,7 +18,7 @@ const navItems = [
 
 function navLinkClass(isActive) {
   const base =
-    'relative px-1 py-1 text-[14px] font-medium tracking-wide text-white/85 transition-colors duration-200 hover:text-white xl:text-[15px]'
+    'relative shrink-0 whitespace-nowrap px-1 py-1 text-[14px] font-medium tracking-wide text-white/85 transition-colors duration-200 hover:text-white xl:text-[15px]'
   if (!isActive) return base
   return `${base} text-white after:absolute after:-bottom-1 after:left-0 after:right-0 after:h-0.5 after:rounded-full after:bg-brand-400`
 }
@@ -89,7 +89,7 @@ export default function DesktopNavbar({ showSlogan, onLogoClick } = {}) {
           <Logo asImage variant="dark" src={navbar.logoUrl || undefined} />
         </HomeSectionLink>
 
-        <div className="hidden min-w-0 flex-1 translate-y-2.5 items-center justify-center gap-4 md:flex sm:translate-y-3 lg:translate-y-3.5 xl:gap-6">
+        <div className="hidden min-w-0 flex-1 flex-nowrap items-center justify-center gap-3 md:flex xl:gap-6">
           {navItems.map((item) => {
             const linkClassName = navLinkClass(isHome && activeSection === item.sectionId)
             const label = <span>{item.label}</span>
@@ -118,6 +118,12 @@ export default function DesktopNavbar({ showSlogan, onLogoClick } = {}) {
         </div>
 
         <div className="flex shrink-0 items-center gap-2 sm:gap-3">
+          <Link
+            to="/portal"
+            className="inline-flex h-10 items-center whitespace-nowrap rounded-full bg-white px-3.5 text-sm font-bold text-navy"
+          >
+            My account
+          </Link>
           <a
             href={`tel:${phoneTel}`}
             className="hidden items-center gap-2.5 text-base font-semibold text-white/95 transition hover:text-white md:inline-flex xl:text-[17px]"
@@ -131,7 +137,7 @@ export default function DesktopNavbar({ showSlogan, onLogoClick } = {}) {
                 />
               </svg>
             </span>
-            <span className="whitespace-nowrap">{phoneDisplay}</span>
+            <span className="hidden whitespace-nowrap xl:inline">{phoneDisplay}</span>
           </a>
           <QuoteNavCta
             className="btn-premium-primary min-h-[40px] px-4 py-2 text-sm sm:min-h-[42px] sm:px-5"
@@ -141,6 +147,19 @@ export default function DesktopNavbar({ showSlogan, onLogoClick } = {}) {
           </QuoteNavCta>
         </div>
       </nav>
+      {pathname.startsWith('/track') ? (
+        <div className="border-t border-white/10 bg-white">
+          <div className="home-container flex">
+            <Link
+              to="/portal/bookings"
+              className="inline-flex min-h-11 items-center gap-1.5 text-sm font-bold text-sky-700"
+            >
+              <span aria-hidden="true">←</span>
+              Back to My account
+            </Link>
+          </div>
+        </div>
+      ) : null}
       {(showSlogan ?? pathShowsNavSlogan(pathname)) ? <NavSloganBar /> : null}
     </header>
   )

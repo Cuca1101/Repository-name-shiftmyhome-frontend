@@ -13,6 +13,7 @@ import JobAdjustmentsPanel from './JobAdjustmentsPanel'
 import GenerateJobSheetButton from './GenerateJobSheetButton'
 import JobStatusBadge from './JobStatusBadge'
 import { resolveCustomerPaymentSummary } from '../../lib/customerPaymentSummary'
+import { CustomerIdentitySummary } from '../admin/CustomerKindBadge'
 
 function money(n) {
   if (n == null || n === '') return '—'
@@ -96,6 +97,7 @@ export default function JobDispatchControlPanel({
           <div className="min-w-0 flex-1">
             <p className="truncate text-sm font-bold leading-tight">{service}</p>
             <p className="font-mono text-[10px] text-slate-400">{ref}</p>
+            <CustomerIdentitySummary email={q.email} kind={q.customer_kind} tone="dark" />
           </div>
           <div className="flex flex-wrap items-center gap-2 text-[10px] text-slate-300">
             <span className="rounded bg-slate-800 px-2 py-0.5">{volCrew}</span>

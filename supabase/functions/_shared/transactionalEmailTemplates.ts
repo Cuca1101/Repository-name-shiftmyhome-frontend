@@ -34,6 +34,8 @@ type EmailTemplateData = {
   invoiceSectionBody?: string
   actionLabel?: string
   actionUrl?: string
+  secondaryActionLabel?: string
+  secondaryActionUrl?: string
   invoiceDownloadUrl?: string
 }
 
@@ -93,6 +95,11 @@ function baseLayout(params: { subject: string; data: EmailTemplateData; brand: B
           <a href="${escHtml(data.actionUrl)}" target="_blank" rel="noopener noreferrer" style="display:inline-block;background:#0ea5e9;color:#ffffff;text-decoration:none;font-size:14px;line-height:1.2;font-weight:700;padding:12px 18px;border-radius:10px;">
             ${escHtml(data.actionLabel)}
           </a>
+          ${
+            data.secondaryActionLabel && data.secondaryActionUrl
+              ? `<a href="${escHtml(data.secondaryActionUrl)}" target="_blank" rel="noopener noreferrer" style="display:inline-block;margin-left:8px;background:#0f172a;color:#ffffff;text-decoration:none;font-size:14px;line-height:1.2;font-weight:700;padding:12px 18px;border-radius:10px;">${escHtml(data.secondaryActionLabel)}</a>`
+              : ''
+          }
         </td>
       </tr>
     `
@@ -271,6 +278,7 @@ function paymentReceivedTemplate(payload: {
   supportEmail: string
   invoiceDownloadUrl?: string
   packageSummary?: string
+  portalUrl?: string
 }) {
   const data: EmailTemplateData = {
     previewText: `Payment received for booking ${payload.quoteRef}`,
@@ -294,8 +302,14 @@ function paymentReceivedTemplate(payload: {
       payload.invoiceDownloadUrl
         ? 'Your official invoice/receipt PDF is attached. You can also use the secure download link below as backup.'
         : 'This email includes your official invoice/receipt PDF attachment for your records.',
-    actionLabel: payload.invoiceDownloadUrl ? 'Download Invoice PDF' : undefined,
-    actionUrl: payload.invoiceDownloadUrl || undefined,
+    actionLabel: payload.portalUrl
+      ? 'View my booking'
+      : payload.invoiceDownloadUrl
+        ? 'Download Invoice PDF'
+        : undefined,
+    actionUrl: payload.portalUrl || payload.invoiceDownloadUrl || undefined,
+    secondaryActionLabel: payload.portalUrl && payload.invoiceDownloadUrl ? 'Download Invoice PDF' : undefined,
+    secondaryActionUrl: payload.portalUrl && payload.invoiceDownloadUrl ? payload.invoiceDownloadUrl : undefined,
   }
   return {
     /** ASCII-only subject (matches isolated Resend test; avoids MIME edge cases). */
@@ -312,6 +326,7 @@ function paymentReceivedTemplate(payload: {
       `Collection: ${payload.collectionSummary}`,
       `Delivery: ${payload.deliverySummary}`,
       '',
+      payload.portalUrl ? `View my booking: ${payload.portalUrl}` : '',
       payload.invoiceDownloadUrl
         ? `Download invoice PDF: ${payload.invoiceDownloadUrl}`
         : 'Your invoice/receipt is attached to this email.',
@@ -347,6 +362,7 @@ export function renderTransactionalEmailTemplate(params: {
     deliverySummary: string
     invoiceDownloadUrl?: string
     packageSummary?: string
+    portalUrl?: string
   }
 }): RenderResult {
   const { kind, brand, paymentPayload } = params

@@ -53,3 +53,15 @@ verify_jwt = true
 
 [functions.notify-booking-updated]
 verify_jwt = true
+
+[functions.send-driver-push]
+verify_jwt = true
+
+[functions.customer-portal-link]
+verify_jwt = false
+
+[functions.customer-booking-amend]
+verify_jwt = true
+
+[functions.send-auth-email]
+verify_jwt = false

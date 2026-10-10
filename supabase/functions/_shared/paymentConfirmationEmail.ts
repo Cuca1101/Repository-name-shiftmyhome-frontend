@@ -6,6 +6,7 @@ import { sendResendEmailMinimal } from './postResendEmail.ts'
 import { asciiEmailSubject, encodePdfBytesToResendBase64 } from './resendPayloadLog.ts'
 import { formatDateUK } from './formatDateUK.ts'
 import { saveCustomerEmailArchive, storeSentInvoicePdf } from './customerEmailArchive.ts'
+import { buildPortalMagicUrl } from './customerPortalMagicLink.ts'
 
 type UpdateResult = {
   ok: boolean
@@ -880,6 +881,19 @@ export async function sendPaymentConfirmationWithPdfIfNeeded(params: {
     logo_url_resolved: Boolean(logoResolved),
     resend_from_email: resendFromEmail,
   })
+  let portalUrl = ''
+  if (quote.id && customerEmail) {
+    try {
+      const portalLink = await buildPortalMagicUrl(
+        supabase,
+        customerEmail,
+        `/portal/bookings/${quote.id}`,
+      )
+      if (portalLink.ok) portalUrl = portalLink.url
+    } catch (e) {
+      console.error('[payment-email] portal link skipped', e instanceof Error ? e.message : e)
+    }
+  }
   const rendered = renderTransactionalEmailTemplate({
     kind: 'payment_received',
     brand: {
@@ -906,6 +920,7 @@ export async function sendPaymentConfirmationWithPdfIfNeeded(params: {
         if (!name) return ''
         return Number.isFinite(fee) && fee > 0 ? `${name} upgrade £${fee.toFixed(2)}` : name
       })(),
+      portalUrl,
     },
   })
   console.log('[payment-email] template rendered', {

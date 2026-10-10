@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import mapboxgl from 'mapbox-gl'
 import 'mapbox-gl/dist/mapbox-gl.css'
 
@@ -32,20 +33,31 @@ function ensureTrackingMarkerStyles() {
       50% { transform: translateY(-3px); }
     }
     .smh-van-marker {
-      display:flex; flex-direction:column; align-items:center; gap:2px;
+      position:relative; width:46px; height:46px; overflow:visible;
       pointer-events:none; user-select:none;
     }
-    .smh-van-card {
-      display:flex; flex-direction:column; align-items:center; gap:1px; max-width:168px;
-      padding:6px 11px; border-radius:10px; background:#fff;
-      border:1px solid rgba(15,23,42,0.1); box-shadow:0 2px 10px rgba(15,23,42,0.16);
+    .smh-van-hit {
+      pointer-events:auto; display:block; width:46px; height:46px; margin:0; padding:0;
+      border:0; background:transparent; cursor:pointer;
     }
+    .smh-van-arrow {
+      position:absolute; left:23px; top:23px; z-index:2;
+      width:14px; height:14px; margin-left:-7px; margin-top:-36px;
+      transform-origin:7px 36px; pointer-events:none;
+    }
+    .smh-van-pop {
+      display:none; position:absolute; left:23px; top:0; z-index:6;
+      max-width:148px; padding:3px 7px; border-radius:8px; background:#fff;
+      border:1px solid rgba(15,23,42,0.12); box-shadow:0 2px 8px rgba(15,23,42,0.16);
+      pointer-events:none;
+    }
+    .smh-van-pop.is-open { display:flex; flex-direction:column; align-items:center; }
     .smh-van-name {
-      max-width:152px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
-      font:700 12px Inter,Segoe UI,system-ui,sans-serif; color:#0f172a; text-align:center;
+      max-width:136px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+      font:700 11px Inter,Segoe UI,system-ui,sans-serif; color:#0f172a; text-align:center;
     }
     .smh-van-ref {
-      max-width:152px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+      max-width:136px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
       font:600 10px ui-monospace,SFMono-Regular,Menlo,monospace; color:#64748b; text-align:center;
     }
     .smh-van-rotator {
@@ -60,7 +72,7 @@ function ensureTrackingMarkerStyles() {
     }
     .smh-van-icon.is-live { animation: smh-van-bob 1.7s ease-in-out infinite; }
     .smh-van-img {
-      display:block; width:58px; height:auto; max-height:40px;
+      display:block; width:44px; height:44px;
       object-fit:contain; background:transparent !important; border:0; outline:0;
     }
     .smh-van-img.is-stale { filter: grayscale(0.25) brightness(0.96); opacity:0.92; }
@@ -117,21 +129,20 @@ function ensureTrackingMarkerStyles() {
       box-shadow:0 0 0 2px rgba(2,132,199,0.35), 0 2px 8px rgba(15,23,42,0.12);
     }
     .smh-track-follow svg { width:16px; height:16px; display:block; }
-    .smh-track-controls {
-      position:relative; z-index:3; flex:0 0 auto;
-      display:flex; flex-wrap:wrap; gap:8px;
-      padding:8px; background:#fff;
-      border-bottom:1px solid rgba(15,23,42,0.08);
+    .smh-track-controls-external {
+      position:static; z-index:auto; flex:none;
+      display:flex; flex-wrap:wrap; justify-content:flex-end; gap:8px;
+      padding:0; margin:0; background:transparent; border:0;
     }
-    .smh-track-controls .smh-track-follow,
-    .smh-track-controls .smh-track-route {
-      position:static; pointer-events:auto;
+    .smh-track-controls-external .smh-track-follow,
+    .smh-track-controls-external .smh-track-route {
+      position:static; left:auto; bottom:auto; pointer-events:auto;
       min-height:44px; height:auto; padding:0 14px;
       font-size:13px; line-height:1;
     }
     .smh-track-route {
       display:inline-flex; align-items:center; justify-content:center;
-      border:0; border-radius:9999px; cursor:pointer;
+      border:1px solid #7dd3fc; border-radius:9999px; cursor:pointer;
       background:#fff; color:#0369a1;
       font:700 13px Inter,Segoe UI,system-ui,sans-serif;
       box-shadow:0 2px 8px rgba(15,23,42,0.16);
@@ -185,7 +196,7 @@ function easeInOut(t) {
 }
 
 /**
- * Mercedes Sprinter photo + name/ref card, tip anchored on exact GPS.
+ * Compact Sprinter photo anchored on the exact GPS fix.
  * Always use SPRINTER_IMG — never swap this for an icon-only marker.
  * @param {{ driverName?: string, quoteRef?: string, live?: boolean }} opts
  */
@@ -196,57 +207,183 @@ function buildVanMarkerElement({ driverName = '', quoteRef = '', live = false } 
 
   const wrap = document.createElement('div')
   wrap.className = 'smh-van-marker'
-  wrap.style.zIndex = '8'
+  wrap.style.zIndex = '6'
   wrap.setAttribute('aria-label', ref ? `Driver ${fullName}, booking ${ref}` : `Driver ${fullName}`)
 
-  const card = document.createElement('div')
-  card.className = 'smh-van-card'
-  const nameEl = document.createElement('div')
-  nameEl.className = 'smh-van-name'
-  nameEl.textContent = fullName
-  card.appendChild(nameEl)
-  if (ref) {
-    const refEl = document.createElement('div')
-    refEl.className = 'smh-van-ref'
-    refEl.textContent = ref
-    card.appendChild(refEl)
-  }
-  wrap.appendChild(card)
+  const arrow = document.createElement('div')
+  arrow.className = 'smh-van-arrow'
+  arrow.dataset.headingArrow = '1'
+  arrow.setAttribute('aria-hidden', 'true')
+  arrow.innerHTML = `
+    <svg viewBox="0 0 14 14" width="14" height="14" aria-hidden="true">
+      <path d="M7 12 V5" stroke="#fff" stroke-width="4" stroke-linecap="round"/>
+      <path d="M3 6.5 L7 1.5 L11 6.5" fill="none" stroke="#fff" stroke-width="4" stroke-linejoin="round" stroke-linecap="round"/>
+      <path d="M7 12 V5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+      <path d="M3 6.5 L7 1.5 L11 6.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+    </svg>
+  `
+  wrap.appendChild(arrow)
 
-  if (!live) {
-    const stale = document.createElement('div')
-    stale.className = 'smh-van-stale'
-    stale.textContent = 'Last known'
-    wrap.appendChild(stale)
-  }
+  const hit = document.createElement('button')
+  hit.type = 'button'
+  hit.className = 'smh-van-hit'
+  hit.setAttribute('aria-expanded', 'false')
+  hit.setAttribute('aria-label', ref ? `${fullName}, ${ref}` : fullName)
 
   const rotator = document.createElement('div')
   rotator.className = 'smh-van-rotator'
   rotator.dataset.rotator = '1'
-
   const icon = document.createElement('div')
   icon.className = live ? 'smh-van-icon is-live' : 'smh-van-icon'
   const img = document.createElement('img')
   img.src = SPRINTER_IMG
-  img.alt = 'Mercedes Sprinter'
+  img.alt = ''
   img.draggable = false
   img.className = live ? 'smh-van-img' : 'smh-van-img is-stale'
   icon.appendChild(img)
   rotator.appendChild(icon)
+  hit.appendChild(rotator)
+  wrap.appendChild(hit)
 
-  const pointer = document.createElement('div')
-  pointer.className = 'smh-van-pointer'
-  pointer.setAttribute('aria-hidden', 'true')
-  const stem = document.createElement('div')
-  stem.className = live ? 'smh-van-pointer-stem' : 'smh-van-pointer-stem is-stale'
-  const tip = document.createElement('div')
-  tip.className = live ? 'smh-van-pointer-dot is-live' : 'smh-van-pointer-dot is-stale'
-  pointer.appendChild(stem)
-  pointer.appendChild(tip)
-  rotator.appendChild(pointer)
+  const pop = document.createElement('div')
+  pop.className = 'smh-van-pop'
+  pop.dataset.vanPop = '1'
+  const nameEl = document.createElement('div')
+  nameEl.className = 'smh-van-name'
+  nameEl.textContent = fullName
+  pop.appendChild(nameEl)
+  if (ref) {
+    const refEl = document.createElement('div')
+    refEl.className = 'smh-van-ref'
+    refEl.textContent = ref
+    pop.appendChild(refEl)
+  }
+  if (!live) {
+    const stale = document.createElement('div')
+    stale.className = 'smh-van-stale'
+    stale.textContent = 'Last known'
+    pop.appendChild(stale)
+  }
+  wrap.appendChild(pop)
 
-  wrap.appendChild(rotator)
+  hit.addEventListener('click', (event) => {
+    event.preventDefault()
+    event.stopPropagation()
+    const open = !pop.classList.contains('is-open')
+    pop.classList.toggle('is-open', open)
+    hit.setAttribute('aria-expanded', open ? 'true' : 'false')
+    const marker = wrap._marker
+    const state = wrap._vanState
+    if (marker && state) {
+      updateDriverMarker(marker, state.pos, state.aim, state.kind, state.route, state.map, state.pins)
+    }
+  })
+
   return wrap
+}
+
+/**
+ * Bearing along the booked road when the driver is on it, otherwise straight to the active stop.
+ * @param {{ lng: number, lat: number }} pos
+ * @param {{ lng: number, lat: number } | null} aim
+ * @param {'collection' | 'delivery'} kind
+ * @param {number[][] | null | undefined} route
+ */
+function roadBearing(pos, aim, kind, route) {
+  if (!pos || !aim) return null
+  if (haversineMetres(pos.lng, pos.lat, aim.lng, aim.lat) < 4) return null
+  if (Array.isArray(route) && route.length >= 2) {
+    let bestI = 0
+    let bestD = Infinity
+    for (let i = 0; i < route.length; i += 1) {
+      const point = route[i]
+      if (!Array.isArray(point)) continue
+      const dist = haversineMetres(pos.lng, pos.lat, Number(point[0]), Number(point[1]))
+      if (dist < bestD) {
+        bestD = dist
+        bestI = i
+      }
+    }
+    if (bestD <= 80) {
+      const towardStart = kind !== 'delivery'
+      const step = towardStart ? Math.max(0, bestI - 4) : Math.min(route.length - 1, bestI + 4)
+      const here = route[bestI]
+      const next = route[step]
+      if (Array.isArray(here) && Array.isArray(next) && (here[0] !== next[0] || here[1] !== next[1])) {
+        return bearingDegrees(
+          { lng: Number(here[0]), lat: Number(here[1]) },
+          { lng: Number(next[0]), lat: Number(next[1]) },
+        )
+      }
+    }
+  }
+  return bearingDegrees(pos, aim)
+}
+
+/**
+ * Keeps the van graphic on the GPS coordinate. Only the name chip moves, and only while open.
+ * @param {mapboxgl.Marker | null} marker
+ * @param {{ lng: number, lat: number } | null} pos
+ * @param {{ lng: number, lat: number } | null} aim
+ * @param {'collection' | 'delivery'} kind
+ * @param {number[][] | null | undefined} route
+ * @param {mapboxgl.Map | null} map
+ * @param {Array<{ lng: number, lat: number } | null>} [pins]
+ */
+function updateDriverMarker(marker, pos, aim, kind, route, map, pins) {
+  const el = marker?.getElement?.()
+  if (!el || !pos) return
+  el._vanState = { pos, aim, kind, route, map, pins }
+  const arrow = el.querySelector('[data-heading-arrow="1"]')
+  const bearing = roadBearing(pos, aim, kind, route)
+  if (arrow) {
+    const show = bearing != null
+    arrow.style.display = show ? 'block' : 'none'
+    if (show) {
+      arrow.style.transform = `rotate(${bearing}deg)`
+      arrow.style.color = kind === 'delivery' ? DELIVERY_PIN : COLLECTION_PIN
+    }
+  }
+  const pop = el.querySelector('[data-van-pop="1"]')
+  if (!pop?.classList.contains('is-open') || !map) return
+  const origin = map.project([pos.lng, pos.lat])
+  const w = pop.offsetWidth || 120
+  const h = pop.offsetHeight || 36
+  const spots = [
+    { x: 0, y: h + 12 },
+    { x: Math.round(w / 2) + 30, y: 8 },
+    { x: -Math.round(w / 2) - 30, y: 8 },
+    { x: 0, y: -(h + 40) },
+  ]
+  const obstacles = []
+  for (const pin of pins || []) {
+    if (!pin || !Number.isFinite(pin.lng) || !Number.isFinite(pin.lat)) continue
+    const projected = map.project([pin.lng, pin.lat])
+    obstacles.push({ x: projected.x, y: projected.y - 22, r: 24 })
+  }
+  const bounds = map.getContainer()
+  const maxX = bounds.clientWidth - 8
+  const maxY = bounds.clientHeight - 8
+  let best = spots[0]
+  let bestScore = -Infinity
+  for (const spot of spots) {
+    const left = origin.x + spot.x - w / 2
+    const right = origin.x + spot.x + w / 2
+    const top = origin.y + spot.y - h
+    const bottom = origin.y + spot.y
+    let score = 360
+    if (left < 8 || right > maxX || top < 8 || bottom > maxY) score -= 500
+    for (const obstacle of obstacles) {
+      const dx = Math.max(Math.abs(origin.x + spot.x - obstacle.x) - w / 2, 0)
+      const dy = Math.max(Math.abs(origin.y + spot.y - h / 2 - obstacle.y) - h / 2, 0)
+      score = Math.min(score, Math.hypot(dx, dy) - obstacle.r)
+    }
+    if (score > bestScore) {
+      bestScore = score
+      best = spot
+    }
+  }
+  pop.style.transform = `translate(calc(-50% + ${best.x}px), calc(-100% + ${best.y}px))`
 }
 
 function setMarkerHeading(marker) {
@@ -287,14 +424,15 @@ function buildDestinationMarkerElement({ kind = 'collection' } = {}) {
   return wrap
 }
 
-const COLLECTION_PIN = '#0284c7'
-const DELIVERY_PIN = '#e11d48'
+/** Same shades as the mobile stop pins: collection orange, delivery green. */
+const COLLECTION_PIN = '#ea580c'
+const DELIVERY_PIN = '#059669'
 
 function buildNumberedStopMarker(number, color, label) {
   ensureTrackingMarkerStyles()
   const wrap = document.createElement('div')
   wrap.className = 'smh-stop-pin'
-  wrap.style.zIndex = '12'
+  wrap.style.zIndex = '4'
   wrap.setAttribute('aria-label', label)
   const num = document.createElement('span')
   num.className = 'smh-stop-num'
@@ -308,18 +446,7 @@ function buildNumberedStopMarker(number, color, label) {
   return wrap
 }
 
-function pointOffset(from, to, shift, metres = 160) {
-  if (!from || !to) return [0, 0]
-  const lng1 = Number(from.lng)
-  const lat1 = Number(from.lat)
-  const lng2 = Number(to.lng)
-  const lat2 = Number(to.lat)
-  if (![lng1, lat1, lng2, lat2].every(Number.isFinite)) return [0, 0]
-  if (haversineMetres(lng1, lat1, lng2, lat2) > metres) return [0, 0]
-  return shift
-}
-
-/** Collection = orange, delivery = green. The booked job route stays ShiftMyHome blue. */
+/** Collection = orange #ea580c, delivery = green #059669. */
 function routePaintForKind(kind) {
   if (kind === 'delivery') {
     return { casing: '#065f46', line: '#059669' }
@@ -523,6 +650,7 @@ function syncNumberedPin(slotRef, map, point, number, color, label, offset, acti
  *   delivery?: { lng: number, lat: number } | null,
  *   jobRouteCoordinates?: number[][] | null,
  *   routeControls?: boolean,
+ *   controlsHost?: HTMLElement | null,
  *   className?: string,
  * }} props
  */
@@ -540,6 +668,7 @@ export default function TrackingDriverMap({
   delivery = null,
   jobRouteCoordinates = null,
   routeControls = false,
+  controlsHost = null,
   className = '',
 }) {
   const hostRef = useRef(null)
@@ -556,6 +685,9 @@ export default function TrackingDriverMap({
   const displayPosRef = useRef(/** @type {{ lng: number, lat: number } | null } */ (null))
   const headingRef = useRef(/** @type {number | null} */ (null))
   const followRef = useRef(!routeControls)
+  const aimRef = useRef(/** @type {{ lng: number, lat: number } | null } */ (null))
+  const aimKindRef = useRef(/** @type {'collection' | 'delivery'} */ ('collection'))
+  const pinsRef = useRef(/** @type {Array<{ lng: number, lat: number }>} */ ([]))
   const userInteractRef = useRef(false)
   const routeCoordsRef = useRef(routeCoordinates)
   const destRef = useRef(destination)
@@ -586,11 +718,31 @@ export default function TrackingDriverMap({
   const lineCoordinates = (Array.isArray(jobRouteCoordinates) && jobRouteCoordinates.length >= 2)
     ? jobRouteCoordinates
     : routeCoordinates
-  const jobLine = Array.isArray(jobRouteCoordinates) && jobRouteCoordinates.length >= 2
 
   routeCoordsRef.current = lineCoordinates
   destRef.current = destination
   followRef.current = camera === 'follow'
+  aimRef.current = stopKind === 'delivery' && deliveryPoint
+    ? deliveryPoint
+    : (collectionPoint || (destOk ? { lng: destLng, lat: destLat } : null))
+  aimKindRef.current = stopKind === 'delivery' && deliveryPoint ? 'delivery' : 'collection'
+  pinsRef.current = [collectionPoint, deliveryPoint].filter(Boolean)
+
+  const syncVan = (pos) => {
+    const marker = driverMarkerRef.current
+    if (!marker || !pos) return
+    const el = marker.getElement?.()
+    if (el) el._marker = marker
+    updateDriverMarker(
+      marker,
+      pos,
+      aimRef.current,
+      aimKindRef.current,
+      routeCoordsRef.current,
+      mapRef.current,
+      pinsRef.current,
+    )
+  }
 
   useEffect(() => {
     if (!token) {
@@ -746,10 +898,11 @@ export default function TrackingDriverMap({
           /* ignore */
         }
         const el = buildVanMarkerElement({ driverName: name, quoteRef: bookingRef, live })
-        driverMarkerRef.current = new mapboxgl.Marker({ element: el, anchor: 'bottom' })
+        driverMarkerRef.current = new mapboxgl.Marker({ element: el, anchor: 'center' })
           .setLngLat([target.lng, target.lat])
           .addTo(mapRef.current)
         displayPosRef.current = { ...target }
+        syncVan(target)
         if (Number.isFinite(headingNum)) {
           headingRef.current = headingNum
           setMarkerHeading(driverMarkerRef.current, headingNum)
@@ -776,6 +929,7 @@ export default function TrackingDriverMap({
         }
         driverMarkerRef.current.setLngLat([target.lng, target.lat])
         displayPosRef.current = { ...target }
+        syncVan(target)
         if (followRef.current) {
           try {
             mapRef.current.easeTo({
@@ -806,6 +960,7 @@ export default function TrackingDriverMap({
         displayPosRef.current = cur
         try {
           driverMarkerRef.current?.setLngLat([cur.lng, cur.lat])
+          syncVan(cur)
         } catch {
           /* ignore */
         }
@@ -845,10 +1000,6 @@ export default function TrackingDriverMap({
       const bothStops = Boolean(collectionPoint && deliveryPoint)
 
       if (bothStops) {
-        const colShift = pointOffset(collectionPoint, driver, [-84, -4], 200)
-        let delShift = pointOffset(deliveryPoint, collectionPoint, [40, 0], 80)
-        const nearVan = pointOffset(deliveryPoint, driver, [84, -4], 200)
-        if (nearVan[0] || nearVan[1]) delShift = nearVan
         syncNumberedPin(
           collectionMarkerRef,
           m,
@@ -856,7 +1007,7 @@ export default function TrackingDriverMap({
           1,
           COLLECTION_PIN,
           'Collection 1',
-          colShift,
+          [0, 0],
           stopKind !== 'delivery',
         )
         syncNumberedPin(
@@ -866,7 +1017,7 @@ export default function TrackingDriverMap({
           2,
           DELIVERY_PIN,
           'Delivery 2',
-          delShift,
+          [0, 0],
           stopKind === 'delivery',
         )
         try {
@@ -909,12 +1060,8 @@ export default function TrackingDriverMap({
       }
 
       try {
-        upsertRouteLine(
-          m,
-          lineCoordinates,
-          stopKind,
-          jobLine ? { casing: '#075985', line: '#0284c7' } : null,
-        )
+        upsertRouteLine(m, lineCoordinates, stopKind)
+        syncVan(driver)
       } catch (ex) {
         console.warn('[TrackingDriverMap] route update failed', ex)
       }
@@ -950,7 +1097,6 @@ export default function TrackingDriverMap({
     destLng,
     destLat,
     stopKind,
-    jobLine,
     lat,
     lng,
     routeControls,
@@ -982,7 +1128,7 @@ export default function TrackingDriverMap({
       try {
         map.easeTo({
           center: [lng, lat],
-          zoom: 15,
+          zoom: 16,
           duration: 500,
           essential: true,
         })
@@ -1020,37 +1166,44 @@ export default function TrackingDriverMap({
 
   const mapsUrl = `https://www.google.com/maps?q=${encodeURIComponent(`${lat},${lng}`)}`
 
+  const routeControlButtons = (
+    <>
+      <button
+        type="button"
+        className="smh-track-route"
+        data-active={camera === 'overview' ? '1' : '0'}
+        aria-pressed={camera === 'overview'}
+        onClick={viewFullRoute}
+      >
+        View full route
+      </button>
+      <button
+        type="button"
+        className="smh-track-follow"
+        data-active={camera === 'follow' ? '1' : '0'}
+        aria-pressed={camera === 'follow'}
+        onClick={enableFollow}
+      >
+        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <circle cx="12" cy="12" r="3" stroke="currentColor" strokeWidth="1.8" />
+          <path d="M12 3v3M12 18v3M3 12h3M18 12h3" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+        </svg>
+        {camera === 'follow' ? 'Following' : 'Follow driver'}
+      </button>
+    </>
+  )
+
   return (
     <div
       ref={wrapRef}
       className={`relative flex w-full flex-col overflow-hidden bg-slate-200 ${className || 'h-80'}`}
     >
-      {routeControls ? (
-        <div className="smh-track-controls">
-          <button
-            type="button"
-            className="smh-track-route"
-            data-active={camera === 'overview' ? '1' : '0'}
-            aria-pressed={camera === 'overview'}
-            onClick={viewFullRoute}
-          >
-            View full route
-          </button>
-          <button
-            type="button"
-            className="smh-track-follow"
-            data-active={camera === 'follow' ? '1' : '0'}
-            aria-pressed={camera === 'follow'}
-            onClick={enableFollow}
-          >
-            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-              <circle cx="12" cy="12" r="3" stroke="currentColor" strokeWidth="1.8" />
-              <path d="M12 3v3M12 18v3M3 12h3M18 12h3" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-            </svg>
-            {camera === 'follow' ? 'Following' : 'Follow driver'}
-          </button>
-        </div>
-      ) : null}
+      {routeControls && controlsHost
+        ? createPortal(
+          <div className="smh-track-controls-external">{routeControlButtons}</div>,
+          controlsHost,
+        )
+        : null}
       <div className="relative min-h-0 w-full flex-1">
         <div
           ref={hostRef}

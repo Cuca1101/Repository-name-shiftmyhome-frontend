@@ -39,6 +39,7 @@ const mainSections = [
     title: 'Sales',
     items: [
       { to: '/admin/new-phone-booking', label: 'New phone booking', end: false, icon: 'document' },
+      { to: '/admin/customers', label: 'Customers', end: false, icon: 'users' },
       { to: '/admin/quote-requests', label: 'Quote Requests', end: false, icon: 'inbox' },
       { to: '/admin/website-leads', label: 'Website Leads / Quote Funnel', end: false, icon: 'inbox' },
       { to: '/admin/customer-leads', label: 'Customer Leads', end: false, icon: 'inbox' },

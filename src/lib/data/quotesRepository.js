@@ -283,7 +283,7 @@ export function buildAdminPhoneBookingRow(form) {
   return {
     quote_ref: ref,
     full_name: (form.name || '').trim(),
-    email: (form.email || '').trim() || 'phone-booking@shiftmyhome.local',
+    email: (form.email || '').trim().toLowerCase() || 'phone-booking@shiftmyhome.local',
     phone: (form.phone || '').trim() || '00000000000',
     service: serviceLabel,
     service_type: serviceLabel,
@@ -346,17 +346,20 @@ export async function insertAdminPhoneBooking(form) {
 }
 
 export async function insertQuoteFromTemplateParams(templateParams, extras, rowOverrides = {}) {
-  if (!isSupabaseConfigured || !supabase) {
+  const db = isSupabasePublicConfigured && supabasePublic ? supabasePublic : supabase
+  if (!db || (!isSupabasePublicConfigured && !isSupabaseConfigured)) {
     const msg = 'Supabase is not configured (set VITE_SUPABASE_URL and key in .env).'
     throw new Error(msg)
   }
 
   const row = buildQuoteRowFromTemplateParams(templateParams, extras, rowOverrides)
-  const { data, error } = await supabase.from(QUOTES_TABLE).insert(row).select('id').single()
+  // Anon client: a signed-in customer or admin must not send their session, or the
+  // public quote insert is rejected by the admin-only authenticated policy.
+  const { error } = await db.from(QUOTES_TABLE).insert(row)
 
   if (import.meta.env.DEV && error) {
     // eslint-disable-next-line no-console
-    console.warn('[Supabase quotes insert]', { data, error })
+    console.warn('[Supabase quotes insert]', error)
   }
 
   if (error) {
@@ -365,5 +368,5 @@ export async function insertQuoteFromTemplateParams(templateParams, extras, rowO
       `Could not save your quote to the database: ${detail}. If columns are missing, run SQL migration 003_quotes_lead_fields.sql in the Supabase SQL editor.`,
     )
   }
-  return data
+  return { id: '' }
 }

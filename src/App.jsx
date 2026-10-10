@@ -14,6 +14,17 @@ import QuotePage from './pages/QuotePage'
 import QuoteResumePage from './pages/QuoteResumePage'
 import QuotePayRecoveryPage from './pages/QuotePayRecoveryPage'
 import JobTrackingPortalPage from './pages/JobTrackingPortalPage'
+import { PortalSessionProvider } from './components/customer-portal/PortalShell'
+import CustomerPortalLoginPage from './pages/CustomerPortalLoginPage'
+import CustomerPortalAuthPage from './pages/CustomerPortalAuthPage'
+import CustomerPortalBookingsPage from './pages/CustomerPortalBookingsPage'
+import CustomerPortalBookingPage from './pages/CustomerPortalBookingPage'
+import CustomerPortalEditPage from './pages/CustomerPortalEditPage'
+import CustomerPortalForgotPasswordPage from './pages/CustomerPortalForgotPasswordPage'
+import CustomerPortalResetPasswordPage from './pages/CustomerPortalResetPasswordPage'
+import CustomerPortalConfirmEmailPage from './pages/CustomerPortalConfirmEmailPage'
+import CustomerPortalAccountPage from './pages/CustomerPortalAccountPage'
+import CustomerPortalHelpPage from './pages/CustomerPortalHelpPage'
 import JobFeedbackPage from './pages/JobFeedbackPage'
 import JobTipPage from './pages/JobTipPage'
 import CoveragePage from './pages/CoveragePage'
@@ -50,6 +61,7 @@ import AllQuotesAdmin from './components/AllQuotesAdmin'
 import QuoteRequestLeadDetails from './components/QuoteRequestLeadDetails'
 import WebsiteLeadsAdmin from './components/WebsiteLeadsAdmin'
 import CustomerLeadsAdmin from './components/CustomerLeadsAdmin'
+import CustomersAdmin from './components/CustomersAdmin'
 import CustomerLeadDetailAdmin from './components/CustomerLeadDetailAdmin'
 import AdminAnalyticsPage from './pages/AdminAnalyticsPage'
 import AdminSessionsPage from './pages/AdminSessionsPage'
@@ -72,6 +84,14 @@ import { withTrailingSlashVariants } from './lib/normalizePublicPath'
 function RedirectLegacyQuoteDetail() {
   const { id } = useParams()
   return <Navigate to={`/admin/quote-requests/${id}`} replace />
+}
+
+function AdminCustomerPortalRedirect() {
+  const { id, bookingId } = useParams()
+  const target = bookingId
+    ? `/portal/bookings/${bookingId}?customer=${id}`
+    : `/portal/bookings?customer=${id}`
+  return <Navigate to={target} replace />
 }
 
 const servicePaths = withTrailingSlashVariants([
@@ -114,6 +134,18 @@ export default function App() {
           </PublicLayout>
         }
       />
+      <Route element={<PortalSessionProvider />}>
+      <Route path="/portal" element={<CustomerPortalLoginPage />} />
+      <Route path="/portal/auth" element={<CustomerPortalAuthPage />} />
+      <Route path="/portal/bookings" element={<CustomerPortalBookingsPage />} />
+      <Route path="/portal/bookings/:id" element={<CustomerPortalBookingPage />} />
+      <Route path="/portal/bookings/:id/edit" element={<CustomerPortalEditPage />} />
+      <Route path="/portal/account" element={<CustomerPortalAccountPage />} />
+      <Route path="/portal/help" element={<CustomerPortalHelpPage />} />
+      <Route path="/portal/forgot-password" element={<CustomerPortalForgotPasswordPage />} />
+      <Route path="/portal/reset-password" element={<CustomerPortalResetPasswordPage />} />
+      <Route path="/portal/confirm-email" element={<CustomerPortalConfirmEmailPage />} />
+      </Route>
       <Route
         path="/track/:token"
         element={
@@ -268,6 +300,10 @@ export default function App() {
         <Route path="quote-requests" element={<HomePageQuoteRequestsAdmin />} />
         <Route path="quote-requests/:id" element={<QuoteRequestLeadDetails />} />
         <Route path="website-leads" element={<WebsiteLeadsAdmin />} />
+        <Route path="customers" element={<CustomersAdmin />} />
+        <Route path="customers/:id/portal/:bookingId" element={<AdminCustomerPortalRedirect />} />
+        <Route path="customers/:id/portal" element={<AdminCustomerPortalRedirect />} />
+        <Route path="customers/:id" element={<AdminCustomerPortalRedirect />} />
         <Route path="customer-leads" element={<CustomerLeadsAdmin />} />
         <Route path="customer-leads/:id" element={<CustomerLeadDetailAdmin />} />
         <Route path="quotes/:id" element={<RedirectLegacyQuoteDetail />} />

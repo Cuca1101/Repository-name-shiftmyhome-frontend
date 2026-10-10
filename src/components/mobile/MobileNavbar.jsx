@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useLocation } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
 import Logo from '../Logo'
 import NavSloganBar from '../NavSloganBar'
 import HomeSectionLink from '../HomeSectionLink'
@@ -10,7 +10,7 @@ import { useWebsiteCms } from '../../context/WebsiteCmsContext'
 import { pathShowsNavSlogan } from '../../lib/quoteModalRoutes'
 
 const navItems = [
-  { sectionId: 'about', label: 'About' },
+  { sectionId: 'about', label: 'About us' },
   { sectionId: 'reviews', label: 'Reviews' },
   { sectionId: 'coverage', label: 'Coverage' },
   { sectionId: 'contact', label: 'Contact' },
@@ -36,7 +36,7 @@ export default function MobileNavbar({ showSlogan, onLogoClick } = {}) {
       <nav className="flex min-h-[56px] min-w-0 max-w-full items-center justify-between gap-2 px-3">
         <HomeSectionLink
           sectionId="home"
-          className="relative z-10 flex min-w-0 max-w-[min(82vw,16rem)] shrink items-center py-1"
+          className="relative z-0 flex shrink-0 items-center py-1 [&_img]:!h-8 [&_img]:!w-auto [&_img]:!max-w-[9.5rem] sm:[&_img]:!h-9 sm:[&_img]:!max-w-none"
           onNavigate={() => {
             closeMenu()
             if (onLogoClick) {
@@ -48,7 +48,36 @@ export default function MobileNavbar({ showSlogan, onLogoClick } = {}) {
           <Logo asImage variant="dark" compact="nav" className="max-w-full" src={navbar.logoUrl || undefined} />
         </HomeSectionLink>
 
+        <div className="hidden min-w-0 flex-1 items-center justify-center gap-3 overflow-x-auto px-2 min-[720px]:flex">
+          {navItems.map((item) => {
+            const className = 'shrink-0 whitespace-nowrap text-[13px] font-semibold text-white'
+            if (item.sectionId === 'coverage') {
+              return (
+                <CoverageLink key={item.sectionId} className={className} onNavigate={closeMenu}>
+                  {item.label}
+                </CoverageLink>
+              )
+            }
+            return (
+              <HomeSectionLink
+                key={item.sectionId}
+                sectionId={item.sectionId}
+                className={className}
+                onNavigate={closeMenu}
+              >
+                {item.label}
+              </HomeSectionLink>
+            )
+          })}
+        </div>
+
         <div className="flex shrink-0 items-center gap-1.5">
+          <Link
+            to="/portal"
+            className="relative z-20 inline-flex h-9 items-center whitespace-nowrap rounded-full bg-white px-3 text-[13px] font-bold text-navy"
+          >
+            My account
+          </Link>
           <a
             href={`tel:${phoneTel}`}
             className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-white/10 text-white ring-1 ring-white/15"
@@ -79,6 +108,39 @@ export default function MobileNavbar({ showSlogan, onLogoClick } = {}) {
           </button>
         </div>
       </nav>
+      <div className="flex gap-4 overflow-x-auto px-3 pb-2.5 min-[720px]:hidden">
+        {navItems.map((item) => {
+          const className = 'shrink-0 whitespace-nowrap py-1 text-[13px] font-semibold text-white'
+          if (item.sectionId === 'coverage') {
+            return (
+              <CoverageLink key={item.sectionId} className={className} onNavigate={closeMenu}>
+                {item.label}
+              </CoverageLink>
+            )
+          }
+          return (
+            <HomeSectionLink
+              key={item.sectionId}
+              sectionId={item.sectionId}
+              className={className}
+              onNavigate={closeMenu}
+            >
+              {item.label}
+            </HomeSectionLink>
+          )
+        })}
+      </div>
+      {pathname.startsWith('/track') ? (
+        <div className="border-t border-white/10 bg-white px-3">
+          <Link
+            to="/portal/bookings"
+            className="inline-flex min-h-11 items-center gap-1.5 text-sm font-bold text-sky-700"
+          >
+            <span aria-hidden="true">←</span>
+            Back to My account
+          </Link>
+        </div>
+      ) : null}
       {(showSlogan ?? pathShowsNavSlogan(pathname)) ? <NavSloganBar /> : null}
 
       {open ? (
@@ -111,6 +173,13 @@ export default function MobileNavbar({ showSlogan, onLogoClick } = {}) {
                 </HomeSectionLink>
               ),
             )}
+            <Link
+              to="/portal"
+              className="rounded-lg px-2 py-3 text-[15px] font-semibold text-white active:bg-white/10"
+              onClick={closeMenu}
+            >
+              My account
+            </Link>
             <QuoteNavCta
               className="btn-premium-primary mt-2 min-h-[48px] w-full text-sm"
               onNavigate={closeMenu}

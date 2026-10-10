@@ -735,6 +735,7 @@ export default function Step2Inventory({
           priceWithoutPromo={priceWithoutPromo}
           validationMessage={contactValidationMessage}
           flexibleContact={isAdminLayout}
+          lockSignedInEmail={!isAdminLayout}
         />
       ) : null}
     </>

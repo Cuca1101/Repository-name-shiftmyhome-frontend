@@ -484,7 +484,8 @@ Deno.serve(async (req) => {
   const booking_id = String(body.booking_id ?? '').trim()
   const quote_id = String(body.quote_id ?? '').trim()
   const quote_ref = String(body.quote_ref ?? '').trim()
-  const customer_email = String(body.customer_email ?? '').trim()
+  let customer_email = String(body.customer_email ?? '').trim().toLowerCase()
+  const portalAccessToken = String(body.portal_access_token ?? '').trim()
   const customer_name = String(body.customer_name ?? '').trim()
   const service_type = String(body.service_type ?? '').trim()
   const checkout_session_id = String(body.stripe_checkout_session_id ?? body.stripe_session_id ?? '').trim()
@@ -494,6 +495,18 @@ Deno.serve(async (req) => {
 
   if (!booking_id && !quote_id && !quote_ref) {
     return jsonResponse({ error: 'booking_id or quote_id or quote_ref is required' }, 400)
+  }
+  const supabase = createClient(supabaseUrl, serviceRole)
+  if (portalAccessToken) {
+    const { data: portalUser, error: portalUserError } = await supabase.auth.getUser(portalAccessToken)
+    const role = String(
+      portalUser?.user?.app_metadata?.role || portalUser?.user?.user_metadata?.role || '',
+    ).trim().toLowerCase()
+    const portalEmail = String(portalUser?.user?.email || '').trim().toLowerCase()
+    if (portalUserError || !portalEmail || role === 'admin' || role === 'driver') {
+      return jsonResponse({ error: 'Sign in again to add this booking to your account.' }, 401)
+    }
+    customer_email = portalEmail
   }
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(customer_email)) {
     return jsonResponse({ error: 'customer_email is invalid' }, 400)
@@ -514,8 +527,6 @@ Deno.serve(async (req) => {
   if (cleanLead && quote_ref && leadRef !== quote_ref) {
     return jsonResponse({ error: 'quote_ref must match quote_lead.quote_ref' }, 400)
   }
-
-  const supabase = createClient(supabaseUrl, serviceRole)
 
   let existing:
     | {
@@ -552,7 +563,7 @@ Deno.serve(async (req) => {
     return jsonResponse({ error: 'A deposit has already been paid for this quote.' }, 409)
   }
 
-  let merged: Record<string, unknown> | null = cleanLead ? { ...cleanLead } : null
+  let merged: Record<string, unknown> | null = cleanLead ? { ...cleanLead, email: customer_email } : null
   if (merged && existing?.payment_status === 'deposit_paid') {
     merged.status = existing.status ?? merged.status
     merged.payment_status = existing.payment_status

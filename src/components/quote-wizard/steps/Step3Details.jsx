@@ -1,4 +1,5 @@
 import { MapPin, Plus, User } from 'lucide-react'
+import { useAuthenticatedCustomerEmail } from '../../../lib/useAuthenticatedCustomerEmail'
 import { applyWizardPatch } from '../../../lib/wizardStateUpdate'
 import MobileStep3Details from '../MobileStep3Details'
 import {
@@ -26,6 +27,8 @@ export default function Step3Details({
   accordionLayout = false,
 }) {
   const isAdminLayout = layoutVariant === 'admin'
+  const signedInEmail = useAuthenticatedCustomerEmail()
+  const accountEmail = isAdminLayout ? '' : signedInEmail
   const contactConfirmed = isQuoteContactComplete(data)
   const addressesConfirmed = isQuoteAddressesConfirmed(data)
   const input =
@@ -48,6 +51,7 @@ export default function Step3Details({
         hideContactSection={hideContactSection}
         fieldErrors={fieldErrors}
         accordionLayout={accordionLayout}
+        accountEmail={accountEmail}
       />
 
       <div
@@ -84,9 +88,9 @@ export default function Step3Details({
       >
       {accordionLayout && hideContactSection ? (
         <div className="space-y-1.5 text-sm text-slate-800">
-          <p><span className="text-slate-500">Name · </span>{data.fullName || '?'}</p>
-          <p><span className="text-slate-500">Phone · </span>{data.phone || '?'}</p>
-          <p><span className="text-slate-500">Email · </span>{data.email || '?'}</p>
+          <p><span className="text-slate-500">Name ï¿½ </span>{data.fullName || '?'}</p>
+          <p><span className="text-slate-500">Phone ï¿½ </span>{data.phone || '?'}</p>
+          <p><span className="text-slate-500">Email ï¿½ </span>{data.email || '?'}</p>
           {typeof onGoToStep === 'function' ? (
             <button
               type="button"
@@ -144,8 +148,11 @@ export default function Step3Details({
                   required
                   type="email"
                   autoComplete="email"
-                  value={data.email}
-                  onChange={(e) => set('email', e.target.value)}
+                  readOnly={Boolean(accountEmail)}
+                  value={accountEmail || data.email}
+                  onChange={(e) => {
+                    if (!accountEmail) set('email', e.target.value)
+                  }}
                   className={input}
                 />
               </label>

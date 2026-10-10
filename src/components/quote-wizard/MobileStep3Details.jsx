@@ -81,6 +81,7 @@ export default function MobileStep3Details({
   hideContactSection = false,
   fieldErrors = {},
   accordionLayout = false,
+  accountEmail = '',
 }) {
   const input = quoteMobileInput
   const label = quoteMobileLabel
@@ -154,7 +155,7 @@ export default function MobileStep3Details({
         </div>
       )}
 
-      {/* PackageSelector temporarily hidden — re-enable when ready
+      {/* PackageSelector temporarily hidden ï¿½ re-enable when ready
       <div className={`${card} p-2.5 md:p-3`}>
         <PackageSelector
           value={data.packageTier || 'standard'}
@@ -172,9 +173,9 @@ export default function MobileStep3Details({
       >
       {accordionLayout && hideContactSection ? (
         <div className="space-y-2 text-sm text-slate-800">
-          <p><span className="text-slate-500">Name · </span>{data.fullName || '—'}</p>
-          <p><span className="text-slate-500">Phone · </span>{data.phone || '—'}</p>
-          <p><span className="text-slate-500">Email · </span>{data.email || '—'}</p>
+          <p><span className="text-slate-500">Name ï¿½ </span>{data.fullName || 'ï¿½'}</p>
+          <p><span className="text-slate-500">Phone ï¿½ </span>{data.phone || 'ï¿½'}</p>
+          <p><span className="text-slate-500">Email ï¿½ </span>{data.email || 'ï¿½'}</p>
           {typeof onGoToStep === 'function' ? (
             <button
               type="button"
@@ -224,8 +225,11 @@ export default function MobileStep3Details({
                 required
                 type="email"
                 autoComplete="email"
-                value={data.email}
-                onChange={(e) => set({ email: e.target.value })}
+                readOnly={Boolean(accountEmail)}
+                value={accountEmail || data.email}
+                onChange={(e) => {
+                  if (!accountEmail) set({ email: e.target.value })
+                }}
                 className={input}
               />
             </label>
@@ -394,7 +398,7 @@ export default function MobileStep3Details({
             value={data.heavyNotes}
             onChange={(e) => set({ heavyNotes: e.target.value })}
             className={`${input} mt-2`}
-            placeholder="e.g. valuable items, appliance disconnection, specific time notes…"
+            placeholder="e.g. valuable items, appliance disconnection, specific time notesï¿½"
           />
         </label>
       </div>

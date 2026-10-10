@@ -2,9 +2,9 @@ import {
   normalizeDailyJobSlots,
   normalizeWeekdayBestPriceDays,
   normalizeWeekdayBestPricePercent,
-} from './calendarDayPricing'
-import { getDefaultPricingSettings } from './defaultPricingSettings'
-import { resolveServicePackages } from './servicePackages'
+} from './calendarDayPricing.js'
+import { getDefaultPricingSettings } from './defaultPricingSettings.js'
+import { resolveServicePackages } from './servicePackages.js'
 import {
   copyWebsiteRatesToDriverAppExtraCharge,
   getDriverAppExtraChargeMode,
@@ -14,7 +14,7 @@ import {
   detectVolumeMultiplierSources,
   migrateLegacyVolumeMultiplierKeys,
   VOLUME_MULTIPLIER_SETTING_KEYS,
-} from './volumePricingMultiplier'
+} from './volumePricingMultiplier.js'
 
 const CORE_PRICING_KEYS = [
   'pricePerMile',

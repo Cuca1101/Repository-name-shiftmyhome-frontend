@@ -7,6 +7,7 @@ import {
 } from '../_shared/deliveryRetryPolicy.js'
 import { saveCustomerEmailArchive } from '../_shared/customerEmailArchive.ts'
 import { customerFirstName } from '../_shared/jobCustomerNotify.ts'
+import { buildPortalMagicUrl } from '../_shared/customerPortalMagicLink.ts'
 
 /**
  * Notify customer after admin Edit Booking save.
@@ -82,8 +83,9 @@ function buildBookingUpdatedEmail(params: {
   companyName: string
   logoUrl: string
   websiteUrl: string
+  portalUrl?: string
 }) {
-  const { firstName, quoteRef, changes, supportEmail, companyName, logoUrl, websiteUrl } = params
+  const { firstName, quoteRef, changes, supportEmail, companyName, logoUrl, websiteUrl, portalUrl } = params
   const subject = `[${companyName}] Your booking has been updated — ${quoteRef}`
 
   const changeRowsHtml = changes
@@ -134,6 +136,11 @@ function buildBookingUpdatedEmail(params: {
             <table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e2e8f0;border-radius:12px;overflow:hidden;border-collapse:separate;">
               ${changeRowsHtml}
             </table>
+            ${
+              portalUrl
+                ? `<p style="margin:18px 0 0;"><a href="${esc(portalUrl)}" style="display:inline-block;background:#0284c7;color:#ffffff;text-decoration:none;font-weight:700;padding:12px 18px;border-radius:10px;">View my booking</a></p>`
+                : ''
+            }
             <p style="margin:18px 0 0;font-size:14px;line-height:1.55;color:#475569;">
               If anything looks incorrect, reply to this email or contact us at
               <a href="mailto:${esc(supportEmail)}" style="color:#0284c7;font-weight:600;text-decoration:none;">${esc(supportEmail)}</a>.
@@ -162,6 +169,8 @@ function buildBookingUpdatedEmail(params: {
     '',
     changeRowsText,
     '',
+    portalUrl ? `View my booking: ${portalUrl}` : '',
+    portalUrl ? '' : '',
     `If anything looks incorrect, contact us at ${supportEmail}.`,
     '',
     companyName,
@@ -288,6 +297,14 @@ Deno.serve(async (req) => {
       String(quote.quote_ref || '').trim() ||
       '—'
 
+    let portalUrl = ''
+    try {
+      const portalLink = await buildPortalMagicUrl(supabase, email, `/portal/bookings/${quoteId}`)
+      if (portalLink.ok) portalUrl = portalLink.url
+    } catch (e) {
+      console.error('[notify-booking-updated] portal link skipped', e instanceof Error ? e.message : e)
+    }
+
     const rendered = buildBookingUpdatedEmail({
       firstName: customerFirstName(quote.full_name),
       quoteRef,
@@ -296,6 +313,7 @@ Deno.serve(async (req) => {
       companyName,
       logoUrl,
       websiteUrl,
+      portalUrl,
     })
 
     const send = await sendResendEmail({

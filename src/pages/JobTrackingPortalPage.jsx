@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
 import SeoHead from '../components/seo/SeoHead'
-import TrackingDriverMap from '../components/tracking/TrackingDriverMap'
+import LiveDriverMap from '../components/tracking/LiveDriverMap'
+import MoveTimeline from '../components/tracking/MoveTimeline'
 import { formatTimeUK, resolveTrackingMotion } from '../lib/driverMotionStatus'
 import { formatDateTimeUK, formatDateUK } from '../lib/formatDateDisplay'
 import {
   customerJobStatusLabel,
-  photoSectionForType,
+  groupJobPhotos,
   trackingClient,
 } from '../lib/jobCustomerTracking'
 import { resolveJobPhotoDisplayMeta } from '../lib/jobPhotoDisplayMeta'
@@ -22,7 +23,7 @@ import {
   resolveTrackingGpsState,
   trackingEtaAddress,
 } from '../lib/trackingDriverEta'
-import { resolveGpsStatusHeadline, resolveTrackingJobStage } from '../lib/trackingJobStage'
+import { resolveCustomerTrackingStage, resolveGpsStatusHeadline } from '../lib/trackingJobStage'
 
 const POLL_MS = 10000
 /** Poll faster while waiting for Start Job so the orange collection route appears quickly. */
@@ -249,32 +250,10 @@ export default function JobTrackingPortalPage() {
     trackingLive: data?.tracking_live,
     location: data?.location,
   })
-  // RPC may leave operational_status stale while quotes.status / completed_at is done.
-  const completed = Boolean(
-    data?.completed
-    || data?.completed_at
-    || /completed/i.test(String(data?.operational_status || ''))
-    || /completed/i.test(String(data?.status_raw || '')),
-  )
   const googleReviewHref = String(GOOGLE_LEAVE_REVIEW_URL || '').trim()
     || 'https://g.page/r/CWmwRUPz2dC7EAE/review'
-  const jobStage = useMemo(
-    () =>
-      completed
-        ? {
-            stage: 'completed',
-            badge: 'Completed',
-            etaKind: null,
-            placeLabel: null,
-            showLiveEta: false,
-            journeyActive: false,
-            arrivedMessage: null,
-            stageMessage: null,
-            waitingMessage: null,
-          }
-        : resolveTrackingJobStage(data?.operational_status, data?.status_raw),
-    [completed, data?.operational_status, data?.status_raw],
-  )
+  const jobStage = useMemo(() => resolveCustomerTrackingStage(data), [data])
+  const completed = jobStage.stage === 'completed'
 
   const pollMs = jobStage.stage === 'awaiting_departure' ? POLL_AWAITING_MS : POLL_MS
 
@@ -531,22 +510,16 @@ export default function JobTrackingPortalPage() {
     return []
   }, [data])
 
-  const photoGroups = useMemo(() => {
-    const groups = { pickup: [], loaded: [], delivery: [], damage: [], waiver: [], general: [] }
-    for (const p of media) {
-      const key = photoSectionForType(p.photo_type, p.stop_type)
-      if (!groups[key]) groups[key] = []
-      groups[key].push(p)
-    }
-    return groups
-  }, [media])
+  const photoGroups = useMemo(() => groupJobPhotos(media), [media])
 
   const statusLabel = customerJobStatusLabel(data?.operational_status || data?.status_raw)
 
   if (loading) {
     return (
-      <div className="mx-auto max-w-lg px-4 py-8">
-        <p className="py-10 text-center text-slate-600">Loading your booking…</p>
+      <div>
+        <div className="mx-auto max-w-lg px-4 py-8">
+          <p className="py-10 text-center text-slate-600">Loading your booking…</p>
+        </div>
       </div>
     )
   }
@@ -615,7 +588,8 @@ export default function JobTrackingPortalPage() {
       />
       <div className="min-h-screen overflow-x-hidden bg-[#eef3f8] pb-16">
         <header className="border-b border-slate-200/70 bg-white">
-          <div className="mx-auto flex max-w-[880px] flex-wrap items-start justify-between gap-3 px-4 py-5 sm:px-6 sm:py-6">
+          <div className="mx-auto max-w-[880px] px-4 py-5 sm:px-6 sm:py-6">
+            <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
               <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-sky-600">
                 ShiftMyHome
@@ -631,52 +605,41 @@ export default function JobTrackingPortalPage() {
               <IconTruck className="h-4 w-4 shrink-0 text-sky-700" />
               <span>{badgeText}</span>
             </div>
+            </div>
           </div>
         </header>
 
         <main className="mx-auto mt-4 flex min-w-0 max-w-[880px] flex-col gap-4 overflow-x-hidden px-4 sm:mt-5 sm:gap-5 sm:px-6">
+          <MoveTimeline token={token} completedAt={data.completed_at || null} />
           {!completed ? (
             <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-[0_2px_12px_rgba(15,23,42,0.06)] sm:p-5">
-              <h2 className="text-base font-bold text-slate-900 sm:text-lg">Live location</h2>
+              {showMap ? (
+                <LiveDriverMap
+                  latitude={mapLat}
+                  longitude={mapLng}
+                  heading={Number.isFinite(mapHeading) ? mapHeading : null}
+                  live={mapLive}
+                  driverName={data.driver?.full_name || ''}
+                  quoteRef={data.quote_ref || ''}
+                  pickupAddress={pickupAddress}
+                  deliveryAddress={deliveryAddress}
+                  destinationKind={
+                    jobStage.etaKind
+                    || destKind
+                    || (jobStage.stage === 'en_route_collection' ? 'collection' : null)
+                  }
+                  jobRoute={jobRoute}
+                  onRouteRetry={() => {
+                    jobRouteKeyRef.current = ''
+                    setJobRouteRetry((n) => n + 1)
+                  }}
+                />
+              ) : (
+                <h2 className="text-base font-bold text-slate-900 sm:text-lg">Live location</h2>
+              )}
 
               {showMap ? (
                 <div className="mt-3.5 space-y-3 sm:space-y-3.5">
-                  <div className="overflow-hidden rounded-xl border border-slate-200 bg-slate-200">
-                    <TrackingDriverMap
-                      latitude={mapLat}
-                      longitude={mapLng}
-                      heading={Number.isFinite(mapHeading) ? mapHeading : null}
-                      live={mapLive}
-                      driverName={data.driver?.full_name || ''}
-                      quoteRef={data.quote_ref || ''}
-                      routeControls
-                      collection={jobRoute?.collection || null}
-                      delivery={jobRoute?.delivery || null}
-                      jobRouteCoordinates={jobRoute?.coordinates || null}
-                      destinationKind={
-                        jobStage.etaKind
-                        || destKind
-                        || (jobStage.stage === 'en_route_collection' ? 'collection' : null)
-                      }
-                      className="h-[min(58dvh,22rem)] w-full max-w-full sm:h-[min(50dvh,26rem)] lg:h-[28rem]"
-                    />
-                    {jobRoute?.status === 'error' ? (
-                      <p className="border-t border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950">
-                        {jobRoute.message || 'Route could not be loaded. Try again.'}{' '}
-                        <button
-                          type="button"
-                          className="font-semibold underline"
-                          onClick={() => {
-                            jobRouteKeyRef.current = ''
-                            setJobRouteRetry((n) => n + 1)
-                          }}
-                        >
-                          Try again
-                        </button>
-                      </p>
-                    ) : null}
-                  </div>
-
                   {/* Waiting for Start Job — no ETA / no “travelling” claim */}
                   {jobStage.stage === 'awaiting_departure' ? (
                     <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3.5 sm:px-5">
@@ -846,11 +809,11 @@ export default function JobTrackingPortalPage() {
                   {showCollectionAddress && addressCardText ? (
                     <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3.5 sm:px-5">
                       <div className="flex items-start gap-3">
-                        <div className="mt-0.5 flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white text-red-600 shadow-sm ring-1 ring-red-100">
+                        <div className={`mt-0.5 flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white shadow-sm ring-1 ${destKind === 'delivery' ? 'text-[#059669] ring-[#059669]/30' : 'text-[#ea580c] ring-[#ea580c]/30'}`}>
                           <IconPin className="h-5 w-5" />
                         </div>
                         <div>
-                          <p className="text-[15px] font-bold text-slate-900 sm:text-base">
+                          <p className={`text-[15px] font-bold sm:text-base ${destKind === 'delivery' ? 'text-[#059669]' : 'text-[#ea580c]'}`}>
                             {addressCardTitle}
                           </p>
                           <p className="mt-0.5 text-sm leading-relaxed text-slate-600">{addressCardText}</p>
@@ -889,11 +852,11 @@ export default function JobTrackingPortalPage() {
                   {showCollectionAddress && addressCardText ? (
                     <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3.5 sm:px-5">
                       <div className="flex items-start gap-3">
-                        <div className="mt-0.5 flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white text-red-600 shadow-sm ring-1 ring-red-100">
+                        <div className={`mt-0.5 flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white shadow-sm ring-1 ${destKind === 'delivery' ? 'text-[#059669] ring-[#059669]/30' : 'text-[#ea580c] ring-[#ea580c]/30'}`}>
                           <IconPin className="h-5 w-5" />
                         </div>
                         <div>
-                          <p className="text-[15px] font-bold text-slate-900 sm:text-base">
+                          <p className={`text-[15px] font-bold sm:text-base ${destKind === 'delivery' ? 'text-[#059669]' : 'text-[#ea580c]'}`}>
                             {addressCardTitle}
                           </p>
                           <p className="mt-0.5 text-sm leading-relaxed text-slate-600">{addressCardText}</p>
@@ -970,7 +933,9 @@ export default function JobTrackingPortalPage() {
             ['pickup', 'Pickup photos'],
             ['loaded', 'Loaded vehicle photos'],
             ['delivery', 'Delivery photos'],
+            ['proof', 'Proof photos'],
             ['damage', 'Damage or issue photos'],
+            ['general', 'Photos'],
           ].map(([key, title]) =>
             photoGroups[key]?.length ? (
               <Section key={key} title={title}>

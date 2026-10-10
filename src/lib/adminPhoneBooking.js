@@ -240,7 +240,7 @@ export function buildAdminPhoneBookingQuoteRow({
 
   const templateParams = buildQuoteEmailTemplateParams({
     name: wizard.fullName,
-    email: String(wizard.email || '').trim() || 'phone-booking@shiftmyhome.local',
+    email: String(wizard.email || '').trim().toLowerCase() || 'phone-booking@shiftmyhome.local',
     phone: String(wizard.phone || '').trim() || '00000000000',
     service: serviceType,
     pickup: wizard.pickupAddress,

@@ -12,6 +12,8 @@ import { EMAILJS_TEMPLATE_ID_GUIDE, isEmailJsReady } from '../../emailjs.config'
 import { fetchPricingSettings } from '../../lib/data/pricingSettingsRepository'
 import { onPricingSettingsUpdated } from '../../lib/pricingSettingsEvents'
 import { consumeWelcomeBackFlag } from '../../lib/quoteRecoveryResume'
+import { authenticatedCustomerAccessToken, authenticatedCustomerEmail, getPortalContact } from '../../lib/customerPortalApi'
+import { portalContactPrefill } from '../../lib/customerPortalModel'
 
 /** Do not calculate pricing in UI components. Use shared pricing engine only. */
 import { createJobRequest } from '../../lib/data/jobsRepository'
@@ -174,6 +176,7 @@ export function QuoteWizardProvider({ children, serviceType: serviceTypeProp, al
   const [step, setStep] = useState(bootstrap.step)
   const [quoteRef, setQuoteRef] = useState(bootstrap.quoteRef)
   const [wizard, setWizard] = useState(bootstrap.wizard)
+  const accountPrefillRef = useRef(false)
   const [serviceType, setServiceType] = useState(bootstrap.serviceType)
   const [settings, setSettings] = useState(null)
   const [loadingSettings, setLoadingSettings] = useState(true)
@@ -196,6 +199,30 @@ export function QuoteWizardProvider({ children, serviceType: serviceTypeProp, al
   }, [])
 
   useEffect(() => () => clearStepTransitionTimer(), [clearStepTransitionTimer])
+
+  useEffect(() => {
+    if (bootstrap.isResumed || accountPrefillRef.current) return undefined
+    const params = new URLSearchParams(window.location.search)
+    const fromAccount = params.get('from') === 'account'
+    let cancelled = false
+    authenticatedCustomerEmail()
+      .then(async (accountEmail) => {
+        if (cancelled) return
+        if (!accountEmail && !fromAccount) return
+        const contact = fromAccount ? await getPortalContact().catch(() => null) : null
+        if (cancelled) return
+        accountPrefillRef.current = true
+        setWizard((current) => {
+          const next = contact ? portalContactPrefill(current, contact) : { ...current }
+          if (accountEmail) next.email = accountEmail
+          return next
+        })
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [bootstrap.isResumed])
 
   useEffect(() => {
     preloadStripeJs()
@@ -982,12 +1009,14 @@ export function QuoteWizardProvider({ children, serviceType: serviceTypeProp, al
         scheduleQuoteValidationScroll({ hint: QUOTE_ERROR_SCROLL_HINTS.payment })
         return
       }
-      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(wizard.email.trim())) {
+      const accountEmail = await authenticatedCustomerEmail()
+      const portalAccessToken = accountEmail ? await authenticatedCustomerAccessToken() : ''
+      const bookingEmailReady = accountEmail || wizard.email.trim().toLowerCase()
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(bookingEmailReady)) {
         setPayError('Please add a valid email on step 2 before paying.')
         scheduleQuoteValidationScroll({ hint: QUOTE_ERROR_SCROLL_HINTS.payment })
         return
       }
-
       let payload
       try {
         payload = buildQuotePayloadForSave()
@@ -1008,13 +1037,16 @@ export function QuoteWizardProvider({ children, serviceType: serviceTypeProp, al
       preloadStripeJs()
       try {
         const quote_lead = buildQuoteRowFromTemplateParams(payload.templateParams, payload.extras)
+        const bookingEmail = accountEmail || wizard.email.trim().toLowerCase()
+        quote_lead.email = bookingEmail
         quote_lead.estimated_total = breakdown.estimatedTotal
         const isReservation = paymentType === 'reservation'
         const reservationGbp = resolveDepositAmountGbp(settings)
         const chargeGbp = isReservation ? reservationGbp : breakdown.estimatedTotal
         const { clientSecret, paymentIntentId } = await createPaymentIntent({
           quote_ref: quoteRef,
-          customer_email: wizard.email.trim(),
+          customer_email: bookingEmail,
+          portal_access_token: portalAccessToken || undefined,
           customer_name: wizard.fullName.trim(),
           service_type: serviceType,
           amount: chargeGbp,

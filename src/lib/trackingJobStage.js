@@ -8,6 +8,39 @@ import { normalizeTrackingStatusKey } from './trackingDriverEta.js'
  * @typedef {'awaiting_departure' | 'en_route_collection' | 'arrived_collection' | 'collected' | 'en_route_delivery' | 'arrived_delivery' | 'completed' | 'cancelled' | 'pending'} TrackingJobStage
  */
 
+function statusKey(raw) {
+  return String(raw || '').trim().toLowerCase().replace(/[\s-]+/g, '_')
+}
+
+/**
+ * A finished job stays Completed even when an older journey status is still stored beside it.
+ * Pickup completed is a journey step, not a finished move.
+ * @param {Record<string, unknown> | null | undefined} tracking
+ */
+export function resolveCustomerTrackingStage(tracking) {
+  const completed = Boolean(
+    tracking?.completed
+    || tracking?.completed_at
+    || statusKey(tracking?.operational_status) === 'completed'
+    || statusKey(tracking?.status_raw) === 'completed'
+    || statusKey(tracking?.assignment_status) === 'completed',
+  )
+  if (completed) {
+    return {
+      stage: 'completed',
+      badge: 'Completed',
+      etaKind: null,
+      placeLabel: null,
+      showLiveEta: false,
+      journeyActive: false,
+      arrivedMessage: null,
+      stageMessage: null,
+      waitingMessage: null,
+    }
+  }
+  return resolveTrackingJobStage(tracking?.operational_status, tracking?.status_raw)
+}
+
 /**
  * @param {string | null | undefined} operationalStatus
  * @param {string | null | undefined} statusRaw

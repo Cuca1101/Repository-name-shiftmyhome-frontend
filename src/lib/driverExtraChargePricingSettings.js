@@ -1,7 +1,7 @@
 import {
   DRIVER_APP_EXTRA_CHARGE_KEYS,
   getDefaultDriverAppExtraChargePricing,
-} from './driverExtraChargePricingDefaults'
+} from './driverExtraChargePricingDefaults.js'
 
 /** @typedef {'website' | 'custom'} DriverAppExtraChargeMode */
 
