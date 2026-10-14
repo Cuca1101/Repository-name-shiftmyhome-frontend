@@ -1,6 +1,13 @@
-import { useLayoutEffect, useRef } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { QuoteWizardProvider, useQuoteWizard } from './QuoteWizardContext'
+import { QuoteWizardProvider, useQuoteWizard, initialWizardState, makeQuoteRef } from './QuoteWizardContext'
+import AdminPhoneBookingFinish from '../admin/AdminPhoneBookingFinish'
+import {
+  clearAdminPhoneBookingDraft,
+  loadAdminPhoneBookingDraft,
+  saveAdminPhoneBookingDraft,
+} from '../../lib/adminPhoneBookingDraftStorage'
+import { fetchAdminPhoneBookingForEdit } from '../../lib/adminPhoneBooking'
 import { SERVICE_TYPES } from '../../constants/serviceTypes'
 import { generateQuotePdf } from '../../utils/generateQuotePdf'
 import WizardProgress from './WizardProgress'
@@ -37,6 +44,7 @@ function QuoteWizardInner({
   titleTag = 'h1',
   titleId,
   showStep1Back = true,
+  adminPhoneBooking = null,
 }) {
   const sidebarAlignRef = useRef(null)
   const {
@@ -73,11 +81,97 @@ function QuoteWizardInner({
     handleSubmit,
     handlePay,
     uploadCustomerPhotosAfterPayment,
+    setQuoteRef,
+    setStep,
   } = useQuoteWizard()
+
+  const isAdmin = Boolean(adminPhoneBooking)
+  const editQuoteId = adminPhoneBooking?.editQuoteId || null
+  const [savedQuoteId, setSavedQuoteId] = useState(null)
+  const [editReady, setEditReady] = useState(!editQuoteId)
+  const [editError, setEditError] = useState('')
+  const [adminNotice, setAdminNotice] = useState('')
+  const [priceMode, setPriceMode] = useState(() => {
+    if (!isAdmin || editQuoteId) {
+      return { useCalculatedPrice: true, finalPriceOverride: '', overrideReason: '', adminNote: '' }
+    }
+    const draft = loadAdminPhoneBookingDraft()
+    return {
+      useCalculatedPrice: draft?.useCalculatedPrice !== false,
+      finalPriceOverride: draft?.finalPriceOverride || '',
+      overrideReason: draft?.overrideReason || '',
+      adminNote: draft?.adminNote || '',
+    }
+  })
 
   const isMobileLayout = useMobileQuoteLayout()
   const navigate = useNavigate()
   const serviceTypeOptions = allowServiceChange ? [...SERVICE_TYPES] : undefined
+
+  useEffect(() => {
+    if (!isAdmin || editQuoteId) return undefined
+    saveAdminPhoneBookingDraft({
+      step,
+      wizard,
+      serviceType,
+      quoteRef,
+      customQuoteRef: '',
+      useCalculatedPrice: priceMode.useCalculatedPrice,
+      finalPriceOverride: priceMode.finalPriceOverride,
+      overrideReason: priceMode.overrideReason,
+      adminNote: priceMode.adminNote,
+    })
+    return undefined
+  }, [isAdmin, editQuoteId, step, wizard, serviceType, quoteRef, priceMode])
+
+  useEffect(() => {
+    if (!editQuoteId) {
+      setEditReady(true)
+      return undefined
+    }
+    if (savedQuoteId === editQuoteId) {
+      setEditReady(true)
+      return undefined
+    }
+    let cancelled = false
+    setEditReady(false)
+    setEditError('')
+    fetchAdminPhoneBookingForEdit(editQuoteId)
+      .then((loaded) => {
+        if (cancelled || !loaded) return
+        setWizard(loaded.wizard)
+        setServiceType(loaded.serviceType || serviceType)
+        setQuoteRef(loaded.quoteRef || quoteRef)
+        setStep(loaded.step || 4)
+        setSavedQuoteId(loaded.id)
+        setPriceMode({
+          useCalculatedPrice: loaded.useCalculatedPrice !== false,
+          finalPriceOverride: loaded.finalPriceOverride || '',
+          overrideReason: loaded.overrideReason || '',
+          adminNote: loaded.adminNote || '',
+        })
+        setAdminNotice(`Editing ${loaded.quote_ref}. Same quote. Save changes does not send an email.`)
+        setEditReady(true)
+      })
+      .catch((err) => {
+        if (!cancelled) setEditError(err?.message || 'Could not load this quote.')
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [editQuoteId, savedQuoteId, setFeedback, setQuoteRef, setServiceType, setStep, setWizard])
+
+  function startNewAdminBooking() {
+    if (
+      !window.confirm(
+        savedQuoteId
+          ? 'Start a new empty phone booking? This quote stays saved.'
+          : 'Clear this form and start a new phone booking?',
+      )
+    ) return
+    clearAdminPhoneBookingDraft()
+    adminPhoneBooking?.onStartNew?.()
+  }
 
   useLayoutEffect(() => {
     const side = sidebarAlignRef.current
@@ -149,6 +243,7 @@ function QuoteWizardInner({
     promoCode: wizard.promoCode,
     priceWithoutPromo,
     crewRestrictions,
+    alwaysShowMobile: isAdmin,
     reviewSticky:
       step === 3
         ? {
@@ -160,6 +255,7 @@ function QuoteWizardInner({
             heavyItemCount,
             priceWithoutPromo,
             onContinueToPayment: next,
+            continueLabel: isAdmin ? 'Continue to send quote →' : 'Continue to payment →',
             placement: 'aboveReference',
           }
         : null,
@@ -200,13 +296,15 @@ function QuoteWizardInner({
             {quoteStepTransitionLoading && step === 2
               ? 'Finding your price…'
               : step === 3
-                ? 'Continue to payment →'
+                ? isAdmin
+                  ? 'Continue to send quote →'
+                  : 'Continue to payment →'
                 : step === 2
                   ? 'Get a quote'
                   : 'Continue →'}
           </button>
         </div>
-        <QuoteFlowHelp className="mt-4" />
+        {isAdmin ? null : <QuoteFlowHelp className="mt-4" />}
       </div>
     ) : pageChrome && step === 4 ? (
       <div className="mt-4">
@@ -218,7 +316,7 @@ function QuoteWizardInner({
           <span aria-hidden>←</span>
           Back
         </button>
-        <QuoteFlowHelp className="mt-4" />
+        {isAdmin ? null : <QuoteFlowHelp className="mt-4" />}
       </div>
     ) : step === 4 ? (
       <div className="mt-6 hidden border-t border-slate-200 pt-6 lg:flex lg:justify-start">
@@ -300,6 +398,7 @@ function QuoteWizardInner({
             pricingSettings={settings}
             breakdown={breakdown}
             priceWithoutPromo={priceWithoutPromo}
+            showCustomerIdentity={isAdmin}
             contactValidationMessage={
               step === 2 &&
               feedback.type === 'error' &&
@@ -336,7 +435,29 @@ function QuoteWizardInner({
           embedSummary={pageChrome}
         />
       )}
-      {step === 4 && (
+      {step === 4 && isAdmin && (
+        <AdminPhoneBookingFinish
+          savedQuoteId={savedQuoteId}
+          onSaved={(saved, { updated }) => {
+            setSavedQuoteId(saved.id)
+            setQuoteRef(saved.quote_ref)
+            clearAdminPhoneBookingDraft()
+            adminPhoneBooking?.onQuoteSaved?.(saved)
+            setAdminNotice(
+              updated
+                ? `Quote ${saved.quote_ref} updated. No email was sent.`
+                : `Quote ${saved.quote_ref} saved as a draft. No email was sent.`,
+            )
+            if (updated) adminPhoneBooking?.onBookingUpdated?.(saved)
+            else adminPhoneBooking?.onBookingCreated?.(saved)
+          }}
+          priceMode={priceMode}
+          onPriceModeChange={setPriceMode}
+          onNewBooking={startNewAdminBooking}
+          notice={adminNotice}
+        />
+      )}
+      {step === 4 && !isAdmin && (
         <Step4Review
           serviceType={serviceType}
           quoteRef={quoteRef}
@@ -430,8 +551,14 @@ function QuoteWizardInner({
           </div>
         )}
 
-        {loadingSettings ? (
-          <p className="text-center text-slate-600">Loading…</p>
+        {loadingSettings || (isAdmin && editQuoteId && !editReady) ? (
+          editError ? (
+            <p className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900" role="alert">
+              {editError}
+            </p>
+          ) : (
+            <p className="text-center text-slate-600">{editQuoteId ? 'Loading this quote…' : 'Loading…'}</p>
+          )
         ) : isMobileLayout ? (
           <div className="quote-wizard-mobile-stack block min-w-0 max-w-full space-y-1.5">
             <div
@@ -453,9 +580,9 @@ function QuoteWizardInner({
                     Your price is shown at the review step.
                   </p>
                   <div id="quote-wizard-top" className="mt-3">
-                    <WizardProgress step={step} variant="page" />
+                    <WizardProgress step={step} variant="page" step4ShortLabel={isAdmin ? 'Send' : undefined} />
                   </div>
-                  <p className="mb-2 mt-1 text-sm text-slate-500">{PAGE_STEP_LINE[step]}</p>
+                  <p className="mb-2 mt-1 text-sm text-slate-500">{isAdmin && step === 4 ? 'Step 4 of 4 · Price & send' : PAGE_STEP_LINE[step]}</p>
                   <div className="relative min-w-0">{stepPanelBody}</div>
                 </>
               ) : (
@@ -464,7 +591,18 @@ function QuoteWizardInner({
             </div>
             {step === 3 ? null : <MoveSummary {...summaryProps} />}
             {pageChrome ? (
-              stepNavButtons
+              <>
+                {stepNavButtons}
+                {isAdmin ? (
+                  <button
+                    type="button"
+                    onClick={startNewAdminBooking}
+                    className="mt-3 text-sm font-semibold text-slate-500 underline-offset-2 hover:text-slate-800 hover:underline"
+                  >
+                    New booking
+                  </button>
+                ) : null}
+              </>
             ) : (
               <MobileQuoteStickyActions
                 step={step}
@@ -477,7 +615,7 @@ function QuoteWizardInner({
           </div>
         ) : pageChrome ? (
           <div
-            className={`mx-auto grid w-full max-w-6xl items-start gap-4 ${
+            className={`quote-wizard-desktop-grid mx-auto grid w-full max-w-6xl items-start gap-4 ${
               step === 3
                 ? 'lg:grid-cols-[minmax(0,1fr)_minmax(260px,32%)] lg:gap-6'
                 : 'lg:grid-cols-[minmax(0,1fr)_minmax(300px,min(100%,380px))] lg:gap-6'
@@ -498,13 +636,13 @@ function QuoteWizardInner({
                 Your price is shown at the review step.
               </p>
               <div id="quote-wizard-top" className="mt-4">
-                <WizardProgress step={step} variant="page" />
+                <WizardProgress step={step} variant="page" step4ShortLabel={isAdmin ? 'Send' : undefined} />
               </div>
-              <p className="mb-3 text-sm text-slate-500">{PAGE_STEP_LINE[step]}</p>
+              <p className="mb-3 text-sm text-slate-500">{isAdmin && step === 4 ? 'Step 4 of 4 · Price & send' : PAGE_STEP_LINE[step]}</p>
               <div className="relative min-w-0">{stepPanelBody}</div>
             </div>
             {step === 3 ? (
-              <div className="hidden min-w-0 lg:col-start-2 lg:row-start-1 lg:row-span-2 lg:block">
+              <div className="quote-wizard-sidebar hidden min-w-0 lg:col-start-2 lg:row-start-1 lg:row-span-2 lg:block">
                 <MoveSummary
                   {...summaryProps}
                   afterMap={
@@ -525,11 +663,22 @@ function QuoteWizardInner({
                 />
               </div>
             ) : (
-              <div ref={sidebarAlignRef} className="lg:col-start-2 lg:row-start-1 lg:row-span-2">
+              <div ref={sidebarAlignRef} className="quote-wizard-sidebar lg:col-start-2 lg:row-start-1 lg:row-span-2">
                 <MoveSummary {...summaryProps} />
               </div>
             )}
-            <div className="lg:col-start-1 lg:row-start-2">{stepNavButtons}</div>
+            <div className="quote-wizard-nav lg:col-start-1 lg:row-start-2">
+              {stepNavButtons}
+              {isAdmin ? (
+                <button
+                  type="button"
+                  onClick={startNewAdminBooking}
+                  className="mt-3 text-sm font-semibold text-slate-500 underline-offset-2 hover:text-slate-800 hover:underline"
+                >
+                  New booking
+                </button>
+              ) : null}
+            </div>
           </div>
         ) : (
           <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(260px,min(100%,340px))] lg:gap-6">
@@ -573,7 +722,17 @@ function QuoteWizardInner({
 }
 
 /**
- * @param {{ serviceType: string, allowServiceChange?: boolean, servicePreSelected?: boolean, compact?: boolean, pageChrome?: boolean, titleTag?: 'h1' | 'h2', titleId?: string, showStep1Back?: boolean }} props
+ * @param {{
+ *   serviceType: string,
+ *   allowServiceChange?: boolean,
+ *   servicePreSelected?: boolean,
+ *   compact?: boolean,
+ *   pageChrome?: boolean,
+ *   titleTag?: 'h1' | 'h2',
+ *   titleId?: string,
+ *   showStep1Back?: boolean,
+ *   adminPhoneBooking?: { editQuoteId?: string | null, onBookingCreated?: Function, onBookingUpdated?: Function } | null,
+ * }} props
  */
 export default function QuoteWizard({
   serviceType,
@@ -584,9 +743,15 @@ export default function QuoteWizard({
   titleTag = 'h1',
   titleId,
   showStep1Back = true,
+  adminPhoneBooking = null,
 }) {
   return (
-    <QuoteWizardProvider serviceType={serviceType} allowServiceChange={allowServiceChange}>
+    <QuoteWizardProvider
+      serviceType={serviceType}
+      allowServiceChange={allowServiceChange}
+      mode={adminPhoneBooking ? 'admin' : 'customer'}
+      adminEditQuoteId={adminPhoneBooking?.editQuoteId || null}
+    >
       <QuoteWizardInner
         compact={compact}
         servicePreSelected={servicePreSelected}
@@ -594,6 +759,7 @@ export default function QuoteWizard({
         titleTag={titleTag}
         titleId={titleId}
         showStep1Back={showStep1Back}
+        adminPhoneBooking={adminPhoneBooking}
       />
     </QuoteWizardProvider>
   )

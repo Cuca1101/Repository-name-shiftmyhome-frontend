@@ -1,8 +1,8 @@
 import { initialWizardState } from './quoteWizardDefaults'
 import { hydrateWizardFromDraft } from './quoteDraftStorage'
 
-const SNAPSHOT_START = '---SMH_PHONE_BOOKING_WIZARD_JSON---'
-const SNAPSHOT_END = '---END_SMH_PHONE_BOOKING_WIZARD_JSON---'
+export const SNAPSHOT_START = '---SMH_PHONE_BOOKING_WIZARD_JSON---'
+export const SNAPSHOT_END = '---END_SMH_PHONE_BOOKING_WIZARD_JSON---'
 
 /**
  * @param {Record<string, unknown>} wizard

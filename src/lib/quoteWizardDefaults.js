@@ -78,6 +78,8 @@ export function initialWizardState() {
     deliveryContactPhone: '',
     pickupFlatDetails: '',
     deliveryFlatDetails: '',
+    pickupApartment: '',
+    deliveryApartment: '',
     pickupReviewStamp: '',
     deliveryReviewStamp: '',
     promoCode: '',

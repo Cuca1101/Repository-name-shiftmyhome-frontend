@@ -2,6 +2,7 @@ import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { MIN_MANUAL_ADDRESS_LENGTH } from '../../lib/addressConfirmation'
 import {
+  ADDRESS_SEARCH_PAUSE_MS,
   GOOGLE_ADDRESS_MIN_QUERY,
   addressPlacePatch,
   createAddressSessionToken,
@@ -9,7 +10,7 @@ import {
   findUkAddressByText,
   hasGoogleMapsKey,
   placeFromPrediction,
-  suggestUkAddresses,
+  suggestUkPlaces,
 } from '../../lib/googlePlaces'
 import { applyWizardPatch } from '../../lib/wizardStateUpdate'
 import { useFloatingPanelBelow } from './useFloatingPanelBelow'
@@ -20,7 +21,7 @@ const inputClass =
 const mobileCardInputClass =
   'box-border min-h-11 w-full min-w-0 max-w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-base leading-snug text-slate-900 shadow-sm outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/25'
 
-const SEARCH_DEBOUNCE_MS = 300
+const SEARCH_DEBOUNCE_MS = ADDRESS_SEARCH_PAUSE_MS
 
 const mobileSuggestionRow =
   'flex min-h-[56px] w-full min-w-0 items-center gap-3 border-b border-slate-100 px-4 py-3 text-left text-base text-slate-900 transition last:border-b-0 active:bg-brand-50'
@@ -112,6 +113,7 @@ export default function MapboxAddressField({
   latestRef.current = { address, lng, lat }
   const sessionRef = useRef(null)
   const requestRef = useRef(0)
+  const lastQueryRef = useRef('')
   const [open, setOpen] = useState(false)
   const [suggestions, setSuggestions] = useState([])
   const [searching, setSearching] = useState(false)
@@ -142,6 +144,7 @@ export default function MapboxAddressField({
   }, [])
 
   const handleInputChange = (e) => {
+    lastQueryRef.current = ''
     const v = e.target.value
     const patch = {
       [addressKey]: v,
@@ -235,7 +238,12 @@ export default function MapboxAddressField({
     if (!hasGoogleMapsKey() || query.length < GOOGLE_ADDRESS_MIN_QUERY) {
       setSuggestions([])
       setSearching(false)
+      lastQueryRef.current = ''
       if (query.length < GOOGLE_ADDRESS_MIN_QUERY) setOpen(false)
+      return undefined
+    }
+    if (query === lastQueryRef.current) {
+      setSearching(false)
       return undefined
     }
 
@@ -253,8 +261,9 @@ export default function MapboxAddressField({
       try {
         const token = await ensureSession()
         if (requestRef.current !== requestId || !rootRef.current) return
-        const results = await suggestUkAddresses(query, token)
+        const results = await suggestUkPlaces(query, token)
         if (requestRef.current !== requestId || !rootRef.current) return
+        lastQueryRef.current = query
         setSuggestions(results)
         setOpen(true)
         setSearchNote(results.length === 0 ? 'No matching addresses. You can keep what you typed.' : '')

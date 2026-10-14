@@ -11,15 +11,15 @@ import {
   phoneQuoteFinalTotal,
   phoneQuotePaymentOptions,
 } from '../_shared/phoneQuotePaymentRules.ts'
-import { arrivalText, buildPhoneQuoteEmail, inventoryRows } from '../_shared/phoneQuoteEmail.ts'
+import { arrivalText, buildPhoneQuoteEmail, inventoryRows, resolvePhoneQuoteLogoUrl } from '../_shared/phoneQuoteEmail.ts'
 
 /**
  * Phone quotes created in Admin → New phone booking.
  *
  * Public (token):  { action: 'view', token }                       → quote summary + payment options
  *                  { action: 'create_payment', token, payment_type } → Stripe PaymentIntent client_secret
- * Admin (JWT):     { action: 'preview', quoteId }                   → email subject + html, nothing sent
- *                  { action: 'send', quoteId }                      → sends the quote email
+ * Admin (JWT):     { action: 'preview', quoteId, payment_type? }    → email subject + html, nothing sent
+ *                  { action: 'send', quoteId, payment_type? }       → sends the deposit or full-payment link
  */
 
 const corsHeaders = {
@@ -57,8 +57,10 @@ function isClosed(q: QuoteRow) {
   return Boolean(q.cancelled_at) || st === 'cancelled' || op === 'cancelled' || Boolean(q.completed_at) || op === 'completed'
 }
 
-function payUrl(token: string) {
-  return `${siteBaseUrl()}/quote/view/${encodeURIComponent(token)}`
+function payUrl(token: string, paymentType = '') {
+  const base = `${siteBaseUrl()}/quote/view/${encodeURIComponent(token)}`
+  if (paymentType === 'deposit' || paymentType === 'full') return `${base}?pay=${paymentType}`
+  return base
 }
 
 function paymentOptionsFor(q: QuoteRow) {
@@ -224,11 +226,23 @@ Deno.serve(async (req) => {
     token = String(again?.quote_pay_token || token)
   }
 
+  const requested = body.payment_type === 'deposit' || body.payment_type === 'full' ? body.payment_type : ''
+  const opts = paymentOptionsFor(q)
+  if (requested === 'deposit' && !opts.depositAllowed) {
+    return jsonResponse({
+      ok: false,
+      error: 'deposit_not_available',
+      message: 'The £50 deposit link is not available for this move date or total. Send the full payment link instead.',
+    }, 409)
+  }
+  const site = siteBaseUrl()
+  const logoUrl = await resolvePhoneQuoteLogoUrl(site, Deno.env.get('COMPANY_LOGO_URL') || '')
   const email = buildPhoneQuoteEmail(q, {
-    link: payUrl(token),
-    site: siteBaseUrl(),
-    logoUrl: Deno.env.get('COMPANY_LOGO_URL') || '',
+    link: payUrl(token, requested),
+    site,
+    logoUrl,
     supportEmail: Deno.env.get('COMPANY_SUPPORT_EMAIL') || '',
+    paymentChoice: requested,
   })
   const to = String(q.email || '').trim().toLowerCase()
 
@@ -239,7 +253,6 @@ Deno.serve(async (req) => {
   if (!to || !to.includes('@') || to.endsWith('@shiftmyhome.local')) {
     return jsonResponse({ ok: false, error: 'missing_customer_email' }, 409)
   }
-  const opts = paymentOptionsFor(q)
   if (opts.alreadyPaid) return jsonResponse({ ok: false, error: 'already_paid' }, 409)
 
   const sentCount = Number(q.quote_sent_count) || 0

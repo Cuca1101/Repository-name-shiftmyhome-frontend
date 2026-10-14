@@ -1,13 +1,37 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
-import AdminPhoneBookingForm from './admin/AdminPhoneBookingForm'
+import QuoteWizard from './quote-wizard/QuoteWizard'
 import AdminPhoneBookingPendingList from './admin/AdminPhoneBookingPendingList'
+import { SERVICE_TYPES } from '../constants/serviceTypes'
 
 export default function PhoneBookingAdmin() {
-  const [searchParams] = useSearchParams()
+  const [searchParams, setSearchParams] = useSearchParams()
   const editQuoteId = searchParams.get('edit')
+  const heldQuoteId = useRef(editQuoteId || '')
+  const [wizardSession, setWizardSession] = useState(editQuoteId || 'new')
   const [pendingRefreshKey, setPendingRefreshKey] = useState(0)
   const [createdBanner, setCreatedBanner] = useState('')
+
+  useEffect(() => {
+    const id = searchParams.get('edit') || ''
+    if (!id || id === heldQuoteId.current) return
+    heldQuoteId.current = id
+    setWizardSession(id)
+  }, [searchParams])
+
+  function rememberQuote(saved) {
+    heldQuoteId.current = saved.id
+    const next = new URLSearchParams(searchParams)
+    next.set('edit', saved.id)
+    setSearchParams(next, { replace: true })
+  }
+
+  function startFreshWizard() {
+    heldQuoteId.current = ''
+    setSearchParams({}, { replace: true })
+    setWizardSession(`new-${Date.now()}`)
+    setCreatedBanner('')
+  }
 
   function handleBookingSaved(saved, { updated = false } = {}) {
     setCreatedBanner(
@@ -50,12 +74,23 @@ export default function PhoneBookingAdmin() {
         />
       </div>
 
-      <AdminPhoneBookingForm
-        key={editQuoteId || 'new'}
-        editQuoteId={editQuoteId}
-        onBookingCreated={(saved) => handleBookingSaved(saved, { updated: false })}
-        onBookingUpdated={(saved) => handleBookingSaved(saved, { updated: true })}
-      />
+      <div className="admin-phone-quote quote-page-shell quote-flow-layout min-w-0 rounded-2xl bg-[#e7eef6] px-3 py-3 sm:px-4 sm:py-5">
+        <QuoteWizard
+          key={wizardSession}
+          serviceType={SERVICE_TYPES[0]}
+          allowServiceChange
+          pageChrome
+          titleTag="h2"
+          showStep1Back={false}
+          adminPhoneBooking={{
+            editQuoteId: editQuoteId || heldQuoteId.current || null,
+            onQuoteSaved: rememberQuote,
+            onStartNew: startFreshWizard,
+            onBookingCreated: (saved) => handleBookingSaved(saved, { updated: false }),
+            onBookingUpdated: (saved) => handleBookingSaved(saved, { updated: true }),
+          }}
+        />
+      </div>
     </div>
   )
 }

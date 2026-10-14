@@ -8,7 +8,7 @@ import {
 import { buildCustomerSentEmailPreview } from '../../lib/customerEmailPreview'
 import { fetchJobCustomerNotifications, fetchJobTrackingTokenRow } from '../../lib/jobCustomerTracking'
 import { isSupabaseConfigured, supabase } from '../../lib/supabase'
-import RecoveryEmailPreviewFrame from '../admin/RecoveryEmailPreviewFrame'
+import EmailPreviewDialog from '../admin/EmailPreviewDialog'
 
 const STATUS_TONE = {
   delivered: 'bg-emerald-50 text-emerald-800 ring-emerald-200',
@@ -328,46 +328,23 @@ export default function CustomerEmailsSection({ quote, forceOpen = false, childr
       ) : null}
 
       {previewRow ? (
-        <div
-          className="fixed inset-0 z-50 flex items-end justify-center bg-slate-900/50 sm:items-center sm:p-4"
-          onClick={() => setPreviewRow(null)}
-        >
-          <div
-            role="dialog"
-            aria-modal="true"
-            aria-label={`Email preview: ${previewRow.subject}`}
-            className="flex max-h-[92vh] w-full max-w-3xl flex-col overflow-hidden rounded-t-2xl bg-white shadow-xl sm:rounded-2xl"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <div className="flex items-start justify-between gap-3 border-b border-slate-200 px-4 py-3">
-              <div className="min-w-0">
-                <p className="font-semibold text-slate-900">{previewRow.subject}</p>
-                <p className="mt-0.5 text-xs text-slate-600">
-                  {previewRow.recipient || '—'}
-                  {' · '}
-                  {previewRow.sentAt ? formatDateTimeUK(previewRow.sentAt) : '—'}
-                  {' · '}
-                  {providerStatusLabel(previewRow.status)}
-                </p>
-                {!previewRow.hasSnapshot ? (
-                  <p className="mt-1 text-xs text-amber-800">
-                    The sent copy of this email was not saved. This view is rebuilt from the booking details.
-                  </p>
-                ) : null}
-              </div>
-              <button
-                type="button"
-                onClick={() => setPreviewRow(null)}
-                className="shrink-0 rounded-lg border border-slate-200 px-3 py-1.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
-              >
-                Close
-              </button>
-            </div>
-            <div className="min-h-0 flex-1 overflow-auto">
-              <RecoveryEmailPreviewFrame html={previewHtmlFor(previewRow)} />
-            </div>
-          </div>
-        </div>
+        <EmailPreviewDialog
+          kicker={
+            previewRow.hasSnapshot
+              ? `Email sent ${previewRow.sentAt ? formatDateTimeUK(previewRow.sentAt) : ''} — original copy`
+              : 'Rebuilt preview — original copy was not saved'
+          }
+          subject={previewRow.subject}
+          to={previewRow.recipient || ''}
+          html={previewRow.hasSnapshot ? previewRow.html : previewHtmlFor(previewRow)}
+          missingMessage={
+            previewRow.hasSnapshot && !String(previewRow.html || '').trim()
+              ? 'The original email was not stored, so it cannot be shown.'
+              : ''
+          }
+          repairLogo={!previewRow.hasSnapshot}
+          onClose={() => setPreviewRow(null)}
+        />
       ) : null}
     </section>
   )

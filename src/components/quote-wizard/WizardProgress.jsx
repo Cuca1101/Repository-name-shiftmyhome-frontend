@@ -12,11 +12,16 @@ const SHORT_LABELS = {
   4: 'Pay',
 }
 
-export default function WizardProgress({ step, variant = 'default' }) {
+export default function WizardProgress({ step, variant = 'default', step4ShortLabel }) {
+  const shortLabels = step4ShortLabel ? { ...SHORT_LABELS, 4: step4ShortLabel } : SHORT_LABELS
+  const steps = step4ShortLabel
+    ? STEPS.map((item) => (item.n === 4 ? { ...item, label: step4ShortLabel } : item))
+    : STEPS
+
   if (variant === 'page') {
     return (
       <ol className="quote-page-steps mb-2 flex w-full items-center">
-        {STEPS.map((s, index) => {
+        {steps.map((s, index) => {
           const current = step === s.n
           const done = step > s.n
           return (
@@ -34,7 +39,7 @@ export default function WizardProgress({ step, variant = 'default' }) {
                     current ? 'text-slate-900' : done ? 'text-blue-700' : 'text-slate-400'
                   }`}
                 >
-                  {SHORT_LABELS[s.n]}
+                  {shortLabels[s.n]}
                 </span>
               </span>
               {index < STEPS.length - 1 ? (
@@ -58,7 +63,7 @@ export default function WizardProgress({ step, variant = 'default' }) {
         />
       </div>
       <ol className="grid grid-cols-4 gap-0.5 text-[0.5625rem] font-semibold leading-tight text-slate-500 md:gap-2 md:text-sm">
-        {STEPS.map((s) => (
+        {steps.map((s) => (
           <li
             key={s.n}
             className={`flex min-w-0 flex-row items-center justify-center gap-0.5 text-center xxs:gap-1 sm:gap-2 ${

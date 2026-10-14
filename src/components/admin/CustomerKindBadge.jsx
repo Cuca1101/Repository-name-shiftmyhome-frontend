@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { formatDateUK } from '../../lib/formatDateDisplay'
+import { phoneMatchKey, resolvePhoneBookingCustomerStatus, usableCustomerEmail } from '../../lib/phoneBookingCustomerStatus'
 import { supabase } from '../../lib/supabase'
 
 const LABEL = {
@@ -72,5 +73,98 @@ export function CustomerIdentitySummary({ email, kind = '', previewNext = false,
         {previewNext && !info.known ? ' · first booking for this email' : ''}
       </p>
     </div>
+  )
+}
+
+export function CustomerBookingStatusView({ status = null, checking = false, ready = true }) {
+  if (!ready) {
+    return (
+      <p className="mt-2 text-sm text-slate-500">
+        Enter an email or phone number to see if this is a new or returning customer.
+      </p>
+    )
+  }
+  if (checking && !status) {
+    return <p className="mt-2 text-sm text-slate-500">Checking previous bookings…</p>
+  }
+  if (status?.error) {
+    return (
+      <p className="mt-2 text-sm text-slate-500">
+        Could not check whether this customer has booked before.
+      </p>
+    )
+  }
+  if (!status?.kind) return null
+  const count = Number(status.count) || 0
+  const first = status.firstBookingAt ? formatDateUK(status.firstBookingAt) : ''
+
+  return (
+    <div className="mt-2 flex flex-wrap items-center gap-2">
+      <CustomerKindBadge kind={status.kind} />
+      <p className="text-sm text-slate-600">
+        {count > 0
+          ? `${count} previous ${count === 1 ? 'booking' : 'bookings'}${first ? ` · first ${first}` : ''}${status.detail ? ` · ${status.detail}` : ''}`
+          : status.detail}
+      </p>
+    </div>
+  )
+}
+
+export function PhoneBookingCustomerStatus({ email = '', phone = '' }) {
+  const [state, setState] = useState({ status: null, checking: false })
+  const emailKey = usableCustomerEmail(email)
+  const phoneKey = phoneMatchKey(phone)
+
+  useEffect(() => {
+    if (!emailKey && !phoneKey) {
+      setState({ status: null, checking: false })
+      return undefined
+    }
+    let cancelled = false
+    setState((current) => ({ ...current, checking: true }))
+    const timer = setTimeout(() => {
+      const identityPromise = emailKey
+        ? supabase?.rpc('admin_customer_identity', { p_email: emailKey })
+        : Promise.resolve({ data: null })
+      const phonePromise = phoneKey
+        ? supabase?.rpc('admin_customer_search', { p_query: phoneKey })
+        : Promise.resolve({ data: null })
+      Promise.all([identityPromise, phonePromise])
+        .then(([identityResult, phoneResult]) => {
+          if (cancelled) return
+          const identity = identityResult?.data
+          const customers = phoneResult?.data?.ok && Array.isArray(phoneResult.data.customers)
+            ? phoneResult.data.customers
+            : []
+          const failed = (emailKey && identity && identity.ok === false)
+            || (phoneKey && phoneResult?.data && phoneResult.data.ok === false)
+          setState({
+            checking: false,
+            status: failed
+              ? { error: true }
+              : resolvePhoneBookingCustomerStatus({
+                identity: identity?.ok ? identity : null,
+                customers,
+                email: emailKey,
+                phone: phoneKey,
+              }),
+          })
+        })
+        .catch(() => {
+          if (!cancelled) setState({ checking: false, status: { error: true } })
+        })
+    }, 300)
+    return () => {
+      cancelled = true
+      clearTimeout(timer)
+    }
+  }, [emailKey, phoneKey])
+
+  return (
+    <CustomerBookingStatusView
+      ready={Boolean(emailKey || phoneKey)}
+      checking={state.checking}
+      status={state.status}
+    />
   )
 }

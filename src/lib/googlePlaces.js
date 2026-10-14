@@ -4,6 +4,7 @@
  */
 
 const MIN_QUERY_LENGTH = 3
+export const ADDRESS_SEARCH_PAUSE_MS = 400
 
 /** Scotland bounds. Bias only — addresses elsewhere in the UK can still be returned. */
 const SCOTLAND_BIAS = {
@@ -163,6 +164,16 @@ export async function suggestUkAddresses(input, sessionToken) {
 function isPostalCodeOnly(item) {
   const types = item.prediction?.types || []
   return types.includes('postal_code') && !types.some((type) => type === 'route' || ADDRESS_RESULT_TYPES.includes(type))
+}
+
+/**
+ * UK suggestions for a postcode, street, or full address.
+ * One Autocomplete session token covers every keystroke until a place is selected.
+ */
+export async function suggestUkPlaces(input, sessionToken) {
+  const query = String(input || '').trim()
+  if (query.length < MIN_QUERY_LENGTH || !sessionToken) return []
+  return fetchAddressSuggestions(query, sessionToken)
 }
 
 /** Street matches, including ones with no door number. The form asks for that number. */

@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react'
+import { PUBLIC_EMAIL_LOGO_URL } from '../../lib/emailLogoUrl'
 
 /**
  * Admin-only email preview. Links must never navigate the preview iframe
@@ -7,8 +8,14 @@ import { useEffect, useRef } from 'react'
  * Open links via a parent-document <a target="_blank"> click — not window.open.
  * window.open from a parent handler after an iframe click often loses user
  * activation and is blocked silently (links appear to do nothing).
+ *
+ * @param {{ html: string, className?: string, repairLogo?: boolean }} props
  */
-export default function RecoveryEmailPreviewFrame({ html }) {
+export default function RecoveryEmailPreviewFrame({
+  html,
+  className = 'h-[480px] w-full bg-white',
+  repairLogo = false,
+}) {
   const iframeRef = useRef(null)
 
   useEffect(() => {
@@ -56,10 +63,33 @@ export default function RecoveryEmailPreviewFrame({ html }) {
       openOutsidePreview(anchor.href || href)
     }
 
+    const repairBrokenLogo = (img) => {
+      if (!(img instanceof HTMLImageElement) || img.dataset.logoFixed === '1') return
+      const src = img.getAttribute('src') || ''
+      const alt = img.getAttribute('alt') || ''
+      if (!/logo|shiftmyhome/i.test(`${src} ${alt}`)) return
+      if (src === PUBLIC_EMAIL_LOGO_URL && img.naturalWidth > 0) return
+      img.dataset.logoFixed = '1'
+      img.src = PUBLIC_EMAIL_LOGO_URL
+    }
+
     const onLoad = () => {
       doc = iframe.contentDocument
       if (!doc) return
       prepareAnchors(doc)
+      if (repairLogo) {
+        doc.querySelectorAll('img').forEach((img) => {
+          if (!(img instanceof HTMLImageElement)) return
+          if (img.complete) {
+            if (img.naturalWidth === 0) repairBrokenLogo(img)
+            return
+          }
+          img.addEventListener('error', () => repairBrokenLogo(img), { once: true })
+          img.addEventListener('load', () => {
+            if (img.naturalWidth === 0) repairBrokenLogo(img)
+          }, { once: true })
+        })
+      }
       doc.addEventListener('click', onClick, true)
     }
 
@@ -73,13 +103,13 @@ export default function RecoveryEmailPreviewFrame({ html }) {
       iframe.removeEventListener('load', onLoad)
       if (doc) doc.removeEventListener('click', onClick, true)
     }
-  }, [html])
+  }, [html, repairLogo])
 
   return (
     <iframe
       ref={iframeRef}
-      title="Recovery email preview"
-      className="h-[480px] w-full bg-white"
+      title="Email preview"
+      className={className}
       srcDoc={html}
       sandbox="allow-popups allow-popups-to-escape-sandbox allow-same-origin"
       referrerPolicy="no-referrer"

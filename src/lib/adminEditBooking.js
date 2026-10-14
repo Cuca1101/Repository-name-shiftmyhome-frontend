@@ -29,7 +29,7 @@ import {
   buildCustomerFacingBookingSnapshot,
   diffCustomerFacingBooking,
 } from './adminEditBookingDiff'
-import { parseWizardStructured, mergeDetailSections } from './quoteJobAdminModel'
+import { parseDetailsKeyValues, parseWizardStructured, mergeDetailSections } from './quoteJobAdminModel'
 import { buildAvailableJobInventoryDisplayRows } from './availableJobInventoryDisplay'
 
 const QUOTES_TABLE = 'quotes'
@@ -167,51 +167,115 @@ function hydrateArrivalFromQuoteRow(row, wizard) {
   return next
 }
 
+/** Keep "0" and other saved blanks-that-aren't. `||` treats 0 as missing. */
+function firstFilled(...values) {
+  for (const value of values) {
+    if (value == null) continue
+    const text = String(value).trim()
+    if (!text || text === '—' || text === '-' || text === '–') continue
+    return value
+  }
+  return null
+}
+
 function hydrateAccessFromDetails(row, wizard) {
-  const sections = parseWizardStructured(String(row.details || ''))
+  const details = String(row.details || '')
+  const sections = parseWizardStructured(details)
+  const kv = parseDetailsKeyValues(details)
   const pickupSec = sections['Pickup property & access'] || {}
   const deliverySec = sections['Delivery property & access'] || {}
   const accessCarry = sections['Access & carry (both ends factored in pricing)'] || {}
   const formAccess = mergeDetailSections(sections, ['Property / access'])
+  const sharedLift = formAccess['Lift available (pricing uses same value at both ends in this form)']
   const next = { ...wizard }
 
   if (next.pickupFloor == null) {
-    next.pickupFloor = parseFloor(pickupSec.Floor || pickupSec['Pickup floor'] || formAccess['Pickup floor'])
+    next.pickupFloor = parseFloor(firstFilled(pickupSec.Floor, pickupSec['Pickup floor'], formAccess['Pickup floor']))
   }
   if (next.deliveryFloor == null) {
     next.deliveryFloor = parseFloor(
-      deliverySec.Floor || deliverySec['Delivery floor'] || formAccess['Delivery floor'],
+      firstFilled(deliverySec.Floor, deliverySec['Delivery floor'], formAccess['Delivery floor']),
     )
   }
   if (next.pickupLift == null) {
-    next.pickupLift = parseLift(pickupSec.Lift || pickupSec['Pickup lift'] || formAccess['Pickup lift'])
+    next.pickupLift = parseLift(firstFilled(pickupSec.Lift, pickupSec['Pickup lift'], formAccess['Pickup lift'], sharedLift))
   }
   if (next.deliveryLift == null) {
     next.deliveryLift = parseLift(
-      deliverySec.Lift || deliverySec['Delivery lift'] || formAccess['Delivery lift'],
+      firstFilled(deliverySec.Lift, deliverySec['Delivery lift'], formAccess['Delivery lift'], sharedLift),
     )
   }
+
+  const pickupType = firstFilled(pickupSec['Property type'])
+  if (pickupType && (!next.pickupPropertyType || next.pickupPropertyType === 'House')) {
+    next.pickupPropertyType = String(pickupType)
+  }
+  const deliveryType = firstFilled(deliverySec['Property type'])
+  if (deliveryType && (!next.deliveryPropertyType || next.deliveryPropertyType === 'House')) {
+    next.deliveryPropertyType = String(deliveryType)
+  }
+
   if (!next.parkingDistance || next.parkingDistance === 'standard') {
-    const parking =
-      accessCarry['Parking'] ||
-      accessCarry['Awkward parking / extended carry'] ||
-      formAccess['Awkward parking / extended carry'] ||
-      ''
-    if (/awkward|extended|long/i.test(parking)) next.parkingDistance = 'long'
-    else if (/easy/i.test(parking)) next.parkingDistance = 'easy'
+    const parking = firstFilled(accessCarry['Parking / vehicle access'], accessCarry['Parking'])
+    if (parking) {
+      const label = String(parking)
+      if (/easy|close to door/i.test(label)) next.parkingDistance = 'easy'
+      else if (/extended|awkward/i.test(label)) next.parkingDistance = 'long'
+      else if (/standard/i.test(label)) next.parkingDistance = 'standard'
+    }
+    const awkward = firstFilled(
+      formAccess['Awkward parking / extended carry'],
+      accessCarry['Awkward parking / extended carry'],
+    )
+    if (awkward && /^yes$/i.test(String(awkward))) next.parkingDistance = 'long'
   }
   if (!next.walkingDistance || next.walkingDistance === 'standard') {
-    const walking = accessCarry['Walking'] || accessCarry['Long walk / carry'] || ''
-    if (/long/i.test(walking)) next.walkingDistance = 'long'
-    else if (/short/i.test(walking)) next.walkingDistance = 'short'
+    const walking = firstFilled(accessCarry['Walking distance (van to door)'], accessCarry['Walking'])
+    if (walking) {
+      const label = String(walking)
+      if (/^short\b/i.test(label)) next.walkingDistance = 'short'
+      else if (/long walk|courtyard|flats corridor|^long$/i.test(label)) next.walkingDistance = 'long'
+      else if (/typical|^standard$/i.test(label)) next.walkingDistance = 'standard'
+    }
+    const longWalk = firstFilled(accessCarry['Long walk / carry'], formAccess['Long walk / carry'])
+    if (longWalk && /^yes$/i.test(String(longWalk))) next.walkingDistance = 'long'
+  }
+
+  const flightsRaw = firstFilled(
+    accessCarry['Flights of stairs (estimate)'],
+    formAccess['Stairs flights (estimate)'],
+  )
+  if (flightsRaw != null && (next.stairsFlights == null || next.stairsFlights === 0)) {
+    const flights = parseFloor(flightsRaw)
+    if (flights != null) next.stairsFlights = flights
+  }
+  if (!next.stairsNotes) {
+    const notes = firstFilled(accessCarry['Stairs & access notes'])
+    if (notes) next.stairsNotes = String(notes)
+  }
+  if (!next.heavyNotes) {
+    const notes = firstFilled(accessCarry['Heavy / bulky items notes'])
+    if (notes) next.heavyNotes = String(notes)
+  }
+  if (!next.pickupFlatDetails) {
+    const notes = firstFilled(kv['Pickup access notes'])
+    if (notes) next.pickupFlatDetails = String(notes)
+  }
+  if (!next.deliveryFlatDetails) {
+    const notes = firstFilled(kv['Delivery access notes'])
+    if (notes) next.deliveryFlatDetails = String(notes)
   }
   if (!next.specialInstructions) {
-    const instr =
-      sections['Special instructions']?.Notes ||
-      sections['Instructions']?.Notes ||
-      formAccess['Special instructions'] ||
-      ''
-    if (instr && instr !== '—') next.specialInstructions = String(instr)
+    const instr = firstFilled(
+      accessCarry['Special instructions'],
+      kv['Special instructions'],
+      kv['Customer notes'],
+      kv['Free-text message'],
+      sections['Special instructions']?.Notes,
+      sections['Instructions']?.Notes,
+      formAccess['Special instructions'],
+    )
+    if (instr) next.specialInstructions = String(instr)
   }
   return next
 }

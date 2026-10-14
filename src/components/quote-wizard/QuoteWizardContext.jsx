@@ -89,6 +89,7 @@ import { applyServicePackageToQuote } from '../../lib/servicePackages'
 import { JOURNEY_VAN_CAPACITY_M3 } from '../../lib/journeySummary'
 import { trackMarketingQuoteSubmit } from '../../lib/marketingPixels'
 import { useLocation } from 'react-router-dom'
+import { loadAdminPhoneBookingDraft } from '../../lib/adminPhoneBookingDraftStorage'
 import {
   canConfirmDeliveryAddress,
   canConfirmPickupAddress,
@@ -129,15 +130,53 @@ function scrollQuoteWizardIntoView(opts = {}) {
 const HAS_MAPBOX_TOKEN = Boolean(import.meta.env.VITE_MAPBOX_TOKEN)
 
 /**
+ * Admin uses the same wizard without writing the public quote draft or a customer lead.
+ * @param {string} serviceTypeProp
+ * @param {string | null | undefined} editQuoteId
+ */
+function bootstrapAdminWizard(serviceTypeProp, editQuoteId) {
+  const fresh = {
+    step: 1,
+    quoteRef: makeQuoteRef(),
+    wizard: initialWizardState(),
+    serviceType: resolveServiceLabel(serviceTypeProp) || serviceTypeProp,
+    isResumed: false,
+    dateWasReset: false,
+    leadSessionId: '',
+    lockedTotal: null,
+    lockedPriceFingerprint: null,
+  }
+  if (editQuoteId) return fresh
+  const draft = loadAdminPhoneBookingDraft()
+  if (!draft) return fresh
+  return {
+    ...fresh,
+    step: draft.step,
+    quoteRef: draft.quoteRef,
+    wizard: draft.wizard,
+    serviceType: draft.serviceType || fresh.serviceType,
+    dateWasReset: Boolean(draft.dateWasReset),
+  }
+}
+
+/**
  * Shared quote wizard state for all service routes and the homepage calculator.
  *
- * @param {{ children: import('react').ReactNode, serviceType: string, allowServiceChange?: boolean }} props
+ * @param {{ children: import('react').ReactNode, serviceType: string, allowServiceChange?: boolean, mode?: 'customer' | 'admin', adminEditQuoteId?: string | null }} props
  */
-export function QuoteWizardProvider({ children, serviceType: serviceTypeProp, allowServiceChange = false }) {
+export function QuoteWizardProvider({
+  children,
+  serviceType: serviceTypeProp,
+  allowServiceChange = false,
+  mode = 'customer',
+  adminEditQuoteId = null,
+}) {
   const location = useLocation()
   const skipAutosaveRef = useRef(false)
   const draftSnapshotRef = useRef(null)
-  const [bootstrap] = useState(() => resolveWizardBootstrap(serviceTypeProp))
+  const [bootstrap] = useState(() =>
+    mode === 'admin' ? bootstrapAdminWizard(serviceTypeProp, adminEditQuoteId) : resolveWizardBootstrap(serviceTypeProp),
+  )
   const isResumedRef = useRef(bootstrap.isResumed)
   const lockedTotalRef = useRef(
     bootstrap.isResumed && bootstrap.lockedTotal != null && Number.isFinite(Number(bootstrap.lockedTotal))
@@ -201,6 +240,7 @@ export function QuoteWizardProvider({ children, serviceType: serviceTypeProp, al
   useEffect(() => () => clearStepTransitionTimer(), [clearStepTransitionTimer])
 
   useEffect(() => {
+    if (mode === 'admin') return undefined
     if (bootstrap.isResumed || accountPrefillRef.current) return undefined
     const params = new URLSearchParams(window.location.search)
     const internalBooking = window.location.pathname === '/portal/book'
@@ -230,15 +270,17 @@ export function QuoteWizardProvider({ children, serviceType: serviceTypeProp, al
     return () => {
       cancelled = true
     }
-  }, [bootstrap.isResumed])
+  }, [bootstrap.isResumed, mode])
 
   useEffect(() => {
+    if (mode === 'admin') return
     preloadStripeJs()
-  }, [])
+  }, [mode])
 
   useEffect(() => {
+    if (mode === 'admin') return
     if (step >= 4) preloadStripeJs()
-  }, [step])
+  }, [step, mode])
 
   useEffect(() => {
     if (!bootstrap.dateWasReset) return
@@ -550,11 +592,13 @@ export function QuoteWizardProvider({ children, serviceType: serviceTypeProp, al
         : null
 
   useLayoutEffect(() => {
+    if (mode === 'admin') return undefined
     setActiveQuoteWizardRef(quoteRef)
     return () => setActiveQuoteWizardRef('')
-  }, [quoteRef])
+  }, [quoteRef, mode])
 
   useEffect(() => {
+    if (mode === 'admin') return undefined
     const flushDraft = () => {
       if (skipAutosaveRef.current) return
       const snap = draftSnapshotRef.current
@@ -566,9 +610,10 @@ export function QuoteWizardProvider({ children, serviceType: serviceTypeProp, al
       window.removeEventListener('pagehide', flushDraft)
       flushDraft()
     }
-  }, [])
+  }, [mode])
 
   useEffect(() => {
+    if (mode === 'admin') return undefined
     if (skipAutosaveRef.current) return undefined
     const hasProgress =
       isResumedRef.current ||
@@ -640,9 +685,10 @@ export function QuoteWizardProvider({ children, serviceType: serviceTypeProp, al
       })
     }, 500)
     return () => window.clearTimeout(timer)
-  }, [step, quoteRef, serviceType, wizard, location.pathname, estimatedTotalForDraft, totalM3, breakdown])
+  }, [mode, step, quoteRef, serviceType, wizard, location.pathname, estimatedTotalForDraft, totalM3, breakdown])
 
   useEffect(() => {
+    if (mode === 'admin') return
     if (step <= 1) return
     trackWebsiteLeadEvent(`quote_step_${step}`, {
       quoteRef,
@@ -670,7 +716,7 @@ export function QuoteWizardProvider({ children, serviceType: serviceTypeProp, al
     }).then((res) => {
       if (res?.status) customerLeadStatusRef.current = String(res.status)
     })
-  }, [step])
+  }, [mode, step])
 
   const customSizeM3 = settings?.customSizeM3
 
@@ -847,7 +893,10 @@ export function QuoteWizardProvider({ children, serviceType: serviceTypeProp, al
       } else if (step === 3) {
         setFeedback({
           type: 'error',
-          text: 'Confirm both addresses and the contact details before continuing to payment.',
+          text:
+          mode === 'admin'
+            ? 'Confirm both addresses and the contact details before continuing.'
+            : 'Confirm both addresses and the contact details before continuing to payment.',
         })
         document.getElementById('quote-wizard-address-confirmation')?.scrollIntoView({
           behavior: 'smooth',
@@ -873,7 +922,7 @@ export function QuoteWizardProvider({ children, serviceType: serviceTypeProp, al
     }
     pendingStepScrollRef.current = true
     setStep((s) => Math.min(QUOTE_WIZARD_MAX_STEP, s + 1))
-  }, [step, wizard, canGoNext, quoteStepTransitionLoading, clearStepTransitionTimer])
+  }, [step, wizard, canGoNext, quoteStepTransitionLoading, clearStepTransitionTimer, mode])
 
   const back = useCallback(() => {
     if (quoteStepTransitionLoading) {
@@ -1312,9 +1361,11 @@ export function QuoteWizardProvider({ children, serviceType: serviceTypeProp, al
   }, [serviceTypeProp, clearStepTransitionTimer])
 
   const value = {
+    mode,
     step,
     setStep,
     quoteRef,
+    setQuoteRef,
     wizard,
     setWizard,
     serviceType,

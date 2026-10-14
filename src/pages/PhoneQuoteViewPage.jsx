@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { useParams } from 'react-router-dom'
+import { useParams, useSearchParams } from 'react-router-dom'
 import SeoHead from '../components/seo/SeoHead'
 import QuoteStripePayment from '../components/quote-wizard/QuoteStripePayment'
 import { preloadStripeJs } from '../lib/stripePromise'
@@ -44,6 +44,9 @@ function PaidBanner({ quote }) {
 
 export default function PhoneQuoteViewPage() {
   const { token } = useParams()
+  const [searchParams] = useSearchParams()
+  const payParam = searchParams.get('pay')
+  const requestedPay = payParam === 'deposit' || payParam === 'full' ? payParam : ''
   const [quote, setQuote] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -58,13 +61,14 @@ export default function PhoneQuoteViewPage() {
     try {
       const q = await fetchPhoneQuoteView(String(token || ''))
       setQuote(q)
-      if (!q?.options?.deposit_allowed) setChoice('full')
+      if (requestedPay === 'deposit' && q?.options?.deposit_allowed) setChoice('deposit')
+      else setChoice('full')
     } catch (e) {
       setError(e?.message || 'Could not load this quote.')
     } finally {
       setLoading(false)
     }
-  }, [token])
+  }, [requestedPay, token])
 
   useEffect(() => {
     void load()
@@ -160,13 +164,16 @@ export default function PhoneQuoteViewPage() {
 
           {opts.can_pay ? (
             <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5" aria-label="Payment">
-              <h2 className="text-sm font-bold text-slate-900">How would you like to pay?</h2>
+              <h2 className="text-sm font-bold text-slate-900">
+                {requestedPay === 'deposit' ? 'Pay the £50 deposit' : requestedPay === 'full' ? 'Pay in full' : 'How would you like to pay?'}
+              </h2>
               {!opts.deposit_allowed && opts.full_only_reason === 'under_48h' ? (
                 <p className="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900">
                   Your move is less than {opts.min_hours_for_deposit} hours away, so full payment is needed to confirm the booking.
                 </p>
               ) : null}
               <div className="mt-3 space-y-2">
+                {requestedPay === 'deposit' ? null : (
                 <label
                   className={`flex cursor-pointer items-start gap-3 rounded-xl border p-3 ${
                     choice === 'full' ? 'border-brand-500 bg-brand-50/60 ring-2 ring-brand-500/20' : 'border-slate-200'
@@ -187,7 +194,8 @@ export default function PhoneQuoteViewPage() {
                     <span className="block text-xs text-slate-600">Nothing more to pay before your move.</span>
                   </span>
                 </label>
-                {opts.deposit_allowed ? (
+                )}
+                {opts.deposit_allowed && requestedPay !== 'full' ? (
                   <label
                     className={`flex cursor-pointer items-start gap-3 rounded-xl border p-3 ${
                       choice === 'deposit' ? 'border-brand-500 bg-brand-50/60 ring-2 ring-brand-500/20' : 'border-slate-200'

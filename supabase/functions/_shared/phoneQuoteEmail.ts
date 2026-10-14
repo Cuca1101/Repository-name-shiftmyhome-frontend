@@ -38,6 +38,30 @@ export function arrivalText(q: QuoteRow) {
   return String(q.arrival_window || q.arrival_time || '').trim()
 }
 
+const PUBLIC_LOGO_PATH = '/logo.png'
+
+/**
+ * Absolute logo URL for the message that is actually delivered.
+ * Relative paths do not load in an inbox. A configured URL is used only when it returns an image.
+ */
+export async function resolvePhoneQuoteLogoUrl(site: string, candidate: string) {
+  const base = String(site || '').trim().replace(/\/$/, '') || 'https://www.shiftmyhome.co.uk'
+  const fallback = `${base}${PUBLIC_LOGO_PATH}`
+  const raw = String(candidate || '').trim()
+  const configured = /^https:\/\/.+/i.test(raw) && !/localhost|127\.0\.0\.1/i.test(raw) ? raw : ''
+  for (const url of [configured, fallback]) {
+    if (!url) continue
+    try {
+      const res = await fetch(url, { method: 'GET', signal: AbortSignal.timeout(4000) })
+      const type = (res.headers.get('content-type') || '').toLowerCase()
+      if (res.ok && type.includes('image/')) return url
+    } catch {
+      /* try the public site logo */
+    }
+  }
+  return fallback
+}
+
 export function inventoryRows(q: QuoteRow) {
   const inv = Array.isArray(q.inventory) ? q.inventory : []
   return inv
@@ -50,7 +74,14 @@ export function inventoryRows(q: QuoteRow) {
 
 export function buildPhoneQuoteEmail(
   q: QuoteRow,
-  params: { link: string; site: string; logoUrl?: string; supportEmail?: string; now?: number },
+  params: {
+    link: string
+    site: string
+    logoUrl?: string
+    supportEmail?: string
+    now?: number
+    paymentChoice?: 'deposit' | 'full' | ''
+  },
 ) {
   const total = phoneQuoteFinalTotal(q)
   const opts = phoneQuotePaymentOptions({
@@ -63,20 +94,38 @@ export function buildPhoneQuoteEmail(
   })
   const ref = String(q.quote_ref || '')
   const firstName = String(q.full_name || '').trim().split(/\s+/)[0] || 'there'
+  const choice = params.paymentChoice === 'deposit' && opts.depositAllowed
+    ? 'deposit'
+    : params.paymentChoice === 'full'
+      ? 'full'
+      : ''
   const link = params.link
   const site = params.site
-  const logoUrl = String(params.logoUrl || '').trim() || `${site}/logo.png`
+  const configuredLogo = String(params.logoUrl || '').trim()
+  const siteBase = String(site || '').trim().replace(/\/$/, '') || 'https://www.shiftmyhome.co.uk'
+  const logoUrl = /^https:\/\/.+/i.test(configuredLogo) && !/localhost|127\.0\.0\.1/i.test(configuredLogo)
+    ? configuredLogo
+    : `${siteBase}/logo.png`
   const supportEmail = String(params.supportEmail || '').trim() || 'bookings@shiftmyhome.co.uk'
   const items = inventoryRows(q)
   const moveDate = formatMoveDate(q.move_date)
   const arrival = arrivalText(q)
   const subject = `Your ShiftMyHome quote ${ref} — ${gbp(total)}`
 
-  const paymentLine = opts.depositAllowed
-    ? `Pay in full, or pay a ${gbp(opts.deposit)} deposit now to secure your booking (remaining ${gbp(opts.balanceAfterDeposit)} paid later).`
-    : opts.fullOnlyReason === 'under_48h'
-      ? `Your move is less than ${PHONE_QUOTE_DEPOSIT_MIN_HOURS} hours away, so full payment is needed to confirm the booking.`
-      : 'Pay securely online to confirm your booking.'
+  const paymentLine = choice === 'deposit'
+    ? `Pay a ${gbp(opts.deposit)} deposit now to secure your booking. The remaining ${gbp(opts.balanceAfterDeposit)} is paid later.`
+    : choice === 'full'
+      ? `Pay ${gbp(total)} in full to confirm your booking.`
+      : opts.depositAllowed
+        ? `Pay in full, or pay a ${gbp(opts.deposit)} deposit now to secure your booking (remaining ${gbp(opts.balanceAfterDeposit)} paid later).`
+        : opts.fullOnlyReason === 'under_48h'
+          ? `Your move is less than ${PHONE_QUOTE_DEPOSIT_MIN_HOURS} hours away, so full payment is needed to confirm the booking.`
+          : 'Pay securely online to confirm your booking.'
+  const buttonLabel = choice === 'deposit'
+    ? `Pay ${gbp(opts.deposit)} deposit`
+    : choice === 'full'
+      ? `Pay ${gbp(total)} in full`
+      : 'View quote & pay'
 
   const itemsHtml = items.length
     ? items
@@ -136,7 +185,7 @@ export function buildPhoneQuoteEmail(
   </td></tr></table>
 </td></tr>
 <tr><td align="center" style="padding:22px 24px 6px 24px;">
-  <a href="${esc(link)}" target="_blank" rel="noopener noreferrer" style="display:inline-block;background:#2563eb;color:#ffffff;text-decoration:none;font-size:16px;font-weight:700;padding:14px 28px;border-radius:12px;">View quote &amp; pay</a>
+  <a href="${esc(link)}" target="_blank" rel="noopener noreferrer" style="display:inline-block;background:#2563eb;color:#ffffff;text-decoration:none;font-size:16px;font-weight:700;padding:14px 28px;border-radius:12px;">${esc(buttonLabel)}</a>
 </td></tr>
 <tr><td style="padding:6px 24px 0 24px;font-size:12px;color:#64748b;text-align:center;line-height:1.5;">
   If the button does not work, copy this link: <a href="${esc(link)}" style="color:#2563eb;word-break:break-all;">${esc(link)}</a>
@@ -163,7 +212,7 @@ export function buildPhoneQuoteEmail(
     `Total price: ${gbp(total)}`,
     paymentLine,
     '',
-    `View quote & pay: ${link}`,
+    `${buttonLabel}: ${link}`,
   ].join('\n')
 
   return { subject, html, text, link, total }

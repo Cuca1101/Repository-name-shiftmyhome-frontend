@@ -614,7 +614,7 @@ export function parseWizardStructured(details) {
   /** @type {Record<string, Record<string, string>>} */
   const sections = {}
   for (const line of text.split('\n')) {
-    const secM = line.match(/^—\s*(.+?)\s*—\s*$/)
+    const secM = line.match(/^[—–-]\s*(.+?)\s*[—–-]\s*$/)
     if (secM) {
       section = secM[1].trim()
       if (!sections[section]) sections[section] = {}

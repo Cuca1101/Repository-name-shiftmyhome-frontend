@@ -1,17 +1,18 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Check, Loader2, MapPin, Search } from 'lucide-react'
+import { MIN_MANUAL_ADDRESS_LENGTH } from '../../lib/addressConfirmation'
 import {
+  ADDRESS_SEARCH_PAUSE_MS,
+  GOOGLE_ADDRESS_MIN_QUERY,
   addressPlacePatch,
   createAddressSessionToken,
   emptyAddressPlacePatch,
   findUkAddressByText,
+  formatAddressWithHouseNumber,
   hasGoogleMapsKey,
-  isUkPostcodeQuery,
   placeFromPrediction,
-  suggestUkStreets,
+  suggestUkPlaces,
 } from '../../lib/googlePlaces'
-import { hasIdealPostcodesKey, lookupUkPostcode } from '../../lib/idealPostcodes'
-import { hasSnapPostcodeLookup, lookupSnapPostcode, suggestSnapAddresses } from '../../lib/snapAddress'
 import { applyWizardPatch } from '../../lib/wizardStateUpdate'
 
 const PROPERTY_TYPES = ['House', 'Flat / apartment', 'Bungalow', 'Commercial', 'Other']
@@ -20,7 +21,6 @@ const GOOGLE_ATTRIBUTION_SRC =
   'https://maps.gstatic.com/mapfiles/api-3/images/powered-by-google-on-white3.png'
 
 const EMPTY_MESSAGE = "We couldn't find that address. Try again or enter it manually."
-const HOUSE_NUMBER_MESSAGE = 'Google finds the street, not the house number. Enter your house number, then choose the street.'
 
 /**
  * @param {string} addressKey
@@ -30,29 +30,34 @@ function addressPrefix(addressKey) {
   return String(addressKey).startsWith('delivery') ? 'delivery' : 'pickup'
 }
 
-function suggestionLines(item, typedDoor) {
+function suggestionLines(item) {
   const prediction = item?.prediction
-  let main = prediction?.mainText?.text || item?.label || ''
-  let secondary = prediction?.secondaryText?.text || ''
-  if (!/\d/.test(main) && /\d/.test(secondary)) {
-    const swap = main
-    main = secondary
-    secondary = swap
-  }
-  const typed = String(typedDoor || '').trim()
-  if (typed && !new RegExp(`^${typed.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`).test(main)) {
-    main = `${typed} ${main}`
-  }
-  const doorMatch = main.match(/^(\d+\s*[A-Za-z]?(?:\s*\/\s*\d+\s*[A-Za-z]?)?)\s+(.+)$/)
-  return {
-    door: doorMatch?.[1]?.replace(/\s+/g, '') || '',
-    main: doorMatch?.[2] || main,
-    secondary,
-  }
+  const main = prediction?.mainText?.text || item?.label || ''
+  const secondary = prediction?.secondaryText?.text || ''
+  return { main, secondary }
+}
+
+function composeAddressWithApartment(base, apartment) {
+  const flat = String(apartment || '').trim()
+  const line = String(base || '').trim()
+  if (!flat) return line
+  const prefix = `${flat}, `
+  if (line.toLowerCase().startsWith(prefix.toLowerCase())) return line
+  return `${flat}, ${line}`
+}
+
+function addressWithoutApartment(line, apartment) {
+  const flat = String(apartment || '').trim()
+  const text = String(line || '').trim()
+  if (!flat) return text
+  const prefix = `${flat}, `
+  if (text.toLowerCase().startsWith(prefix.toLowerCase())) return text.slice(prefix.length).trim()
+  return text
 }
 
 /**
- * Customer quote Step 1 address card. Search runs on the button or Enter.
+ * Collection and delivery address card for the website quote and Admin phone booking.
+ * Suggestions come from Google Places Autocomplete (New), limited to the UK.
  *
  * @param {{
  *   tone: 'pickup' | 'delivery',
@@ -60,6 +65,7 @@ function suggestionLines(item, typedDoor) {
  *   helper: string,
  *   placeholder: string,
  *   address: string,
+ *   apartment?: string,
  *   lng: number | null,
  *   lat: number | null,
  *   addressKey: string,
@@ -80,6 +86,7 @@ export default function QuoteStepAddressCard({
   helper,
   placeholder,
   address,
+  apartment = '',
   lng,
   lat,
   addressKey,
@@ -97,18 +104,20 @@ export default function QuoteStepAddressCard({
   const prefix = addressPrefix(addressKey)
   const [accepted, setAccepted] = useState(() => lng != null && lat != null)
   const selected = (lng != null && lat != null) || (accepted && Boolean(String(address || '').trim()))
-  const doorList = hasSnapPostcodeLookup() || hasIdealPostcodesKey()
-  const [query, setQuery] = useState(() => (selected ? '' : address || ''))
+  const [query, setQuery] = useState(() => (selected ? '' : addressWithoutApartment(address, apartment)))
   const [manual, setManual] = useState(false)
   const [searching, setSearching] = useState(false)
   const [open, setOpen] = useState(false)
   const [results, setResults] = useState([])
   const [notice, setNotice] = useState('')
-  const [door, setDoor] = useState('')
-  const [street, setStreet] = useState('')
-  const [googleFallback, setGoogleFallback] = useState(false)
   const sessionRef = useRef(null)
   const requestRef = useRef(0)
+  const lastQueryRef = useRef('')
+  const resultsRef = useRef([])
+  const timerRef = useRef(0)
+  const baseAddressRef = useRef(addressWithoutApartment(address, apartment))
+  const manualGeocodeRef = useRef(0)
+  resultsRef.current = results
 
   const isPickup = tone === 'pickup'
   const accent = quotePage ? 'text-slate-900' : isPickup ? 'text-blue-700' : 'text-emerald-700'
@@ -139,203 +148,207 @@ export default function QuoteStepAddressCard({
     })
   }
 
-  const postcodeOnly = isUkPostcodeQuery(query)
+  useEffect(() => {
+    return () => window.clearTimeout(timerRef.current)
+  }, [])
 
-  async function searchGoogle(typed, requestId) {
-    const text = String(typed || '').trim()
-    if (!hasGoogleMapsKey() || text.length < 3) {
-      setResults([])
-      setNotice(EMPTY_MESSAGE)
-      return
-    }
-    setGoogleFallback(true)
-    const doorText = door.trim()
-    const queryText = doorText ? `${doorText} ${text}` : text
-    sessionRef.current = await createAddressSessionToken()
-    const list = await suggestUkStreets(queryText, sessionRef.current)
-    if (requestRef.current !== requestId) return
-    setResults(list)
-    setOpen(list.length > 0)
-    setNotice(list.length ? (doorText ? '' : HOUSE_NUMBER_MESSAGE) : EMPTY_MESSAGE)
+  async function ensureSession() {
+    if (!sessionRef.current) sessionRef.current = await createAddressSessionToken()
+    return sessionRef.current
   }
 
-  async function runSearch() {
-    const typed = query.trim()
-    setNotice('')
-    setOpen(false)
-    if (typed.length < 2) {
+  function endSession() {
+    sessionRef.current = null
+  }
+
+  async function runGoogleSearch(typed) {
+    const text = String(typed || '').trim()
+    if (!hasGoogleMapsKey() || text.length < GOOGLE_ADDRESS_MIN_QUERY) {
       setResults([])
-      setNotice(EMPTY_MESSAGE)
+      setOpen(false)
+      setSearching(false)
       return
     }
-
+    if (text === lastQueryRef.current && resultsRef.current.length > 0) {
+      setOpen(true)
+      setSearching(false)
+      return
+    }
     const requestId = requestRef.current + 1
     requestRef.current = requestId
     setSearching(true)
     try {
-      if (!googleFallback && (hasSnapPostcodeLookup() || (postcodeOnly && hasIdealPostcodesKey()))) {
-        let list = []
-        try {
-          if (hasSnapPostcodeLookup()) {
-            list = postcodeOnly ? await lookupSnapPostcode(typed) : await suggestSnapAddresses(typed)
-          }
-        } catch {
-          list = []
-        }
-        if (requestRef.current !== requestId) return
-        if (list.length === 0 && postcodeOnly && hasIdealPostcodesKey()) {
-          try {
-            list = await lookupUkPostcode(typed)
-          } catch {
-            list = []
-          }
-        }
-        if (requestRef.current !== requestId) return
-        if (list.length > 0) {
-          setGoogleFallback(false)
-          setResults(list)
-          setNotice('')
-          setOpen(true)
-          return
-        }
-      }
-
-      await searchGoogle(typed, requestId)
+      const token = await ensureSession()
+      if (requestRef.current !== requestId) return
+      const list = await suggestUkPlaces(text, token)
+      if (requestRef.current !== requestId) return
+      lastQueryRef.current = text
+      setResults(list)
+      setOpen(list.length > 0)
+      setNotice(list.length ? '' : EMPTY_MESSAGE)
     } catch {
       if (requestRef.current !== requestId) return
+      endSession()
       setResults([])
-      setNotice(EMPTY_MESSAGE)
+      setNotice('Address search is unavailable. You can type the full address.')
     } finally {
       if (requestRef.current === requestId) setSearching(false)
     }
   }
 
-  function applyPlace(place, keepFormatted) {
-    if (!place.formattedAddress || ((place.lng == null || place.lat == null) && !keepFormatted)) {
+  function scheduleSearch(text) {
+    window.clearTimeout(timerRef.current)
+    requestRef.current += 1
+    const trimmed = String(text || '').trim()
+    if (trimmed.length < GOOGLE_ADDRESS_MIN_QUERY) {
+      lastQueryRef.current = ''
+      setResults([])
+      setOpen(false)
+      setSearching(false)
+      setNotice('')
+      return
+    }
+    if (trimmed === lastQueryRef.current && resultsRef.current.length > 0) {
+      setOpen(true)
+      return
+    }
+    timerRef.current = window.setTimeout(() => {
+      void runGoogleSearch(trimmed)
+    }, ADDRESS_SEARCH_PAUSE_MS)
+  }
+
+  function applyPlace(place) {
+    const formatted = formatAddressWithHouseNumber(place) || place.formattedAddress || ''
+    if (!formatted || place.lng == null || place.lat == null) {
       setNotice(EMPTY_MESSAGE)
       return false
     }
+    baseAddressRef.current = formatted
     setAccepted(true)
     patch({
-      ...addressPlacePatch(
-        prefix,
-        place,
-        keepFormatted ? { keepTypedAddress: true, typedAddress: place.formattedAddress } : undefined,
-      ),
+      ...addressPlacePatch(prefix, { ...place, formattedAddress: formatted }),
+      [addressKey]: composeAddressWithApartment(formatted, apartment),
+      [`${prefix}Apartment`]: apartment,
       [lngKey]: place.lng,
       [latKey]: place.lat,
       [confirmedKey]: true,
     })
     setQuery('')
-    setDoor('')
-    setStreet('')
     setResults([])
     setOpen(false)
     setManual(false)
+    setNotice('')
+    lastQueryRef.current = ''
     onAddressSelected?.()
     return true
   }
 
   async function choose(item) {
+    window.clearTimeout(timerRef.current)
     setSearching(true)
     setNotice('')
     try {
-      if (item.source === 'snap-group' && item.postcode) {
-        let list = []
-        try {
-          list = await lookupSnapPostcode(item.postcode)
-        } catch {
-          list = []
-        }
-        if (list.length > 0) {
-          setGoogleFallback(false)
-          setResults(list)
-          setNotice('')
-          setOpen(true)
-          return
-        }
-        const requestId = requestRef.current + 1
-        requestRef.current = requestId
-        setQuery(item.postcode)
-        await searchGoogle(item.postcode, requestId)
-        return
-      }
-      if (item.source === 'ideal' || item.source === 'snap') {
-        sessionRef.current = null
-        let place = item.place
-        if (place.lng == null || place.lat == null) {
-          const hit = await findUkAddressByText(place.formattedAddress)
-          if (hit?.lng != null && hit?.lat != null) {
-            place = { ...place, lng: hit.lng, lat: hit.lat }
-          }
-        }
-        applyPlace(place, true)
-        return
-      }
       const place = await placeFromPrediction(item.prediction)
-      const typedDoor = door.trim()
-      if (!place.houseNumber && !place.subpremise) {
-        if (!typedDoor) {
-          setGoogleFallback(true)
-          setNotice(HOUSE_NUMBER_MESSAGE)
-          return
-        }
-        place.houseNumber = typedDoor
-        const formatted = String(place.formattedAddress || '').trim()
-        const escaped = typedDoor.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-        if (!new RegExp(`^${escaped}\\b`, 'i').test(formatted)) {
-          place.formattedAddress = `${typedDoor} ${formatted}`.trim()
-        }
-      }
-      sessionRef.current = null
-      applyPlace(place, Boolean(typedDoor))
+      endSession()
+      applyPlace(place)
     } catch {
-      sessionRef.current = null
+      endSession()
       setNotice(EMPTY_MESSAGE)
     } finally {
       setSearching(false)
     }
   }
 
+  function setApartment(value) {
+    const base = baseAddressRef.current || addressWithoutApartment(address, apartment)
+    baseAddressRef.current = base
+    const next = {
+      [`${prefix}Apartment`]: value,
+    }
+    if (base) next[addressKey] = composeAddressWithApartment(base, value)
+    patch(next)
+  }
+
   function startChange() {
-    setGoogleFallback(false)
-    setQuery(address || '')
+    const base = baseAddressRef.current || addressWithoutApartment(address, apartment)
+    baseAddressRef.current = base
+    endSession()
+    lastQueryRef.current = ''
+    setQuery(base)
     setManual(false)
     setNotice('')
     setResults([])
     setOpen(false)
-    clearSelection(address || '')
+    clearSelection(composeAddressWithApartment(base, apartment))
   }
 
   function startManual() {
-    setGoogleFallback(false)
+    const base = baseAddressRef.current || addressWithoutApartment(address, apartment)
+    baseAddressRef.current = base
+    endSession()
+    lastQueryRef.current = ''
     setManual(true)
     setOpen(false)
     setResults([])
     setNotice('')
-    setQuery(address || query)
-    if (selected) clearSelection(address || '')
+    setQuery(base)
+    if (selected) clearSelection(composeAddressWithApartment(base, apartment))
+  }
+
+  async function geocodeManual(base) {
+    const text = String(base || '').trim()
+    if (!hasGoogleMapsKey() || text.length < MIN_MANUAL_ADDRESS_LENGTH) return
+    const requestId = manualGeocodeRef.current + 1
+    manualGeocodeRef.current = requestId
+    try {
+      const place = await findUkAddressByText(text)
+      if (manualGeocodeRef.current !== requestId || !place || place.lng == null || place.lat == null) return
+      baseAddressRef.current = text
+      setAccepted(true)
+      patch({
+        ...addressPlacePatch(prefix, place, { keepTypedAddress: true, typedAddress: composeAddressWithApartment(text, apartment) }),
+        [addressKey]: composeAddressWithApartment(text, apartment),
+        [`${prefix}Apartment`]: apartment,
+        [lngKey]: place.lng,
+        [latKey]: place.lat,
+        [confirmedKey]: true,
+      })
+    } catch {
+      /* The typed address stays. The map updates when coordinates are found. */
+    }
   }
 
   const quoteField = addressKey === 'pickupAddress' ? 'pickup-address' : 'delivery-address'
   const control =
     'box-border h-[52px] w-full min-w-0 rounded-xl border border-slate-200 bg-white px-3.5 text-base text-slate-900 shadow-sm outline-none transition focus:ring-2'
-  const panelClass = quotePage
-    ? 'border-slate-200 bg-white shadow-sm'
-    : 'border-slate-200 bg-white shadow-sm'
+  const panelClass = 'border-slate-200 bg-white shadow-sm'
+  const shownAddress = composeAddressWithApartment(baseAddressRef.current || addressWithoutApartment(address, apartment), apartment) || address
 
   function resultLabel(item) {
-    if (item.source === 'snap-group') return item.secondary ? `${item.main} (${item.secondary})` : item.main
-    if (item.source === 'snap') return item.place?.formattedAddress || item.main
-    if (item.source === 'ideal') return [item.door, item.main, item.secondary].filter(Boolean).join(', ')
-    const lines = suggestionLines(item, door)
-    return [lines.door, lines.main, lines.secondary].filter(Boolean).join(', ')
+    const lines = suggestionLines(item)
+    return [lines.main, lines.secondary].filter(Boolean).join(', ')
   }
+
+  const apartmentField = (
+    <label className="mt-3 block">
+      <span className="mb-1 block text-xs font-medium text-slate-600">Apartment / flat number</span>
+      <input
+        type="text"
+        value={apartment}
+        autoComplete="off"
+        spellCheck={false}
+        placeholder="Optional"
+        aria-label="Apartment or flat number"
+        className={`${control} ${focusRing}`}
+        onChange={(e) => setApartment(e.target.value)}
+      />
+    </label>
+  )
 
   return (
     <section
       data-quote-field={quoteField}
-      className={`rounded-2xl border p-4 ${panelClass}`}
+      className={`quote-address-card min-w-0 rounded-2xl border p-4 ${panelClass}`}
     >
       <div className="flex items-center gap-2.5">
         <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${iconWrap}`}>
@@ -351,7 +364,7 @@ export default function QuoteStepAddressCard({
         <div className="mt-3 flex items-start gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 px-3 py-2.5">
           <Check className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" aria-hidden />
           <div className="min-w-0 flex-1">
-            <p className="text-sm font-medium leading-snug text-slate-900">{address}</p>
+            <p className="text-sm font-medium leading-snug text-slate-900">{shownAddress}</p>
             <button
               type="button"
               onClick={startChange}
@@ -365,18 +378,25 @@ export default function QuoteStepAddressCard({
         <textarea
           id={addressKey}
           rows={2}
-          value={address}
-          onChange={(e) => clearSelection(e.target.value)}
+          value={addressWithoutApartment(address, apartment)}
+          onChange={(e) => {
+            const base = e.target.value
+            baseAddressRef.current = base
+            clearSelection(composeAddressWithApartment(base, apartment))
+          }}
+          onBlur={() => {
+            if (lng == null || lat == null) void geocodeManual(baseAddressRef.current)
+          }}
           placeholder={placeholder}
           className={`${control} mt-3 h-auto min-h-[52px] resize-none py-3 ${focusRing}`}
         />
       ) : (
         <div className="relative mt-3">
           {quotePage ? (
-            <span className="mb-1 block text-xs font-medium text-slate-600">Postcode or full address</span>
+            <span className="mb-1 block text-xs font-medium text-slate-600">Postcode, street or full address</span>
           ) : null}
           <div className="flex flex-col gap-2">
-            <div className="flex flex-col gap-2 xl:flex-row xl:items-center">
+            <div className="quote-address-search flex flex-col gap-2">
             <input
               id={addressKey}
               type="text"
@@ -384,171 +404,76 @@ export default function QuoteStepAddressCard({
               autoComplete="off"
               spellCheck={false}
               placeholder={placeholder}
-              aria-expanded={open}
-              className={`${control} xl:min-w-0 xl:flex-1 ${focusRing}`}
+              role="combobox"
+              aria-autocomplete="list"
+              aria-expanded={open && results.length > 0}
+              aria-controls={`${addressKey}-results`}
+              className={`${control} min-w-0 w-full ${focusRing}`}
               onChange={(e) => {
-                setQuery(e.target.value)
-                setGoogleFallback(false)
+                const next = e.target.value
+                setQuery(next)
                 setNotice('')
-                setOpen(false)
-                setResults([])
+                scheduleSearch(next)
               }}
               onKeyDown={(e) => {
                 if (e.key === 'Enter') {
                   e.preventDefault()
-                  void runSearch()
+                  window.clearTimeout(timerRef.current)
+                  void runGoogleSearch(query)
                 }
               }}
             />
             <button
               type="button"
               disabled={searching}
-              onClick={() => void runSearch()}
-              className={`inline-flex h-[52px] w-full shrink-0 items-center justify-center gap-2 px-4 text-sm font-semibold text-white shadow-sm transition focus-visible:outline-none focus-visible:ring-2 disabled:cursor-wait disabled:opacity-70 xl:w-auto xl:px-5 ${quotePage ? 'rounded-xl' : 'rounded-2xl'} ${buttonClass}`}
+              onClick={() => {
+                window.clearTimeout(timerRef.current)
+                void runGoogleSearch(query)
+              }}
+              className={`quote-address-find inline-flex h-[52px] w-full shrink-0 items-center justify-center gap-2 px-4 text-sm font-semibold text-white shadow-sm transition focus-visible:outline-none focus-visible:ring-2 disabled:cursor-wait disabled:opacity-70 ${quotePage ? 'rounded-xl' : 'rounded-2xl'} ${buttonClass}`}
             >
               {searching ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : quotePage ? <Search className="h-4 w-4" aria-hidden /> : null}
               Find my address
             </button>
             </div>
-            {googleFallback ? (
-              <label className="block">
-                <span className="mb-1 block text-xs font-medium text-slate-600">House number</span>
-                <input
-                  type="text"
-                  value={door}
-                  autoComplete="off"
-                  spellCheck={false}
-                  placeholder="e.g. 12"
-                  aria-label="House number"
-                  className={`${control} ${focusRing}`}
-                  onChange={(e) => {
-                    setDoor(e.target.value)
-                    setNotice('')
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      e.preventDefault()
-                      void runSearch()
-                    }
-                  }}
-                />
-              </label>
-            ) : null}
-            {postcodeOnly && !doorList && !googleFallback ? (
-              <div className="grid grid-cols-[96px_minmax(0,1fr)] gap-2">
-                <input
-                  type="text"
-                  value={door}
-                  autoComplete="off"
-                  spellCheck={false}
-                  placeholder="No."
-                  aria-label="House number"
-                  className={`${control} ${focusRing}`}
-                  onChange={(e) => {
-                    setDoor(e.target.value)
-                    setNotice('')
-                    setOpen(false)
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      e.preventDefault()
-                      void runSearch()
-                    }
-                  }}
-                />
-                <input
-                  type="text"
-                  value={street}
-                  autoComplete="off"
-                  spellCheck={false}
-                  placeholder="Street"
-                  aria-label="Street"
-                  className={`${control} ${focusRing}`}
-                  onChange={(e) => {
-                    setStreet(e.target.value)
-                    setNotice('')
-                    setOpen(false)
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      e.preventDefault()
-                      void runSearch()
-                    }
-                  }}
-                />
-              </div>
-            ) : null}
 
-          {quotePage ? (
-            <>
-              <select
-                id={`${addressKey}-results`}
-                aria-label="Select your address"
-                disabled={searching || results.length === 0}
-                value=""
-                onChange={(e) => {
-                  const item = results.find((entry) => entry.id === e.target.value)
-                  if (item) void choose(item)
-                }}
-                className={`${control} mt-2 disabled:cursor-not-allowed disabled:bg-white disabled:text-slate-400 ${focusRing}`}
-              >
-                <option value="">Select your address</option>
-                {results.map((item) => (
-                  <option key={item.id} value={item.id}>
-                    {resultLabel(item)}
-                  </option>
-                ))}
-              </select>
-              {results.length > 0 ? (
-                <div className="mt-1 flex justify-end">
-                  {results[0]?.source === 'ideal' || results[0]?.source === 'snap' || results[0]?.source === 'snap-group' ? (
-                    <span className="text-[10px] leading-none text-slate-400">© Royal Mail</span>
-                  ) : (
-                    <img src={GOOGLE_ATTRIBUTION_SRC} alt="Powered by Google" className="h-4 w-auto" />
-                  )}
-                </div>
-              ) : null}
-            </>
+          {quotePage && results.length === 0 ? (
+            <select
+              id={`${addressKey}-results`}
+              aria-label="Select your address"
+              disabled
+              value=""
+              className={`${control} mt-2 disabled:cursor-not-allowed disabled:bg-white disabled:text-slate-400 ${focusRing}`}
+            >
+              <option value="">Select your address</option>
+            </select>
           ) : null}
-
-          {!quotePage && open && results.length > 0 ? (
+          {results.length > 0 ? (
             <div
+              id={`${addressKey}-results`}
               role="listbox"
-              className="z-30 mt-1 max-h-64 w-full overflow-y-auto rounded-2xl border border-slate-200 bg-white shadow-lg"
+              aria-label="Select your address"
+              className="mt-2 max-h-72 w-full overflow-y-auto rounded-xl border border-slate-200 bg-white shadow-sm"
             >
               {results.map((item) => {
-                const lines =
-                  item.source === 'snap'
-                    ? { ...item, door: '' }
-                    : item.source === 'ideal' || item.source === 'snap-group'
-                      ? item
-                      : suggestionLines(item, door)
+                const lines = suggestionLines(item)
                 return (
                   <button
                     key={item.id}
                     type="button"
                     role="option"
-                    className="flex w-full items-start gap-2 border-b border-slate-100 px-3.5 py-2.5 text-left last:border-b-0 hover:bg-slate-50"
+                    className="block w-full whitespace-normal break-words border-b border-slate-100 px-3.5 py-2.5 text-left last:border-b-0 hover:bg-slate-50"
                     onClick={() => void choose(item)}
                   >
-                    {lines.door ? (
-                      <span className="w-10 shrink-0 text-base font-semibold leading-snug text-slate-900">{lines.door}</span>
+                    <span className="block text-sm font-medium leading-snug text-slate-900">{lines.main}</span>
+                    {lines.secondary ? (
+                      <span className="mt-0.5 block text-xs leading-snug text-slate-500">{lines.secondary}</span>
                     ) : null}
-                    <span className="min-w-0">
-                      <span className="block text-sm font-medium leading-snug text-slate-900">{lines.main}</span>
-                      {lines.secondary ? (
-                        <span className="mt-0.5 block text-xs leading-snug text-slate-500">{lines.secondary}</span>
-                      ) : null}
-                    </span>
                   </button>
                 )
               })}
               <div className="flex justify-end border-t border-slate-100 bg-white px-3 py-1.5">
-                {results[0]?.source === 'ideal' || results[0]?.source === 'snap' || results[0]?.source === 'snap-group' ? (
-                  <span className="text-[10px] leading-none text-slate-400">© Royal Mail</span>
-                ) : (
-                  <img src={GOOGLE_ATTRIBUTION_SRC} alt="Powered by Google" className="h-4 w-auto" />
-                )}
+                <img src={GOOGLE_ATTRIBUTION_SRC} alt="Powered by Google" className="h-4 w-auto" />
               </div>
             </div>
           ) : null}
@@ -561,6 +486,8 @@ export default function QuoteStepAddressCard({
           </div>
         </div>
       )}
+
+      {apartmentField}
 
       <label className="mt-3 block">
         <span className="mb-1 block text-xs font-medium text-slate-600">Property type</span>

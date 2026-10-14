@@ -211,7 +211,8 @@ export default function Step1Address({
           quoteRef={quoteRef}
         />
       ) : (
-        <div className={quotePage ? 'grid grid-cols-1 gap-4 xl:grid-cols-2 xl:gap-5' : 'grid xl:grid-cols-2 xl:gap-x-8 xl:gap-y-6 xl:items-start'}>
+        <div className="quote-step-address-frame min-w-0">
+        <div className={`quote-step-address-grid ${quotePage ? 'grid grid-cols-1 gap-4 xl:grid-cols-2 xl:gap-5' : 'grid xl:grid-cols-2 xl:gap-x-8 xl:gap-y-6 xl:items-start'}`}>
         {customerAddressCards ? (
           <>
             <div className="min-w-0 space-y-4">
@@ -222,6 +223,7 @@ export default function Step1Address({
               placeholder={quotePage ? 'Enter pickup address' : 'Enter pickup postcode or address'}
               quotePage={quotePage}
               address={data.pickupAddress}
+              apartment={data.pickupApartment}
               lng={data.pickupLng}
               lat={data.pickupLat}
               addressKey="pickupAddress"
@@ -273,6 +275,7 @@ export default function Step1Address({
               placeholder={quotePage ? 'Enter delivery address' : 'Enter delivery postcode or address'}
               quotePage={quotePage}
               address={data.deliveryAddress}
+              apartment={data.deliveryApartment}
               lng={data.deliveryLng}
               lat={data.deliveryLat}
               addressKey="deliveryAddress"
@@ -512,6 +515,7 @@ export default function Step1Address({
               : 'Enter the driving distance in miles for your estimate.'}
           </span>
         </label>
+        </div>
         </div>
       )}
     </div>

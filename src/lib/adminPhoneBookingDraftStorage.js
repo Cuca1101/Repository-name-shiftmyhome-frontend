@@ -7,7 +7,7 @@ export const ADMIN_PHONE_BOOKING_DRAFT_STORAGE_KEY = 'shiftmyhome_admin_phone_bo
 
 const DRAFT_VERSION = 1
 const MAX_AGE_MS = 14 * 24 * 60 * 60 * 1000
-const MAX_STEP = 3
+const MAX_STEP = 4
 
 /**
  * @typedef {Object} AdminPhoneBookingDraftPayload

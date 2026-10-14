@@ -318,6 +318,7 @@ export default function MobileStep1AddressCards({
               placeholder={quotePage ? 'Enter pickup address' : 'Enter pickup postcode or address'}
               quotePage={quotePage}
               address={data.pickupAddress}
+              apartment={data.pickupApartment}
               lng={data.pickupLng}
               lat={data.pickupLat}
               addressKey="pickupAddress"
@@ -441,6 +442,7 @@ export default function MobileStep1AddressCards({
               placeholder={quotePage ? 'Enter delivery address' : 'Enter delivery postcode or address'}
               quotePage={quotePage}
               address={data.deliveryAddress}
+              apartment={data.deliveryApartment}
               lng={data.deliveryLng}
               lat={data.deliveryLat}
               addressKey="deliveryAddress"

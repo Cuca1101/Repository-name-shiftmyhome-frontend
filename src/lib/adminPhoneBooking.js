@@ -403,8 +403,44 @@ export function adminPhoneBookingFormStateFromQuoteRow(row) {
     finalPriceOverride,
     overrideReason: meta?.overrideReason ?? '',
     adminNote: meta?.adminNote ?? '',
-    step: 3,
+    step: 4,
   }
+}
+
+/** Columns an edit must not rewrite. Payments, the pay token, and sent-email history stay on the row. */
+export const PHONE_BOOKING_UPDATE_PRESERVED_KEYS = [
+  'quote_sent_at',
+  'quote_sent_count',
+  'quote_sent_total',
+  'quote_pay_token',
+  'stripe_session_id',
+  'stripe_payment_intent_id',
+  'customer_id',
+  'customer_kind',
+  'created_at',
+]
+
+/**
+ * @param {Record<string, unknown>} existing
+ * @param {Record<string, unknown>} row
+ * @param {number | null} nextFinal
+ */
+export function phoneBookingUpdatePatch(existing, row, nextFinal) {
+  const amountPaid = Math.max(0, Number(existing.amount_paid) || 0)
+  const patch = {
+    ...row,
+    quote_ref: existing.quote_ref,
+    source: existing.source,
+    payment_status: existing.payment_status,
+    payment_type: existing.payment_type,
+    amount_paid: existing.amount_paid,
+    paid_at: existing.paid_at,
+    operational_status: existing.operational_status,
+    remaining_balance:
+      nextFinal != null ? Math.max(0, Math.round((nextFinal - amountPaid) * 100) / 100) : row.remaining_balance,
+  }
+  for (const key of PHONE_BOOKING_UPDATE_PRESERVED_KEYS) delete patch[key]
+  return patch
 }
 
 /**
@@ -473,21 +509,7 @@ export async function updateAdminPhoneBookingFromWizard(form) {
       `The customer has already paid (${paidStatus === 'paid' ? 'paid in full' : 'deposit paid'}). The price cannot be changed here.`,
     )
   }
-  const amountPaid = Math.max(0, Number(existing.amount_paid) || 0)
-  if (nextFinal != null) {
-    row.remaining_balance = Math.max(0, Math.round((nextFinal - amountPaid) * 100) / 100)
-  }
-
-  const patch = {
-    ...row,
-    quote_ref: existing.quote_ref,
-    source: existing.source,
-    payment_status: existing.payment_status,
-    payment_type: existing.payment_type,
-    amount_paid: existing.amount_paid,
-    paid_at: existing.paid_at,
-    operational_status: existing.operational_status,
-  }
+  const patch = phoneBookingUpdatePatch(existing, row, nextFinal)
 
   const { data, error } = await supabase
     .from(QUOTES_TABLE)

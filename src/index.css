@@ -1067,6 +1067,210 @@
   overflow: visible;
 }
 
+/* Step 2 inventory — column count follows the panel width, not the viewport.
+   Admin sidebar + the map column are already outside this panel, so a viewport
+   lg:grid-cols-3 squeezed each card until names wrapped one letter per line. */
+.quote-inventory-panel {
+  container-type: inline-size;
+  container-name: quote-inventory;
+}
+
+.quote-inventory-item-name,
+.quote-inventory-item-name * {
+  overflow-wrap: normal;
+  word-break: normal;
+  white-space: normal;
+  hyphens: manual;
+}
+
+.quote-inventory-category-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: stretch;
+  gap: 0.5rem;
+}
+
+@container quote-inventory (min-width: 40rem) {
+  .quote-inventory-category-grid {
+    gap: 0.75rem;
+  }
+}
+
+@container quote-inventory (max-width: 22rem) {
+  .quote-inventory-category-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.quote-inventory-item-grid {
+  display: grid;
+  align-items: stretch;
+  gap: 0.75rem;
+  /* 19rem keeps icon + name + Add on one card without letter-stacking.
+     Narrower panels (admin + map on a small laptop) fall back to one column. */
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 19rem), 1fr));
+}
+
+.quote-inventory-item-grid > li {
+  min-width: 0;
+}
+
+.quote-inventory-item-grid .quote-inventory-qty,
+.quote-inventory-custom-list .quote-inventory-qty {
+  flex: 0 0 5.75rem;
+  width: 5.75rem;
+}
+
+/* Global base styles set button { max-width: 100% }, which squeezed Add inside a narrow card. */
+.quote-inventory-qty button {
+  max-width: none;
+  flex-shrink: 0;
+}
+
+/* Admin column beside the map can be ~20rem. Keep names on normal lines. */
+@container quote-inventory (max-width: 24rem) {
+  .quote-inventory-item-grid > li,
+  .quote-inventory-custom-list > li {
+    gap: 0.625rem;
+    padding-left: 0.625rem;
+    padding-right: 0.625rem;
+  }
+
+  .quote-inventory-item-grid .quote-inventory-qty,
+  .quote-inventory-custom-list .quote-inventory-qty {
+    flex-basis: 5.25rem;
+    width: 5.25rem;
+  }
+
+  .quote-inventory-item-grid .quote-inventory-qty button:not([aria-label]),
+  .quote-inventory-custom-list .quote-inventory-qty button:not([aria-label]) {
+    min-width: 5.25rem;
+    min-height: 2.5rem;
+    padding-left: 0.5rem;
+    padding-right: 0.5rem;
+  }
+
+  .quote-inventory-item-grid .quote-inventory-qty button[aria-label],
+  .quote-inventory-custom-list .quote-inventory-qty button[aria-label] {
+    width: 1.75rem;
+    min-width: 1.75rem;
+    height: 1.75rem;
+    min-height: 1.75rem;
+    padding: 0;
+  }
+}
+
+.quote-step-address-frame {
+  container-type: inline-size;
+  container-name: quote-address;
+}
+
+/* Viewport xl:grid-cols-2 ignores the admin map column. Stack addresses until the column is wide enough. */
+@container quote-address (max-width: 44rem) {
+  .quote-step-address-grid {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+}
+
+@container quote-address (min-width: 44rem) {
+  .quote-step-address-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    align-items: stretch;
+  }
+}
+
+.quote-address-card {
+  container-type: inline-size;
+  container-name: quote-address-card;
+  overflow: visible;
+}
+
+.quote-address-card select,
+.quote-address-card input,
+.quote-address-card textarea {
+  width: 100%;
+  max-width: 100%;
+}
+
+/* Admin phone booking uses the homepage quote wizard. The admin sidebar is outside
+   this container, so the map column waits until the form still has about two thirds. */
+.admin-phone-quote {
+  container-type: inline-size;
+  container-name: admin-phone-quote;
+}
+
+.admin-main-compact .admin-phone-quote :is(h1, h2, h3) {
+  font-size: unset;
+  line-height: unset;
+}
+
+.admin-phone-quote .quote-wizard-section > .mx-auto,
+.admin-phone-quote .quote-wizard-desktop-grid {
+  max-width: none;
+}
+
+.admin-phone-quote .quote-wizard-desktop-grid {
+  grid-template-columns: minmax(0, 1fr) !important;
+}
+
+.admin-phone-quote .quote-wizard-sidebar,
+.admin-phone-quote .quote-wizard-nav {
+  grid-column: 1 / -1 !important;
+  grid-row: auto !important;
+  max-height: none;
+  overflow: visible;
+}
+
+@container admin-phone-quote (min-width: 64rem) {
+  .admin-phone-quote .quote-wizard-desktop-grid {
+    grid-template-columns: minmax(0, 2fr) minmax(18rem, 1fr) !important;
+    align-items: start;
+  }
+
+  .admin-phone-quote .quote-wizard-sidebar {
+    grid-column: 2 !important;
+    grid-row: 1 / span 2 !important;
+  }
+
+  .admin-phone-quote .quote-wizard-nav {
+    grid-column: 1 !important;
+    grid-row: 2 !important;
+  }
+}
+
+.quote-contact-card {
+  container-type: inline-size;
+  container-name: quote-contact;
+}
+
+.quote-contact-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.75rem;
+}
+
+@container quote-contact (min-width: 36rem) {
+  .quote-contact-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .quote-contact-span {
+    grid-column: 1 / -1;
+  }
+}
+
+.quote-inventory-custom-grid {
+  display: grid;
+  gap: 0.75rem;
+}
+
+@container quote-inventory (min-width: 40rem) {
+  .quote-inventory-custom-grid {
+    grid-template-columns: minmax(0, 2fr) minmax(9rem, 1fr) minmax(9rem, auto);
+    align-items: end;
+  }
+}
+
 /* Step 2 inventory — show ~10 items, scroll the rest inside the category panel. */
 .quote-inventory-items-scroll {
   overflow-x: clip !important;

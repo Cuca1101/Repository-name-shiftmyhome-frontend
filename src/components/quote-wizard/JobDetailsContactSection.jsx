@@ -2,6 +2,7 @@ import { useLocation, useSearchParams } from 'react-router-dom'
 import { useAuthenticatedCustomerEmail } from '../../lib/useAuthenticatedCustomerEmail'
 import { applyWizardPatch } from '../../lib/wizardStateUpdate'
 import { quoteMobileInput, quoteMobileLabel } from '../../lib/quoteMobileUiClasses'
+import { PhoneBookingCustomerStatus } from '../admin/CustomerKindBadge'
 import QuotePromoCodeField from './QuotePromoCodeField'
 
 const desktopInput =
@@ -21,6 +22,7 @@ const mobileCard =
  *   priceWithoutPromo?: number | null,
  *   flexibleContact?: boolean,
  *   lockSignedInEmail?: boolean,
+ *   showCustomerIdentity?: boolean,
  * }} props
  */
 export default function JobDetailsContactSection({
@@ -32,6 +34,7 @@ export default function JobDetailsContactSection({
   priceWithoutPromo = null,
   flexibleContact = false,
   lockSignedInEmail = true,
+  showCustomerIdentity = false,
 }) {
   const location = useLocation()
   const [searchParams] = useSearchParams()
@@ -57,6 +60,9 @@ export default function JobDetailsContactSection({
           Job details &amp; contact
         </h2>
         <p className="mt-1 text-[10px] leading-snug text-slate-600 md:text-sm">{contactHint}</p>
+        {showCustomerIdentity ? (
+          <PhoneBookingCustomerStatus email={String(data.email ?? '')} phone={String(data.phone ?? '')} />
+        ) : null}
         {accountEmail ? (
           <p className="mt-1 text-[10px] leading-snug text-slate-600 md:text-sm">
             This booking is added to your signed-in account. The email cannot be changed to another person.
@@ -132,11 +138,11 @@ export default function JobDetailsContactSection({
       <div
         id="quote-wizard-contact-details-desktop"
         data-quote-field="contact-details"
-        className="scroll-mt-24 hidden rounded-2xl border border-brand-100 bg-gradient-to-br from-brand-50/40 to-white p-5 sm:p-6 lg:block"
+        className="quote-contact-card scroll-mt-24 hidden rounded-2xl border border-brand-100 bg-gradient-to-br from-brand-50/40 to-white p-5 sm:p-6 lg:block"
       >
         <h3 className="text-sm font-bold text-slate-900">Your details</h3>
-        <div className="mt-4 grid grid-cols-2 gap-3 xxs:gap-4">
-          <label className="block sm:col-span-2">
+        <div className="quote-contact-grid mt-4">
+          <label className="quote-contact-span block">
             <span className={desktopLabel}>Full name</span>
             <input
               id="quote-wizard-fullName-desktop"
@@ -161,7 +167,7 @@ export default function JobDetailsContactSection({
               className={desktopInput}
             />
           </label>
-          <label className="block sm:col-span-2">
+          <label className="quote-contact-span block">
             <span className={desktopLabel}>
               Email{flexibleContact ? ' (optional if phone set)' : ''}
             </span>
@@ -178,7 +184,7 @@ export default function JobDetailsContactSection({
               className={desktopInput}
             />
           </label>
-          <div className="sm:col-span-2">
+          <div className="quote-contact-span">
             <QuotePromoCodeField
               data={data}
               onChange={onChange}

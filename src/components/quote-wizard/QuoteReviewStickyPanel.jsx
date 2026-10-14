@@ -192,7 +192,7 @@ export function QuoteReviewSelectedSlot(props) {
 
 /** Step 3 sidebar — pay CTA below move summary. */
 
-export function QuoteReviewPayCta({ onContinueToPayment, className = '' }) {
+export function QuoteReviewPayCta({ onContinueToPayment, className = '', label = 'Continue to payment →' }) {
   return (
     <div className={`${panel} ${className}`.trim()}>
       <button
@@ -201,7 +201,7 @@ export function QuoteReviewPayCta({ onContinueToPayment, className = '' }) {
         className="flex min-h-[44px] w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-brand-600 to-emerald-600 px-4 py-2.5 text-sm font-bold text-white shadow-md transition hover:from-brand-700 hover:to-emerald-700 active:scale-[0.99]"
       >
         <Lock className="h-4 w-4" aria-hidden />
-        Continue to payment →
+        {label}
       </button>
     </div>
   )

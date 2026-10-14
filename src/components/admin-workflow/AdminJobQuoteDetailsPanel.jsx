@@ -1,6 +1,7 @@
 import { useMemo } from 'react'
 import { formatDateUK } from '../../lib/formatDateDisplay'
-import { buildAdminJobQuoteDetailsViewModel, liftReadable } from '../../lib/adminJobQuoteDetailsViewModel'
+import { buildAdminJobQuoteDetailsViewModel } from '../../lib/adminJobQuoteDetailsViewModel'
+import JobAccessDetailsCards from './JobAccessDetailsCards'
 import AvailableJobInventorySection from './AvailableJobInventorySection'
 import QuotePhotosAdminSection from './QuotePhotosAdminSection'
 import { AdminField } from './AdminJobUiPrimitives'
@@ -30,28 +31,6 @@ function RouteIcon({ className = 'h-5 w-5' }) {
       <circle cx="17" cy="12" r="2" />
       <circle cx="13" cy="18" r="2" />
     </svg>
-  )
-}
-
-/**
- * @param {{ value: string }} props
- */
-function AccessBadge({ value }) {
-  const v = liftReadable(value)
-  const yes = v === 'Yes'
-  const no = v === 'No'
-  return (
-    <span
-      className={`inline-flex shrink-0 items-center rounded-md px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide ${
-        yes
-          ? 'bg-emerald-100 text-emerald-800 ring-1 ring-emerald-200/80'
-          : no
-            ? 'bg-slate-100 text-slate-600 ring-1 ring-slate-200/80'
-            : 'bg-amber-50 text-amber-900 ring-1 ring-amber-200/70'
-      }`}
-    >
-      {v}
-    </span>
   )
 }
 
@@ -157,75 +136,25 @@ export default function AdminJobQuoteDetailsPanel({
         </div>
       </section>
 
-      <div className="grid gap-6 lg:grid-cols-2">
-        <section className={cardShell}>
-          <div className="border-b border-slate-100 bg-gradient-to-r from-slate-50 to-white px-5 py-4 sm:px-6">
-            <h3 className="text-xs font-bold uppercase tracking-wide text-slate-500">Move details</h3>
-            <p className="mt-0.5 text-sm font-semibold text-slate-800">Service & schedule</p>
-          </div>
-          <div className="space-y-5 p-5 sm:p-6">
-            <AdminField label="Service type" value={vm.serviceLabel} />
-            <AdminField label="Move date" value={q.move_date ? formatDateUK(q.move_date) : '—'} />
-            <AdminField label="Date / time window" value={vm.arrivalLine} />
-            <AdminField label="Crew size" value={vm.crewDisplay} />
-            <AdminField label="Volume" value={vm.volumeLine} />
-          </div>
-        </section>
+      <section className={cardShell}>
+        <div className="border-b border-slate-100 bg-gradient-to-r from-slate-50 to-white px-5 py-4 sm:px-6">
+          <h3 className="text-xs font-bold uppercase tracking-wide text-slate-500">Move details</h3>
+          <p className="mt-0.5 text-sm font-semibold text-slate-800">Service & schedule</p>
+        </div>
+        <div className="grid gap-5 p-5 sm:grid-cols-2 sm:p-6 lg:grid-cols-3">
+          <AdminField label="Service type" value={vm.serviceLabel} />
+          <AdminField label="Move date" value={q.move_date ? formatDateUK(q.move_date) : '—'} />
+          <AdminField label="Date / time window" value={vm.arrivalLine} />
+          <AdminField label="Crew size" value={vm.crewDisplay} />
+          <AdminField label="Volume" value={vm.volumeLine} />
+        </div>
+      </section>
 
-        <section className={cardShell}>
-          <div className="border-b border-slate-100 bg-gradient-to-r from-slate-50 to-white px-5 py-4 sm:px-6">
-            <h3 className="text-xs font-bold uppercase tracking-wide text-slate-500">Access details</h3>
-            <p className="mt-0.5 text-sm font-semibold text-slate-800">Property, lifts & carry</p>
-          </div>
-          <div className="space-y-4 p-5 sm:p-6">
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="flex flex-col gap-2 rounded-xl bg-slate-50/80 p-3 ring-1 ring-slate-100">
-                <p className="text-[10px] font-bold uppercase tracking-wide text-slate-500">Pickup</p>
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <span className="text-xs text-slate-600">Property</span>
-                  <span className="text-right text-sm font-semibold text-slate-900">{vm.pickupType}</span>
-                </div>
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <span className="text-xs text-slate-600">Floor</span>
-                  <span className="text-sm font-semibold text-slate-900">{vm.pickupFloor}</span>
-                </div>
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <span className="text-xs text-slate-600">Lift</span>
-                  <AccessBadge value={vm.pickupLiftRaw} />
-                </div>
-              </div>
-              <div className="flex flex-col gap-2 rounded-xl bg-slate-50/80 p-3 ring-1 ring-slate-100">
-                <p className="text-[10px] font-bold uppercase tracking-wide text-slate-500">Delivery</p>
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <span className="text-xs text-slate-600">Property</span>
-                  <span className="text-right text-sm font-semibold text-slate-900">{vm.deliveryType}</span>
-                </div>
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <span className="text-xs text-slate-600">Floor</span>
-                  <span className="text-sm font-semibold text-slate-900">{vm.deliveryFloor}</span>
-                </div>
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <span className="text-xs text-slate-600">Lift</span>
-                  <AccessBadge value={vm.deliveryLiftRaw} />
-                </div>
-              </div>
-            </div>
-            <div className="flex flex-wrap items-start justify-between gap-3 rounded-xl border border-amber-100/80 bg-amber-50/40 px-4 py-3">
-              <div>
-                <p className="text-[10px] font-bold uppercase tracking-wide text-amber-900/80">Parking</p>
-                <p className="mt-1 text-sm font-medium text-slate-900">{vm.parking}</p>
-              </div>
-              <span className="rounded-md bg-amber-100 px-2 py-1 text-[10px] font-bold uppercase text-amber-900">
-                Access
-              </span>
-            </div>
-            <AdminField label="Walking distance" value={vm.walking} />
-            <AdminField label="Stairs" value={vm.stairs} />
-            <AdminField label="Stairs & access notes" value={vm.stairsNotes} />
-            <AdminField label="Special instructions" value={vm.specialInstructions} />
-          </div>
-        </section>
-      </div>
+      <JobAccessDetailsCards
+        access={vm.access}
+        pickupAddress={String(q.pickup_address || '')}
+        deliveryAddress={String(q.delivery_address || '')}
+      />
 
       <AvailableJobInventorySection quote={q} />
 

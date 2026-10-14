@@ -4,6 +4,8 @@
  * Does not mutate quote data or perform pricing.
  */
 
+import { PARKING_LABELS, WALKING_LABELS } from './emailQuotePayload'
+import { SNAPSHOT_END, SNAPSHOT_START } from './adminPhoneBookingWizardSnapshot'
 import {
   formatMoveArrivalSummary,
   formatVolumeAndCrew,
@@ -14,6 +16,34 @@ import {
   shortAddressLine,
 } from './quoteJobAdminModel'
 
+export const ACCESS_NOT_PROVIDED = 'Not provided'
+
+const FLOOR_LABELS = {
+  '-1': 'Basement',
+  0: 'Ground floor',
+  1: '1st Floor',
+  2: '2nd Floor',
+  3: '3rd Floor',
+  4: '4th Floor',
+  5: '5th Floor',
+  6: '6th Floor',
+  7: '7th Floor',
+  8: '8th Floor',
+  9: '9th Floor',
+  10: '10+ Floors',
+}
+
+const ACCESS_FIELDS = [
+  'propertyType',
+  'floor',
+  'lift',
+  'parking',
+  'carryDistance',
+  'stairs',
+  'accessNotes',
+  'specialInstructions',
+]
+
 /** @param {unknown} v */
 export function liftReadable(v) {
   const s = String(v ?? '').trim()
@@ -22,6 +52,159 @@ export function liftReadable(v) {
   if (low === 'yes' || low === 'y' || low === 'true' || low === '1') return 'Yes'
   if (low === 'no' || low === 'n' || low === 'false' || low === '0' || low === 'none') return 'No'
   return s
+}
+
+/**
+ * Phone-booking JSON saved in details. Reads the raw wizard only — draft hydration
+ * fills House / standard parking / 0 stairs, which must not appear as saved answers.
+ * @param {unknown} details
+ * @returns {Record<string, unknown> | null}
+ */
+function readRawPhoneBookingWizard(details) {
+  const text = String(details ?? '')
+  const start = text.indexOf(SNAPSHOT_START)
+  if (start < 0) return null
+  const end = text.indexOf(SNAPSHOT_END, start)
+  if (end < 0) return null
+  try {
+    const parsed = JSON.parse(text.slice(start + SNAPSHOT_START.length, end).trim())
+    const wizard = parsed?.wizard
+    return wizard && typeof wizard === 'object' ? wizard : null
+  } catch {
+    return null
+  }
+}
+
+/**
+ * @param {Record<string, unknown> | null} wizard
+ * @param {string} key
+ * @returns {{ known: boolean, value: unknown }}
+ */
+function snapshotField(wizard, key) {
+  if (!wizard || !Object.prototype.hasOwnProperty.call(wizard, key)) return { known: false, value: null }
+  return { known: true, value: wizard[key] }
+}
+
+/** @param {unknown} value */
+function meaningfulText(value) {
+  if (value == null) return null
+  const text = String(value).trim()
+  if (!text || text === '—' || text === '-' || text === '–' || /^n\/a$/i.test(text)) return null
+  return text
+}
+
+/** @param {unknown[]} values */
+function firstText(...values) {
+  for (const value of values) {
+    const text = meaningfulText(value)
+    if (text) return text
+  }
+  return null
+}
+
+/**
+ * Snapshot wins when the key was saved, including 0 and false.
+ * A missing key falls through to the enquiry text. Null / blank snapshot values stay absent.
+ * @param {Record<string, unknown> | null} wizard
+ * @param {string} key
+ * @param {unknown[]} textValues
+ */
+function savedValue(wizard, key, ...textValues) {
+  const snap = snapshotField(wizard, key)
+  if (!snap.known) return firstText(...textValues)
+  if (typeof snap.value === 'string') return meaningfulText(snap.value)
+  if (snap.value == null) return null
+  return snap.value
+}
+
+/** @param {unknown} value */
+function formatFloorSaved(value) {
+  if (typeof value === 'number' && Number.isFinite(value)) return FLOOR_LABELS[value] || `${value} floor`
+  const text = meaningfulText(value)
+  if (!text) return null
+  if (/^ground(\s+floor)?$/i.test(text)) return 'Ground floor'
+  if (/^basement$/i.test(text)) return 'Basement'
+  if (/^\d+$/.test(text) || text === '-1') return FLOOR_LABELS[Number(text)] || `${text} floor`
+  return text
+}
+
+/** @param {unknown} value */
+function formatLiftSaved(value) {
+  if (value === true) return 'Lift available'
+  if (value === false) return 'No lift'
+  const text = meaningfulText(value)
+  if (!text) return null
+  const low = text.toLowerCase()
+  if (low === 'yes' || low === 'y' || low === 'true' || low === '1' || low === 'lift available') return 'Lift available'
+  if (low === 'no' || low === 'n' || low === 'false' || low === '0' || low === 'none' || low === 'no lift') {
+    return 'No lift'
+  }
+  return text
+}
+
+/** @param {unknown} value */
+function formatParkingSaved(value) {
+  if (value == null) return null
+  const code = typeof value === 'string' ? value.trim() : ''
+  if (code && PARKING_LABELS[code]) return PARKING_LABELS[code]
+  const text = meaningfulText(value)
+  if (!text) return null
+  if (/^yes$/i.test(text)) return 'Extended carry / awkward parking'
+  if (/^no$/i.test(text)) return 'No extended carry'
+  return PARKING_LABELS[text] || text
+}
+
+/** @param {unknown} value */
+function formatCarrySaved(value) {
+  if (value == null) return null
+  const code = typeof value === 'string' ? value.trim() : ''
+  if (code && WALKING_LABELS[code]) return WALKING_LABELS[code]
+  const text = meaningfulText(value)
+  if (!text) return null
+  if (/^yes$/i.test(text)) return WALKING_LABELS.long
+  if (/^no$/i.test(text)) return 'No long carry'
+  return WALKING_LABELS[text] || text
+}
+
+/** @param {unknown} value */
+function formatFlightsSaved(value) {
+  if (value == null || value === '') return null
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value === 1 ? '1 flight' : `${value} flights`
+  }
+  const text = meaningfulText(value)
+  if (!text) return null
+  if (!/^-?\d+$/.test(text)) return text
+  const n = Number(text)
+  return n === 1 ? '1 flight' : `${n} flights`
+}
+
+/** @param {unknown[]} parts */
+function joinSaved(...parts) {
+  const lines = parts.map((part) => meaningfulText(part)).filter(Boolean)
+  return lines.length ? lines.join('\n') : null
+}
+
+/** @param {unknown} value */
+function displayAccess(value) {
+  return value == null || value === '' ? ACCESS_NOT_PROVIDED : String(value)
+}
+
+/** @param {unknown} value */
+function legacyDash(value) {
+  return value == null || value === '' ? '—' : String(value)
+}
+
+/**
+ * @param {Record<string, string>} side
+ */
+function sideAllMissing(side) {
+  return ACCESS_FIELDS.every((key) => side[key] === ACCESS_NOT_PROVIDED)
+}
+
+function blankAccess() {
+  const side = Object.fromEntries(ACCESS_FIELDS.map((key) => [key, ACCESS_NOT_PROVIDED]))
+  return { allMissing: true, pickup: side, delivery: { ...side } }
 }
 
 /**
@@ -60,6 +243,7 @@ export function buildAdminJobQuoteDetailsViewModel(q) {
       deliveryContactPhone: '—',
       pickupFlatDetails: '—',
       deliveryFlatDetails: '—',
+      access: blankAccess(),
     }
   }
 
@@ -80,28 +264,104 @@ export function buildAdminJobQuoteDetailsViewModel(q) {
 
   const arrivalLine = formatMoveArrivalSummary(q, { ...kvFlat, ...serviceSec })
 
-  const pickupType = pickupSec['Property type'] || '—'
-  const pickupFloor = pickupSec.Floor ?? formAccess['Pickup floor'] ?? '—'
-  const pickupLiftRaw =
-    pickupSec.Lift ?? formAccess['Lift available (pricing uses same value at both ends in this form)'] ?? '—'
+  // Access is stored in quotes.details (wizard text, and a phone-booking JSON snapshot).
+  // fetchQuoteByIdForAdmin already selects the full row, so this is a mapping fix.
+  const wizard = readRawPhoneBookingWizard(q.details)
+  const sharedLiftText = formAccess['Lift available (pricing uses same value at both ends in this form)']
+  const parkingSaved = formatParkingSaved(
+    savedValue(
+      wizard,
+      'parkingDistance',
+      accessCarry['Parking / vehicle access'],
+      accessCarry['Parking'],
+      formAccess['Awkward parking / extended carry'],
+    ),
+  )
+  const carrySaved = formatCarrySaved(
+    savedValue(
+      wizard,
+      'walkingDistance',
+      accessCarry['Walking distance (van to door)'],
+      accessCarry['Walking'],
+      formAccess['Long walk / carry'],
+    ),
+  )
+  const flightsSaved = formatFlightsSaved(
+    savedValue(
+      wizard,
+      'stairsFlights',
+      accessCarry['Flights of stairs (estimate)'],
+      formAccess['Stairs flights (estimate)'],
+    ),
+  )
+  const stairsNotesSaved = savedValue(wizard, 'stairsNotes', accessCarry['Stairs & access notes'])
+  const heavyNotesSaved = savedValue(wizard, 'heavyNotes', accessCarry['Heavy / bulky items notes'])
+  const specialSaved = savedValue(
+    wizard,
+    'specialInstructions',
+    accessCarry['Special instructions'],
+    kvFlat['Special instructions'],
+    serviceSec['Special instructions'],
+    kvFlat['Customer notes'],
+    kvFlat['Free-text message'],
+  )
+  const stairsSaved = joinSaved(flightsSaved, stairsNotesSaved)
 
-  const deliveryType = deliverySec['Property type'] || '—'
-  const deliveryFloor = deliverySec.Floor ?? formAccess['Delivery floor'] ?? '—'
-  const deliveryLiftRaw =
-    deliverySec.Lift ?? formAccess['Lift available (pricing uses same value at both ends in this form)'] ?? '—'
+  const pickupTypeSaved = savedValue(wizard, 'pickupPropertyType', pickupSec['Property type'])
+  const deliveryTypeSaved = savedValue(wizard, 'deliveryPropertyType', deliverySec['Property type'])
+  const pickupFloorSaved = formatFloorSaved(
+    savedValue(wizard, 'pickupFloor', pickupSec.Floor, pickupSec['Pickup floor'], formAccess['Pickup floor']),
+  )
+  const deliveryFloorSaved = formatFloorSaved(
+    savedValue(wizard, 'deliveryFloor', deliverySec.Floor, deliverySec['Delivery floor'], formAccess['Delivery floor']),
+  )
+  const pickupLiftSaved = formatLiftSaved(
+    savedValue(wizard, 'pickupLift', pickupSec.Lift, pickupSec['Pickup lift'], sharedLiftText),
+  )
+  const deliveryLiftSaved = formatLiftSaved(
+    savedValue(wizard, 'deliveryLift', deliverySec.Lift, deliverySec['Delivery lift'], sharedLiftText),
+  )
+  const pickupNotesSaved = joinSaved(
+    savedValue(wizard, 'pickupFlatDetails', kvFlat['Pickup access notes']),
+    heavyNotesSaved,
+  )
+  const deliveryNotesSaved = joinSaved(
+    savedValue(wizard, 'deliveryFlatDetails', kvFlat['Delivery access notes']),
+    heavyNotesSaved,
+  )
 
-  const parking =
-    accessCarry['Parking / vehicle access'] ||
-    (formAccess['Awkward parking / extended carry'] ? 'Awkward / extended' : '—')
-  const walking =
-    accessCarry['Walking distance (van to door)'] ||
-    (formAccess['Long walk / carry'] === 'Yes' ? 'Long walk' : '—')
-  const stairs = accessCarry['Flights of stairs (estimate)'] || formAccess['Stairs flights (estimate)'] || '—'
-  const stairsNotes = accessCarry['Stairs & access notes'] || '—'
-  const specialInstructions =
-    [kvFlat['Special instructions'], serviceSec['Special instructions'], accessCarry['Special instructions']]
-      .filter(Boolean)
-      .join('\n\n') || '—'
+  const pickupAccess = {
+    propertyType: displayAccess(pickupTypeSaved),
+    floor: displayAccess(pickupFloorSaved),
+    lift: displayAccess(pickupLiftSaved),
+    parking: displayAccess(parkingSaved),
+    carryDistance: displayAccess(carrySaved),
+    stairs: displayAccess(stairsSaved),
+    accessNotes: displayAccess(pickupNotesSaved),
+    specialInstructions: displayAccess(specialSaved),
+  }
+  const deliveryAccess = {
+    propertyType: displayAccess(deliveryTypeSaved),
+    floor: displayAccess(deliveryFloorSaved),
+    lift: displayAccess(deliveryLiftSaved),
+    parking: displayAccess(parkingSaved),
+    carryDistance: displayAccess(carrySaved),
+    stairs: displayAccess(stairsSaved),
+    accessNotes: displayAccess(deliveryNotesSaved),
+    specialInstructions: displayAccess(specialSaved),
+  }
+
+  const pickupType = legacyDash(pickupTypeSaved)
+  const pickupFloor = legacyDash(pickupFloorSaved)
+  const pickupLiftRaw = pickupLiftSaved === 'Lift available' ? 'Yes' : pickupLiftSaved === 'No lift' ? 'No' : '—'
+  const deliveryType = legacyDash(deliveryTypeSaved)
+  const deliveryFloor = legacyDash(deliveryFloorSaved)
+  const deliveryLiftRaw = deliveryLiftSaved === 'Lift available' ? 'Yes' : deliveryLiftSaved === 'No lift' ? 'No' : '—'
+  const parking = legacyDash(parkingSaved)
+  const walking = legacyDash(carrySaved)
+  const stairs = legacyDash(flightsSaved)
+  const stairsNotes = legacyDash(stairsNotesSaved)
+  const specialInstructions = legacyDash(specialSaved)
 
   const volumeLine =
     pricingParsed.volumeM3 != null
@@ -152,8 +412,13 @@ export function buildAdminJobQuoteDetailsViewModel(q) {
     pickupContactPhone: kvFlat['Pickup phone'] || '—',
     deliveryContact: kvFlat['Delivery contact'] || kvFlat['Delivery contact name'] || '—',
     deliveryContactPhone: kvFlat['Delivery phone'] || '—',
-    pickupFlatDetails: kvFlat['Pickup access notes'] || '—',
-    deliveryFlatDetails: kvFlat['Delivery access notes'] || '—',
+    pickupFlatDetails: legacyDash(savedValue(wizard, 'pickupFlatDetails', kvFlat['Pickup access notes'])),
+    deliveryFlatDetails: legacyDash(savedValue(wizard, 'deliveryFlatDetails', kvFlat['Delivery access notes'])),
+    access: {
+      allMissing: sideAllMissing(pickupAccess) && sideAllMissing(deliveryAccess),
+      pickup: pickupAccess,
+      delivery: deliveryAccess,
+    },
   }
 }
 

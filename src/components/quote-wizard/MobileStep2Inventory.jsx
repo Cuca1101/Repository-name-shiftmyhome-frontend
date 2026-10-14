@@ -120,7 +120,7 @@ export default function MobileStep2Inventory({
                   categoryKey={key}
                   className={`h-[1.125rem] w-[1.125rem] shrink-0 ${isOpen ? 'text-blue-700' : 'text-slate-600'}`}
                 />
-                <span className="min-w-0 flex-1 leading-snug">{c.label}</span>
+                <span className="quote-inventory-item-name min-w-0 flex-1 leading-snug">{c.label}</span>
                 <ChevronDown
                   className={`h-4 w-4 shrink-0 text-slate-500 transition-transform ${isOpen ? 'rotate-180 text-blue-600' : ''}`}
                   aria-hidden
@@ -210,16 +210,18 @@ export default function MobileStep2Inventory({
               >
                 <PackagePlus className="h-4 w-4 shrink-0 text-slate-600" aria-hidden />
                 <div className="min-w-0 flex-1">
-                  <p className="text-sm font-semibold text-slate-900">{row.name}</p>
+                  <p className="quote-inventory-item-name text-sm font-semibold text-slate-900">{row.name}</p>
                   <p className="text-[11px] text-slate-500">Custom · {row.m3.toFixed(2)} m³</p>
                 </div>
-                <InlineInventoryQtyControl
-                  compact
-                  quantity={row.quantity}
-                  onAdd={() => bump(row.lineId, 1)}
-                  onDecrement={() => bump(row.lineId, -1)}
-                  onIncrement={() => bump(row.lineId, 1)}
-                />
+                <span className="quote-inventory-qty inline-flex shrink-0">
+                  <InlineInventoryQtyControl
+                    compact
+                    quantity={row.quantity}
+                    onAdd={() => bump(row.lineId, 1)}
+                    onDecrement={() => bump(row.lineId, -1)}
+                    onIncrement={() => bump(row.lineId, 1)}
+                  />
+                </span>
               </li>
             ))}
           </ul>

@@ -9,6 +9,7 @@ const ERROR_MESSAGES = {
   no_price: 'This quote has no price yet. Please contact ShiftMyHome.',
   missing_customer_email: 'Add a customer email address before sending the quote.',
   email_failed: 'The email could not be sent. Try again in a moment.',
+  deposit_not_available: 'The £50 deposit link is not available for this move date or total.',
   unauthorized: 'Admin sign-in required or session expired.',
   forbidden: 'You do not have permission for this action.',
 }
@@ -69,12 +70,19 @@ export async function createPhoneQuotePayment(token, paymentType) {
   return callPhoneQuote({ action: 'create_payment', token, payment_type: paymentType })
 }
 
-/** Builds the email without sending it. @param {string} quoteId */
-export async function previewPhoneQuoteEmail(quoteId) {
-  return callPhoneQuote({ action: 'preview', quoteId }, { admin: true })
+/**
+ * Builds the email without sending it.
+ * @param {string} quoteId
+ * @param {'deposit' | 'full' | ''} [paymentType]
+ */
+export async function previewPhoneQuoteEmail(quoteId, paymentType = '') {
+  return callPhoneQuote({ action: 'preview', quoteId, payment_type: paymentType || undefined }, { admin: true })
 }
 
-/** @param {string} quoteId */
-export async function sendPhoneQuoteEmail(quoteId) {
-  return callPhoneQuote({ action: 'send', quoteId }, { admin: true })
+/**
+ * @param {string} quoteId
+ * @param {'deposit' | 'full' | ''} [paymentType]
+ */
+export async function sendPhoneQuoteEmail(quoteId, paymentType = '') {
+  return callPhoneQuote({ action: 'send', quoteId, payment_type: paymentType || undefined }, { admin: true })
 }

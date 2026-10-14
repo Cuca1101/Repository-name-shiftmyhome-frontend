@@ -13,14 +13,11 @@ import {
   addressPlacePatch,
   createAddressSessionToken,
   emptyAddressPlacePatch,
-  findUkAddressByText,
   hasGoogleMapsKey,
-  isUkPostcodeQuery,
+  GOOGLE_ADDRESS_MIN_QUERY,
   placeFromPrediction,
-  suggestUkStreets,
+  suggestUkPlaces,
 } from '../../lib/googlePlaces'
-import { hasIdealPostcodesKey, lookupUkPostcode } from '../../lib/idealPostcodes'
-import { hasSnapPostcodeLookup, lookupSnapPostcode, suggestSnapAddresses } from '../../lib/snapAddress'
 import {
   contactDetailsComplete,
   isDropoffSameAsPickup,
@@ -334,42 +331,18 @@ function PlaceSearch({ side, data, onChange, confirmed }) {
       setNotice(EMPTY_MESSAGE)
       return
     }
+    if (!hasGoogleMapsKey() || typed.length < GOOGLE_ADDRESS_MIN_QUERY) {
+      setResults([])
+      setNotice(EMPTY_MESSAGE)
+      return
+    }
     const requestId = requestRef.current + 1
     requestRef.current = requestId
     setSearching(true)
     try {
-      const postcodeOnly = isUkPostcodeQuery(typed)
-      if (hasSnapPostcodeLookup() || (postcodeOnly && hasIdealPostcodesKey())) {
-        let list = []
-        try {
-          if (hasSnapPostcodeLookup()) {
-            list = postcodeOnly ? await lookupSnapPostcode(typed) : await suggestSnapAddresses(typed)
-          }
-        } catch {
-          list = []
-        }
-        if (requestRef.current !== requestId) return
-        if (list.length === 0 && postcodeOnly && hasIdealPostcodesKey()) {
-          try {
-            list = await lookupUkPostcode(typed)
-          } catch {
-            list = []
-          }
-        }
-        if (requestRef.current !== requestId) return
-        if (list.length > 0) {
-          setResults(list)
-          setNotice('')
-          return
-        }
-      }
-      if (!hasGoogleMapsKey() || typed.length < 3) {
-        setResults([])
-        setNotice(EMPTY_MESSAGE)
-        return
-      }
-      sessionRef.current = await createAddressSessionToken()
-      const list = await suggestUkStreets(typed, sessionRef.current)
+      if (!sessionRef.current) sessionRef.current = await createAddressSessionToken()
+      if (requestRef.current !== requestId) return
+      const list = await suggestUkPlaces(typed, sessionRef.current)
       if (requestRef.current !== requestId) return
       setResults(list)
       setNotice(list.length ? '' : EMPTY_MESSAGE)
@@ -387,19 +360,8 @@ function PlaceSearch({ side, data, onChange, confirmed }) {
     setSearching(true)
     setNotice('')
     try {
-      if (item.source === 'snap-group' && item.postcode) {
-        const list = await lookupSnapPostcode(item.postcode)
-        if (list.length > 0) {
-          setResults(list)
-          return
-        }
-      }
-      let place = item.place
-      if (item.prediction) place = await placeFromPrediction(item.prediction)
-      if ((item.source === 'ideal' || item.source === 'snap') && (place?.lng == null || place?.lat == null)) {
-        const hit = await findUkAddressByText(place?.formattedAddress || '')
-        if (hit?.lng != null) place = { ...place, lng: hit.lng, lat: hit.lat }
-      }
+      const place = item.prediction ? await placeFromPrediction(item.prediction) : item.place
+      sessionRef.current = null
       if (!place?.formattedAddress) {
         setNotice(EMPTY_MESSAGE)
         return
@@ -414,6 +376,7 @@ function PlaceSearch({ side, data, onChange, confirmed }) {
       setManual(false)
       setEditing(false)
     } catch {
+      sessionRef.current = null
       setNotice(EMPTY_MESSAGE)
     } finally {
       setSearching(false)

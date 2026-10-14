@@ -1,13 +1,12 @@
 import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import {
+  ADDRESS_SEARCH_PAUSE_MS,
   GOOGLE_ADDRESS_MIN_QUERY,
   createAddressSessionToken,
   hasGoogleMapsKey,
   placeFromPrediction,
-  suggestUkAddresses,
+  suggestUkPlaces,
 } from '../../lib/googlePlaces'
-
-const SEARCH_DEBOUNCE_MS = 300
 const GOOGLE_ATTRIBUTION_SRC =
   'https://maps.gstatic.com/mapfiles/api-3/images/powered-by-google-on-white3.png'
 
@@ -40,6 +39,7 @@ export default function GoogleAddressInput({
   const rootRef = useRef(null)
   const sessionRef = useRef(null)
   const requestRef = useRef(0)
+  const lastQueryRef = useRef('')
   const pickingRef = useRef(false)
   const lockedValueRef = useRef('')
   const [open, setOpen] = useState(false)
@@ -65,7 +65,12 @@ export default function GoogleAddressInput({
     if (!enabled || query.length < GOOGLE_ADDRESS_MIN_QUERY) {
       setSuggestions([])
       setSearching(false)
+      lastQueryRef.current = ''
       if (query.length < GOOGLE_ADDRESS_MIN_QUERY) setOpen(false)
+      return undefined
+    }
+    if (query === lastQueryRef.current) {
+      setSearching(false)
       return undefined
     }
 
@@ -76,8 +81,9 @@ export default function GoogleAddressInput({
       try {
         const token = await ensureSession()
         if (requestRef.current !== requestId) return
-        const results = await suggestUkAddresses(query, token)
+        const results = await suggestUkPlaces(query, token)
         if (requestRef.current !== requestId) return
+        lastQueryRef.current = query
         setSuggestions(results)
         setOpen(true)
         setNote(results.length === 0 ? 'No matching addresses. You can keep what you typed.' : '')
@@ -89,7 +95,7 @@ export default function GoogleAddressInput({
       } finally {
         if (requestRef.current === requestId) setSearching(false)
       }
-    }, SEARCH_DEBOUNCE_MS)
+    }, ADDRESS_SEARCH_PAUSE_MS)
 
     return () => window.clearTimeout(timer)
   }, [value, enabled, ensureSession])
@@ -152,6 +158,7 @@ export default function GoogleAddressInput({
           if (lockedValueRef.current) {
             lockedValueRef.current = ''
             sessionRef.current = null
+            lastQueryRef.current = ''
           }
           setNote('')
           onValueChange(e.target.value)
