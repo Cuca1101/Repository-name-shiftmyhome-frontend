@@ -223,6 +223,7 @@ export default function Step1Address({
               placeholder={quotePage ? 'Enter pickup address' : 'Enter pickup postcode or address'}
               quotePage={quotePage}
               address={data.pickupAddress}
+              houseNumber={data.pickupHouseNumber}
               apartment={data.pickupApartment}
               lng={data.pickupLng}
               lat={data.pickupLat}
@@ -275,6 +276,7 @@ export default function Step1Address({
               placeholder={quotePage ? 'Enter delivery address' : 'Enter delivery postcode or address'}
               quotePage={quotePage}
               address={data.deliveryAddress}
+              houseNumber={data.deliveryHouseNumber}
               apartment={data.deliveryApartment}
               lng={data.deliveryLng}
               lat={data.deliveryLat}

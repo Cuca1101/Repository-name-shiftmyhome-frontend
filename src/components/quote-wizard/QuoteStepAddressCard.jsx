@@ -8,7 +8,6 @@ import {
   createAddressSessionToken,
   emptyAddressPlacePatch,
   findUkAddressByText,
-  formatAddressWithHouseNumber,
   hasGoogleMapsKey,
   placeFromPrediction,
   suggestUkPlaces,
@@ -55,6 +54,39 @@ function addressWithoutApartment(line, apartment) {
   return text
 }
 
+function escapeRegExp(value) {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+function stripLeadingHouseNumber(line, houseNumber) {
+  const text = String(line || '').trim()
+  const door = String(houseNumber || '').trim()
+  if (!door || !text) return text
+  const pattern = new RegExp(`^${escapeRegExp(door)}(?=\\s|,|$)`, 'i')
+  return pattern.test(text) ? text.replace(pattern, '').replace(/^[, ]+/, '').trim() : text
+}
+
+function composeStreetAddress(base, houseNumber) {
+  const door = String(houseNumber || '').trim()
+  const line = String(base || '').trim()
+  if (!door) return line
+  if (!line) return door
+  const pattern = new RegExp(`^${escapeRegExp(door)}(?=\\s|,|$)`, 'i')
+  if (pattern.test(line)) return line
+  return `${door} ${line}`
+}
+
+function placeStreetLine(place) {
+  const locality = [place?.town, place?.postcode].filter(Boolean).join(' ')
+  const street = String(place?.street || '').trim()
+  if (street) return [street, locality].filter(Boolean).join(', ')
+  return stripLeadingHouseNumber(place?.formattedAddress || '', place?.houseNumber)
+}
+
+function addressBase(address, apartment, houseNumber) {
+  return stripLeadingHouseNumber(addressWithoutApartment(address, apartment), houseNumber)
+}
+
 /**
  * Collection and delivery address card for the website quote and Admin phone booking.
  * Suggestions come from Google Places Autocomplete (New), limited to the UK.
@@ -65,6 +97,7 @@ function addressWithoutApartment(line, apartment) {
  *   helper: string,
  *   placeholder: string,
  *   address: string,
+ *   houseNumber?: string,
  *   apartment?: string,
  *   lng: number | null,
  *   lat: number | null,
@@ -86,6 +119,7 @@ export default function QuoteStepAddressCard({
   helper,
   placeholder,
   address,
+  houseNumber = '',
   apartment = '',
   lng,
   lat,
@@ -104,7 +138,7 @@ export default function QuoteStepAddressCard({
   const prefix = addressPrefix(addressKey)
   const [accepted, setAccepted] = useState(() => lng != null && lat != null)
   const selected = (lng != null && lat != null) || (accepted && Boolean(String(address || '').trim()))
-  const [query, setQuery] = useState(() => (selected ? '' : addressWithoutApartment(address, apartment)))
+  const [query, setQuery] = useState(() => (selected ? '' : addressBase(address, apartment, houseNumber)))
   const [manual, setManual] = useState(false)
   const [searching, setSearching] = useState(false)
   const [open, setOpen] = useState(false)
@@ -115,7 +149,7 @@ export default function QuoteStepAddressCard({
   const lastQueryRef = useRef('')
   const resultsRef = useRef([])
   const timerRef = useRef(0)
-  const baseAddressRef = useRef(addressWithoutApartment(address, apartment))
+  const baseAddressRef = useRef(addressBase(address, apartment, houseNumber))
   const manualGeocodeRef = useRef(0)
   resultsRef.current = results
 
@@ -145,7 +179,13 @@ export default function QuoteStepAddressCard({
       [latKey]: null,
       [confirmedKey]: false,
       ...emptyAddressPlacePatch(prefix),
+      [`${prefix}HouseNumber`]: houseNumber,
+      [`${prefix}Apartment`]: apartment,
     })
+  }
+
+  function composedAddress(base, door = houseNumber, flat = apartment) {
+    return composeAddressWithApartment(composeStreetAddress(base, door), flat)
   }
 
   useEffect(() => {
@@ -218,17 +258,21 @@ export default function QuoteStepAddressCard({
   }
 
   function applyPlace(place) {
-    const formatted = formatAddressWithHouseNumber(place) || place.formattedAddress || ''
-    if (!formatted || place.lng == null || place.lat == null) {
+    const base = placeStreetLine(place)
+    if (!base || place.lng == null || place.lat == null) {
       setNotice(EMPTY_MESSAGE)
       return false
     }
-    baseAddressRef.current = formatted
+    const door = place.houseNumber || houseNumber
+    const flat = String(apartment || '').trim() || place.subpremise || ''
+    const line = composedAddress(base, door, flat)
+    baseAddressRef.current = base
     setAccepted(true)
     patch({
-      ...addressPlacePatch(prefix, { ...place, formattedAddress: formatted }),
-      [addressKey]: composeAddressWithApartment(formatted, apartment),
-      [`${prefix}Apartment`]: apartment,
+      ...addressPlacePatch(prefix, place, { keepTypedAddress: true, typedAddress: line }),
+      [addressKey]: line,
+      [`${prefix}HouseNumber`]: door,
+      [`${prefix}Apartment`]: flat,
       [lngKey]: place.lng,
       [latKey]: place.lat,
       [confirmedKey]: true,
@@ -259,18 +303,30 @@ export default function QuoteStepAddressCard({
     }
   }
 
-  function setApartment(value) {
-    const base = baseAddressRef.current || addressWithoutApartment(address, apartment)
+  function currentBase() {
+    return baseAddressRef.current || addressBase(address, apartment, houseNumber)
+  }
+
+  function setHouseNumber(value) {
+    const base = currentBase()
     baseAddressRef.current = base
-    const next = {
+    patch({
+      [`${prefix}HouseNumber`]: value,
+      [addressKey]: composedAddress(base, value, apartment),
+    })
+  }
+
+  function setApartment(value) {
+    const base = currentBase()
+    baseAddressRef.current = base
+    patch({
       [`${prefix}Apartment`]: value,
-    }
-    if (base) next[addressKey] = composeAddressWithApartment(base, value)
-    patch(next)
+      [addressKey]: composedAddress(base, houseNumber, value),
+    })
   }
 
   function startChange() {
-    const base = baseAddressRef.current || addressWithoutApartment(address, apartment)
+    const base = currentBase()
     baseAddressRef.current = base
     endSession()
     lastQueryRef.current = ''
@@ -279,11 +335,11 @@ export default function QuoteStepAddressCard({
     setNotice('')
     setResults([])
     setOpen(false)
-    clearSelection(composeAddressWithApartment(base, apartment))
+    clearSelection(composedAddress(base))
   }
 
   function startManual() {
-    const base = baseAddressRef.current || addressWithoutApartment(address, apartment)
+    const base = currentBase()
     baseAddressRef.current = base
     endSession()
     lastQueryRef.current = ''
@@ -292,23 +348,26 @@ export default function QuoteStepAddressCard({
     setResults([])
     setNotice('')
     setQuery(base)
-    if (selected) clearSelection(composeAddressWithApartment(base, apartment))
+    if (selected) clearSelection(composedAddress(base))
   }
 
   async function geocodeManual(base) {
-    const text = String(base || '').trim()
+    const text = composeStreetAddress(String(base || '').trim(), houseNumber)
     if (!hasGoogleMapsKey() || text.length < MIN_MANUAL_ADDRESS_LENGTH) return
     const requestId = manualGeocodeRef.current + 1
     manualGeocodeRef.current = requestId
     try {
       const place = await findUkAddressByText(text)
       if (manualGeocodeRef.current !== requestId || !place || place.lng == null || place.lat == null) return
-      baseAddressRef.current = text
+      const door = place.houseNumber || houseNumber
+      const flat = String(apartment || '').trim() || place.subpremise || ''
+      const line = composedAddress(baseAddressRef.current || text, door, flat)
       setAccepted(true)
       patch({
-        ...addressPlacePatch(prefix, place, { keepTypedAddress: true, typedAddress: composeAddressWithApartment(text, apartment) }),
-        [addressKey]: composeAddressWithApartment(text, apartment),
-        [`${prefix}Apartment`]: apartment,
+        ...addressPlacePatch(prefix, place, { keepTypedAddress: true, typedAddress: line }),
+        [addressKey]: line,
+        [`${prefix}HouseNumber`]: door,
+        [`${prefix}Apartment`]: flat,
         [lngKey]: place.lng,
         [latKey]: place.lat,
         [confirmedKey]: true,
@@ -322,27 +381,51 @@ export default function QuoteStepAddressCard({
   const control =
     'box-border h-[52px] w-full min-w-0 rounded-xl border border-slate-200 bg-white px-3.5 text-base text-slate-900 shadow-sm outline-none transition focus:ring-2'
   const panelClass = 'border-slate-200 bg-white shadow-sm'
-  const shownAddress = composeAddressWithApartment(baseAddressRef.current || addressWithoutApartment(address, apartment), apartment) || address
+  const shownAddress = composedAddress(currentBase()) || address
+  const houseNumberMissing = selected && !String(houseNumber || '').trim()
+  const houseNumberErrorId = `${addressKey}-house-number-error`
+  const houseControl = houseNumberMissing
+    ? 'box-border h-[52px] w-full min-w-0 rounded-xl border border-red-500 bg-white px-3.5 text-base text-slate-900 shadow-sm outline-none transition focus:border-red-500 focus:ring-2 focus:ring-red-500/25'
+    : `${control} ${focusRing}`
 
-  function resultLabel(item) {
-    const lines = suggestionLines(item)
-    return [lines.main, lines.secondary].filter(Boolean).join(', ')
-  }
-
-  const apartmentField = (
-    <label className="mt-3 block">
-      <span className="mb-1 block text-xs font-medium text-slate-600">Apartment / flat number</span>
-      <input
-        type="text"
-        value={apartment}
-        autoComplete="off"
-        spellCheck={false}
-        placeholder="Optional"
-        aria-label="Apartment or flat number"
-        className={`${control} ${focusRing}`}
-        onChange={(e) => setApartment(e.target.value)}
-      />
-    </label>
+  const numberFields = (
+    <div className="mt-3 grid grid-cols-2 items-start gap-2">
+      <div className="min-w-0">
+        <label className="block">
+          <span className="mb-1 block text-xs font-medium text-slate-600">House number</span>
+          <input
+            type="text"
+            value={houseNumber}
+            autoComplete="off"
+            spellCheck={false}
+            placeholder="e.g. 12"
+            aria-label="House number"
+            aria-invalid={houseNumberMissing || undefined}
+            aria-describedby={houseNumberMissing ? houseNumberErrorId : undefined}
+            className={houseControl}
+            onChange={(e) => setHouseNumber(e.target.value)}
+          />
+        </label>
+        {houseNumberMissing ? (
+          <p id={houseNumberErrorId} className="mt-1 text-xs font-medium text-red-600" role="alert">
+            Select a number
+          </p>
+        ) : null}
+      </div>
+      <label className="min-w-0">
+        <span className="mb-1 block text-xs font-medium leading-snug text-slate-600">Flat / Apartment (optional)</span>
+        <input
+          type="text"
+          value={apartment}
+          autoComplete="off"
+          spellCheck={false}
+          placeholder="Optional"
+          aria-label="Flat or apartment"
+          className={`${control} ${focusRing}`}
+          onChange={(e) => setApartment(e.target.value)}
+        />
+      </label>
+    </div>
   )
 
   return (
@@ -378,11 +461,11 @@ export default function QuoteStepAddressCard({
         <textarea
           id={addressKey}
           rows={2}
-          value={addressWithoutApartment(address, apartment)}
+          value={currentBase()}
           onChange={(e) => {
             const base = e.target.value
             baseAddressRef.current = base
-            clearSelection(composeAddressWithApartment(base, apartment))
+            clearSelection(composedAddress(base))
           }}
           onBlur={() => {
             if (lng == null || lat == null) void geocodeManual(baseAddressRef.current)
@@ -419,7 +502,7 @@ export default function QuoteStepAddressCard({
                 if (e.key === 'Enter') {
                   e.preventDefault()
                   window.clearTimeout(timerRef.current)
-                  void runGoogleSearch(query)
+                  void runGoogleSearch(e.currentTarget.value)
                 }
               }}
             />
@@ -427,8 +510,9 @@ export default function QuoteStepAddressCard({
               type="button"
               disabled={searching}
               onClick={() => {
+                const typed = document.getElementById(addressKey)?.value ?? query
                 window.clearTimeout(timerRef.current)
-                void runGoogleSearch(query)
+                void runGoogleSearch(typed)
               }}
               className={`quote-address-find inline-flex h-[52px] w-full shrink-0 items-center justify-center gap-2 px-4 text-sm font-semibold text-white shadow-sm transition focus-visible:outline-none focus-visible:ring-2 disabled:cursor-wait disabled:opacity-70 ${quotePage ? 'rounded-xl' : 'rounded-2xl'} ${buttonClass}`}
             >
@@ -487,7 +571,7 @@ export default function QuoteStepAddressCard({
         </div>
       )}
 
-      {apartmentField}
+      {numberFields}
 
       <label className="mt-3 block">
         <span className="mb-1 block text-xs font-medium text-slate-600">Property type</span>
