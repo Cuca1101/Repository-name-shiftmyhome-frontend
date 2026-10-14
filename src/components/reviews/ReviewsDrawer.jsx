@@ -133,11 +133,7 @@ export default function ReviewsDrawer({ open, onClose }) {
   const googleSummary = getCachedGoogleBusinessProfile()
   const trustpilotSummary = getCachedTrustpilotProfile()
 
-  const tabRating = (tabId) => {
-    if (tabId === 'all') return summary.averageRating.toFixed(1)
-    const s = getSummaryForTab(tabId, reviews)
-    return s.averageRating.toFixed(1)
-  }
+  const tabRating = (tabId) => getSummaryForTab(tabId, reviews).averageRating.toFixed(1)
 
   return (
     <>

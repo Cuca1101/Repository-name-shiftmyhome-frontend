@@ -19,6 +19,7 @@ await page.goto(origin, { waitUntil: 'domcontentloaded' })
 const badge = page.getByRole('button', { name: /Open reviews|Google reviews/i }).first()
 await badge.waitFor({ timeout: 15000 })
 await badge.getByText('0 Trustpilot reviews').waitFor({ timeout: 15000 })
+await badge.getByText(/\d+ Google reviews/).waitFor({ timeout: 12000 }).catch(() => {})
 const text = (await badge.innerText()).replace(/\s+/g, ' ').trim()
 const label = await badge.getAttribute('aria-label')
 const fake = /127|4\.9|Michael R|Excellent 4\.8|89 reviews/.test(`${text} ${label}`)
@@ -31,12 +32,16 @@ const drawer = page.getByRole('dialog', { name: 'What our customers say' })
 await drawer.waitFor({ timeout: 10000 })
 const googleLive = api.includes(200)
 if (googleLive) await drawer.getByText(/Google average/).waitFor({ timeout: 10000 })
+const allTab = (await drawer.innerText()).replace(/\s+/g, ' ')
+const allRating = (allTab.match(/All Reviews (\d+\.\d)/) || [])[1] || ''
 await drawer.getByRole('tab', { name: /Trustpilot/ }).click()
 await drawer.getByText('No Trustpilot reviews yet.').waitFor({ timeout: 10000 })
 await drawer.getByText('Trustpilot · 0 reviews').waitFor({ timeout: 10000 })
 const dialog = (await drawer.innerText()).replace(/\s+/g, ' ')
-const liveAuthor = /Tony|Andrew Lucas|Kelvin Alex|Alice|alunita covaci/.test(dialog)
-const fakeAuthor = /Michael R\.|Emma L\./.test(dialog)
+const liveAuthor = /Tony|Andrew Lucas|Kelvin Alex|Alice|alunita covaci/.test(allTab)
+const fakeAuthor = /Michael R\.|Emma L\./.test(`${allTab} ${dialog}`)
+const googleOnBadge = !googleLive || /\d+ Google reviews/.test(text)
+const allKept = !googleLive || (allRating !== '0.0' && dialog.includes(`All Reviews ${allRating}`))
 
 console.log(JSON.stringify({
   origin,
@@ -50,8 +55,11 @@ console.log(JSON.stringify({
   googleLive,
   liveAuthor,
   fakeAuthor,
+  allRating,
+  googleOnBadge,
+  allKept,
   dialog: dialog.slice(0, 500),
 }, null, 2))
 await browser.close()
-const googleFailed = googleLive && (!liveAuthor || fakeAuthor)
+const googleFailed = googleLive && (!liveAuthor || fakeAuthor || !googleOnBadge || !allKept)
 process.exit(fake || fakeHero || !liveHero || !trustpilotLive || googleFailed ? 1 : 0)
