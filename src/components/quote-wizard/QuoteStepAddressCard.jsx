@@ -141,7 +141,7 @@ export default function QuoteStepAddressCard({
   const [query, setQuery] = useState(() => (selected ? '' : addressBase(address, apartment, houseNumber)))
   const [manual, setManual] = useState(false)
   const [searching, setSearching] = useState(false)
-  const [, setOpen] = useState(false)
+  const [open, setOpen] = useState(false)
   const [results, setResults] = useState([])
   const [notice, setNotice] = useState('')
   const sessionRef = useRef(null)
@@ -150,7 +150,7 @@ export default function QuoteStepAddressCard({
   const resultsRef = useRef([])
   const timerRef = useRef(0)
   const inputRef = useRef(null)
-  const listRef = useRef(null)
+  const menuRef = useRef(null)
   const baseAddressRef = useRef(addressBase(address, apartment, houseNumber))
   const manualGeocodeRef = useRef(0)
   resultsRef.current = results
@@ -195,22 +195,21 @@ export default function QuoteStepAddressCard({
   }, [])
 
   useEffect(() => {
-    if (results.length === 0) return undefined
-    const reveal = () => {
-      const node = listRef.current
-      if (!node) return
-      const rect = node.getBoundingClientRect()
-      const visible = rect.top >= 72 && rect.bottom <= window.innerHeight - 12
-      if (visible) return
-      node.scrollIntoView({ block: 'center', inline: 'nearest' })
+    if (!open || results.length === 0) return undefined
+    function onPointerDown(event) {
+      if (menuRef.current?.contains(event.target)) return
+      setOpen(false)
     }
-    const frame = window.requestAnimationFrame(reveal)
-    const timer = window.setTimeout(reveal, 60)
+    function onKeyDown(event) {
+      if (event.key === 'Escape') setOpen(false)
+    }
+    document.addEventListener('pointerdown', onPointerDown)
+    document.addEventListener('keydown', onKeyDown)
     return () => {
-      window.cancelAnimationFrame(frame)
-      window.clearTimeout(timer)
+      document.removeEventListener('pointerdown', onPointerDown)
+      document.removeEventListener('keydown', onKeyDown)
     }
-  }, [results])
+  }, [open, results.length])
 
   async function ensureSession() {
     if (!sessionRef.current) sessionRef.current = await createAddressSessionToken()
@@ -431,7 +430,7 @@ export default function QuoteStepAddressCard({
     <div className="mt-3 grid grid-cols-2 items-start gap-2">
       <div className="min-w-0">
         <label className="block">
-          <span className="mb-1 block min-h-12 text-xs font-medium leading-snug text-slate-600">House number</span>
+          <span className="mb-1.5 block text-xs font-medium leading-snug text-slate-600">House number</span>
           <input
             type="text"
             value={houseNumber}
@@ -452,7 +451,7 @@ export default function QuoteStepAddressCard({
         ) : null}
       </div>
       <label className="min-w-0">
-        <span className="mb-1 block min-h-12 text-xs font-medium leading-snug text-slate-600">Flat / Apartment (optional)</span>
+        <span className="mb-1.5 block text-xs font-medium leading-snug text-slate-600">Flat / Apartment (optional)</span>
         <input
           type="text"
           value={apartment}
@@ -562,61 +561,56 @@ export default function QuoteStepAddressCard({
       {numberFields}
 
       {!selected && !manual ? (
-        <div className="mt-3">
-          <div
-            className={
-              quotePage || results.length > 0
-                ? `overflow-hidden rounded-xl border bg-white ${
-                    results.length > 0 ? 'border-2 border-blue-500 shadow-lg' : 'border-slate-200 shadow-sm'
-                  }`
-                : ''
-            }
-          >
-            {quotePage ? (
-              <button
-                type="button"
-                aria-expanded={results.length > 0}
-                aria-controls={`${addressKey}-results`}
-                onClick={() => findAddress()}
-                className="flex h-[52px] w-full items-center justify-between gap-2 px-3.5 text-left text-base text-slate-500"
-              >
-                <span>Select your address</span>
-                <ChevronDown className={`h-4 w-4 shrink-0 text-slate-400 transition ${results.length > 0 ? 'rotate-180' : ''}`} aria-hidden />
-              </button>
-            ) : null}
-            {results.length > 0 ? (
-              <div
-                ref={listRef}
-                id={`${addressKey}-results`}
-                role="listbox"
-                aria-label="Select your address"
-                className="max-h-72 overflow-y-auto border-t border-slate-200"
-              >
-                {results.map((item) => {
-                  const lines = suggestionLines(item)
-                  return (
-                    <button
-                      key={item.id}
-                      type="button"
-                      role="option"
-                      className="block min-h-12 w-full whitespace-normal break-words border-b border-slate-100 px-3.5 py-3 text-left last:border-b-0 hover:bg-blue-50"
-                      onClick={() => void choose(item)}
-                    >
-                      <span className="block text-sm font-semibold leading-snug text-slate-900">{lines.main}</span>
-                      {lines.secondary ? (
-                        <span className="mt-0.5 block text-xs leading-snug text-slate-500">{lines.secondary}</span>
-                      ) : null}
-                    </button>
-                  )
-                })}
-                <div className="flex justify-end border-t border-slate-100 bg-white px-3 py-1.5">
-                  <img src={GOOGLE_ATTRIBUTION_SRC} alt="Powered by Google" className="h-4 w-auto" />
-                </div>
+        <div ref={menuRef} className="relative mt-3">
+          {quotePage ? (
+            <button
+              type="button"
+              aria-expanded={open && results.length > 0}
+              aria-controls={`${addressKey}-results`}
+              onClick={() => {
+                if (results.length > 0) {
+                  setOpen((current) => !current)
+                  return
+                }
+                findAddress()
+              }}
+              className={`${control} flex items-center justify-between gap-2 text-left text-slate-500 ${focusRing}`}
+            >
+              <span>Select your address</span>
+              <ChevronDown className={`h-4 w-4 shrink-0 text-slate-400 transition ${open && results.length > 0 ? 'rotate-180' : ''}`} aria-hidden />
+            </button>
+          ) : null}
+          {open && results.length > 0 ? (
+            <div
+              id={`${addressKey}-results`}
+              role="listbox"
+              aria-label="Select your address"
+              className="absolute left-0 right-0 top-full z-40 mt-1 max-h-72 overflow-y-auto rounded-xl border border-slate-200 bg-white shadow-lg"
+            >
+              {results.map((item) => {
+                const lines = suggestionLines(item)
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    role="option"
+                    className="block min-h-12 w-full whitespace-normal break-words border-b border-slate-100 px-3.5 py-3 text-left last:border-b-0 hover:bg-blue-50"
+                    onClick={() => void choose(item)}
+                  >
+                    <span className="block text-sm font-semibold leading-snug text-slate-900">{lines.main}</span>
+                    {lines.secondary ? (
+                      <span className="mt-0.5 block text-xs leading-snug text-slate-500">{lines.secondary}</span>
+                    ) : null}
+                  </button>
+                )
+              })}
+              <div className="flex justify-end border-t border-slate-100 bg-white px-3 py-1.5">
+                <img src={GOOGLE_ATTRIBUTION_SRC} alt="Powered by Google" className="h-4 w-auto" />
               </div>
-            ) : null}
-          </div>
+            </div>
+          ) : null}
           {notice ? (
-            <p className="mt-2 text-sm font-medium leading-snug text-red-600" role="status">
+            <p className="mt-1.5 text-sm font-medium leading-snug text-red-600" role="status">
               {notice}
             </p>
           ) : null}
