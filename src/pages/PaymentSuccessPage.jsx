@@ -85,7 +85,7 @@ export default function PaymentSuccessPage() {
           const adsSendTo = getGoogleAdsPurchaseSendTo()
           if (adsSendTo) {
             trackGoogleAdsConversion(adsSendTo, {
-              transactionId: paymentIntentId,
+              transactionId,
               value: hasAmount ? amountGbp : undefined,
               currency,
             })

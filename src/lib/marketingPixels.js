@@ -11,26 +11,64 @@ export function getMetaPixelId() {
   return typeof id === 'string' ? id.trim() : ''
 }
 
-/** Default GA4 measurement ID (override with VITE_GA_MEASUREMENT_ID). */
+/** Site GA4 property. Still used for analytics events. */
 export const GA4_MEASUREMENT_ID = 'G-JHFQTSQRTL'
+
+/**
+ * Google tag for the Ads account under verification.
+ * Already linked to destination AW-18251721917.
+ */
+export const GOOGLE_TAG_ID = 'G-Z2G1NH5YRB'
+
+/** Google Ads destination linked to GOOGLE_TAG_ID. */
+export const GOOGLE_ADS_DESTINATION_ID = 'AW-18251721917'
+
+/** Previous Ads account. Do not configure it again. */
+const RETIRED_GOOGLE_ADS_CONVERSION_ID = 'AW-18190966910'
+
+/** Conversion label that belongs to the retired Ads account. */
+const RETIRED_GOOGLE_ADS_PURCHASE_LABEL = 'NRicCNqylbccEP7AkoJD'
+
+/** @param {unknown} value */
+function readEnvId(value) {
+  return typeof value === 'string' ? value.trim() : ''
+}
 
 /** @returns {string} */
 export function getGaMeasurementId() {
-  const envId = import.meta.env.VITE_GA_MEASUREMENT_ID
-  const trimmed = typeof envId === 'string' ? envId.trim() : ''
-  return trimmed || GA4_MEASUREMENT_ID
+  return readEnvId(import.meta.env.VITE_GA_MEASUREMENT_ID) || GA4_MEASUREMENT_ID
 }
 
-/** @returns {string} Google Ads conversion ID (e.g. AW-123456789). */
+/**
+ * Ads destination configured by the single sitewide gtag loader.
+ * A Cloudflare override that still points at the retired account is ignored.
+ * @returns {string}
+ */
 export function getGoogleAdsConversionId() {
-  const id = import.meta.env.VITE_GOOGLE_ADS_CONVERSION_ID
-  return typeof id === 'string' ? id.trim() : ''
+  const envId = readEnvId(import.meta.env.VITE_GOOGLE_ADS_CONVERSION_ID)
+  if (envId && envId.toUpperCase() !== RETIRED_GOOGLE_ADS_CONVERSION_ID && /^AW-\d+$/i.test(envId)) {
+    return envId
+  }
+  return GOOGLE_ADS_DESTINATION_ID
 }
 
-/** @returns {string} Google Ads purchase conversion label (no AW- prefix). */
+/**
+ * Purchase conversion label for the active Ads account.
+ * The label baked in for AW-18190966910 is not valid on AW-18251721917.
+ * @returns {string}
+ */
 export function getGoogleAdsPurchaseLabel() {
-  const label = import.meta.env.VITE_GOOGLE_ADS_PURCHASE_LABEL
-  return typeof label === 'string' ? label.trim() : ''
+  const label = readEnvId(import.meta.env.VITE_GOOGLE_ADS_PURCHASE_LABEL)
+  const envId = readEnvId(import.meta.env.VITE_GOOGLE_ADS_CONVERSION_ID)
+  if (!label || /x{3,}/i.test(label)) return ''
+  if (label === RETIRED_GOOGLE_ADS_PURCHASE_LABEL) return ''
+  if (!envId || envId.toUpperCase() === RETIRED_GOOGLE_ADS_CONVERSION_ID) return ''
+  return label
+}
+
+/** Analytics properties that should receive GA events. Ads is not included. */
+function getAnalyticsSendTo() {
+  return [...new Set([getGaMeasurementId(), GOOGLE_TAG_ID].filter(Boolean))]
 }
 
 /** @returns {string} `AW-xxx/label` for gtag conversion send_to. */
@@ -50,12 +88,10 @@ export function isGaConfigured() {
   return Boolean(getGaMeasurementId())
 }
 
-/** @returns {boolean} */
+/** True when the Google Ads destination tag is installed (cookie disclosure). */
 export function isGoogleAdsConfigured() {
   const id = getGoogleAdsConversionId()
-  const label = getGoogleAdsPurchaseLabel()
-  if (!id || !label) return false
-  if (/x{3,}/i.test(id) || /x{3,}/i.test(label)) return false
+  if (!id || /x{3,}/i.test(id)) return false
   return /^AW-\d+$/i.test(id)
 }
 
@@ -171,6 +207,7 @@ function initMetaPixel(id) {
 /** @param {string} conversionId AW-XXXXXXXXX */
 function initGoogleAds(conversionId) {
   if (!canUseDom() || adsInitialized || !conversionId) return
+  if (conversionId.toUpperCase() === RETIRED_GOOGLE_ADS_CONVERSION_ID) return
 
   window.dataLayer = window.dataLayer || []
   window.gtag =
@@ -179,16 +216,20 @@ function initGoogleAds(conversionId) {
       window.dataLayer.push(arguments)
     }
 
-  if (!hasGtagLoaderInHead() && !document.querySelector(`script[data-smh-gtag-ads="${conversionId}"]`)) {
+  // index.html already loads gtag.js once and configs this destination.
+  // A second config would send another Ads page view.
+  if (!hasGtagLoaderInHead()) {
     const script = document.createElement('script')
     script.async = true
-    script.src = `https://www.googletagmanager.com/gtag/js?id=${encodeURIComponent(conversionId)}`
-    script.setAttribute('data-smh-gtag-ads', conversionId)
+    script.src = `https://www.googletagmanager.com/gtag/js?id=${encodeURIComponent(GOOGLE_TAG_ID)}`
+    script.setAttribute('data-smh-gtag', GOOGLE_TAG_ID)
     document.head.appendChild(script)
+    window.gtag('js', new Date())
+    window.gtag('config', GOOGLE_TAG_ID, { send_page_view: false })
+    window.gtag('config', conversionId, { send_page_view: false })
+    window.gtag('config', getGaMeasurementId(), { send_page_view: false, anonymize_ip: true })
   }
 
-  window.gtag('js', new Date())
-  window.gtag('config', conversionId)
   adsInitialized = true
 }
 
@@ -225,6 +266,7 @@ export function trackMarketingPageView(pathname, search = '') {
 
   if (gaInitialized && hasAnalyticsConsent() && typeof window.gtag === 'function') {
     window.gtag('event', 'page_view', {
+      send_to: getAnalyticsSendTo(),
       page_path: path,
       page_location: location,
       page_title: typeof document !== 'undefined' ? document.title : undefined,
@@ -251,7 +293,7 @@ export function trackMarketingQuoteClick(params = {}) {
   }
 
   if (gaInitialized && hasAnalyticsConsent() && typeof window.gtag === 'function') {
-    window.gtag('event', 'generate_lead', payload)
+    window.gtag('event', 'generate_lead', { ...payload, send_to: getAnalyticsSendTo() })
   }
 
   if (metaInitialized && hasMarketingConsent() && typeof window.fbq === 'function') {
@@ -281,7 +323,7 @@ export function trackMarketingQuoteSubmit(params = {}) {
   }
 
   if (gaInitialized && hasAnalyticsConsent() && typeof window.gtag === 'function') {
-    window.gtag('event', 'generate_lead', payload)
+    window.gtag('event', 'generate_lead', { ...payload, send_to: getAnalyticsSendTo() })
   }
 
   if (metaInitialized && hasMarketingConsent() && typeof window.fbq === 'function') {
@@ -317,12 +359,14 @@ export function trackMarketingPurchase(params = {}) {
   if (gaInitialized && hasAnalyticsConsent() && typeof window.gtag === 'function') {
     if (hasValue) {
       window.gtag('event', 'purchase', {
+        send_to: getAnalyticsSendTo(),
         transaction_id: transactionId,
         value,
         currency,
       })
     } else {
       window.gtag('event', 'sign_up', {
+        send_to: getAnalyticsSendTo(),
         method: 'stripe_payment',
         transaction_id: transactionId,
       })
@@ -352,6 +396,7 @@ export function trackGoogleAdsConversion(sendTo, params = {}) {
 
   const sendToTrimmed = typeof sendTo === 'string' ? sendTo.trim() : ''
   if (!sendToTrimmed || !hasMarketingConsent()) return
+  if (sendToTrimmed.toUpperCase().startsWith(`${RETIRED_GOOGLE_ADS_CONVERSION_ID}/`)) return
   if (!adsInitialized || typeof window.gtag !== 'function') return
 
   const transactionId = String(params.transactionId || '').trim()
