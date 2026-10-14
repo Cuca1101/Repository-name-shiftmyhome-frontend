@@ -27,4 +27,9 @@ await badge.click()
 const drawer = page.getByRole('dialog', { name: 'What our customers say' })
 await drawer.waitFor({ timeout: 10000 })
 const dialog = (await drawer.innerText()).replace(/\s+/g, ' ')
-const liveAuthor = /Tony|
+const liveAuthor = /Tony|Andrew Lucas|Kelvin Alex|Alice|alunita covaci/.test(dialog)
+const fakeAuthor = /Michael R\.|Emma L\./.test(dialog)
+
+console.log(JSON.stringify({ origin, api, text, label, fake, liveAuthor, fakeAuthor, dialog: dialog.slice(0, 400) }, null, 2))
+await browser.close()
+process.exit(fake || fakeAuthor || !liveAuthor ? 1 : 0)
