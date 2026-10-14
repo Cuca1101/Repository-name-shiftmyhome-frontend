@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Check, Loader2, MapPin, Search } from 'lucide-react'
+import { Check, ChevronDown, Loader2, MapPin, Search } from 'lucide-react'
 import { MIN_MANUAL_ADDRESS_LENGTH } from '../../lib/addressConfirmation'
 import {
   ADDRESS_SEARCH_PAUSE_MS,
@@ -141,7 +141,7 @@ export default function QuoteStepAddressCard({
   const [query, setQuery] = useState(() => (selected ? '' : addressBase(address, apartment, houseNumber)))
   const [manual, setManual] = useState(false)
   const [searching, setSearching] = useState(false)
-  const [open, setOpen] = useState(false)
+  const [, setOpen] = useState(false)
   const [results, setResults] = useState([])
   const [notice, setNotice] = useState('')
   const sessionRef = useRef(null)
@@ -149,6 +149,8 @@ export default function QuoteStepAddressCard({
   const lastQueryRef = useRef('')
   const resultsRef = useRef([])
   const timerRef = useRef(0)
+  const inputRef = useRef(null)
+  const listRef = useRef(null)
   const baseAddressRef = useRef(addressBase(address, apartment, houseNumber))
   const manualGeocodeRef = useRef(0)
   resultsRef.current = results
@@ -192,6 +194,24 @@ export default function QuoteStepAddressCard({
     return () => window.clearTimeout(timerRef.current)
   }, [])
 
+  useEffect(() => {
+    if (results.length === 0) return undefined
+    const reveal = () => {
+      const node = listRef.current
+      if (!node) return
+      const rect = node.getBoundingClientRect()
+      const visible = rect.top >= 72 && rect.bottom <= window.innerHeight - 12
+      if (visible) return
+      node.scrollIntoView({ block: 'center', inline: 'nearest' })
+    }
+    const frame = window.requestAnimationFrame(reveal)
+    const timer = window.setTimeout(reveal, 60)
+    return () => {
+      window.cancelAnimationFrame(frame)
+      window.clearTimeout(timer)
+    }
+  }, [results])
+
   async function ensureSession() {
     if (!sessionRef.current) sessionRef.current = await createAddressSessionToken()
     return sessionRef.current
@@ -201,12 +221,31 @@ export default function QuoteStepAddressCard({
     sessionRef.current = null
   }
 
+  function typedQuery() {
+    return String(inputRef.current?.value ?? query).trim()
+  }
+
+  function findAddress(typed) {
+    const text = String(typed ?? typedQuery()).trim()
+    window.clearTimeout(timerRef.current)
+    inputRef.current?.blur()
+    if (text.length < GOOGLE_ADDRESS_MIN_QUERY) {
+      setResults([])
+      setOpen(false)
+      setSearching(false)
+      setNotice('Type a postcode or street, then press Find my address.')
+      return
+    }
+    void runGoogleSearch(text)
+  }
+
   async function runGoogleSearch(typed) {
     const text = String(typed || '').trim()
     if (!hasGoogleMapsKey() || text.length < GOOGLE_ADDRESS_MIN_QUERY) {
       setResults([])
       setOpen(false)
       setSearching(false)
+      setNotice('Type a postcode or street, then press Find my address.')
       return
     }
     if (text === lastQueryRef.current && resultsRef.current.length > 0) {
@@ -481,6 +520,7 @@ export default function QuoteStepAddressCard({
           <div className="flex flex-col gap-2">
             <div className="quote-address-search flex flex-col gap-2">
             <input
+              ref={inputRef}
               id={addressKey}
               type="text"
               value={query}
@@ -489,7 +529,7 @@ export default function QuoteStepAddressCard({
               placeholder={placeholder}
               role="combobox"
               aria-autocomplete="list"
-              aria-expanded={open && results.length > 0}
+              aria-expanded={results.length > 0}
               aria-controls={`${addressKey}-results`}
               className={`${control} min-w-0 w-full ${focusRing}`}
               onChange={(e) => {
@@ -501,19 +541,14 @@ export default function QuoteStepAddressCard({
               onKeyDown={(e) => {
                 if (e.key === 'Enter') {
                   e.preventDefault()
-                  window.clearTimeout(timerRef.current)
-                  void runGoogleSearch(e.currentTarget.value)
+                  findAddress(e.currentTarget.value)
                 }
               }}
             />
             <button
               type="button"
               disabled={searching}
-              onClick={() => {
-                const typed = document.getElementById(addressKey)?.value ?? query
-                window.clearTimeout(timerRef.current)
-                void runGoogleSearch(typed)
-              }}
+              onClick={() => findAddress()}
               className={`quote-address-find inline-flex h-[52px] w-full shrink-0 items-center justify-center gap-2 px-4 text-sm font-semibold text-white shadow-sm transition focus-visible:outline-none focus-visible:ring-2 disabled:cursor-wait disabled:opacity-70 ${quotePage ? 'rounded-xl' : 'rounded-2xl'} ${buttonClass}`}
             >
               {searching ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : quotePage ? <Search className="h-4 w-4" aria-hidden /> : null}
@@ -521,49 +556,61 @@ export default function QuoteStepAddressCard({
             </button>
             </div>
 
-          {quotePage && results.length === 0 ? (
-            <select
-              id={`${addressKey}-results`}
-              aria-label="Select your address"
-              disabled
-              value=""
-              className={`${control} mt-2 disabled:cursor-not-allowed disabled:bg-white disabled:text-slate-400 ${focusRing}`}
-            >
-              <option value="">Select your address</option>
-            </select>
-          ) : null}
-          {results.length > 0 ? (
-            <div
-              id={`${addressKey}-results`}
-              role="listbox"
-              aria-label="Select your address"
-              className="mt-2 max-h-72 w-full overflow-y-auto rounded-xl border border-slate-200 bg-white shadow-sm"
-            >
-              {results.map((item) => {
-                const lines = suggestionLines(item)
-                return (
-                  <button
-                    key={item.id}
-                    type="button"
-                    role="option"
-                    className="block w-full whitespace-normal break-words border-b border-slate-100 px-3.5 py-2.5 text-left last:border-b-0 hover:bg-slate-50"
-                    onClick={() => void choose(item)}
-                  >
-                    <span className="block text-sm font-medium leading-snug text-slate-900">{lines.main}</span>
-                    {lines.secondary ? (
-                      <span className="mt-0.5 block text-xs leading-snug text-slate-500">{lines.secondary}</span>
-                    ) : null}
-                  </button>
-                )
-              })}
-              <div className="flex justify-end border-t border-slate-100 bg-white px-3 py-1.5">
-                <img src={GOOGLE_ATTRIBUTION_SRC} alt="Powered by Google" className="h-4 w-auto" />
+          <div
+            className={
+              quotePage || results.length > 0
+                ? `mt-2 overflow-hidden rounded-xl border bg-white ${
+                    results.length > 0 ? 'border-2 border-blue-500 shadow-lg' : 'border-slate-200 shadow-sm'
+                  }`
+                : ''
+            }
+          >
+            {quotePage ? (
+              <button
+                type="button"
+                aria-expanded={results.length > 0}
+                aria-controls={`${addressKey}-results`}
+                onClick={() => findAddress()}
+                className="flex h-[52px] w-full items-center justify-between gap-2 px-3.5 text-left text-base text-slate-500"
+              >
+                <span>Select your address</span>
+                <ChevronDown className={`h-4 w-4 shrink-0 text-slate-400 transition ${results.length > 0 ? 'rotate-180' : ''}`} aria-hidden />
+              </button>
+            ) : null}
+            {results.length > 0 ? (
+              <div
+                ref={listRef}
+                id={`${addressKey}-results`}
+                role="listbox"
+                aria-label="Select your address"
+                className="max-h-72 overflow-y-auto border-t border-slate-200"
+              >
+                {results.map((item) => {
+                  const lines = suggestionLines(item)
+                  return (
+                    <button
+                      key={item.id}
+                      type="button"
+                      role="option"
+                      className="block min-h-12 w-full whitespace-normal break-words border-b border-slate-100 px-3.5 py-3 text-left last:border-b-0 hover:bg-blue-50"
+                      onClick={() => void choose(item)}
+                    >
+                      <span className="block text-sm font-semibold leading-snug text-slate-900">{lines.main}</span>
+                      {lines.secondary ? (
+                        <span className="mt-0.5 block text-xs leading-snug text-slate-500">{lines.secondary}</span>
+                      ) : null}
+                    </button>
+                  )
+                })}
+                <div className="flex justify-end border-t border-slate-100 bg-white px-3 py-1.5">
+                  <img src={GOOGLE_ATTRIBUTION_SRC} alt="Powered by Google" className="h-4 w-auto" />
+                </div>
               </div>
-            </div>
-          ) : null}
+            ) : null}
+          </div>
 
           {notice ? (
-            <p className="mt-2 text-xs leading-snug text-slate-600" role="status">
+            <p className="mt-2 text-sm font-medium leading-snug text-red-600" role="status">
               {notice}
             </p>
           ) : null}
