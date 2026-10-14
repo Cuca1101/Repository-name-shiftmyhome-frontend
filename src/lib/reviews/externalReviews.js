@@ -1,10 +1,11 @@
 /**
- * External review platforms — config, placeholders, and lazy fetch hooks.
- * Replace PLACEHOLDER_* and wire fetchExternalReviews when Google / Trustpilot APIs are connected.
+ * External review platforms. Google totals come from Places.
+ * Trustpilot totals come from the public profile proxy.
  */
 
 import { fetchPublicDisplayReviews } from '../data/reviewsRepository'
 import { fetchGoogleBusinessProfile, getCachedGoogleBusinessProfile } from './googleBusinessProfile.js'
+import { fetchTrustpilotProfile, getCachedTrustpilotProfile } from './trustpilotProfile.js'
 /** @typedef {'google' | 'trustpilot' | 'customer'} ReviewSource */
 
 /**
@@ -29,12 +30,16 @@ import { fetchGoogleBusinessProfile, getCachedGoogleBusinessProfile } from './go
 export const REVIEWS_BADGE_DISMISS_KEY = 'smh-reviews-badge-dismissed'
 export const REVIEWS_BADGE_VERSION_KEY = 'smh-reviews-badge-version'
 /** Bump when badge UI changes so returning visitors see the new widget. */
-export const REVIEWS_BADGE_VERSION = '3'
+export const REVIEWS_BADGE_VERSION = '4'
 export const REVIEWS_BADGE_DISMISS_DAYS = 30
 
-/** Google Business Profile totals come from Places. Trustpilot is not connected. */
+/** Google Business Profile totals come from Places. Trustpilot totals come from the public profile proxy. */
 export function isGoogleReviewsLive() {
   return Boolean(getCachedGoogleBusinessProfile())
+}
+
+export function isTrustpilotReviewsLive() {
+  return Boolean(getCachedTrustpilotProfile())
 }
 
 export const GOOGLE_LEAVE_REVIEW_URL =
@@ -53,6 +58,34 @@ function googleSummaryFromProfile(profile) {
     reviewCount: profile.reviewCount,
     label: 'Google Reviews',
   }
+}
+
+/** @param {import('./trustpilotProfile.js').TrustpilotProfile | null} profile */
+function trustpilotSummaryFromProfile(profile) {
+  if (!profile) return null
+  return {
+    averageRating: profile.reviewCount > 0 ? profile.rating : 0,
+    reviewCount: profile.reviewCount,
+    label: 'Trustpilot Reviews',
+  }
+}
+
+function combinedLiveSummary() {
+  const google = googleSummaryFromProfile(getCachedGoogleBusinessProfile())
+  const trustpilot = trustpilotSummaryFromProfile(getCachedTrustpilotProfile())
+  const parts = [google, trustpilot].filter((item) => item && item.reviewCount > 0)
+  if (parts.length) {
+    const reviewCount = parts.reduce((sum, item) => sum + item.reviewCount, 0)
+    const weighted = parts.reduce((sum, item) => sum + item.averageRating * item.reviewCount, 0)
+    return {
+      averageRating: weighted / reviewCount,
+      reviewCount,
+      label: 'All platforms',
+    }
+  }
+  if (google) return { ...google, label: 'All platforms' }
+  if (trustpilot) return { ...trustpilot, label: 'All platforms' }
+  return null
 }
 
 /**
@@ -77,9 +110,10 @@ export async function fetchExternalReviews() {
     /* admin reviews optional */
   }
 
-  const profile = await fetchGoogleBusinessProfile()
+  const [profile, trustpilot] = await Promise.all([fetchGoogleBusinessProfile(), fetchTrustpilotProfile()])
   const googleReviews = profile?.reviews || []
-  return [...customerReviews, ...googleReviews].sort((a, b) => b.date.localeCompare(a.date))
+  const trustpilotReviews = trustpilot?.reviews || []
+  return [...customerReviews, ...googleReviews, ...trustpilotReviews].sort((a, b) => b.date.localeCompare(a.date))
 }
 
 /**
@@ -99,8 +133,8 @@ export function filterReviewsByTab(tab, reviews) {
  */
 export function getSummaryForTab(tab, reviews = []) {
   if (tab === 'all') {
-    const google = googleSummaryFromProfile(getCachedGoogleBusinessProfile())
-    if (google) return google
+    const combined = combinedLiveSummary()
+    if (combined) return combined
   }
 
   if (tab === 'all' && reviews.length > 0) {
@@ -133,17 +167,9 @@ export function getSummaryForTab(tab, reviews = []) {
     if (google) return google
   }
 
-  if (tab === 'trustpilot' && reviews.length > 0) {
-    const platform = reviews.filter((r) => r.source === 'trustpilot')
-    if (platform.length) {
-      const count = platform.length
-      const weighted = platform.reduce((s, r) => s + r.rating, 0)
-      return {
-        averageRating: weighted / count,
-        reviewCount: count,
-        label: 'Trustpilot Reviews',
-      }
-    }
+  if (tab === 'trustpilot') {
+    const trustpilot = trustpilotSummaryFromProfile(getCachedTrustpilotProfile())
+    if (trustpilot) return trustpilot
   }
 
   return { averageRating: 0, reviewCount: 0, label: '' }

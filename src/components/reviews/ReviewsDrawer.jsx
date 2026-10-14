@@ -6,8 +6,10 @@ import {
   formatRelativeReviewDate,
   getSummaryForTab,
   isGoogleReviewsLive,
+  isTrustpilotReviewsLive,
 } from '../../lib/reviews/externalReviews'
 import { getCachedGoogleBusinessProfile } from '../../lib/reviews/googleBusinessProfile'
+import { getCachedTrustpilotProfile } from '../../lib/reviews/trustpilotProfile'
 
 const LeaveReviewPlatformModal = lazy(() => import('./LeaveReviewPlatformModal'))
 
@@ -129,6 +131,7 @@ export default function ReviewsDrawer({ open, onClose }) {
   const summary = getSummaryForTab(activeTab, reviews)
   const visibleReviews = filterReviewsByTab(activeTab, reviews)
   const googleSummary = getCachedGoogleBusinessProfile()
+  const trustpilotSummary = getCachedTrustpilotProfile()
 
   const tabRating = (tabId) => {
     if (tabId === 'all') return summary.averageRating.toFixed(1)
@@ -203,6 +206,9 @@ export default function ReviewsDrawer({ open, onClose }) {
               {activeTab === 'google' && isGoogleReviewsLive() ? (
                 <span className="text-slate-400"> · Google Business Profile</span>
               ) : null}
+              {activeTab === 'trustpilot' && isTrustpilotReviewsLive() ? (
+                <span className="text-slate-400"> · Trustpilot</span>
+              ) : null}
             </p>
           </div>
 
@@ -228,15 +234,28 @@ export default function ReviewsDrawer({ open, onClose }) {
             </ul>
           ) : (
             <p className="mx-4 rounded-xl border border-dashed border-slate-200 bg-white px-4 py-10 text-center text-sm text-slate-600 sm:mx-5">
-              Reviews will appear here once connected to Google and Trustpilot.
+              {activeTab === 'trustpilot' && isTrustpilotReviewsLive()
+                ? 'No Trustpilot reviews yet.'
+                : 'Reviews will appear here once connected to Google and Trustpilot.'}
             </p>
           )}
         </div>
 
-        {!loading && googleSummary ? (
+        {!loading && (googleSummary || trustpilotSummary) ? (
           <div className="shrink-0 border-t border-slate-100 bg-white px-4 py-3 text-center text-xs text-slate-500 sm:px-5">
-            Google average {googleSummary.rating.toFixed(1)} ·{' '}
-            {googleSummary.reviewCount.toLocaleString('en-GB')} reviews
+            {googleSummary ? (
+              <p>
+                Google average {googleSummary.rating.toFixed(1)} ·{' '}
+                {googleSummary.reviewCount.toLocaleString('en-GB')} reviews
+              </p>
+            ) : null}
+            {trustpilotSummary ? (
+              <p className={googleSummary ? 'mt-1' : ''}>
+                {trustpilotSummary.reviewCount > 0
+                  ? `Trustpilot average ${trustpilotSummary.rating.toFixed(1)} · ${trustpilotSummary.reviewCount.toLocaleString('en-GB')} reviews`
+                  : 'Trustpilot · 0 reviews'}
+              </p>
+            ) : null}
           </div>
         ) : null}
       </aside>

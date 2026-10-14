@@ -7,6 +7,7 @@ import {
   isReviewsBadgeDismissed,
 } from '../../lib/reviews/externalReviews'
 import { fetchGoogleBusinessProfile } from '../../lib/reviews/googleBusinessProfile'
+import { fetchTrustpilotProfile } from '../../lib/reviews/trustpilotProfile'
 
 const ReviewsDrawer = lazy(() => import('./ReviewsDrawer'))
 
@@ -20,6 +21,7 @@ export default function FloatingReviewsBadge({ variant = 'default' }) {
   const [ready, setReady] = useState(false)
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [googleSummary, setGoogleSummary] = useState(null)
+  const [trustpilotSummary, setTrustpilotSummary] = useState(null)
 
   useEffect(() => {
     setHidden(isReviewsBadgeDismissed())
@@ -27,6 +29,9 @@ export default function FloatingReviewsBadge({ variant = 'default' }) {
     let cancelled = false
     fetchGoogleBusinessProfile().then((profile) => {
       if (!cancelled && profile) setGoogleSummary(profile)
+    })
+    fetchTrustpilotProfile().then((profile) => {
+      if (!cancelled && profile) setTrustpilotSummary(profile)
     })
     return () => {
       cancelled = true
@@ -50,6 +55,13 @@ export default function FloatingReviewsBadge({ variant = 'default' }) {
   const rating = googleSummary?.rating
   const reviewCount = googleSummary?.reviewCount
   const hasLiveStats = Number.isFinite(rating) && Number.isFinite(reviewCount)
+  const trustpilotCount = trustpilotSummary?.reviewCount
+  const trustpilotLabel =
+    trustpilotSummary && Number.isFinite(trustpilotCount)
+      ? trustpilotCount > 0
+        ? `${trustpilotSummary.rating.toFixed(1)} · ${trustpilotCount.toLocaleString('en-GB')} Trustpilot`
+        : '0 Trustpilot reviews'
+      : ''
 
   const badge = (
     <>
@@ -65,8 +77,8 @@ export default function FloatingReviewsBadge({ variant = 'default' }) {
             className="flex min-w-[7.75rem] flex-col rounded-xl border border-slate-200 bg-white px-3.5 py-3 text-left shadow-[0_10px_32px_-8px_rgba(0,13,38,0.28)] ring-1 ring-navy/5 transition hover:border-brand-200 hover:shadow-card-hover focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2"
             aria-label={
               hasLiveStats
-                ? `${rating.toFixed(1)} stars, ${reviewCount} Google reviews. Open reviews.`
-                : 'Open Google reviews'
+                ? `${rating.toFixed(1)} stars, ${reviewCount} Google reviews${trustpilotLabel ? `, ${trustpilotLabel}` : ''}. Open reviews.`
+                : 'Open reviews'
             }
           >
             <div className="mb-1.5 flex items-center gap-1.5">
@@ -89,6 +101,14 @@ export default function FloatingReviewsBadge({ variant = 'default' }) {
             ) : (
               <span className="mt-1 text-sm font-semibold text-slate-700">Google reviews</span>
             )}
+            {trustpilotLabel ? (
+              <span className="mt-1.5 flex items-center gap-1 text-xs font-medium text-slate-600">
+                <svg className="h-3.5 w-3.5 shrink-0" viewBox="0 0 24 24" fill="#00B67A" aria-hidden>
+                  <path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 17l-6.2 4.3 2.4-7.4L2 9.4h7.6L12 2z" />
+                </svg>
+                {trustpilotLabel}
+              </span>
+            ) : null}
           </button>
 
           <button

@@ -20,7 +20,7 @@ export const DEFAULT_HOMEPAGE = {
   useHeroVideo: false,
   ctaPrimaryText: 'Get an Instant Quote',
   ctaSecondaryText: 'How it works',
-  trustpilotText: 'Excellent 4.8 out of 5 Trustpilot',
+  trustpilotText: 'Trustpilot reviews',
   servicesHeading: 'Our removal services',
   servicesSubheading: 'Choose a service and get an instant quote in minutes.',
   galleryHeading: 'Recent moves across Scotland',

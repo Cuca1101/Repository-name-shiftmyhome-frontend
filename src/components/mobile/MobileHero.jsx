@@ -1,13 +1,33 @@
+import { useEffect, useState } from 'react'
 import HeroBackgroundMedia from '../HeroBackgroundMedia'
 import OpenInstantQuoteButton from '../OpenInstantQuoteButton'
 import { coerceUseHeroVideo } from '../../lib/heroCmsVideo'
 import { useWebsiteCms } from '../../context/WebsiteCmsContext'
 import { DEFAULT_HOMEPAGE } from '../../lib/websiteCmsDefaults'
+import {
+  fetchTrustpilotProfile,
+  isPlaceholderTrustpilotText,
+  trustpilotDisplayLabel,
+} from '../../lib/reviews/trustpilotProfile'
 
 /** Mobile homepage hero — light text panel + video card (&lt; md). */
 export default function MobileHero() {
   const { homepage } = useWebsiteCms()
   const h = homepage ?? DEFAULT_HOMEPAGE
+  const [liveLabel, setLiveLabel] = useState(null)
+
+  useEffect(() => {
+    let cancelled = false
+    fetchTrustpilotProfile().then((profile) => {
+      if (!cancelled) setLiveLabel(trustpilotDisplayLabel(profile))
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  const cmsLabel = isPlaceholderTrustpilotText(h.trustpilotText) ? '' : h.trustpilotText
+  const heroTrustLabel = liveLabel || cmsLabel
   const heroImage = h.heroImageUrl || DEFAULT_HOMEPAGE.heroImageUrl
   const useHeroVideo = coerceUseHeroVideo(h.useHeroVideo)
   const heroVideoUrl = h.heroVideoUrl || ''
@@ -58,7 +78,7 @@ export default function MobileHero() {
         <ul className="mt-2.5 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[10px] font-medium leading-snug text-slate-600 xs:text-[11px]">
           <li className="inline-flex items-center gap-1">
             <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-500" aria-hidden />
-            {h.trustpilotText || 'Excellent 4.8 Trustpilot'}
+            {heroTrustLabel || 'Trustpilot reviews'}
           </li>
           <li className="inline-flex items-center gap-1">
             <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-brand-500" aria-hidden />

@@ -1,3 +1,10 @@
+import { useEffect, useState } from 'react'
+import {
+  fetchTrustpilotProfile,
+  isPlaceholderTrustpilotText,
+  trustpilotDisplayLabel,
+} from '../lib/reviews/trustpilotProfile'
+
 function Stars() {
   return (
     <span className="inline-flex gap-0.5 text-emerald-500" aria-hidden>
@@ -14,6 +21,21 @@ function Stars() {
  * @param {{ embedded?: boolean }} props — embedded: compact row inside hero (no section chrome)
  */
 export default function HomeTrustRow({ embedded = false, trustpilotText, badgeListClassName = '' }) {
+  const [liveLabel, setLiveLabel] = useState(null)
+
+  useEffect(() => {
+    let cancelled = false
+    fetchTrustpilotProfile().then((profile) => {
+      if (!cancelled) setLiveLabel(trustpilotDisplayLabel(profile))
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  const cmsLabel = isPlaceholderTrustpilotText(trustpilotText) ? '' : trustpilotText
+  const label = liveLabel || cmsLabel
+
   const content = (
     <div
       className={
@@ -25,8 +47,8 @@ export default function HomeTrustRow({ embedded = false, trustpilotText, badgeLi
       <div className="flex flex-wrap items-center gap-2.5 sm:gap-3">
         <Stars />
         <div className="min-w-0">
-          <p className="text-sm font-bold text-slate-900">{trustpilotText || 'Excellent 4.8 out of 5 Trustpilot'}</p>
-          {!trustpilotText ? (
+          <p className="text-sm font-bold text-slate-900">{label || 'Trustpilot reviews'}</p>
+          {!label ? (
             <p className="text-xs text-slate-500">Trusted by customers across Glasgow &amp; the UK</p>
           ) : null}
         </div>

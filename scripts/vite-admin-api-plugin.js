@@ -1,8 +1,12 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { onRequest as teamsCalls } from '../functions/api/admin/teams/calls.js'
+import { onRequest as trustpilotReviews } from '../functions/api/reviews/trustpilot.js'
 
-const ROUTES = new Map([['/api/admin/teams/calls', teamsCalls]])
+const ROUTES = new Map([
+  ['/api/admin/teams/calls', teamsCalls],
+  ['/api/reviews/trustpilot', trustpilotReviews],
+])
 
 function readEnvFile(file) {
   const env = {}
