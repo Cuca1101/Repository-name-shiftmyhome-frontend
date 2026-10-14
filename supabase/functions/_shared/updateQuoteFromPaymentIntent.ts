@@ -1,6 +1,7 @@
 import type Stripe from 'npm:stripe@14.21.0'
 import type { SupabaseClient } from 'npm:@supabase/supabase-js@2'
 import { omitStatusIfQuoteCompleted } from './preserveCompletedQuoteStatus.ts'
+import { backfillRecoveryQuoteFromLead } from './recoveryQuoteBackfill.ts'
 
 type PaymentEventKind = 'paid' | 'failed'
 
@@ -85,8 +86,19 @@ export async function updateQuoteFromPaymentIntent(
     return { ok: false, error: 'missing booking_id/quote_id/quote_ref in PaymentIntent metadata' }
   }
 
-  const paidAt = new Date().toISOString()
   const paymentIntentId = pi.id
+
+  // Re-processing (webhook retry + verify) must keep the original payment time.
+  let existingPaidAt: string | null = null
+  let alreadyRecorded = false
+  if (eventKind === 'paid' && (quoteId || quoteRef)) {
+    const lookup = supabase.from('quotes').select('paid_at, payment_status, stripe_payment_intent_id')
+    const { data: existing } = await (quoteId ? lookup.eq('id', quoteId) : lookup.eq('quote_ref', quoteRef)).maybeSingle()
+    const ps = asString(existing?.payment_status).toLowerCase()
+    if (existing?.paid_at && (ps === 'paid' || ps === 'deposit_paid')) existingPaidAt = String(existing.paid_at)
+    alreadyRecorded = Boolean(existingPaidAt && existing?.stripe_payment_intent_id === paymentIntentId)
+  }
+  const paidAt = existingPaidAt || new Date().toISOString()
 
   const amountPaid =
     eventKind === 'paid'
@@ -184,7 +196,16 @@ export async function updateQuoteFromPaymentIntent(
     await syncPhoneQuoteAfterPayment(supabase, updatedQuoteId, pi, amountPaid)
   }
 
-  await insertActivity(supabase, {
+  const leadId = asString(pi.metadata?.customer_lead_id)
+  if (eventKind === 'paid' && updatedQuoteId && leadId && asString(pi.metadata?.recovery) === '1') {
+    try {
+      await backfillRecoveryQuoteFromLead(supabase, updatedQuoteId, leadId)
+    } catch (e) {
+      console.error('[updateQuoteFromPaymentIntent] recovery quote backfill failed', e)
+    }
+  }
+
+  if (!alreadyRecorded) await insertActivity(supabase, {
     level: eventKind === 'paid' ? 'info' : 'warning',
     event_type: eventKind === 'paid' ? 'stripe_payment_intent_succeeded' : 'stripe_payment_intent_failed',
     message:

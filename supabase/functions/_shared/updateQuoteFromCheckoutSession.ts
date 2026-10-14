@@ -1,6 +1,7 @@
 import type Stripe from 'npm:stripe@14.21.0'
 import type { SupabaseClient } from 'npm:@supabase/supabase-js@2'
 import { omitStatusIfQuoteCompleted } from './preserveCompletedQuoteStatus.ts'
+import { backfillRecoveryQuoteFromLead } from './recoveryQuoteBackfill.ts'
 
 type PaymentEventKind = 'paid' | 'failed'
 
@@ -47,13 +48,25 @@ export async function updateQuoteFromCheckoutSession(
   supabase: SupabaseClient,
   session: Stripe.Checkout.Session,
   eventKind: PaymentEventKind = 'paid',
+  opts: { paidAtIso?: string | null } = {},
 ): Promise<{ ok: boolean; error?: string; booking_id?: string | null; quote_id?: string | null }> {
   const bookingId = asString(session.metadata?.booking_id)
   const quoteId = asString(session.metadata?.quote_id)
   const quoteRef = asString(session.metadata?.quote_ref)
   const paymentType = asString(session.metadata?.payment_type)
   const paymentIntentId = normalizePaymentIntentId(session)
-  const paidAt = new Date().toISOString()
+
+  // Re-processing (webhook retry, verify, reconciliation) must keep the original payment time.
+  let existingPaidAt: string | null = null
+  let alreadyRecorded = false
+  if (eventKind === 'paid' && (quoteId || quoteRef)) {
+    const lookup = supabase.from('quotes').select('paid_at, payment_status, stripe_payment_intent_id')
+    const { data: existing } = await (quoteId ? lookup.eq('id', quoteId) : lookup.eq('quote_ref', quoteRef)).maybeSingle()
+    const ps = asString(existing?.payment_status).toLowerCase()
+    if (existing?.paid_at && (ps === 'paid' || ps === 'deposit_paid')) existingPaidAt = String(existing.paid_at)
+    alreadyRecorded = Boolean(existingPaidAt && paymentIntentId && existing?.stripe_payment_intent_id === paymentIntentId)
+  }
+  const paidAt = existingPaidAt || asString(opts.paidAtIso) || new Date().toISOString()
 
   // "payment_type" is required by the existing quote flow. For generic booking checkout,
   // default to "full" when this metadata is not present.
@@ -140,7 +153,7 @@ export async function updateQuoteFromCheckoutSession(
     return { ok: false, error: 'could not find booking/quote for Stripe metadata' }
   }
 
-  await insertActivity(supabase, {
+  if (!alreadyRecorded) await insertActivity(supabase, {
     level: eventKind === 'paid' ? 'info' : 'warning',
     event_type: eventKind === 'paid' ? 'stripe_payment_received' : 'stripe_payment_failed',
     message:
@@ -158,6 +171,15 @@ export async function updateQuoteFromCheckoutSession(
       currency: session.currency ?? null,
     },
   })
+
+  const leadId = asString(session.metadata?.customer_lead_id)
+  if (eventKind === 'paid' && updatedQuoteId && leadId) {
+    try {
+      await backfillRecoveryQuoteFromLead(supabase, updatedQuoteId, leadId)
+    } catch (e) {
+      console.error('[updateQuoteFromCheckoutSession] recovery quote backfill failed', e)
+    }
+  }
 
   try {
     if (eventKind === 'paid') {

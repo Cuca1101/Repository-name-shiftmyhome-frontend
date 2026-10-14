@@ -241,7 +241,19 @@ Deno.serve(async (req) => {
       })
     } else if (session.metadata?.recovery === '1' && session.payment_status === 'paid') {
       // Quote recovery pay link (create-recovery-checkout).
-      const result = await updateQuoteFromCheckoutSession(supabase, session, 'paid')
+      const piId =
+        typeof session.payment_intent === 'string' ? session.payment_intent : session.payment_intent?.id
+      let pi: Stripe.PaymentIntent | null = null
+      if (piId) {
+        try {
+          pi = await stripe.paymentIntents.retrieve(piId)
+        } catch (e) {
+          console.error('[stripe-webhook] recovery checkout PI lookup failed', piId, e)
+        }
+      }
+      const result = await updateQuoteFromCheckoutSession(supabase, session, 'paid', {
+        paidAtIso: pi?.created ? new Date(pi.created * 1000).toISOString() : null,
+      })
       console.log('[stripe-webhook] recovery checkout completed', {
         session_id: session.id,
         quote_ref: session.metadata?.quote_ref || null,
@@ -249,11 +261,8 @@ Deno.serve(async (req) => {
         quote_id: result.quote_id ?? null,
         error: result.error ?? null,
       })
-      const piId =
-        typeof session.payment_intent === 'string' ? session.payment_intent : session.payment_intent?.id
-      if (result.ok && piId) {
+      if (result.ok && pi) {
         try {
-          const pi = await stripe.paymentIntents.retrieve(piId)
           // Newer recovery sessions copy metadata onto the PI; payment_intent.succeeded sends the emails.
           if (!pi.metadata?.quote_ref && !pi.metadata?.quote_id) {
             await sendPaymentConfirmationWithPdfIfNeeded({

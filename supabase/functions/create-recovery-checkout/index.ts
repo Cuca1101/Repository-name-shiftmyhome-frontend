@@ -5,6 +5,7 @@ import { guardStripeSecretKey, respondStripeConfigFailure } from '../_shared/str
 import { STRIPE_LOCALE } from '../_shared/stripeMode.ts'
 import { recoveryUrls } from '../_shared/quoteRecoveryEmail.ts'
 import { updateQuoteFromCheckoutSession } from '../_shared/updateQuoteFromCheckoutSession.ts'
+import { backfillRecoveryQuoteFromLead } from '../_shared/recoveryQuoteBackfill.ts'
 
 /**
  * Create Stripe Checkout for abandoned / payment-failed quote recovery (Pay Now / Retry).
@@ -221,15 +222,17 @@ Deno.serve(async (req) => {
   if (!lead) return jsonResponse({ error: 'Lead not found' }, 404)
 
   // Block only when fully paid / recovery permanently stopped without an unpaid booking.
+  // Any recorded payment (full or deposit) blocks a new full-price checkout.
   let linkedQuotePaid = false
-  if (lead.quote_id) {
-    const { data: quote } = await supabase
-      .from('quotes')
-      .select('id, payment_status, amount_paid, remaining_balance, agreed_price, estimated_total')
-      .eq('id', String(lead.quote_id))
-      .maybeSingle()
+  const leadQuoteRef = String(lead.quote_ref || lead.lead_ref || '').trim()
+  if (lead.quote_id || leadQuoteRef) {
+    const lookup = supabase.from('quotes').select('id, payment_status')
+    const { data: quote } = await (lead.quote_id
+      ? lookup.eq('id', String(lead.quote_id))
+      : lookup.eq('quote_ref', leadQuoteRef)
+    ).maybeSingle()
     const ps = String(quote?.payment_status || '').toLowerCase()
-    linkedQuotePaid = ps === 'paid' || ps === 'fully_paid' || ps === 'succeeded'
+    linkedQuotePaid = ps === 'paid' || ps === 'fully_paid' || ps === 'succeeded' || ps === 'deposit_paid'
   }
 
   // A previous session may have been paid without the webhook recording it — never overwrite it.
@@ -270,6 +273,11 @@ Deno.serve(async (req) => {
   const ensuredQuoteId = await ensureQuoteForRecoveryLead(supabase, lead, amount)
   if (ensuredQuoteId) {
     lead.quote_id = ensuredQuoteId
+    try {
+      await backfillRecoveryQuoteFromLead(supabase, ensuredQuoteId, String(lead.id))
+    } catch (err) {
+      console.warn('[create-recovery-checkout] quote backfill failed', err)
+    }
   }
 
   // Invalidate previous checkout if amount changed or regenerating.

@@ -39,6 +39,7 @@ type QuoteRow = {
   estimated_total: number | null
   remaining_balance: number | null
   agreed_price?: number | string | null
+  price_override_reason?: string | null
   service_package_snapshot?: Record<string, unknown> | null
 }
 
@@ -642,7 +643,7 @@ export async function sendPaymentConfirmationWithPdfIfNeeded(params: {
   }
 
   const quoteSelect =
-    'id, quote_ref, full_name, email, phone, pickup_address, delivery_address, move_date, service, service_type, crew_size, vehicle_size, arrival_window, details, inventory_text, inventory, pricing, amount_paid, payment_type, paid_at, payment_confirmation_email_sent_at, payment_confirmation_email_intent_id, estimated_total, remaining_balance, agreed_price, service_package_snapshot'
+    'id, quote_ref, full_name, email, phone, pickup_address, delivery_address, move_date, service, service_type, crew_size, vehicle_size, arrival_window, details, inventory_text, inventory, pricing, amount_paid, payment_type, paid_at, payment_confirmation_email_sent_at, payment_confirmation_email_intent_id, estimated_total, remaining_balance, agreed_price, price_override_reason, service_package_snapshot'
   let quote: QuoteRow | null = null
   /** Prefer Stripe metadata.quote_ref so idempotency matches the row you inspect in the dashboard (updateResult.quote_id can point at a different row if metadata.quote_id was wrong/stale). */
   let quoteLookupVia: 'metadata_quote_ref' | 'metadata_quote_id' | 'update_result_quote_id' | null = null
@@ -750,7 +751,12 @@ export async function sendPaymentConfirmationWithPdfIfNeeded(params: {
   const paymentStatusLabel = paymentType === 'deposit' ? 'Reservation paid' : 'Paid'
 
   const pricingText = asText(quote.pricing)
-  const agreedPriceGbp = Number(quote.agreed_price)
+  // Migration 091 copied remaining_balance into agreed_price; on website deposit bookings that is the balance, not the total.
+  const agreedIsMigratedBalance =
+    paymentType === 'deposit' &&
+    /^Migrated from remaining_balance/i.test(asText(quote.price_override_reason)) &&
+    Math.abs(Number(quote.agreed_price) - Number(quote.remaining_balance)) < 0.01
+  const agreedPriceGbp = agreedIsMigratedBalance ? NaN : Number(quote.agreed_price)
   const estimatedTotalGbp =
     (Number.isFinite(agreedPriceGbp) && agreedPriceGbp > 0 ? agreedPriceGbp : null) ??
     parsePounds(pricingText, [

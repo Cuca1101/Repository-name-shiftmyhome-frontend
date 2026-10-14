@@ -83,14 +83,23 @@ Deno.serve(async (req) => {
   }
 
   const supabase = createClient(supabaseUrl, serviceRole)
-  const result = await updateQuoteFromCheckoutSession(supabase, session, 'paid')
-
-  let confirmation_email: unknown
   const piId =
     typeof session.payment_intent === 'string' ? session.payment_intent : session.payment_intent?.id
-  if (result.ok && result.quote_id && piId) {
+  let pi: Stripe.PaymentIntent | null = null
+  if (piId) {
     try {
-      const pi = await stripe.paymentIntents.retrieve(piId)
+      pi = await stripe.paymentIntents.retrieve(piId)
+    } catch (e) {
+      console.error('[verify-checkout-session] payment intent lookup failed', piId, e)
+    }
+  }
+  const result = await updateQuoteFromCheckoutSession(supabase, session, 'paid', {
+    paidAtIso: pi?.created ? new Date(pi.created * 1000).toISOString() : null,
+  })
+
+  let confirmation_email: unknown
+  if (result.ok && result.quote_id && pi) {
+    try {
       confirmation_email = await sendPaymentConfirmationWithPdfIfNeeded({
         supabase,
         paymentIntent: pi,
