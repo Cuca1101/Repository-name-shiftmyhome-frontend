@@ -551,6 +551,8 @@ function DriverCard({ booking, token, tracking }) {
   const gpsFresh = isTrackingGpsFresh({ trackingLive: data?.tracking_live, location: data?.location })
   const hasCoords = Number.isFinite(Number(data?.location?.latitude)) && Number.isFinite(Number(data?.location?.longitude))
   const presentation = portalTrackingPresentation({ stage: stage.stage, gpsFresh, hasCoords })
+  const finished = stage.stage === 'completed' || stage.stage === 'cancelled'
+  const showMap = hasCoords && !finished
   const driverName = data
     ? (data.driver?.full_name || 'Driver not assigned yet')
     : (booking.assigned_driver_name || 'Driver not assigned yet')
@@ -569,7 +571,7 @@ function DriverCard({ booking, token, tracking }) {
           <span className="block text-xs text-slate-500">{driverAssigned ? 'Your assigned driver' : 'Assignment pending'}</span>
         </span>
       </div>
-      {presentation.showLivePosition ? (
+      {showMap ? (
         <div className="mt-3">
           <LiveDriverMap
             latitude={Number(data.location.latitude)}
@@ -580,7 +582,7 @@ function DriverCard({ booking, token, tracking }) {
             quoteRef={booking.quote_ref || data?.quote_ref || ''}
             pickupAddress={data?.pickup_address || booking.pickup_address || ''}
             deliveryAddress={data?.delivery_address || booking.delivery_address || ''}
-            destinationKind={stage.etaKind || (stage.stage === 'en_route_collection' ? 'collection' : null)}
+            destinationKind={presentation.awaitingStart ? null : (stage.etaKind || (stage.stage === 'en_route_collection' ? 'collection' : null))}
           />
         </div>
       ) : null}
