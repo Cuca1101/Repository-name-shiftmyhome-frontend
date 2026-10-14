@@ -46,7 +46,7 @@ function ensureTrackingMarkerStyles() {
       transform-origin:7px 36px; pointer-events:none;
     }
     .smh-van-pop {
-      display:none; position:absolute; left:23px; top:0; z-index:6;
+      display:none; position:absolute; left:0; top:0; z-index:7;
       max-width:148px; padding:3px 7px; border-radius:8px; background:#fff;
       border:1px solid rgba(15,23,42,0.12); box-shadow:0 2px 8px rgba(15,23,42,0.16);
       pointer-events:none;
@@ -328,12 +328,12 @@ function roadBearing(pos, aim, kind, route) {
  * @param {'collection' | 'delivery'} kind
  * @param {number[][] | null | undefined} route
  * @param {mapboxgl.Map | null} map
- * @param {Array<{ lng: number, lat: number } | null>} [pins]
+ * @param {Array<{ lng: number, lat: number } | null>} [_pins]
  */
-function updateDriverMarker(marker, pos, aim, kind, route, map, pins) {
+function updateDriverMarker(marker, pos, aim, kind, route, map, _pins) {
   const el = marker?.getElement?.()
   if (!el || !pos) return
-  el._vanState = { pos, aim, kind, route, map, pins }
+  el._vanState = { pos, aim, kind, route, map, pins: _pins }
   const arrow = el.querySelector('[data-heading-arrow="1"]')
   const bearing = roadBearing(pos, aim, kind, route)
   if (arrow) {
@@ -345,45 +345,127 @@ function updateDriverMarker(marker, pos, aim, kind, route, map, pins) {
     }
   }
   const pop = el.querySelector('[data-van-pop="1"]')
-  if (!pop?.classList.contains('is-open') || !map) return
+  placeDriverPopup(el, pop, map, pos)
+}
+
+const POPUP_GAP_PX = 14
+const POPUP_MAP_PAD = 8
+
+/**
+ * Layout box of a node inside the marker, ignoring the live bob animation.
+ * @param {HTMLElement} node
+ * @param {HTMLElement} wrap
+ */
+function layoutBoxInMarker(node, wrap) {
+  let left = 0
+  let top = 0
+  let current = node
+  while (current && current !== wrap) {
+    left += current.offsetLeft
+    top += current.offsetTop
+    const next = current.offsetParent
+    if (!next || (next !== wrap && !wrap.contains(next))) break
+    current = next
+  }
+  return {
+    left,
+    top,
+    width: node.offsetWidth,
+    height: node.offsetHeight,
+  }
+}
+
+/**
+ * Puts the name card beside the van photo. Right side first, left when the
+ * right side would leave the map. The card stays on the marker element, so it
+ * moves with each GPS update.
+ * @param {HTMLElement} wrap
+ * @param {HTMLElement | null} pop
+ * @param {mapboxgl.Map | null} map
+ * @param {{ lng: number, lat: number }} pos
+ */
+function placeDriverPopup(wrap, pop, map, pos) {
+  if (!pop?.classList.contains('is-open') || !map || !pos || !wrap) return
+  const iconNode = wrap.querySelector('.smh-van-img') || wrap.querySelector('.smh-van-hit') || wrap
+  const icon = layoutBoxInMarker(iconNode, wrap)
+  const iconW = icon.width || 44
+  const iconH = icon.height || 44
+  const popW = pop.offsetWidth || 120
+  const popH = pop.offsetHeight || 36
   const origin = map.project([pos.lng, pos.lat])
-  const w = pop.offsetWidth || 120
-  const h = pop.offsetHeight || 36
-  const spots = [
-    { x: 0, y: h + 12 },
-    { x: Math.round(w / 2) + 30, y: 8 },
-    { x: -Math.round(w / 2) - 30, y: 8 },
-    { x: 0, y: -(h + 40) },
-  ]
-  const obstacles = []
-  for (const pin of pins || []) {
-    if (!pin || !Number.isFinite(pin.lng) || !Number.isFinite(pin.lat)) continue
-    const projected = map.project([pin.lng, pin.lat])
-    obstacles.push({ x: projected.x, y: projected.y - 22, r: 24 })
-  }
-  const bounds = map.getContainer()
-  const maxX = bounds.clientWidth - 8
-  const maxY = bounds.clientHeight - 8
-  let best = spots[0]
-  let bestScore = -Infinity
-  for (const spot of spots) {
-    const left = origin.x + spot.x - w / 2
-    const right = origin.x + spot.x + w / 2
-    const top = origin.y + spot.y - h
-    const bottom = origin.y + spot.y
-    let score = 360
-    if (left < 8 || right > maxX || top < 8 || bottom > maxY) score -= 500
-    for (const obstacle of obstacles) {
-      const dx = Math.max(Math.abs(origin.x + spot.x - obstacle.x) - w / 2, 0)
-      const dy = Math.max(Math.abs(origin.y + spot.y - h / 2 - obstacle.y) - h / 2, 0)
-      score = Math.min(score, Math.hypot(dx, dy) - obstacle.r)
+  const markerW = wrap.offsetWidth || 46
+  const markerH = wrap.offsetHeight || 46
+  const wrapLeft = origin.x - markerW / 2
+  const wrapTop = origin.y - markerH / 2
+  const container = map.getContainer()
+  const containerRect = container.getBoundingClientRect()
+  const maxX = container.clientWidth - POPUP_MAP_PAD
+  const maxY = container.clientHeight - POPUP_MAP_PAD
+  const blocked = []
+  container.querySelectorAll('.mapboxgl-ctrl-top-right, .mapboxgl-ctrl-top-left, .mapboxgl-ctrl-bottom-right, .mapboxgl-ctrl-bottom-left').forEach((node) => {
+    const rect = node.getBoundingClientRect()
+    if (rect.width < 1 || rect.height < 1) return
+    blocked.push({
+      left: rect.left - containerRect.left,
+      top: rect.top - containerRect.top,
+      right: rect.right - containerRect.left,
+      bottom: rect.bottom - containerRect.top,
+    })
+  })
+
+  const layout = (side) => {
+    const left = side === 'right'
+      ? icon.left + iconW + POPUP_GAP_PX
+      : icon.left - POPUP_GAP_PX - popW
+    let top = icon.top + (iconH - popH) / 2
+    let screenLeft = wrapLeft + left
+    let screenTop = wrapTop + top
+    let screenBottom = screenTop + popH
+    if (screenTop < POPUP_MAP_PAD) {
+      const shift = POPUP_MAP_PAD - screenTop
+      top += shift
+      screenTop += shift
+      screenBottom += shift
     }
-    if (score > bestScore) {
-      bestScore = score
-      best = spot
+    if (screenBottom > maxY) {
+      const shift = screenBottom - maxY
+      top -= shift
+      screenTop -= shift
+      screenBottom -= shift
+    }
+    const screenRight = screenLeft + popW
+    const fitsX = screenLeft >= POPUP_MAP_PAD && screenRight <= maxX
+    const fitsY = screenTop >= POPUP_MAP_PAD - 0.5 && screenBottom <= maxY + 0.5
+    const hitsControl = blocked.some((box) => (
+      screenLeft < box.right
+      && screenRight > box.left
+      && screenTop < box.bottom
+      && screenBottom > box.top
+    ))
+    const coversIcon = left < icon.left + iconW
+      && left + popW > icon.left
+      && top < icon.top + iconH
+      && top + popH > icon.top
+    return { side, left, top, fitsX, fitsY, hitsControl, coversIcon }
+  }
+
+  const right = layout('right')
+  const leftSide = layout('left')
+  const rightOk = right.fitsX && right.fitsY && !right.hitsControl && !right.coversIcon
+  const leftOk = leftSide.fitsX && leftSide.fitsY && !leftSide.hitsControl && !leftSide.coversIcon
+  let chosen = right
+  if (!rightOk) {
+    if (leftOk) chosen = leftSide
+    else {
+      const roomRight = maxX - (wrapLeft + icon.left + iconW + POPUP_GAP_PX)
+      const roomLeft = wrapLeft + icon.left - POPUP_GAP_PX - POPUP_MAP_PAD
+      chosen = roomLeft > roomRight ? leftSide : right
     }
   }
-  pop.style.transform = `translate(calc(-50% + ${best.x}px), calc(-100% + ${best.y}px))`
+  pop.dataset.side = chosen.side
+  pop.style.left = '0px'
+  pop.style.top = '0px'
+  pop.style.transform = `translate(${Math.round(chosen.left)}px, ${Math.round(chosen.top)}px)`
 }
 
 function setMarkerHeading(marker) {
@@ -831,6 +913,15 @@ export default function TrackingDriverMap({
         followRef.current = false
         setCamera('free')
       }
+      const repositionOpenPopup = () => {
+        const marker = driverMarkerRef.current
+        const markerEl = marker?.getElement?.()
+        const state = markerEl?._vanState
+        if (!state) return
+        updateDriverMarker(marker, state.pos, state.aim, state.kind, state.route, map, state.pins)
+      }
+      map.on('move', repositionOpenPopup)
+      map.on('resize', repositionOpenPopup)
       map.on('dragstart', onUserInteract)
       map.on('zoomstart', (e) => {
         // Programmatic easeTo/fitBounds also fire zoomstart — only treat as user when originalEvent set.

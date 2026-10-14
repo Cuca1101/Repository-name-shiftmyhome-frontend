@@ -61,7 +61,7 @@ export function parsePricingText(pricing) {
     lines.push({ label, amount })
     if (/estimated total/i.test(label)) estimatedTotal = Math.abs(amount)
     if (/^volume/i.test(label)) {
-      const vol = t.match(/total\s*([\d.]+)\s*m³/i)
+      const vol = t.match(/total\s*([\d.]+)\s*m³/i) || t.match(/([\d.]+)\s*m³/i)
       if (vol) volumeM3 = parseFloat(vol[1])
     }
   }
@@ -639,14 +639,33 @@ export function mergeDetailSections(sections, names) {
 /**
  * @param {Record<string, unknown>} q
  */
+function sumInventoryLineVolumeM3(q) {
+  const rows = parseInventoryFromQuoteRow(q)
+  if (!rows.length) return null
+  let sum = 0
+  let found = false
+  for (const row of rows) {
+    const match = String(row.volume || '').match(/([\d.]+)\s*m³/i)
+    if (!match) continue
+    const line = parseFloat(match[1])
+    if (!Number.isFinite(line)) continue
+    sum += line
+    found = true
+  }
+  return found ? Math.round(sum * 100) / 100 : null
+}
+
 export function formatVolumeAndCrew(q) {
+  const fromLines = sumInventoryLineVolumeM3(q)
   const { volumeM3 } = parsePricingText(q.pricing)
   const vol =
-    volumeM3 != null
-      ? `${volumeM3.toFixed(2)} m³`
-      : q.total_cubic_metres != null && num(q.total_cubic_metres) > 0
-        ? `${num(q.total_cubic_metres).toFixed(2)} m³`
-        : null
+    fromLines != null
+      ? `${fromLines.toFixed(2)} m³`
+      : volumeM3 != null
+        ? `${volumeM3.toFixed(2)} m³`
+        : q.total_cubic_metres != null && num(q.total_cubic_metres) > 0
+          ? `${num(q.total_cubic_metres).toFixed(2)} m³`
+          : null
   const crewN = num(q.crew_size)
   const crew = crewN > 0 ? `${crewN} ${crewN === 1 ? 'person' : 'people'}` : null
   if (vol && crew) return `${vol} · ${crew}`

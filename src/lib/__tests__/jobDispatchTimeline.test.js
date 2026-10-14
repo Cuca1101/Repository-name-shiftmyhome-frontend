@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest'
 import {
   buildDispatchTimelineState,
   buildStepTimestampsFromHistory,
+  formatLoadDuration,
   historyStatusToTimelineStepId,
+  resolveLoadingWindow,
 } from '../jobDispatchTimeline'
 
 describe('buildDispatchTimelineState', () => {
@@ -119,6 +121,22 @@ describe('buildDispatchTimelineState', () => {
     expect(steps.find((s) => s.id === 'on_way')?.timestamp).toBeTruthy()
     expect(steps.find((s) => s.id === 'loading')?.timestamp).toBeTruthy()
     expect(steps.find((s) => s.id === 'arrived_delivery')?.timestamp).toBeTruthy()
+  })
+
+  it('keeps how long loading took on the Loading step', () => {
+    const history = [
+      { status: 'arrived_pickup', created_at: '2026-05-28T11:15:00Z' },
+      { status: 'loading_started', created_at: '2026-05-28T11:20:00Z' },
+      { status: 'pickup_completed', created_at: '2026-05-28T12:00:00Z' },
+    ]
+    const window = resolveLoadingWindow(history)
+    expect(window.startedAt).toBe('2026-05-28T11:20:00Z')
+    expect(window.finishedAt).toBe('2026-05-28T12:00:00Z')
+    expect(formatLoadDuration(window.startedAt, window.finishedAt)).toBe('40 min')
+    const steps = buildDispatchTimelineState(baseQuote, {}, null, null, { workflow_status: 'in_transit' }, history)
+    const loading = steps.find((step) => step.id === 'loading')
+    expect(loading?.loadingStartedAt).toBe('2026-05-28T11:20:00Z')
+    expect(loading?.loadingFinishedAt).toBe('2026-05-28T12:00:00Z')
   })
 
   it('maps generic arrived to pickup before in_transit', () => {

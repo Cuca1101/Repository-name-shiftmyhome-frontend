@@ -648,6 +648,19 @@ export default function JourneyPlannerPage() {
     [customerTotalGbp, adjustPreviewPayout],
   )
 
+  const plannerDrivers = useMemo(() => {
+    const byId = new Map()
+    for (const q of quotes || []) {
+      const id = String(q?.assigned_driver_id || '').trim()
+      if (!id || byId.has(id)) continue
+      byId.set(id, {
+        id,
+        name: String(q?.assigned_driver_name || 'Driver').trim() || 'Driver',
+      })
+    }
+    return [...byId.values()]
+  }, [quotes])
+
   const mapStops = useMemo(
     () =>
       stops.map((s, i) => ({
@@ -1398,7 +1411,7 @@ export default function JourneyPlannerPage() {
         <p className={`text-sm font-medium ${saveMsgIsError ? 'text-red-800' : 'text-emerald-800'}`}>{saveMsg}</p>
       ) : null}
 
-      <JourneyRouteMap stops={mapStops} routeGeometry={routeGeometry} />
+      <JourneyRouteMap stops={mapStops} routeGeometry={routeGeometry} drivers={plannerDrivers} />
 
       <section className="rounded-2xl border border-slate-200 bg-white shadow-sm">
         <button

@@ -166,7 +166,7 @@ export function buildJobMapGeoJson(quotes, coordsByQuoteId, mode, routeLegByQuot
       linePalette = { main: '#64748b', glow: '#93c5fd' }
     }
 
-    /** Road route only — no straight segment between pins. */
+    /** Road route when Mapbox has it; otherwise a line so collection and delivery stay joined. */
     const leg = routes[id]
     const lineCoords = leg && Array.isArray(leg.coordinates) ? leg.coordinates : null
     const validLeg =
@@ -180,33 +180,32 @@ export function buildJobMapGeoJson(quotes, coordsByQuoteId, mode, routeLegByQuot
           Number.isFinite(Number(p[1])),
       )
 
-    if (validLeg) {
-      const dSec =
-        typeof leg.durationSeconds === 'number' && Number.isFinite(leg.durationSeconds)
-          ? leg.durationSeconds
-          : 0
-      const dM =
-        typeof leg.distanceMeters === 'number' && Number.isFinite(leg.distanceMeters)
-          ? leg.distanceMeters
-          : 0
-      legs.push({
-        type: 'Feature',
-        properties: {
-          quoteId: id,
-          jobRef: ref,
-          lineMain: linePalette.main,
-          lineGlow: linePalette.glow,
-          mode,
-          driveDurationSec: dSec,
-          driveDurationLabel: formatDriveDuration(dSec),
-          driveDistanceM: dM,
-        },
-        geometry: {
-          type: 'LineString',
-          coordinates: lineCoords,
-        },
-      })
-    }
+    const drawnCoords = validLeg ? lineCoords : [[pu.lng, pu.lat], [dr.lng, dr.lat]]
+    const dSec =
+      validLeg && typeof leg.durationSeconds === 'number' && Number.isFinite(leg.durationSeconds)
+        ? leg.durationSeconds
+        : 0
+    const dM =
+      validLeg && typeof leg.distanceMeters === 'number' && Number.isFinite(leg.distanceMeters)
+        ? leg.distanceMeters
+        : 0
+    legs.push({
+      type: 'Feature',
+      properties: {
+        quoteId: id,
+        jobRef: ref,
+        lineMain: linePalette.main,
+        lineGlow: linePalette.glow,
+        mode,
+        driveDurationSec: dSec,
+        driveDurationLabel: dSec ? formatDriveDuration(dSec) : '',
+        driveDistanceM: dM,
+      },
+      geometry: {
+        type: 'LineString',
+        coordinates: drawnCoords,
+      },
+    })
 
     pickups.push({
       type: 'Feature',
@@ -460,10 +459,11 @@ export function driverDispatchPresentation(driver, liveRow, assignedQuotes, etaL
   const status = dispatchStatusLabel(dispatchStatus)
   const trackingStatus = String(liveRow?.tracking_status || liveRow?.status || '').trim()
   const stale = Boolean(liveRow?.stale)
+  const sampleAt = liveRow?.sampled_at || liveRow?.updated_at
   const updated = stale
     ? String(liveRow?.stale_label || 'Last location unavailable')
-    : liveRow?.updated_at != null
-      ? String(liveRow.updated_at).replace('T', ' ').slice(0, 16)
+    : sampleAt != null
+      ? String(sampleAt).replace('T', ' ').slice(0, 16)
       : 'No live GPS yet'
   return {
     name,

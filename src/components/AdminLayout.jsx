@@ -468,6 +468,8 @@ export default function AdminLayout() {
 
   const currentTitle = allNavItems.find((item) => pathActive(pathname, item))?.label ?? 'Admin'
   const badgeCounts = { supportUnread: supportUnreadCount }
+  const customerLeadsWide =
+    pathname === '/admin/customer-leads' || pathname.startsWith('/admin/customer-leads/')
 
   return (
     <div className="min-h-screen min-w-0 bg-slate-100/90">
@@ -589,8 +591,8 @@ export default function AdminLayout() {
         </div>
       </aside>
 
-      {/* Main column */}
-      <div className="flex min-h-screen flex-1 flex-col lg:pl-64">
+      {/* Main column sits beside the fixed sidebar. pl-64 is the sidebar width; do not use 100vw. */}
+      <div className="flex min-h-screen w-full min-w-0 flex-col lg:pl-64">
         {/* Top bar (mobile + desktop) */}
         <header className="sticky top-0 z-30 flex h-14 shrink-0 items-center gap-3 border-b border-slate-200/80 bg-white/90 px-4 shadow-sm backdrop-blur-md sm:h-16 sm:px-6">
           <button
@@ -624,8 +626,20 @@ export default function AdminLayout() {
           </div>
         </header>
 
-        <main className="admin-main-compact flex-1 px-2.5 py-4 xxs:px-3 xs:px-4 sm:px-6 sm:py-8 lg:px-8">
-          <div className="mx-auto min-w-0 max-w-7xl space-y-4">
+        <main
+          className={
+            customerLeadsWide
+              ? 'admin-main-compact w-full min-w-0 flex-1 px-4 py-4 sm:px-6 sm:py-6'
+              : 'admin-main-compact flex-1 px-2.5 py-4 xxs:px-3 xs:px-4 sm:px-6 sm:py-8 lg:px-8'
+          }
+        >
+          <div
+            className={
+              customerLeadsWide
+                ? 'w-full min-w-0 max-w-none space-y-4'
+                : 'mx-auto min-w-0 max-w-7xl space-y-4'
+            }
+          >
             <StripeModeBanner />
             <CallContactsProvider>
               <Outlet />

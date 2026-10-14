@@ -21,6 +21,9 @@ const REVIEW_MAP_SHELL =
 /** Admin dispatch board — tall route visibility (Available / Job Accepted detail). */
 const DISPATCH_MAP_SHELL =
   'relative h-[220px] min-h-[220px] sm:h-[260px] sm:min-h-[260px] md:h-[280px] md:min-h-[280px] lg:h-[300px] lg:min-h-[300px] xl:h-[320px] xl:min-h-[320px] w-full min-w-0 overflow-hidden'
+/** Customer lead details — fills the route card, taller beside the action cards on a wide desktop. */
+const LEAD_MAP_SHELL =
+  'relative h-[200px] min-h-[200px] w-full min-w-0 overflow-hidden sm:h-[240px] sm:min-h-[240px] md:h-[260px] md:min-h-[260px] min-[1500px]:h-full min-[1500px]:min-h-[320px] min-[1500px]:flex-1'
 
 const OUTER_DEFAULT =
   'quote-route-map w-full min-w-0 overflow-hidden rounded-lg border border-slate-200 bg-slate-100 shadow-card ring-1 ring-slate-100 sm:rounded-2xl'
@@ -28,6 +31,7 @@ const OUTER_DISPATCH = 'quote-route-map quote-route-map--dispatch w-full min-w-0
 
 function resolveMapVariant({ compact, variant }) {
   if (variant === 'review') return 'review'
+  if (variant === 'lead') return 'lead'
   if (variant === 'dispatch') return 'dispatch'
   if (variant === 'compact' || compact) return 'compact'
   return 'default'
@@ -35,6 +39,7 @@ function resolveMapVariant({ compact, variant }) {
 
 function mapVariantShellClass(variant) {
   if (variant === 'review') return REVIEW_MAP_SHELL
+  if (variant === 'lead') return LEAD_MAP_SHELL
   if (variant === 'dispatch') return DISPATCH_MAP_SHELL
   if (variant === 'compact') return COMPACT_MAP_SHELL
   return DEFAULT_MAP_SHELL
@@ -42,6 +47,7 @@ function mapVariantShellClass(variant) {
 
 function mapVariantBoundsPadding(variant) {
   if (variant === 'review') return 32
+  if (variant === 'lead') return 28
   if (variant === 'compact') return 28
   if (variant === 'dispatch') return 36
   return 48
@@ -180,12 +186,12 @@ function fetchDrivingRouteTimed(a, b, token, ms = ROUTE_FETCH_TIMEOUT_MS) {
  *   deliveryLat: number | null,
  *   distanceMiles?: number,
  *   compact?: boolean,
- *   variant?: 'default' | 'compact' | 'dispatch',
+ *   variant?: 'default' | 'compact' | 'dispatch' | 'lead',
  *   onDistanceFromRoute?: (payload: { type: 'ok', miles: number, durationSeconds: number | null } | { type: 'failed' } | { type: 'incomplete' }) => void,
  * }} props
  */
 function applyMobilePreviewMapGestures(map, mapVariant) {
-  if (mapVariant === 'dispatch') return
+  if (mapVariant === 'dispatch' || mapVariant === 'lead') return
   try {
     map.scrollZoom.disable()
     map.boxZoom.disable()
@@ -210,7 +216,7 @@ function QuoteRouteMapInner({
 }) {
   const mapVariant = resolveMapVariant({ compact, variant: variantProp })
   const isMobileLayout = useMobileQuoteLayout()
-  const passScrollOnMobile = isMobileLayout && mapVariant !== 'dispatch'
+  const passScrollOnMobile = isMobileLayout && mapVariant !== 'dispatch' && mapVariant !== 'lead'
   const token = import.meta.env.VITE_MAPBOX_TOKEN
   const containerRef = useRef(null)
   const shellRef = useRef(null)
@@ -493,7 +499,12 @@ function QuoteRouteMapInner({
 
   const showMap = Boolean(token)
   const mapShellClass = mapVariantShellClass(mapVariant)
-  const outerClass = mapVariant === 'dispatch' ? OUTER_DISPATCH : OUTER_DEFAULT
+  const outerClass =
+    mapVariant === 'lead'
+      ? `${OUTER_DISPATCH} flex h-full min-h-0 flex-1 flex-col`
+      : mapVariant === 'dispatch'
+        ? OUTER_DISPATCH
+        : OUTER_DEFAULT
   const overlayMessage =
     overlay === 'route-error' ? MSG_ROUTE_FAIL : overlay === 'route-timeout' ? MSG_ROUTE_TIMEOUT : null
 

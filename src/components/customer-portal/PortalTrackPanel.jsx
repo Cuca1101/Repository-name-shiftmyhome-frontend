@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import LiveDriverMap from '../tracking/LiveDriverMap'
 import { groupJobPhotos, trackingClient } from '../../lib/jobCustomerTracking'
 import {
+  formatTrackingLocationLabel,
   isTrackingGpsFresh,
   resolveTrackingDriverEta,
   resolveTrackingGpsState,
@@ -26,8 +27,9 @@ export default function PortalTrackPanel({ token }) {
     const id = String(token || '').trim()
     if (!client || !id) return undefined
     let cancelled = false
+    let timer = 0
 
-    async function load() {
+    async function load(includePhotos) {
       const { data: portal, error: rpcError } = await client.rpc('public_get_job_tracking', { p_token: id })
       if (cancelled) return
       if (rpcError || !portal?.ok) {
@@ -36,15 +38,20 @@ export default function PortalTrackPanel({ token }) {
         return
       }
       setError('')
-      setData(portal)
+      const closed = Boolean(portal.completed || portal.cancelled)
+      setData(closed
+        ? { ...portal, tracking_live: false, location: { available: false, live: false } }
+        : portal)
+      if (closed) window.clearInterval(timer)
+      if (!includePhotos) return
       const { data: mediaRes } = await client.functions.invoke('get-job-tracking-media', {
         body: { token: id },
       })
       if (!cancelled) setPhotos(Array.isArray(mediaRes?.photos) ? mediaRes.photos : [])
     }
 
-    load()
-    const timer = window.setInterval(load, 10000)
+    load(true)
+    timer = window.setInterval(() => { void load(false) }, 10000)
     return () => {
       cancelled = true
       window.clearInterval(timer)
@@ -110,28 +117,29 @@ export default function PortalTrackPanel({ token }) {
       {presentation.showLivePosition ? (
         <div className="mt-3 space-y-2">
           <p className="text-sm font-medium text-slate-800">{stage.badge}</p>
-          {eta?.phrase && (eta.status === 'ready' || eta.status === 'stale') ? (
-            <p className="text-sm text-slate-600">
-              {eta.phrase}
-              {eta.status === 'stale'
-                ? ' · GPS delayed'
-                : ''}
-            </p>
-          ) : (
+          {!presentation.awaitingStart && eta?.phrase && (eta.status === 'ready' || eta.status === 'stale') ? (
+            <p className="text-sm text-slate-600">{eta.phrase}</p>
+          ) : null}
+          {!presentation.awaitingStart && !(eta?.phrase && (eta.status === 'ready' || eta.status === 'stale')) ? (
             <p className="text-sm text-slate-500">
               {eta?.message || 'Calculating arrival time…'}
             </p>
-          )}
+          ) : null}
+          {!gpsFresh ? (
+            <p className="text-sm font-medium text-amber-900">
+              {formatTrackingLocationLabel(data?.location?.updated_at).text}
+            </p>
+          ) : null}
           <LiveDriverMap
             latitude={Number(data.location.latitude)}
             longitude={Number(data.location.longitude)}
             heading={Number(data.location.heading)}
-            live={gpsFresh}
+            live={presentation.live}
             driverName={data.driver?.full_name || ''}
             quoteRef={data.quote_ref || ''}
             pickupAddress={data.pickup_address || ''}
             deliveryAddress={data.delivery_address || ''}
-            destinationKind={stage.etaKind || (stage.stage === 'en_route_collection' ? 'collection' : null)}
+            destinationKind={presentation.awaitingStart ? null : (stage.etaKind || (stage.stage === 'en_route_collection' ? 'collection' : null))}
           />
         </div>
       ) : null}

@@ -1,3 +1,4 @@
+import { formatLondonClock } from '../requestDriverLocation'
 import { isSupabaseConfigured, supabase } from '../supabase'
 
 /** Live GPS table (one row per driver, upserted from driver app). */
@@ -50,7 +51,10 @@ export function normalizeDriverLocationRow(row) {
   const lat = parseCoord(row.latitude ?? row.lat)
   const lng = parseCoord(row.longitude ?? row.lng)
   const updated_at = row.updated_at != null ? String(row.updated_at) : null
-  const stale = isDriverLocationStale(updated_at)
+  const sampled_at = row.sampled_at != null ? String(row.sampled_at) : null
+  const sampleAt = sampled_at || updated_at
+  const stale = isDriverLocationStale(sampleAt)
+  const sampleClock = formatLondonClock(sampleAt)
 
   const drivers =
     row.drivers && typeof row.drivers === 'object' && !Array.isArray(row.drivers) ? row.drivers : null
@@ -87,8 +91,11 @@ export function normalizeDriverLocationRow(row) {
     status: row.status != null ? String(row.status) : null,
     tracking_status: row.status != null ? String(row.status) : null,
     updated_at,
+    sampled_at,
     stale,
-    stale_label: stale ? 'Last location unavailable' : null,
+    stale_label: stale
+      ? (sampleClock ? `Last known location at ${sampleClock}` : 'Last known location')
+      : null,
     speed_mph,
     driver_name: drivers?.full_name != null ? String(drivers.full_name).trim() : null,
     driver_phone: drivers?.phone != null ? String(drivers.phone).trim() : null,

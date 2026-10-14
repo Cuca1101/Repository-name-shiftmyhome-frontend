@@ -7,21 +7,21 @@ import { quoteJobIsStarted } from './adminJobAcceptedStatus'
 
 export const DISPATCH_TIMELINE_STEPS = /** @type {DispatchTimelineStepDef[]} */ ([
   { id: 'accepted', label: 'Accepted', match: /^(assigned|accepted|booked|active)$/i },
-  { id: 'on_way', label: 'On way', match: /\b(on[_\s-]?way|on the way|en route|heading)\b/i },
+  { id: 'on_way', label: 'Left for collection', match: /\b(on[_\s-]?way|on the way|en route|heading)\b/i },
   {
     id: 'arrived_pickup',
-    label: 'Arrived',
+    label: 'At collection',
     match: /\b(arrived_pickup|at collection|at pickup)\b/i,
   },
-  { id: 'loading', label: 'Loading', match: /\b(loading|loaded|pickup_completed)\b/i },
+  { id: 'loading', label: 'Loading', match: /\b(loading_started|loading|loaded|pickup_completed)\b/i },
   {
     id: 'in_transit',
-    label: 'In transit',
+    label: 'Left for delivery',
     match: /\b(in[_\s-]?transit)\b/i,
   },
   {
     id: 'arrived_delivery',
-    label: 'Arrived delivery',
+    label: 'At delivery',
     match: /\b(arrived_delivery|at delivery|arrived delivery|unloading)\b/i,
   },
   { id: 'completed', label: 'Completed', match: /\b(completed|complete|delivered)\b/i },
@@ -42,6 +42,7 @@ const WORKFLOW_STEP_BY_STATUS = {
   pickup_completed: 3,
   loaded: 3,
   loading: 3,
+  loading_started: 3,
   in_transit: 4,
   'in transit': 4,
   arrived_delivery: 5,
@@ -82,7 +83,7 @@ export function historyStatusToTimelineStepId(rawStatus, ctx = {}) {
   if (n === 'arrived_pickup') return 'arrived_pickup'
   if (n === 'arrived_delivery') return 'arrived_delivery'
   if (n === 'arrived') return ctx.deliveryPhase ? 'arrived_delivery' : 'arrived_pickup'
-  if (n === 'pickup_completed' || n === 'loaded' || n === 'loading') return 'loading'
+  if (n === 'loading_started' || n === 'loading' || n === 'pickup_completed' || n === 'loaded') return 'loading'
   if (n === 'in_transit') return 'in_transit'
   if (n === 'completed' || n === 'complete' || n === 'delivered') return 'completed'
 
@@ -126,6 +127,55 @@ export function buildStepTimestampsFromHistory(historyRows, opts = {}) {
 
   if (completedAt && !timestamps.completed) timestamps.completed = completedAt
   return timestamps
+}
+
+/**
+ * Loading clock: from collection start until pickup is finished.
+ * Falls back to arrival at collection when the driver did not stamp a separate start.
+ *
+ * @param {Array<{ status?: string, created_at?: string, occurred_at?: string }>} historyRows
+ * @returns {{ startedAt: string, finishedAt: string }}
+ */
+export function resolveLoadingWindow(historyRows) {
+  let startedAt = ''
+  let arrivedAt = ''
+  let finishedAt = ''
+  const sorted = [...(historyRows || [])].sort(
+    (a, b) => new Date(a.occurred_at || a.created_at || 0).getTime() - new Date(b.occurred_at || b.created_at || 0).getTime(),
+  )
+  for (const row of sorted) {
+    const n = normalizeWorkflowStatus(row.status)
+    const at = String(row.occurred_at || row.created_at || '').trim()
+    if (!at || HISTORY_SKIP_STATUSES.has(n)) continue
+    if (!startedAt && (n === 'loading_started' || n === 'loading')) startedAt = at
+    if (!arrivedAt && (n === 'arrived_pickup' || (n === 'arrived' && !finishedAt))) arrivedAt = at
+    if (!finishedAt && (n === 'pickup_completed' || n === 'loaded')) finishedAt = at
+  }
+  return { startedAt: startedAt || (finishedAt ? arrivedAt : ''), finishedAt }
+}
+
+/**
+ * @param {string} startedAt
+ * @param {string} finishedAt
+ * @param {number} [nowMs]
+ */
+export function formatLoadDuration(startedAt, finishedAt, nowMs = Date.now()) {
+  const start = new Date(startedAt).getTime()
+  if (!Number.isFinite(start)) return ''
+  const end = finishedAt ? new Date(finishedAt).getTime() : nowMs
+  if (!Number.isFinite(end) || end < start) return ''
+  const totalSec = Math.floor((end - start) / 1000)
+  const h = Math.floor(totalSec / 3600)
+  const m = Math.floor((totalSec % 3600) / 60)
+  const s = totalSec % 60
+  if (!finishedAt) {
+    return h > 0
+      ? `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
+      : `${m}:${String(s).padStart(2, '0')}`
+  }
+  if (h > 0) return `${h} hr ${m} min`
+  if (m > 0) return `${m} min`
+  return `${s} sec`
 }
 
 /**
@@ -212,14 +262,14 @@ export function buildDispatchTimelineState(
   const completedAt = String(q.completed_at || overrides.workflowCompletedAt || '').trim()
   const stepTimestamps = buildStepTimestampsFromHistory(statusHistory, { acceptedAt, completedAt })
 
-  return DISPATCH_TIMELINE_STEPS.map((step, index) => {
+  const steps = DISPATCH_TIMELINE_STEPS.map((step, index) => {
     let state = 'upcoming'
     if (cancelled) state = 'cancelled'
     else if (completed && index <= currentIndex) state = 'done'
     else if (index < currentIndex) state = 'done'
     else if (index === currentIndex) state = 'current'
 
-    const rawTs = stepTimestamps[step.id] || ''
+    const rawTs = step.id === 'accepted' ? '' : stepTimestamps[step.id] || ''
     const timestamp =
       rawTs && (state === 'done' || state === 'current') ? formatDateTimeUK(rawTs) : ''
 
@@ -227,8 +277,18 @@ export function buildDispatchTimelineState(
       ...step,
       state,
       timestamp,
+      startedAt: rawTs && (state === 'done' || state === 'current') ? rawTs : '',
+      endedAt: '',
     }
   })
+
+  steps.forEach((step, index) => {
+    if (!step.startedAt) return
+    const next = steps.slice(index + 1).find((item) => item.startedAt)
+    step.endedAt = next?.startedAt || ''
+  })
+
+  return steps
 }
 
 /**

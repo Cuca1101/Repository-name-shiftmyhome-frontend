@@ -44,8 +44,8 @@ const LEG_LAYOUT = { 'line-cap': 'round', 'line-join': 'round' }
 
 /** Pickup → delivery gradient per operations mode */
 const ROUTE_GRADIENT_BY_MODE = {
-  available: ['interpolate', ['linear'], ['line-progress'], 0, '#64748b', 0.5, '#3b82f6', 1, '#2563eb'],
-  active: ['interpolate', ['linear'], ['line-progress'], 0, '#f59e0b', 0.45, '#fbbf24', 1, '#22c55e'],
+  available: ['interpolate', ['linear'], ['line-progress'], 0, '#ea580c', 1, '#059669'],
+  active: ['interpolate', ['linear'], ['line-progress'], 0, '#ea580c', 1, '#059669'],
   completed: ['interpolate', ['linear'], ['line-progress'], 0, '#60a5fa', 1, '#2563eb'],
   cancelled: ['interpolate', ['linear'], ['line-progress'], 0, '#f87171', 1, '#b91c1c'],
 }
@@ -73,9 +73,9 @@ const emptyFc = () => ({ type: 'FeatureCollection', features: [] })
  * Anchored at geographic point; always above WebGL terrain.
  */
 const MARKER_PIN_BG = {
-  waiting: { pickup: '#64748b', delivery: '#3b82f6' },
-  accepted: { pickup: '#f59e0b', delivery: '#d97706' },
-  active: { pickup: '#22c55e', delivery: '#16a34a' },
+  waiting: { pickup: '#ea580c', delivery: '#059669' },
+  accepted: { pickup: '#ea580c', delivery: '#059669' },
+  active: { pickup: '#ea580c', delivery: '#059669' },
   completed: { pickup: '#3b82f6', delivery: '#2563eb' },
   cancelled: { pickup: '#ef4444', delivery: '#b91c1c' },
 }
@@ -187,7 +187,6 @@ export default function OperationsMapboxCanvas({
   onPickQuote,
   onPickJourney,
   onPickDriver,
-  diagnostics,
 }) {
   const containerRef = useRef(null)
   const mapRef = useRef(/** @type {import('mapbox-gl').Map | null} */ (null))
@@ -195,7 +194,6 @@ export default function OperationsMapboxCanvas({
   const driverMarkersRef = useRef(/** @type {import('mapbox-gl').Marker[]} */ ([]))
   const driverMarkerElsRef = useRef(/** @type {Record<string, import('mapbox-gl').Marker>} */ ({}))
   const [styleReady, setStyleReady] = useState(false)
-  const [domMarkerCount, setDomMarkerCount] = useState(0)
 
   const selectedLiteral = useMemo(() => (selectedQuoteIds || []).map(String).filter(Boolean), [selectedQuoteIds])
 
@@ -256,6 +254,36 @@ export default function OperationsMapboxCanvas({
         if (map.getSource(SRC.legs)) {
           setStyleReady(true)
           return
+        }
+
+        if (!map.getSource('ops-mapbox-traffic')) {
+          map.addSource('ops-mapbox-traffic', {
+            type: 'vector',
+            url: 'mapbox://mapbox.mapbox-traffic-v1',
+          })
+          map.addLayer({
+            id: 'ops-mapbox-traffic',
+            type: 'line',
+            source: 'ops-mapbox-traffic',
+            'source-layer': 'traffic',
+            layout: { 'line-join': 'round', 'line-cap': 'round' },
+            paint: {
+              'line-width': 2.5,
+              'line-color': [
+                'match',
+                ['get', 'congestion'],
+                'low',
+                '#16a34a',
+                'moderate',
+                '#eab308',
+                'heavy',
+                '#f97316',
+                'severe',
+                '#dc2626',
+                'transparent',
+              ],
+            },
+          })
         }
 
         map.addSource(SRC.legs, { type: 'geojson', data: emptyFc(), lineMetrics: true })
@@ -517,7 +545,7 @@ export default function OperationsMapboxCanvas({
     const showJ = mode === 'journeys'
     const showD = mode === 'drivers'
     const showProgress = showJobs && useRouteProgress && mode === 'active'
-    const hideStdLegs = showProgress
+    const hideStdLegs = false
 
     const vis = (show) => (show ? 'visible' : 'none')
     try {
@@ -564,12 +592,8 @@ export default function OperationsMapboxCanvas({
 
     const showJobs =
       mode === 'available' || mode === 'active' || mode === 'completed' || mode === 'cancelled'
-    if (!showJobs || !jobPoints?.features?.length) {
-      setDomMarkerCount(0)
-      return
-    }
+    if (!showJobs || !jobPoints?.features?.length) return
 
-    let placed = 0
     for (const f of jobPoints.features) {
       if (!f || f.geometry?.type !== 'Point') continue
       const c = f.geometry.coordinates
@@ -610,9 +634,7 @@ export default function OperationsMapboxCanvas({
 
       marker.getElement().style.zIndex = hi ? '12' : '10'
       jobMarkersRef.current.push(marker)
-      placed += 1
     }
-    setDomMarkerCount(placed)
   }, [styleReady, mode, jobPoints, highlightSet, onPickQuote])
 
   /** Smooth animated driver DOM markers (all modes when GPS available). */
@@ -640,6 +662,16 @@ export default function OperationsMapboxCanvas({
       if (!Number.isFinite(d.lng) || !Number.isFinite(d.lat)) continue
       const hi = String(focusedDriverId) === id
       let marker = driverMarkerElsRef.current[id]
+      const markerSig = `${d.activeJobRef || ''}|${d.waitingGps ? 1 : 0}|${d.stale ? 1 : 0}|${hi ? 1 : 0}|${d.online && !d.stale && !d.waitingGps ? 1 : 0}`
+      if (marker && marker.getElement()?.dataset.markerSig !== markerSig) {
+        try {
+          marker.remove()
+        } catch {
+          /* ignore */
+        }
+        delete driverMarkerElsRef.current[id]
+        marker = null
+      }
       if (!marker) {
         const el = buildDriverMarkerElement({
           driverId: id,
@@ -652,13 +684,15 @@ export default function OperationsMapboxCanvas({
           online: d.online,
           isFocused: hi,
           stale: d.stale,
+          jobRef: d.activeJobRef || '',
+          waitingGps: d.waitingGps,
         })
         el.addEventListener('click', (ev) => {
           ev.preventDefault()
           ev.stopPropagation()
           onPickDriver(id)
         })
-        marker = new mapboxgl.Marker({ element: el, anchor: 'center' }).setLngLat([d.lng, d.lat]).addTo(map)
+        marker = new mapboxgl.Marker({ element: el, anchor: 'bottom' }).setLngLat([d.lng, d.lat]).addTo(map)
         marker.getElement().style.zIndex = hi ? '20' : '15'
         driverMarkerElsRef.current[id] = marker
       } else {
@@ -680,6 +714,11 @@ export default function OperationsMapboxCanvas({
       showJobs ? jobLegs?.features?.length ?? 0 : 0,
       mode === 'journeys' ? journeyStops?.features?.length ?? 0 : 0,
       mode === 'drivers' ? drivers?.features?.length ?? 0 : 0,
+      (animatedDrivers || [])
+        .filter((d) => (d.activeJobRef || d.assignedCount > 0) && Number.isFinite(d.lng))
+        .map((d) => d.driverId)
+        .sort()
+        .join(','),
     ].join('|')
     if (sig === lastFitSigRef.current) return
     lastFitSigRef.current = sig
@@ -713,6 +752,9 @@ export default function OperationsMapboxCanvas({
         if (showJobs) {
           extendFc(jobPoints)
           extendFc(jobLegs)
+          for (const d of animatedDrivers || []) {
+            if (d.activeJobRef || d.assignedCount > 0) extendPoint(d.lng, d.lat)
+          }
         } else if (mode === 'journeys') {
           extendFc(journeyStops)
         } else if (mode === 'drivers') {
@@ -877,36 +919,13 @@ export default function OperationsMapboxCanvas({
   return (
     <div className="relative isolate min-h-[520px] flex-1 overflow-visible rounded-2xl border border-slate-300/90 bg-white shadow-md ring-1 ring-slate-900/[0.06]">
       <div ref={containerRef} className="relative z-0 h-full min-h-[520px] w-full overflow-hidden rounded-2xl" />
-      {token && (
-        <div
-          role="status"
-          aria-label="Operations map diagnostics"
-          className="pointer-events-none absolute bottom-3 left-3 z-[10002] max-w-[min(calc(100%-1rem),19rem)] rounded-lg bg-slate-900/92 px-2.5 py-2 font-mono text-[10px] leading-snug text-white shadow-xl ring-1 ring-white/10"
-        >
-          <span className="font-bold uppercase tracking-wide text-amber-200">Map debug </span>
-          <span className="text-emerald-200">(remove later)</span>
-          <dl className="mt-1.5 grid gap-x-3 gap-y-1 [grid-template-columns:auto_1fr]">
-            {diagnostics
-              ? Object.entries(diagnostics).map(([k, v]) => (
-                  <FragmentRow key={k} k={k} v={v} />
-                ))
-              : null}
-            <dt className="font-semibold text-slate-300">dom_markers</dt>
-            <dd className="text-right tabular-nums text-amber-100">{domMarkerCount}</dd>
-            <dt className="font-semibold text-slate-300">style_ready</dt>
-            <dd className="text-right">{styleReady ? 'yes' : 'no'}</dd>
-          </dl>
-        </div>
-      )}
+      <div className="pointer-events-none absolute bottom-3 left-3 z-10 flex flex-wrap gap-1.5">
+        <span className="rounded-full bg-white/95 px-2.5 py-1 text-[10px] font-semibold text-slate-700 shadow-sm ring-1 ring-slate-200">Live traffic</span>
+        <span className="rounded-full bg-white/95 px-2.5 py-1 text-[10px] font-semibold text-emerald-800 shadow-sm ring-1 ring-slate-200">Clear</span>
+        <span className="rounded-full bg-white/95 px-2.5 py-1 text-[10px] font-semibold text-amber-700 shadow-sm ring-1 ring-slate-200">Moderate</span>
+        <span className="rounded-full bg-white/95 px-2.5 py-1 text-[10px] font-semibold text-orange-700 shadow-sm ring-1 ring-slate-200">Heavy</span>
+        <span className="rounded-full bg-white/95 px-2.5 py-1 text-[10px] font-semibold text-red-700 shadow-sm ring-1 ring-slate-200">Severe</span>
+      </div>
     </div>
-  )
-}
-
-function FragmentRow({ k, v }) {
-  return (
-    <>
-      <dt className="font-semibold text-slate-300">{k}</dt>
-      <dd className="break-words text-right text-slate-50">{String(v)}</dd>
-    </>
   )
 }

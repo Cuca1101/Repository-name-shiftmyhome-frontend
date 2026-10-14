@@ -59,7 +59,7 @@ function inventorySummary(rows) {
     if (m) {
       const v = parseFloat(m[1].replace(/,/g, ''))
       if (Number.isFinite(v)) {
-        volSum += v * (Number.isFinite(qn) && qn > 0 ? qn : 1)
+        volSum += v
         volParsed = true
       }
     }

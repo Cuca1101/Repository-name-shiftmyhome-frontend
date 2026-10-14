@@ -210,7 +210,10 @@ export default function JobTrackingPortalPage() {
         setData(null)
         return
       }
-      setData(portal)
+      const closed = Boolean(portal.completed || portal.cancelled)
+      setData(closed
+        ? { ...portal, tracking_live: false, location: { available: false, live: false } }
+        : portal)
       setError('')
 
       const nextKey = trackingMediaKey(portal)
@@ -241,8 +244,10 @@ export default function JobTrackingPortalPage() {
   const mapLat = Number(data?.location?.latitude)
   const mapLng = Number(data?.location?.longitude)
   const mapHeading = Number(data?.location?.heading)
-  const showMap = Boolean(
-    data?.location?.available && Number.isFinite(mapLat) && Number.isFinite(mapLng),
+  const positionClosed = Boolean(
+    data?.completed
+    || data?.cancelled
+    || data?.completed_at
   )
   const mapToken = String(import.meta.env.VITE_MAPBOX_TOKEN || '').trim()
   const motion = resolveTrackingMotion(data?.location)
@@ -254,11 +259,19 @@ export default function JobTrackingPortalPage() {
     || 'https://g.page/r/CWmwRUPz2dC7EAE/review'
   const jobStage = useMemo(() => resolveCustomerTrackingStage(data), [data])
   const completed = jobStage.stage === 'completed'
+  const trackClosed = completed || jobStage.stage === 'cancelled' || positionClosed
+  const showMap = Boolean(
+    !trackClosed
+    && data?.location?.available
+    && Number.isFinite(mapLat)
+    && Number.isFinite(mapLng),
+  )
 
   const pollMs = jobStage.stage === 'awaiting_departure' ? POLL_AWAITING_MS : POLL_MS
 
   useEffect(() => {
     void load({ force: true })
+    if (trackClosed) return undefined
     const id = window.setInterval(() => void load(), pollMs)
     const onVisible = () => {
       if (document.visibilityState === 'visible') void load({ force: true })
@@ -268,7 +281,7 @@ export default function JobTrackingPortalPage() {
       window.clearInterval(id)
       document.removeEventListener('visibilitychange', onVisible)
     }
-  }, [load, pollMs])
+  }, [load, pollMs, trackClosed])
   const etaDestination = useMemo(() => {
     if (!jobStage.showLiveEta || !jobStage.etaKind) return null
     return { kind: jobStage.etaKind, placeLabel: jobStage.placeLabel || jobStage.etaKind }
@@ -567,7 +580,7 @@ export default function JobTrackingPortalPage() {
   const journeyActive = Boolean(jobStage.journeyActive)
   const gpsStatusHeadline = resolveGpsStatusHeadline(motion, gpsFresh, { journeyActive })
   const gpsStatusLive = gpsFresh && (motion.state === 'moving' || motion.state === 'stationary')
-  const mapLive = gpsFresh && (journeyActive || motion.state === 'moving')
+  const mapLive = gpsFresh
   const collectionAddress = data.pickup_address || null
   const showCollectionAddress = Boolean(
     destAddress || (jobStage.placeLabel === 'collection' && collectionAddress),
@@ -610,7 +623,7 @@ export default function JobTrackingPortalPage() {
         </header>
 
         <main className="mx-auto mt-4 flex min-w-0 max-w-[880px] flex-col gap-4 overflow-x-hidden px-4 sm:mt-5 sm:gap-5 sm:px-6">
-          {!completed ? (
+          {!trackClosed ? (
             <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-[0_2px_12px_rgba(15,23,42,0.06)] sm:p-5">
               {showMap ? (
                 <LiveDriverMap
@@ -623,9 +636,9 @@ export default function JobTrackingPortalPage() {
                   pickupAddress={pickupAddress}
                   deliveryAddress={deliveryAddress}
                   destinationKind={
-                    jobStage.etaKind
-                    || destKind
-                    || (jobStage.stage === 'en_route_collection' ? 'collection' : null)
+                    jobStage.showLiveEta
+                      ? (jobStage.etaKind || destKind || null)
+                      : null
                   }
                   jobRoute={jobRoute}
                   onRouteRetry={() => {

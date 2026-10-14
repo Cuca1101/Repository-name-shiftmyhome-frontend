@@ -202,11 +202,11 @@ export function resolveTrackingJobStage(operationalStatus, statusRaw) {
  */
 export function resolveGpsStatusHeadline(motion, gpsFresh, opts = {}) {
   const state = String(motion?.state || '').toLowerCase()
+  if (!gpsFresh && state !== 'unavailable') return 'Last known location'
   if (state === 'moving' && gpsFresh) return 'Moving'
   if (state === 'stationary' && gpsFresh) {
     return opts.journeyActive ? 'Stopped' : 'Waiting for driver to depart'
   }
   if (!opts.journeyActive) return 'Waiting for driver to depart'
-  if (state === 'stale' || (!gpsFresh && state !== 'unavailable')) return 'GPS delayed'
   return 'GPS unavailable'
 }

@@ -52,7 +52,7 @@ export async function fetchJobStatusHistoryForQuote(quoteId) {
 
   const { data, error } = await supabase
     .from('job_status_history')
-    .select('status, created_at')
+    .select('status, created_at, occurred_at')
     .eq('quote_id', id)
     .order('created_at', { ascending: true })
 
@@ -69,5 +69,6 @@ export async function fetchJobStatusHistoryForQuote(quoteId) {
     .map((row) => ({
       status: String(row.status),
       created_at: String(row.created_at),
+      occurred_at: row.occurred_at ? String(row.occurred_at) : '',
     }))
 }

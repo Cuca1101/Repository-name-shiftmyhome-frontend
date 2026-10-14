@@ -28,7 +28,7 @@ export const CUSTOMER_LEAD_STATUS_LABELS = {
   payment_started: 'Payment Started',
   abandoned: 'Abandoned',
   payment_failed: 'Payment Failed',
-  converted_to_booking: 'Converted To Booking',
+  converted_to_booking: 'Converted',
 }
 
 /** Idle time before a lead is treated as abandoned for recovery (15 minutes). */

@@ -78,9 +78,62 @@ function buildStep1Snapshot(wizard) {
   }
 }
 
+const VOLUME_PER_ITEM_KEYS = ['m3', 'volumePerUnitM3', 'volume_m3', 'cubic_metres_per_unit', 'defaultM3']
+
+/**
+ * Per-item cubic metres. Missing or non-numeric volume means the line cannot be summed.
+ * @param {Record<string, unknown> | null | undefined} line
+ * @returns {number | null}
+ */
+function volumePerItemM3(line) {
+  if (!line || typeof line !== 'object') return null
+  for (const key of VOLUME_PER_ITEM_KEYS) {
+    if (!Object.prototype.hasOwnProperty.call(line, key)) continue
+    if (line[key] == null || line[key] === '') continue
+    const value = Number(line[key])
+    return Number.isFinite(value) ? value : null
+  }
+  return null
+}
+
+/**
+ * sum(quantity × volume per item), rounded to 2 decimals.
+ * Returns null when there are no lines or any line lacks a quantity or a volume.
+ * @param {unknown} lines
+ * @returns {number | null}
+ */
+export function sumCustomerLeadInventoryVolume(lines) {
+  if (!Array.isArray(lines) || lines.length === 0) return null
+  let total = 0
+  for (const line of lines) {
+    const quantity = Number(line?.quantity)
+    const perItem = volumePerItemM3(line)
+    if (!Number.isFinite(quantity) || quantity < 0 || perItem == null) return null
+    total += quantity * perItem
+  }
+  return Math.round(total * 100) / 100
+}
+
+/**
+ * Inventory sum when every line can be calculated; otherwise a saved finite total.
+ * @param {{ totalVolumeM3?: unknown, inventoryLines?: unknown }} source
+ * @returns {number | null}
+ */
+function finiteVolumeM3(value) {
+  if (value == null || value === '') return null
+  const saved = Number(value)
+  return Number.isFinite(saved) ? Math.round(saved * 100) / 100 : null
+}
+
+export function resolveCustomerLeadVolumeM3(source = {}) {
+  const fromLines = sumCustomerLeadInventoryVolume(source.inventoryLines)
+  if (fromLines != null) return fromLines
+  return finiteVolumeM3(source.totalVolumeM3)
+}
+
 /**
  * @param {Record<string, unknown>} wizard
- * @param {number} totalM3
+ * @param {number | null} totalM3
  */
 function buildStep2Snapshot(wizard, totalM3) {
   return {
@@ -89,7 +142,7 @@ function buildStep2Snapshot(wizard, totalM3) {
     email: wizard.email ?? '',
     crewSize: wizard.crewSize ?? null,
     inventoryLines: Array.isArray(wizard.inventoryLines) ? wizard.inventoryLines : [],
-    totalVolumeM3: totalM3 ?? null,
+    totalVolumeM3: totalM3,
   }
 }
 
@@ -190,12 +243,13 @@ export function buildCustomerLeadUpsertPayload({
     delivery_address: delivery || null,
     move_date: String(w.moveDate || '').trim() || null,
     route_label: routeLabel || null,
-    total_volume_m3:
-      totalM3 != null && Number.isFinite(Number(totalM3)) ? Number(totalM3) : null,
     wizard_step: Math.max(1, Number(step) || 1),
     wizard_data: {
       step1: buildStep1Snapshot(w),
-      step2: buildStep2Snapshot(w, totalM3),
+      step2: buildStep2Snapshot(w, resolveCustomerLeadVolumeM3({
+        totalVolumeM3: totalM3,
+        inventoryLines: w.inventoryLines,
+      })),
       step3: buildStep3Snapshot(w, { estimatedTotal, servicePackageSnapshot }),
       capturedAt: new Date().toISOString(),
     },
@@ -205,6 +259,10 @@ export function buildCustomerLeadUpsertPayload({
   if (estimatedTotal != null && Number.isFinite(Number(estimatedTotal))) {
     payload.estimated_total = Number(estimatedTotal)
   }
+
+  // Same rule for volume: a null key would wipe a previously saved total.
+  const volumeM3 = payload.wizard_data.step2.totalVolumeM3
+  if (volumeM3 != null) payload.total_volume_m3 = volumeM3
 
   return payload
 }

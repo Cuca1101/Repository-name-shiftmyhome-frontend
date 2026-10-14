@@ -71,6 +71,8 @@ export const AVAILABLE_JOB_LIST_COLUMNS = [
   'partner_dashboard_hidden',
   'pricing',
   'details',
+  'inventory_text',
+  'inventory',
   'message',
   'is_test',
   'archived_for_go_live',

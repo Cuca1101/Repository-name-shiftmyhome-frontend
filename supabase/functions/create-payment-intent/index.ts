@@ -307,10 +307,12 @@ function parseInventoryRows(inventoryText: string, inventoryRaw?: unknown) {
       .replace(/\s{2,}/g, ' ')
       .trim()
     if (!name) return null
+    const lineVol = segment.match(/~\s*([\d.]+)\s*m(?:³|3)/i)
+    const lineM3 = lineVol ? Number(lineVol[1]) : NaN
     return {
       item_name: name,
       quantity: Number.isFinite(qty) && qty > 0 ? Math.round(qty) : 1,
-      volume_m3: null,
+      volume_m3: Number.isFinite(lineM3) ? lineM3 : null,
       weight_category: heavyMatch ? 'heavy' : null,
       notes: notesRaw.join(' | ') || null,
     }

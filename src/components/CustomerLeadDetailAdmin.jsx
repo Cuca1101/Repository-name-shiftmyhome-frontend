@@ -2,9 +2,19 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import {
   deleteCustomerLeadById,
+  dismissCustomerLeadCallback,
   fetchCustomerLeadById,
+  restoreCustomerLeadById,
+  saveCustomerLeadCall,
 } from '../lib/data/customerLeadsRepository'
 import { CUSTOMER_LEAD_STATUS_LABELS, customerLeadBookingRef } from '../lib/customerLeadStatus'
+import {
+  convertedLeadVisibleInCustomerLeads,
+  customerLeadCallbackDue,
+  customerLeadIsTrashed,
+  customerLeadMoveCountdown,
+  customerLeadNeedsFirstCall,
+} from '../lib/customerLeadList'
 import { formatDateTimeUK, formatDateUK } from '../lib/formatDateDisplay'
 import LeadCallButton from './admin/LeadCallButton'
 import {
@@ -51,6 +61,8 @@ import {
   resolveServicePackageDisplayName,
 } from '../lib/quoteJobAdminModel'
 import { listSpecialistHeavyItemDetails } from '../lib/inventoryPricing'
+import { resolveCustomerLeadVolumeM3 } from '../lib/customerLeadCapture'
+import CustomerLeadRouteMap from './admin/CustomerLeadRouteMap'
 
 function DetailBlock({ title, children }) {
   return (
@@ -71,16 +83,46 @@ function Row({ label, value }) {
   )
 }
 
+function formatDriveTime(seconds) {
+  const total = Math.round(Number(seconds) / 60)
+  if (!Number.isFinite(total) || total <= 0) return ''
+  const hours = Math.floor(total / 60)
+  const minutes = total % 60
+  if (hours <= 0) return `${minutes} min`
+  if (minutes === 0) return hours === 1 ? '1 hr' : `${hours} hr`
+  return `${hours} hr ${minutes} min`
+}
+
 function floorDisplay(value) {
   if (value == null || value === '') return null
   const n = Number(value)
   return Number.isFinite(n) ? formatFloorLabel(n) : String(value)
 }
 
+function datetimeLocalValue(value) {
+  const ms = Date.parse(String(value || ''))
+  if (!Number.isFinite(ms)) return ''
+  const date = new Date(ms)
+  const pad = (part) => String(part).padStart(2, '0')
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`
+}
+
 function mailHref(email) {
   const e = String(email || '').trim()
   return e ? `mailto:${e}` : null
 }
+
+const actionBtn =
+  'inline-flex h-8 items-center justify-center whitespace-nowrap rounded-md px-2 text-xs font-semibold disabled:opacity-50'
+const actionPrimary = `${actionBtn} bg-brand-600 text-white hover:bg-brand-700`
+const actionSecondary = `${actionBtn} border border-slate-200 bg-white text-slate-800 hover:bg-slate-50`
+const actionEmerald = `${actionBtn} border border-emerald-200 bg-emerald-50 text-emerald-900 hover:bg-emerald-100`
+const actionAmber = `${actionBtn} border border-amber-300 bg-amber-50 text-amber-950 hover:bg-amber-100`
+const actionDanger = `${actionBtn} border border-red-200 bg-white text-red-800 hover:bg-red-50`
+const actionOn = `${actionBtn} border border-emerald-600 bg-emerald-600 text-white hover:bg-emerald-700`
+const detailCard = 'w-full min-w-0 rounded-xl border p-4 shadow-sm'
+const detailCardIdle = `${detailCard} border-slate-200 bg-white`
+const detailCardOn = `${detailCard} border-emerald-500 bg-emerald-50`
 
 async function resolveAdminCreatorLabel() {
   if (!isSupabaseConfigured || !supabase) return 'admin'
@@ -108,6 +150,9 @@ export default function CustomerLeadDetailAdmin() {
   const [overrideReason, setOverrideReason] = useState('')
   const [pricingSettings, setPricingSettings] = useState(null)
   const [pricingSettingsLoading, setPricingSettingsLoading] = useState(true)
+  const [driveSeconds, setDriveSeconds] = useState(null)
+  const [callNote, setCallNote] = useState('')
+  const [callbackInput, setCallbackInput] = useState('')
 
   const load = useCallback(async () => {
     if (!id) return
@@ -124,6 +169,8 @@ export default function CustomerLeadDetailAdmin() {
           setAgreedPriceInput(String(Number(row.agreed_price).toFixed(2)))
         }
         setOverrideReason(String(row.price_override_reason || ''))
+        setCallNote(String(row.call_note || ''))
+        setCallbackInput(datetimeLocalValue(row.callback_at))
       }
     } catch (e) {
       setError(e?.message || 'Failed to load lead.')
@@ -135,6 +182,12 @@ export default function CustomerLeadDetailAdmin() {
   useEffect(() => {
     load()
   }, [load])
+
+  useEffect(() => {
+    const step1 = lead?.wizard_data?.step1
+    const saved = Number(step1?.mapboxRouteDurationSeconds)
+    setDriveSeconds(Number.isFinite(saved) && saved > 0 ? saved : null)
+  }, [lead?.id, lead?.wizard_data])
 
   useEffect(() => {
     let cancelled = false
@@ -310,7 +363,7 @@ export default function CustomerLeadDetailAdmin() {
       if (!window.confirm(confirmMsg)) return
 
       const adminLabel = await resolveAdminCreatorLabel()
-      await saveCustomerLeadAgreedPrice({
+      const saved = await saveCustomerLeadAgreedPrice({
         leadId: String(lead.id),
         agreedPrice: parsed.amount,
         reason: overrideReason,
@@ -318,7 +371,9 @@ export default function CustomerLeadDetailAdmin() {
         currentLead: lead,
       })
       setActionMsg(
-        `Admin agreed price saved: ${formatGbp(parsed.amount)}. Old payment links for a different amount are invalidated.`,
+        saved.previousSessionId
+          ? `Price saved: ${formatGbp(parsed.amount)}. Old payment links for a different amount are invalidated.`
+          : `Price saved: ${formatGbp(parsed.amount)}.`,
       )
       setPricePanelOpen(false)
       await load()
@@ -329,72 +384,59 @@ export default function CustomerLeadDetailAdmin() {
     }
   }
 
-  async function handleSaveAndConvert() {
-    setBusy('convert')
+  async function handleSaveCall() {
+    if (!lead?.id) return
+    setBusy('call')
     setActionMsg('')
     try {
-      // If admin typed a new price but hasn't saved yet, require save first via confirm.
-      const parsed = parseAdminAgreedPriceInput(agreedPriceInput)
-      let workingLead = lead
-      if (parsed.ok) {
-        const currentAgreed = lead.agreed_price != null ? Number(lead.agreed_price) : null
-        if (currentAgreed == null || Math.abs(currentAgreed - parsed.amount) > 0.009) {
-          const confirmMsg = buildPriceOverrideConfirmMessage({
-            calculated,
-            agreed: parsed.amount,
-            reason: overrideReason,
-          })
-          if (
-            !window.confirm(
-              `${confirmMsg}\n\nThen create a Paid job and send it to Available Jobs. Undo convert is available while unassigned.`,
-            )
-          ) {
-            return
-          }
-          const adminLabel = await resolveAdminCreatorLabel()
-          const saved = await saveCustomerLeadAgreedPrice({
-            leadId: String(lead.id),
-            agreedPrice: parsed.amount,
-            reason: overrideReason,
-            adminLabel,
-            currentLead: lead,
-          })
-          workingLead = saved.lead
-        }
-      } else if (resolveChargeableTotal(lead) == null) {
-        setActionMsg(parsed.error || 'Set a custom price before converting.')
-        setPricePanelOpen(true)
-        return
-      } else if (
-        !window.confirm(
-          [
-            `Convert this lead at ${formatGbp(resolveChargeableTotal(lead))}?`,
-            '',
-            'Creates a Paid job from the saved lead details and sends it to Available Jobs.',
-            'Lead will show as Converted (Paid in Available Jobs).',
-            'You can Undo convert later if still unassigned.',
-          ].join('\n'),
-        )
-      ) {
-        return
-      }
-
-      const adminLabel = await resolveAdminCreatorLabel()
-      const result = await convertCustomerLeadToUnpaidJob({
-        lead: workingLead,
-        createdBy: adminLabel,
-        releaseToAvailableJobs: true,
+      const calledBy = await resolveAdminCreatorLabel()
+      await saveCustomerLeadCall({
+        id: String(lead.id),
+        note: callNote,
+        callbackAt: callbackInput || null,
+        calledBy,
       })
       setActionMsg(
-        `Paid job ${result.quoteRef} created and sent to Available Jobs. Chargeable: ${formatGbp(resolveChargeableTotal(result.lead || workingLead))}. Lead marked Converted.`,
+        callbackInput
+          ? 'Marked as called. A notice appears when it is time to call again.'
+          : 'Marked as called.',
       )
       await load()
-      navigate(`/admin/available-jobs/${result.quoteId}`)
     } catch (e) {
-      setActionMsg(e?.message || 'Failed to convert to booking.')
+      setActionMsg(e?.message || 'Failed to save the call.')
     } finally {
       setBusy('')
     }
+  }
+
+  async function handleDismissCallback() {
+    if (!lead?.id) return
+    setBusy('call')
+    setActionMsg('')
+    try {
+      await dismissCustomerLeadCallback(String(lead.id))
+      setActionMsg('Callback notice closed.')
+      await load()
+    } catch (e) {
+      setActionMsg(e?.message || 'Failed to close the callback notice.')
+    } finally {
+      setBusy('')
+    }
+  }
+
+  async function handleSavePrice() {
+    const parsed = parseAdminAgreedPriceInput(agreedPriceInput)
+    if (!parsed.ok) {
+      setPricePanelOpen(true)
+      if (!agreedPriceInput && lead.agreed_price != null && Number.isFinite(Number(lead.agreed_price))) {
+        setAgreedPriceInput(String(Number(lead.agreed_price).toFixed(2)))
+      } else if (!agreedPriceInput && calculated != null) {
+        setAgreedPriceInput(String(calculated.toFixed(2)))
+      }
+      setActionMsg('Enter the agreed price, then press Save. This only saves the price.')
+      return
+    }
+    await handleSetCustomPrice()
   }
 
   async function handleCreateUnpaidJob() {
@@ -574,6 +616,10 @@ export default function CustomerLeadDetailAdmin() {
   }
 
   function handlePreviewEmail() {
+    if (previewHtml) {
+      setPreviewHtml('')
+      return
+    }
     const content = recoveryContentFromLead(lead)
     const token = lead.resume_token || 'preview-token'
     const built = buildQuoteRecoveryEmailPreview({
@@ -591,8 +637,8 @@ export default function CustomerLeadDetailAdmin() {
     const status = lead.effective_status || lead.status
     const isConverted = status === 'converted_to_booking'
     const msg = isConverted
-      ? `Delete lead ${lead.lead_ref}? The booking/quote (${lead.quote_ref || 'linked record'}) stays in the system — only this lead row is removed.`
-      : `Delete lead ${lead.lead_ref}? This cannot be undone.`
+      ? `Move lead ${lead.lead_ref} to Trash? The booking (${lead.quote_ref || 'linked record'}) stays in Available Jobs or Active Jobs. You can restore this lead from Trash.`
+      : `Move lead ${lead.lead_ref} to Trash? You can restore it later. The booking, if one exists, stays in the system.`
     if (!window.confirm(msg)) return
 
     setDeleting(true)
@@ -602,6 +648,21 @@ export default function CustomerLeadDetailAdmin() {
       navigate('/admin/customer-leads', { replace: true })
     } catch (e) {
       setError(e?.message || 'Failed to delete lead.')
+      setDeleting(false)
+    }
+  }
+
+  async function handleRestore() {
+    if (!lead?.id) return
+    setDeleting(true)
+    setError('')
+    try {
+      await restoreCustomerLeadById(String(lead.id))
+      await load()
+      setActionMsg('Lead restored to Customer Leads.')
+    } catch (e) {
+      setError(e?.message || 'Failed to restore lead.')
+    } finally {
       setDeleting(false)
     }
   }
@@ -629,6 +690,11 @@ export default function CustomerLeadDetailAdmin() {
   const s1 = wd.step1 || {}
   const s2 = wd.step2 || {}
   const s3 = wd.step3 || {}
+  const volumeM3 = resolveCustomerLeadVolumeM3({
+    totalVolumeM3: s2.totalVolumeM3 ?? lead.total_volume_m3,
+    inventoryLines: s2.inventoryLines,
+  })
+  const volumeLabel = volumeM3 == null ? null : volumeM3.toFixed(2)
   const emailHref = mailHref(lead.customer_email)
   const convertHref = lead.quote_id
     ? `/admin/available-jobs/${lead.quote_id}`
@@ -637,19 +703,42 @@ export default function CustomerLeadDetailAdmin() {
     eff === 'converted_to_booking' ||
     lead.status === 'converted_to_booking' ||
     Boolean(lead.converted_at)
+  const trashed = customerLeadIsTrashed(lead)
+  const hiddenAfterConvert = isConverted && !trashed && !convertedLeadVisibleInCustomerLeads(lead)
+  const moveBadge = isConverted ? null : customerLeadMoveCountdown(lead.move_date)
+  const callDue = customerLeadCallbackDue(lead)
+  const firstCall = customerLeadNeedsFirstCall(lead)
+  const pickupAddress = String(s1.pickupAddress || lead.pickup_address || '').trim()
+  const deliveryAddress = String(s1.deliveryAddress || lead.delivery_address || '').trim()
+  const distanceMiles = Number(s1.distanceMiles)
+  const distanceLabel = Number.isFinite(distanceMiles) && distanceMiles > 0 ? `${distanceMiles.toFixed(1)} miles` : ''
+  const driveLabel = formatDriveTime(driveSeconds)
 
   return (
     <div className="space-y-6 pb-10">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
+      <div>
+        <div className="min-w-0">
           <Link to="/admin/customer-leads" className="text-sm font-semibold text-brand-700 hover:underline">
             ← Customer Leads
           </Link>
           <h2 className="mt-2 font-mono text-2xl font-bold text-slate-900">
             {customerLeadBookingRef(lead) || lead.lead_ref}
           </h2>
-          <p className="mt-1 text-sm text-slate-600">
-            {statusLabel}
+          <p className="mt-1 flex flex-wrap items-center gap-2 text-sm text-slate-600">
+            <span>{statusLabel}</span>
+            {moveBadge ? (
+              <span
+                className={`inline-flex rounded-md px-2 py-0.5 text-[11px] font-semibold ring-1 ring-inset ${
+                  moveBadge.tone === 'expired'
+                    ? 'bg-red-100 text-red-800 ring-red-200'
+                    : moveBadge.highlight
+                      ? 'bg-amber-100 text-amber-950 ring-amber-300'
+                      : 'bg-slate-100 text-slate-700 ring-slate-200'
+                }`}
+              >
+                {moveBadge.label}
+              </span>
+            ) : null}
             {lead.quote_ref && lead.lead_ref && lead.quote_ref !== lead.lead_ref ? (
               <>
                 {' '}
@@ -658,45 +747,24 @@ export default function CustomerLeadDetailAdmin() {
             ) : null}
           </p>
         </div>
-        <div className="flex flex-wrap gap-2">
-          <LeadCallButton phone={lead.customer_phone || ''} />
-          {emailHref ? (
-            <a
-              href={emailHref}
-              className="inline-flex min-h-[44px] items-center rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-800 hover:bg-slate-50"
-            >
-              Email customer
-            </a>
-          ) : null}
-          {isConverted ? (
-            <button
-              type="button"
-              disabled={Boolean(busy)}
-              onClick={() => void handleUndoConvert()}
-              className="inline-flex min-h-[44px] items-center rounded-xl border-2 border-amber-400 bg-amber-100 px-4 text-sm font-bold text-amber-950 hover:bg-amber-200 disabled:opacity-50"
-              title="Undo convert — restore lead and remove admin-created job"
-            >
-              {busy === 'revert' ? 'Undoing…' : 'Undo convert'}
-            </button>
-          ) : null}
-          {isConverted && convertHref ? (
-            <Link
-              to={convertHref}
-              className="inline-flex min-h-[44px] items-center rounded-xl border border-emerald-200 bg-emerald-50 px-4 text-sm font-semibold text-emerald-900 hover:bg-emerald-100"
-            >
-              Open in Available Jobs
-            </Link>
-          ) : null}
-          <button
-            type="button"
-            disabled={deleting}
-            onClick={() => void handleDelete()}
-            className="inline-flex min-h-[44px] items-center rounded-xl border border-red-200 bg-red-50 px-4 text-sm font-semibold text-red-800 hover:bg-red-100 disabled:opacity-50"
-          >
-            {deleting ? 'Deleting…' : 'Delete lead'}
-          </button>
-        </div>
       </div>
+
+      {trashed ? (
+        <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800">
+          <p className="font-semibold">In Trash</p>
+          <p className="mt-1">
+            Deleted {formatDateTimeUK(lead.deleted_at)}. Restore puts this lead back on Customer Leads.
+            The booking is unchanged.
+          </p>
+        </div>
+      ) : null}
+
+      {hiddenAfterConvert ? (
+        <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800">
+          This converted lead is older than 12 hours, so it is hidden from the Customer Leads list. The
+          booking stays in Available Jobs or Active Jobs.
+        </div>
+      ) : null}
 
       {isConverted ? (
         <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-950">
@@ -712,6 +780,352 @@ export default function CustomerLeadDetailAdmin() {
       {actionMsg ? (
         <p className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800">{actionMsg}</p>
       ) : null}
+
+      {callDue ? (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-emerald-300 bg-emerald-50 px-4 py-3 text-sm text-emerald-950">
+          <p>
+            <span className="font-semibold">Time to call.</span> The reminder was{' '}
+            {formatDateTimeUK(lead.callback_at)}.
+            {lead.called_by ? ` Marked by ${lead.called_by}.` : ''}
+            {lead.call_note ? ` Last note: ${lead.call_note}` : ''}
+          </p>
+          <button
+            type="button"
+            disabled={busy === 'call'}
+            onClick={() => void handleDismissCallback()}
+            className="inline-flex h-8 items-center rounded-md bg-emerald-600 px-3 text-xs font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
+          >
+            Close notice
+          </button>
+        </div>
+      ) : null}
+
+      <section className="grid w-full min-w-0 grid-cols-1 items-stretch gap-3 sm:gap-4 md:grid-cols-2 min-[1500px]:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)_minmax(0,1fr)]">
+        <article className="flex h-full w-full min-w-0 flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm md:col-span-2 min-[1500px]:col-span-1 min-[1500px]:row-span-2">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 px-4 py-3">
+            <h3 className="text-sm font-bold text-slate-900">Route</h3>
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs font-semibold tabular-nums text-slate-600">
+              {distanceLabel ? <span>{distanceLabel}</span> : null}
+              {driveLabel ? <span>{driveLabel} to delivery</span> : null}
+            </div>
+          </div>
+          <div className="grid gap-3 border-b border-slate-100 px-4 py-3 sm:grid-cols-2 sm:gap-4 sm:py-4">
+            <div className="min-w-0">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-700">Collection</p>
+              <p className="mt-1 text-sm font-medium leading-snug text-slate-900">{pickupAddress || '—'}</p>
+            </div>
+            <div className="min-w-0">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-brand-700">Delivery</p>
+              <p className="mt-1 text-sm font-medium leading-snug text-slate-900">{deliveryAddress || '—'}</p>
+            </div>
+          </div>
+          <CustomerLeadRouteMap
+            pickupAddress={pickupAddress}
+            deliveryAddress={deliveryAddress}
+            pickupLng={s1.pickupLng}
+            pickupLat={s1.pickupLat}
+            deliveryLng={s1.deliveryLng}
+            deliveryLat={s1.deliveryLat}
+            onDriveTime={setDriveSeconds}
+          />
+        </article>
+
+        <aside className="w-full min-w-0 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+          <h3 className="text-sm font-bold text-slate-900">Customer</h3>
+          <div className="mt-3 space-y-3 text-sm text-slate-800">
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Name</p>
+              <p className="mt-0.5 font-medium">{lead.customer_name || '—'}</p>
+            </div>
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Phone</p>
+              <div className="mt-1">
+                <LeadCallButton phone={lead.customer_phone || ''} />
+              </div>
+            </div>
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Email</p>
+              <p className="mt-0.5 break-all">{lead.customer_email || '—'}</p>
+            </div>
+            <div className="grid grid-cols-2 gap-3 border-t border-slate-100 pt-3">
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Service</p>
+                <p className="mt-0.5">{lead.service_type || '—'}</p>
+              </div>
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Move date</p>
+                <p className="mt-0.5">{lead.move_date ? formatDateUK(lead.move_date) : '—'}</p>
+              </div>
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Volume</p>
+                <p className="mt-0.5 tabular-nums">{volumeLabel ? `${volumeLabel} m³` : '—'}</p>
+              </div>
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Price</p>
+                <p className="mt-0.5 font-semibold tabular-nums">{formatGbp(calculated)}</p>
+              </div>
+            </div>
+          </div>
+        </aside>
+
+        <aside className="w-full min-w-0 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+          <h3 className="text-sm font-bold text-slate-900">Actions</h3>
+          <div className="mt-3 space-y-4">
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Job</p>
+              <div className="mt-2 space-y-2">
+                <div className="flex min-w-0 flex-col gap-1.5 sm:flex-row sm:items-start sm:gap-3">
+                  <button
+                    type="button"
+                    disabled={Boolean(busy)}
+                    onClick={() => void handleCreateUnpaidJob()}
+                    className={`${actionPrimary} w-full shrink-0 sm:w-28`}
+                  >
+                    {busy === 'job' ? 'Creating…' : isConverted ? 'Resend job' : 'Create job'}
+                  </button>
+                  <p className="min-w-0 text-xs leading-snug text-slate-600 sm:pt-1.5">
+                    {isConverted
+                      ? 'Sends this paid job to Available Jobs again. Addresses stay as saved on the lead.'
+                      : 'Creates a paid job from the saved details and sends it to Available Jobs. The lead becomes Converted.'}
+                  </p>
+                </div>
+                <div className="flex min-w-0 flex-col gap-1.5 sm:flex-row sm:items-start sm:gap-3">
+                  <button
+                    type="button"
+                    disabled={Boolean(busy)}
+                    onClick={() => void handleSavePrice()}
+                    className={`${actionSecondary} w-full shrink-0 sm:w-28`}
+                  >
+                    {busy === 'price' ? 'Saving…' : 'Save'}
+                  </button>
+                  <p className="min-w-0 text-xs leading-snug text-slate-600 sm:pt-1.5">
+                    Saves the agreed price and confirms it is saved. It does not send the job to Available Jobs.
+                  </p>
+                </div>
+                <div className="flex min-w-0 flex-col gap-1.5 sm:flex-row sm:items-start sm:gap-3">
+                  <button
+                    type="button"
+                    disabled={Boolean(busy)}
+                    onClick={() => void handleSendPaymentLink()}
+                    className={`${actionEmerald} w-full shrink-0 sm:w-28`}
+                  >
+                    {busy === 'pay' ? 'Creating…' : 'Pay link'}
+                  </button>
+                  <p className="min-w-0 text-xs leading-snug text-slate-600 sm:pt-1.5">
+                    Creates a Stripe payment link for the chargeable price and copies it. This does not create the job.
+                  </p>
+                </div>
+                {isConverted && convertHref ? (
+                  <div className="flex min-w-0 flex-col gap-1.5 sm:flex-row sm:items-start sm:gap-3">
+                    <Link to={convertHref} className={`${actionEmerald} w-full shrink-0 sm:w-28`}>
+                      Open job
+                    </Link>
+                    <p className="min-w-0 text-xs leading-snug text-slate-600 sm:pt-1.5">
+                      Opens this booking in Available Jobs.
+                    </p>
+                  </div>
+                ) : null}
+                {isConverted ? (
+                  <div className="flex min-w-0 flex-col gap-1.5 sm:flex-row sm:items-start sm:gap-3">
+                    <button
+                      type="button"
+                      disabled={Boolean(busy)}
+                      onClick={() => void handleUndoConvert()}
+                      className={`${actionAmber} w-full shrink-0 sm:w-28`}
+                    >
+                      {busy === 'revert' ? 'Undoing…' : 'Undo'}
+                    </button>
+                    <p className="min-w-0 text-xs leading-snug text-slate-600 sm:pt-1.5">
+                      Puts the lead back and removes the admin-created job while it is still unassigned. A card-paid booking stays.
+                    </p>
+                  </div>
+                ) : null}
+              </div>
+            </div>
+            <div className="space-y-2 border-t border-slate-100 pt-3">
+              {emailHref ? (
+                <div className="flex min-w-0 flex-col gap-1.5 sm:flex-row sm:items-start sm:gap-3">
+                  <a href={emailHref} className={`${actionSecondary} w-full shrink-0 sm:w-28`}>
+                    Email
+                  </a>
+                  <p className="min-w-0 text-xs leading-snug text-slate-600 sm:pt-1.5">
+                    Opens your email app to write to the customer.
+                  </p>
+                </div>
+              ) : null}
+              {trashed ? (
+                <div className="flex min-w-0 flex-col gap-1.5 sm:flex-row sm:items-start sm:gap-3">
+                  <button type="button" disabled={deleting} onClick={() => void handleRestore()} className={`${actionEmerald} w-full shrink-0 sm:w-28`}>
+                    {deleting ? '…' : 'Restore'}
+                  </button>
+                  <p className="min-w-0 text-xs leading-snug text-slate-600 sm:pt-1.5">
+                    Puts this lead back on Customer Leads. The booking is unchanged.
+                  </p>
+                </div>
+              ) : (
+                <div className="flex min-w-0 flex-col gap-1.5 sm:flex-row sm:items-start sm:gap-3">
+                  <button type="button" disabled={deleting} onClick={() => void handleDelete()} className={`${actionDanger} w-full shrink-0 sm:w-28`}>
+                    {deleting ? '…' : 'Delete'}
+                  </button>
+                  <p className="min-w-0 text-xs leading-snug text-slate-600 sm:pt-1.5">
+                    Moves the lead to Trash. The booking stays in Available Jobs or Active Jobs.
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+        </aside>
+
+        <aside className={pricePanelOpen || pricingPanelOpen ? detailCardOn : detailCardIdle}>
+          <h3 className="text-sm font-bold text-slate-900">Price</h3>
+          <div className="mt-3 space-y-2">
+            <div className="flex min-w-0 flex-col gap-1.5 sm:flex-row sm:items-start sm:gap-3">
+              <button
+                type="button"
+                disabled={Boolean(busy)}
+                aria-pressed={pricePanelOpen}
+                onClick={() => {
+                  if (pricePanelOpen) {
+                    setPricePanelOpen(false)
+                    return
+                  }
+                  setPricePanelOpen(true)
+                  if (!agreedPriceInput && calculated != null) {
+                    setAgreedPriceInput(String(calculated.toFixed(2)))
+                  }
+                }}
+                className={`${pricePanelOpen ? actionOn : actionSecondary} w-full shrink-0 sm:w-28`}
+              >
+                Price
+              </button>
+              <p className="min-w-0 text-xs leading-snug text-slate-600 sm:pt-1.5">
+                Opens the form to set the agreed price. Press again to close it. Stripe charges that amount when it is set.
+              </p>
+            </div>
+            <div className="flex min-w-0 flex-col gap-1.5 sm:flex-row sm:items-start sm:gap-3">
+              <button
+                type="button"
+                disabled={Boolean(busy)}
+                aria-pressed={pricingPanelOpen}
+                onClick={() => setPricingPanelOpen((open) => !open)}
+                className={`${pricingPanelOpen ? actionOn : actionSecondary} w-full shrink-0 sm:w-28`}
+              >
+                Payments
+              </button>
+              <p className="min-w-0 text-xs leading-snug text-slate-600 sm:pt-1.5">
+                Shows the price breakdown and the payment record. Press again to close it.
+              </p>
+            </div>
+          </div>
+        </aside>
+
+        <aside className={previewHtml ? detailCardOn : detailCardIdle}>
+          <h3 className="text-sm font-bold text-slate-900">Quote</h3>
+          <div className="mt-3 space-y-2">
+            <div className="flex min-w-0 flex-col gap-1.5 sm:flex-row sm:items-start sm:gap-3">
+              <button
+                type="button"
+                disabled={Boolean(busy) || !lead.customer_email}
+                onClick={() => void handleSendQuoteEmail()}
+                className={`${actionPrimary} w-full shrink-0 sm:w-28`}
+              >
+                {busy === 'email' ? 'Sending…' : 'Quote'}
+              </button>
+              <p className="min-w-0 text-xs leading-snug text-slate-600 sm:pt-1.5">
+                Emails the quote to the customer. The agreed price is shown when one is saved.
+              </p>
+            </div>
+            <div className="flex min-w-0 flex-col gap-1.5 sm:flex-row sm:items-start sm:gap-3">
+              <button
+                type="button"
+                disabled={Boolean(busy)}
+                aria-pressed={Boolean(previewHtml)}
+                onClick={handlePreviewEmail}
+                className={`${previewHtml ? actionOn : actionSecondary} w-full shrink-0 sm:w-28`}
+              >
+                Preview
+              </button>
+              <p className="min-w-0 text-xs leading-snug text-slate-600 sm:pt-1.5">
+                Shows the email on this page. Press again to close it. Nothing is sent.
+              </p>
+            </div>
+            <div className="flex min-w-0 flex-col gap-1.5 sm:flex-row sm:items-start sm:gap-3">
+              <button
+                type="button"
+                disabled={Boolean(busy)}
+                onClick={() => void handleCopyResume()}
+                className={`${actionSecondary} w-full shrink-0 sm:w-28`}
+              >
+                Resume
+              </button>
+              <p className="min-w-0 text-xs leading-snug text-slate-600 sm:pt-1.5">
+                Copies the link so the customer can continue the quote.
+              </p>
+            </div>
+            <div className="flex min-w-0 flex-col gap-1.5 sm:flex-row sm:items-start sm:gap-3">
+              <button
+                type="button"
+                disabled={Boolean(busy)}
+                onClick={() => void handleCopyPayment()}
+                className={`${actionSecondary} w-full shrink-0 sm:w-28`}
+              >
+                Copy pay
+              </button>
+              <p className="min-w-0 text-xs leading-snug text-slate-600 sm:pt-1.5">
+                Copies the customer pay page. It charges the agreed price when one is set.
+              </p>
+            </div>
+          </div>
+        </aside>
+      </section>
+
+      <section className={`rounded-xl border p-4 shadow-sm ${callDue || firstCall ? 'border-emerald-400 bg-emerald-50' : 'border-slate-200 bg-white'}`}>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h3 className="text-sm font-bold text-slate-900">Call</h3>
+          {lead.called_at ? (
+            <p className="text-xs font-semibold text-slate-600">
+              Called {formatDateTimeUK(lead.called_at)}
+              {lead.called_by ? ` by ${lead.called_by}` : ''}
+            </p>
+          ) : firstCall ? (
+            <p className="text-xs font-semibold text-emerald-800">To call — new lead, not paid yet</p>
+          ) : (
+            <p className="text-xs text-slate-500">Not called yet</p>
+          )}
+        </div>
+        <label className="mt-3 block text-sm font-semibold text-slate-800" htmlFor="lead-call-note">
+          What they said
+        </label>
+        <textarea
+          id="lead-call-note"
+          rows={3}
+          value={callNote}
+          onChange={(e) => setCallNote(e.target.value)}
+          className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
+          placeholder="What the customer said…"
+        />
+        <label className="mt-3 block text-sm font-semibold text-slate-800" htmlFor="lead-callback-at">
+          Call again
+        </label>
+        <input
+          id="lead-callback-at"
+          type="datetime-local"
+          value={callbackInput}
+          onChange={(e) => setCallbackInput(e.target.value)}
+          className="mt-1 w-full max-w-xs rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
+        />
+        <p className="mt-1 text-xs text-slate-500">
+          Leave this empty if there is no reminder. A notice appears on Customer Leads when this time is reached.
+        </p>
+        <button
+          type="button"
+          disabled={busy === 'call'}
+          onClick={() => void handleSaveCall()}
+          className="mt-3 inline-flex h-8 items-center rounded-md bg-emerald-600 px-3 text-xs font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
+        >
+          {busy === 'call' ? 'Saving…' : 'Mark as called'}
+        </button>
+      </section>
 
       <DetailBlock title="Price & booking">
         <div className="grid gap-3 sm:grid-cols-2">
@@ -775,89 +1189,17 @@ export default function CustomerLeadDetailAdmin() {
                 type="button"
                 disabled={Boolean(busy)}
                 onClick={() => void handleSetCustomPrice()}
-                className="inline-flex min-h-[40px] items-center rounded-lg bg-brand-600 px-3 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-50"
+                className={`${actionPrimary} px-3`}
               >
-                {busy === 'price' ? 'Saving…' : 'Confirm & save custom price'}
+                {busy === 'price' ? 'Saving…' : 'Save price'}
               </button>
-              <button
-                type="button"
-                disabled={Boolean(busy)}
-                onClick={() => setPricePanelOpen(false)}
-                className="inline-flex min-h-[40px] items-center rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-800 hover:bg-slate-50"
-              >
+              <button type="button" disabled={Boolean(busy)} onClick={() => setPricePanelOpen(false)} className={actionSecondary}>
                 Cancel
               </button>
             </div>
           </div>
         ) : null}
 
-        <div className="flex flex-wrap gap-2 border-t border-slate-100 pt-3">
-          <button
-            type="button"
-            disabled={Boolean(busy)}
-            onClick={() => {
-              setPricePanelOpen(true)
-              if (!agreedPriceInput && calculated != null) {
-                setAgreedPriceInput(String(calculated.toFixed(2)))
-              }
-            }}
-            className="inline-flex min-h-[40px] items-center rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-800 hover:bg-slate-50 disabled:opacity-50"
-          >
-            Set custom price
-          </button>
-          <button
-            type="button"
-            disabled={Boolean(busy)}
-            onClick={() => setPricingPanelOpen(true)}
-            className="inline-flex min-h-[40px] items-center rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-800 hover:bg-slate-50 disabled:opacity-50"
-          >
-            Pricing & payments
-          </button>
-          <button
-            type="button"
-            disabled={Boolean(busy)}
-            onClick={() => void handleSaveAndConvert()}
-            className="inline-flex min-h-[40px] items-center rounded-lg bg-brand-600 px-3 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-50"
-          >
-            {busy === 'convert'
-              ? 'Sending…'
-              : isConverted
-                ? 'Update & send to Available Jobs'
-                : 'Save & send to Available Jobs'}
-          </button>
-          <button
-            type="button"
-            disabled={Boolean(busy)}
-            onClick={() => void handleCreateUnpaidJob()}
-            className="inline-flex min-h-[40px] items-center rounded-lg border border-emerald-300 bg-emerald-50 px-3 text-sm font-semibold text-emerald-950 hover:bg-emerald-100 disabled:opacity-50"
-            title="Uses saved lead details — no need to re-enter addresses"
-          >
-            {busy === 'job'
-              ? 'Creating…'
-              : isConverted
-                ? 'Resend paid job to Available Jobs'
-                : 'Create paid job → Available Jobs'}
-          </button>
-          {isConverted ? (
-            <button
-              type="button"
-              disabled={Boolean(busy)}
-              onClick={() => void handleUndoConvert()}
-              className="inline-flex min-h-[40px] items-center rounded-lg border border-amber-300 bg-amber-50 px-3 text-sm font-semibold text-amber-950 hover:bg-amber-100 disabled:opacity-50"
-              title="Restore lead and remove admin-created job from Available Jobs"
-            >
-              {busy === 'revert' ? 'Undoing…' : 'Undo convert'}
-            </button>
-          ) : null}
-          <button
-            type="button"
-            disabled={Boolean(busy)}
-            onClick={() => void handleSendPaymentLink()}
-            className="inline-flex min-h-[40px] items-center rounded-lg border border-emerald-200 bg-emerald-50 px-3 text-sm font-semibold text-emerald-900 hover:bg-emerald-100 disabled:opacity-50"
-          >
-            {busy === 'pay' ? 'Creating…' : 'Send payment link'}
-          </button>
-        </div>
       </DetailBlock>
 
       {pricingPanelOpen ? (
@@ -977,11 +1319,7 @@ export default function CustomerLeadDetailAdmin() {
         </div>
 
         <div className="flex flex-wrap gap-2 border-t border-slate-100 pt-3">
-          <button
-            type="button"
-            onClick={() => setPricingPanelOpen(false)}
-            className="inline-flex min-h-[40px] items-center rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-800 hover:bg-slate-50"
-          >
+          <button type="button" onClick={() => setPricingPanelOpen(false)} className={actionSecondary}>
             Close
           </button>
         </div>
@@ -989,41 +1327,7 @@ export default function CustomerLeadDetailAdmin() {
       ) : null}
 
       <DetailBlock title="Quote recovery">
-        <div className="flex flex-wrap gap-2">
-          <button
-            type="button"
-            disabled={Boolean(busy) || !lead.customer_email}
-            onClick={() => void handleSendQuoteEmail()}
-            className="inline-flex min-h-[40px] items-center rounded-lg bg-brand-600 px-3 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-50"
-          >
-            {busy === 'email' ? 'Sending…' : 'Send Quote Email'}
-          </button>
-          <button
-            type="button"
-            disabled={Boolean(busy)}
-            onClick={() => void handleCopyResume()}
-            className="inline-flex min-h-[40px] items-center rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-800 hover:bg-slate-50 disabled:opacity-50"
-          >
-            Copy Resume Link
-          </button>
-          <button
-            type="button"
-            disabled={Boolean(busy)}
-            onClick={() => void handleCopyPayment()}
-            className="inline-flex min-h-[40px] items-center rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-800 hover:bg-slate-50 disabled:opacity-50"
-          >
-            Copy Payment Link
-          </button>
-          <button
-            type="button"
-            disabled={Boolean(busy)}
-            onClick={handlePreviewEmail}
-            className="inline-flex min-h-[40px] items-center rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-800 hover:bg-slate-50 disabled:opacity-50"
-          >
-            Preview Email
-          </button>
-        </div>
-        <div className="mt-4 grid gap-2 border-t border-slate-100 pt-4 sm:grid-cols-2">
+        <div className="grid gap-2 sm:grid-cols-2">
           <Row
             label="Last email sent"
             value={lead.last_recovery_email_at ? formatDateTimeUK(lead.last_recovery_email_at) : null}
@@ -1102,22 +1406,8 @@ export default function CustomerLeadDetailAdmin() {
         />
       </DetailBlock>
 
-      <DetailBlock title="Summary">
-        <Row label="Name" value={lead.customer_name} />
-        <div className="grid gap-1 sm:grid-cols-[140px_1fr]">
-          <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">Phone</span>
-          <LeadCallButton phone={lead.customer_phone || ''} />
-        </div>
-        <Row label="Email" value={lead.customer_email} />
-        <Row label="Service" value={lead.service_type} />
-        <Row label="Route" value={lead.route_label} />
-        <Row label="Calculated price" value={formatGbp(calculated)} />
-        <Row
-          label="Admin agreed price"
-          value={lead.agreed_price != null ? formatGbp(Number(lead.agreed_price)) : '—'}
-        />
-        <Row label="Volume (m³)" value={lead.total_volume_m3} />
-        <Row label="Move date" value={lead.move_date ? formatDateUK(lead.move_date) : null} />
+      <div className="grid items-start gap-6 xl:grid-cols-2">
+      <DetailBlock title="Record">
         <Row label="Source page" value={lead.source_page_url} />
         <Row label="Entry" value={lead.entry_point} />
         <Row label="Wizard step" value={lead.wizard_step} />
@@ -1127,7 +1417,7 @@ export default function CustomerLeadDetailAdmin() {
         {lead.converted_at ? <Row label="Converted" value={formatDateTimeUK(lead.converted_at)} /> : null}
       </DetailBlock>
 
-      <DetailBlock title="Step 1 — Move details">
+      <DetailBlock title="Move details">
         <Row label="Service" value={s1.serviceType || lead.service_type} />
         <Row label="Pickup" value={s1.pickupAddress || lead.pickup_address} />
         <Row label="Pickup property" value={s1.pickupPropertyType} />
@@ -1139,10 +1429,12 @@ export default function CustomerLeadDetailAdmin() {
         <Row label="Delivery lift" value={formatAccessLiftLabel(s1.deliveryFloor, s1.deliveryLift)} />
         <Row label="Move date" value={s1.moveDate ? formatDateUK(s1.moveDate) : null} />
         <Row label="Arrival" value={s1.arrivalSummary} />
-        <Row label="Distance (mi)" value={s1.distanceMiles} />
+        <Row label="Distance (mi)" value={distanceLabel || null} />
       </DetailBlock>
+      </div>
 
-      <DetailBlock title="Step 2 — Contact & inventory">
+      <div className="grid items-start gap-6 xl:grid-cols-2">
+      <DetailBlock title="Contact & inventory">
         <Row label="Name" value={s2.fullName || lead.customer_name} />
         <div className="grid gap-1 sm:grid-cols-[140px_1fr]">
           <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">Phone</span>
@@ -1150,7 +1442,7 @@ export default function CustomerLeadDetailAdmin() {
         </div>
         <Row label="Email" value={s2.email || lead.customer_email} />
         <Row label="Crew" value={s2.crewSize} />
-        <Row label="Volume (m³)" value={s2.totalVolumeM3 ?? lead.total_volume_m3} />
+        <Row label="Volume (m³)" value={volumeLabel} />
         {Array.isArray(s2.inventoryLines) && s2.inventoryLines.length > 0 ? (
           <div>
             <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Inventory</p>
@@ -1167,7 +1459,7 @@ export default function CustomerLeadDetailAdmin() {
         )}
       </DetailBlock>
 
-      <DetailBlock title="Step 3 — Quote & extras">
+      <DetailBlock title="Quote & extras">
         <Row label="Selected date" value={s3.selectedMoveDate} />
         <Row
           label="Selected quote"
@@ -1230,6 +1522,7 @@ export default function CustomerLeadDetailAdmin() {
         />
         <Row label="Promo" value={s3.promoCode} />
       </DetailBlock>
+      </div>
 
       {wd.homepageDetails ? (
         <DetailBlock title="Homepage form">

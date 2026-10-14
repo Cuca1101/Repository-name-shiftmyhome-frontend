@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { buildMoveTimeline, formatMoveDateTime, NOT_RECORDED } from '../../lib/moveTimeline'
+import { formatLoadDuration } from '../../lib/jobDispatchTimeline'
 import { trackingClient } from '../../lib/jobCustomerTracking'
 import { isSupabaseConfigured, supabase } from '../../lib/supabase'
 import {
@@ -101,6 +102,16 @@ export default function MoveTimeline({
 
   const timeline = buildMoveTimeline(events, photos, { completedAt })
   const admin = variant === 'admin'
+  const clockRuns = timeline.milestones.some(
+    (step, index) => step.recorded && step.startedAt && !step.endedAt && index < timeline.milestones.length - 1,
+  )
+  const [nowMs, setNowMs] = useState(() => Date.now())
+
+  useEffect(() => {
+    if (!clockRuns) return undefined
+    const id = window.setInterval(() => setNowMs(Date.now()), 1000)
+    return () => window.clearInterval(id)
+  }, [clockRuns])
 
   async function saveCorrection(event) {
     if (!supabase || !event?.id) return
@@ -147,7 +158,7 @@ export default function MoveTimeline({
           className="flex w-full items-center justify-between gap-3 text-left"
         >
           <span>
-            <h2 className="text-base font-bold text-slate-900 sm:text-lg">Move timeline</h2>
+            <h2 className="text-base font-bold text-slate-900 sm:text-lg">Move record</h2>
             <p className="mt-0.5 text-sm text-slate-500">{open ? 'Hide the stages' : 'Show the stages'}</p>
           </span>
           <span className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-600 transition-transform ${open ? 'rotate-180' : ''}`} aria-hidden>
@@ -157,23 +168,48 @@ export default function MoveTimeline({
           </span>
         </button>
       ) : (
-        <h2 className="text-base font-bold text-slate-900 sm:text-lg">Move timeline</h2>
+        <h2 className="text-base font-bold text-slate-900 sm:text-lg">Move record</h2>
       )}
       {open ? (
       <>
-      <p className="mt-1 text-sm text-slate-500">
-        Times are shown in UK time. Stages without a recorded driver action stay as {NOT_RECORDED}.
-      </p>
+      <TimelineSummary milestones={timeline.milestones} ready={ready} />
       {!ready ? <p className="mt-3 text-sm text-slate-500">Loading the timeline…</p> : null}
       {ready && loadError ? <p className="mt-3 text-sm text-slate-700">{loadError}</p> : null}
-      {ready && !loadError ? <ol className="mt-4 space-y-3">
-        {timeline.milestones.map((step) => (
-          <li key={step.key} className="rounded-xl border border-slate-200 px-3 py-3">
+      {ready && !loadError ? <ol className="mt-4">
+        {timeline.milestones.map((step, index) => {
+          const done = step.recorded
+          const currentIndex = currentMilestoneIndex(timeline.milestones)
+          const current = !done && index === currentIndex
+          const last = index === timeline.milestones.length - 1
+          return (
+          <li key={step.key} className="relative flex gap-3 pb-4">
+            {!last ? (
+              <span className={`absolute left-[11px] top-6 h-[calc(100%-0.75rem)] w-px ${done ? 'bg-emerald-300' : 'bg-slate-200'}`} aria-hidden />
+            ) : null}
+            <span
+              className={`relative z-10 mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border text-[10px] font-bold ${
+                done
+                  ? 'border-emerald-600 bg-emerald-600 text-white'
+                  : current
+                    ? 'border-sky-500 bg-white text-sky-700 ring-4 ring-sky-100'
+                    : 'border-slate-200 bg-white text-slate-400'
+              }`}
+            >
+              {done ? '✓' : index + 1}
+            </span>
+            <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-baseline justify-between gap-2">
-              <p className="text-sm font-bold text-slate-900">{step.label}</p>
-              <p className="text-sm font-semibold text-slate-800">{step.whenLabel}</p>
+              <p className={`text-sm font-semibold ${done || current ? 'text-slate-900' : 'text-slate-500'}`}>{step.label}</p>
+              <p className={`text-right text-xs tabular-nums ${done ? 'font-semibold text-slate-800' : 'text-slate-400'}`}>
+                {stageStamp(step)}
+              </p>
             </div>
-            {admin ? <AdminFacts step={step} /> : null}
+            {step.recorded && step.startedAt && (step.endedAt || index < timeline.milestones.length - 1) ? (
+              <p className="mt-0.5 text-xs font-semibold tabular-nums text-emerald-800">
+                {formatLoadDuration(step.startedAt, step.endedAt, nowMs)}
+              </p>
+            ) : null}
+            {admin && done ? <AdminFacts step={step} /> : null}
             {!admin && step.showReceived ? (
               <p className="mt-1 text-xs text-slate-500">Received by server: {step.receivedLabel}</p>
             ) : null}
@@ -212,8 +248,10 @@ export default function MoveTimeline({
                 )}
               </div>
             ) : null}
+            </div>
           </li>
-        ))}
+          )
+        })}
       </ol> : null}
 
       {ready && !loadError && timeline.contacts.length ? (
@@ -269,6 +307,43 @@ export default function MoveTimeline({
       </>
       ) : null}
     </section>
+  )
+}
+
+function stageStamp(step) {
+  if (!step.recorded) return 'Waiting'
+  if (step.key === 'arrived_collection' || step.key === 'arrived_delivery') return `Arrived ${step.whenLabel}`
+  if (step.key === 'departed_collection' || step.key === 'departed_delivery') return `Left ${step.whenLabel}`
+  return step.whenLabel
+}
+
+function currentMilestoneIndex(milestones) {
+  let last = -1
+  milestones.forEach((step, index) => {
+    if (step.recorded) last = index
+  })
+  if (last < 0) return 0
+  if (last >= milestones.length - 1) return last
+  return last + 1
+}
+
+function TimelineSummary({ milestones, ready }) {
+  if (!ready) return <p className="mt-1 text-sm text-slate-500">Times are in UK time.</p>
+  const done = milestones.filter((step) => step.recorded).length
+  const total = milestones.length
+  const latest = [...milestones].reverse().find((step) => step.recorded)
+  const summary = done === 0
+    ? 'The driver has not started this job yet.'
+    : done === total
+      ? 'This job is finished.'
+      : `${latest?.label || 'In progress'}.`
+  return (
+    <div className="mt-2">
+      <p className="text-sm text-slate-600">{summary} Times are in UK time.</p>
+      <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-100">
+        <div className="h-full rounded-full bg-emerald-500" style={{ width: `${total ? Math.round((done / total) * 100) : 0}%` }} />
+      </div>
+    </div>
   )
 }
 

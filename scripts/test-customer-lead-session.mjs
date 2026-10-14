@@ -23,7 +23,7 @@ globalThis.__SMH_IMPORT_META_ENV = {
 register('./esm-extension-loader.mjs', pathToFileURL('./scripts/'))
 
 const { effectiveCustomerLeadStatus, maxCustomerLeadStatus } = await import('../src/lib/customerLeadStatus.js')
-const { buildCustomerLeadUpsertPayload } = await import('../src/lib/customerLeadCapture.js')
+const { buildCustomerLeadUpsertPayload, resolveCustomerLeadVolumeM3 } = await import('../src/lib/customerLeadCapture.js')
 
 function assert(cond, msg) {
   if (!cond) {
@@ -101,6 +101,59 @@ assert(
 )
 
 console.log('PASS: customer lead session / status rules')
+
+console.log('=== volume total from inventory ===')
+
+const screenshotLines = [
+  { quantity: 3, m3: 0.12 },
+  { quantity: 2, m3: 1.4 },
+  { quantity: 1, m3: 0.8 },
+  { quantity: 1, m3: 1.2 },
+  { quantity: 1, m3: 0.35 },
+  { quantity: 1, m3: 0.2 },
+  { quantity: 1, m3: 0.9 },
+  { quantity: 1, m3: 0.08 },
+  { quantity: 1, m3: 0.6 },
+  { quantity: 10, m3: 0.1 },
+  { quantity: 1, m3: 0.15 },
+  { quantity: 1, m3: 0.8 },
+  { quantity: 1, m3: 1.8 },
+  { quantity: 1, m3: 0.35 },
+]
+assert(
+  resolveCustomerLeadVolumeM3({ totalVolumeM3: null, inventoryLines: screenshotLines }) === 11.39,
+  'a lead with a missing saved total still sums quantity × m³',
+)
+assert(
+  resolveCustomerLeadVolumeM3({ totalVolumeM3: null, inventoryLines: [{ quantity: 1 }] }) == null,
+  'a line without a volume is not enough to show a total',
+)
+
+const savedFromInventory = buildCustomerLeadUpsertPayload({
+  step: 2,
+  quoteRef: 'SMH-VOL-NEW',
+  serviceType: 'House Removals',
+  wizard: {
+    fullName: 'Volume Test',
+    email: 'volume@example.com',
+    phone: '07123456789',
+    inventoryLines: screenshotLines,
+  },
+  sourcePageUrl: 'https://www.shiftmyhome.co.uk/quote',
+  totalM3: null,
+})
+assert(savedFromInventory.total_volume_m3 === 11.39, 'a new lead stores the inventory sum')
+assert(savedFromInventory.wizard_data.step2.totalVolumeM3 === 11.39, 'the step snapshot stores the same sum')
+
+const withoutVolume = buildCustomerLeadUpsertPayload({
+  step: 2,
+  quoteRef: 'SMH-VOL-EMPTY',
+  serviceType: 'House Removals',
+  wizard: { fullName: 'Volume Test', email: 'volume@example.com', phone: '07123456789' },
+  sourcePageUrl: 'https://www.shiftmyhome.co.uk/quote',
+  totalM3: null,
+})
+assert(!Object.prototype.hasOwnProperty.call(withoutVolume, 'total_volume_m3'), 'an unknown volume is omitted so a saved total is not cleared')
 
 function readEnv(name) {
   const env = readFileSync(new URL('../.env', import.meta.url), 'utf8')

@@ -56,11 +56,15 @@ export default function JobDriverAssignmentPanel({
     let cancelled = false
     void supabase
       .from('drivers')
-      .select('vehicle_type')
+      .select('vehicle_type, vehicle_registration')
       .eq('id', driverId)
       .maybeSingle()
       .then(({ data }) => {
-        if (!cancelled) setVehicleLabel(String(data?.vehicle_type || '').trim())
+        if (cancelled) return
+        const cached = getFleetDriversCached().find((d) => String(d.id) === driverId)
+        const reg = String(data?.vehicle_registration || cached?.vehicleRegistration || '').trim()
+        const type = String(data?.vehicle_type || cached?.vehicleType || '').trim()
+        setVehicleLabel([reg, type].filter(Boolean).join(' · '))
       })
     return () => {
       cancelled = true

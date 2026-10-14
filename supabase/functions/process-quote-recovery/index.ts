@@ -148,6 +148,7 @@ Deno.serve(async (req) => {
       .from('customer_leads')
       .select('*')
       .in('status', ['abandoned', 'payment_failed'])
+      .is('deleted_at', null)
       .is('recovery_stopped_at', null)
       .not('customer_email', 'is', null)
       .lte('next_recovery_email_at', nowIso)

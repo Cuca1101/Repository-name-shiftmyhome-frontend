@@ -8,6 +8,7 @@ import {
   subscribeDriverLivePositions,
 } from '../lib/data/driverLivePositionsRepository'
 import { getFleetDriversCached, loadFleetDriversForAdmin } from '../lib/adminFleetDrivers'
+import { describeLocateSession, requestDriverLocation } from '../lib/requestDriverLocation'
 import { isSupabaseConfigured, supabase } from '../lib/supabase'
 import {
   filterJourneysForProductionInbox,
@@ -165,6 +166,8 @@ export default function OperationsMapPage() {
   const [drawerQuoteId, setDrawerQuoteId] = useState('')
   const [drawerJourneyId, setDrawerJourneyId] = useState('')
   const [drawerDriverId, setDrawerDriverId] = useState('')
+  const [locateByDriverId, setLocateByDriverId] = useState({})
+  const [locateNow, setLocateNow] = useState(() => Date.now())
   const [panelOpen, setPanelOpen] = useState(true)
   const [hideCompletedTint, setHideCompletedTint] = useState(false)
   const [datePreset, setDatePreset] = useState('this_week')
@@ -231,6 +234,9 @@ export default function OperationsMapPage() {
       }
     }
     void loadLive()
+    const poll = window.setInterval(() => {
+      void loadLive()
+    }, 15000)
     const unsub = subscribeDriverLivePositions(({ new: row }) => {
       const driverId = String(row?.driver_id || row?.driver_key || '').trim()
       if (!driverId) return
@@ -241,6 +247,7 @@ export default function OperationsMapPage() {
     })
     return () => {
       cancelled = true
+      window.clearInterval(poll)
       unsub()
     }
   }, [])
@@ -277,6 +284,21 @@ export default function OperationsMapPage() {
     )
   }, [activeQuotesAll, datePreset, customMoveYmd, anchorYmd])
 
+  /** Available view also draws accepted jobs for the selected dates, so tomorrow's job keeps its pins and route. */
+  const mapJobQuotes = useMemo(() => {
+    if (mode !== 'available') return filteredJobQuotes
+    const byId = new Map()
+    for (const q of filteredJobQuotes) {
+      const id = String(q?.id || '')
+      if (id) byId.set(id, q)
+    }
+    for (const q of activeQuotesForMap) {
+      const id = String(q?.id || '')
+      if (id && !byId.has(id)) byId.set(id, q)
+    }
+    return [...byId.values()]
+  }, [mode, filteredJobQuotes, activeQuotesForMap])
+
   const showingSummary = useMemo(() => {
     const modeTitle = titleCaseModeLabel(mode)
     if (mode === 'available') {
@@ -308,9 +330,16 @@ export default function OperationsMapPage() {
   }, [mode, drawerJourneyId, filteredJourneys])
 
   const quotesToGeocode = useMemo(() => {
-    if (mode === 'drivers') return activeQuotesForMap
-    return filteredJobQuotes
-  }, [mode, filteredJobQuotes, activeQuotesForMap])
+    const byId = new Map()
+    const lists = mode === 'drivers' ? [activeQuotesForMap] : [filteredJobQuotes, activeQuotesAll]
+    for (const list of lists) {
+      for (const q of list || []) {
+        const id = String(q?.id || '')
+        if (id && !byId.has(id)) byId.set(id, q)
+      }
+    }
+    return [...byId.values()]
+  }, [mode, filteredJobQuotes, activeQuotesForMap, activeQuotesAll])
 
   useEffect(() => {
     if (!token || quotesToGeocode.length === 0) {
@@ -349,7 +378,7 @@ export default function OperationsMapPage() {
     const CONCURRENCY = 4
 
     void (async () => {
-      const wanted = filteredJobQuotes
+      const wanted = mapJobQuotes
       if (wanted.length === 0) {
         if (runId === directionsRunIdRef.current) {
           setRouteLegByQuoteId({})
@@ -409,7 +438,7 @@ export default function OperationsMapPage() {
     })()
 
     return undefined
-  }, [token, mode, filteredJobQuotes, coordsByQuoteId, collectVisibleRouteLegs])
+  }, [token, mode, mapJobQuotes, coordsByQuoteId, collectVisibleRouteLegs])
 
   const jobGeo = useMemo(() => {
     if (mode === 'drivers' || mode === 'journeys') {
@@ -420,8 +449,8 @@ export default function OperationsMapPage() {
         jobPoints: emptyFc(),
       }
     }
-    return buildJobMapGeoJson(filteredJobQuotes, coordsByQuoteId, mode, routeLegByQuoteId, jobs)
-  }, [mode, filteredJobQuotes, coordsByQuoteId, routeLegByQuoteId, jobs])
+    return buildJobMapGeoJson(mapJobQuotes, coordsByQuoteId, mode, routeLegByQuoteId, jobs)
+  }, [mode, mapJobQuotes, coordsByQuoteId, routeLegByQuoteId, jobs])
 
   const journeyGeo = useMemo(
     () => buildJourneyMapGeoJson(filteredJourneys, journeyStops),
@@ -449,8 +478,17 @@ export default function OperationsMapPage() {
         phone: live?.driver_phone != null ? String(live.driver_phone) : '',
       })
     }
+    for (const q of activeQuotesAll || []) {
+      const id = String(q?.assigned_driver_id || '').trim()
+      if (!id || byId.has(id)) continue
+      byId.set(id, {
+        id,
+        name: String(q?.assigned_driver_name || 'Driver').trim() || 'Driver',
+        status: 'Active',
+      })
+    }
     return [...byId.values()]
-  }, [driversList, liveByDriverKey])
+  }, [driversList, liveByDriverKey, activeQuotesAll])
 
   useEffect(() => {
     let cancelled = false
@@ -463,10 +501,10 @@ export default function OperationsMapPage() {
   }, [])
 
   const driverGeo = useMemo(() => {
-    return buildDriverMapFeatures(driversListForMap, activeQuotesForMap, jobs, liveByDriverKey, coordsByQuoteId)
-  }, [driversListForMap, activeQuotesForMap, jobs, liveByDriverKey, coordsByQuoteId])
+    return buildDriverMapFeatures(driversListForMap, activeQuotesAll, jobs, liveByDriverKey, coordsByQuoteId)
+  }, [driversListForMap, activeQuotesAll, jobs, liveByDriverKey, coordsByQuoteId])
 
-  const animatedDriversRaw = useAnimatedDrivers(driversListForMap, liveByDriverKey, activeQuotesForMap)
+  const animatedDriversRaw = useAnimatedDrivers(driversListForMap, liveByDriverKey, activeQuotesAll, coordsByQuoteId)
 
   const driverPosByName = useMemo(() => {
     /** @type {Record<string, { lng: number, lat: number }>} */
@@ -532,9 +570,12 @@ export default function OperationsMapPage() {
         if (!live || !Number.isFinite(Number(live.lng))) continue
         const from = { lng: Number(live.lng), lat: Number(live.lat) }
         const nameNorm = String(d.name || '').trim().toLowerCase()
-        const assigned = activeQuotesForMap.filter(
-          (q) => String(q.assigned_driver_name || '').trim().toLowerCase() === nameNorm,
-        )
+        const assigned = activeQuotesAll.filter((q) => {
+          const aid = String(q.assigned_driver_id || '').trim()
+          if (aid && aid === id) return true
+          const dn = String(q.assigned_driver_name || '').trim().toLowerCase()
+          return dn && dn === nameNorm
+        })
         const job = assigned[0]
         if (!job) {
           next[id] = { label: '—' }
@@ -557,7 +598,7 @@ export default function OperationsMapPage() {
       }
       if (runId === etaRunRef.current) setEtaByDriverId(next)
     })()
-  }, [token, driversList, liveByDriverKey, activeQuotesForMap, coordsByQuoteId])
+  }, [token, driversList, liveByDriverKey, activeQuotesAll, coordsByQuoteId])
 
   const warnings = useMemo(() => {
     const base = buildOperationsMapWarnings({
@@ -692,10 +733,55 @@ export default function OperationsMapPage() {
     setDrawerDriverId('')
   }, [])
   const onPickDriver = useCallback((id) => {
-    setDrawerDriverId(id)
+    const driverId = String(id || '').trim()
+    setDrawerDriverId(driverId)
     setDrawerQuoteId('')
     setDrawerJourneyId('')
+    if (!driverId) return
+    setLocateByDriverId((prev) => ({
+      ...prev,
+      [driverId]: {
+        phase: 'requesting',
+        requestedAt: '',
+        expiresAt: '',
+        error: '',
+        pushNote: '',
+      },
+    }))
+    void requestDriverLocation(driverId).then((result) => {
+      setLocateByDriverId((prev) => ({
+        ...prev,
+        [driverId]: result.ok
+          ? {
+              phase: 'requesting',
+              requestedAt: result.requestedAt,
+              expiresAt: result.expiresAt,
+              error: '',
+              pushNote: result.pushDelivered
+                ? ''
+                : 'Background push was not delivered. The phone answers while the driver app is open.',
+            }
+          : {
+              phase: 'failed',
+              requestedAt: '',
+              expiresAt: '',
+              error: result.message || 'Location request failed.',
+              pushNote: '',
+            },
+      }))
+    })
   }, [])
+
+  useEffect(() => {
+    const open = Object.values(locateByDriverId).some((session) => {
+      if (!session || session.phase === 'failed') return false
+      const expiresMs = Date.parse(String(session.expiresAt || ''))
+      return !Number.isFinite(expiresMs) || Date.now() < expiresMs
+    })
+    if (!open) return undefined
+    const timer = setInterval(() => setLocateNow(Date.now()), 1000)
+    return () => clearInterval(timer)
+  }, [locateByDriverId])
 
   function toggleSelectQuote(id) {
     const sid = String(id)
@@ -728,9 +814,12 @@ export default function OperationsMapPage() {
         <div>
           <h2 className="text-2xl font-bold text-slate-900">Operations map</h2>
           <p className="mt-1 max-w-3xl text-sm text-slate-600">
-            Live logistics view for jobs, journeys, and drivers. Pickup → delivery corridors, journey bundles, and live
-            driver GPS from{' '}
-            <code className="rounded bg-slate-100 px-1">driver_locations</code> (Supabase Realtime, stale after 3 min).
+            Live traffic, collection and delivery routes, and every driver who has a job on the app.
+          </p>
+          <p className="mt-2 text-xs font-semibold text-slate-700">
+            {animatedDrivers.filter((driver) => driver.activeJobRef || driver.assignedCount > 0).length} drivers on jobs
+            {' · '}
+            {animatedDrivers.filter((driver) => driver.online).length} live
           </p>
           {gpsLoadError ? (
             <p className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-950">
@@ -1073,7 +1162,16 @@ export default function OperationsMapPage() {
                   const quoteRef =
                     pres.quoteRef || (assigned[0] ? quoteJobRef(assigned[0]) : '—')
                   const assignmentRef = pres.assignmentRef || '—'
+                  const locate = locateByDriverId[String(drawerDriver.id)] || null
+                  const locateLine = describeLocateSession(locate, live, locateNow)
                   return (
+                    <>
+                    {locateLine ? (
+                      <div className="rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-xs text-sky-950">
+                        <p className="font-semibold">{locateLine.title}</p>
+                        {locateLine.detail ? <p className="mt-1 text-sky-800">{locateLine.detail}</p> : null}
+                      </div>
+                    ) : null}
                     <dl className="mt-2 space-y-1 rounded-lg bg-slate-50 p-3 text-xs">
                       <div className="flex justify-between gap-2">
                         <dt className="text-slate-500">Dispatch</dt>
@@ -1119,12 +1217,13 @@ export default function OperationsMapPage() {
                         <span className="font-semibold text-slate-700">Jobs:</span> {jobRefs}
                       </div>
                     </dl>
+                    </>
                   )
                 })()}
                 <p className="text-xs text-slate-500">
                   Live GPS from <code className="rounded bg-slate-100 px-1">driver_locations</code>{' '}
                   (driver registry <strong>id</strong> = <code className="rounded bg-slate-100 px-1">driver_id</code>
-                  ). Stale after 3 minutes without an update.
+                  ). A position is live for 3 minutes after the GPS sample, not after a cached resend.
                 </p>
                 <Link
                   to="/admin/drivers"

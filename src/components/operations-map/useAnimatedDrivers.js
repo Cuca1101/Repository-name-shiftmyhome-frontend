@@ -11,6 +11,17 @@ const MOVING_SPEED_MPH = 3
  * @param {number} lat2
  * @param {number} lng2
  */
+function quotesForDriver(activeQuotes, driverId, driverName) {
+  const id = String(driverId || '').trim()
+  const nameNorm = String(driverName || '').trim().toLowerCase()
+  return (activeQuotes || []).filter((q) => {
+    const aid = String(q.assigned_driver_id || '').trim()
+    if (aid && id && aid === id) return true
+    const dn = String(q.assigned_driver_name || '').trim().toLowerCase()
+    return Boolean(dn && nameNorm && dn === nameNorm)
+  })
+}
+
 function bearingDeg(lat1, lng1, lat2, lng2) {
   const φ1 = (lat1 * Math.PI) / 180
   const φ2 = (lat2 * Math.PI) / 180
@@ -24,8 +35,9 @@ function bearingDeg(lat1, lng1, lat2, lng2) {
  * @param {Record<string, unknown>[]} driversList
  * @param {Record<string, Record<string, unknown>>} liveByDriverKey
  * @param {Record<string, unknown>[]} activeQuotes
+ * @param {Record<string, { pickup?: { lng: number, lat: number } | null }>} [coordsByQuoteId]
  */
-export function useAnimatedDrivers(driversList, liveByDriverKey, activeQuotes) {
+export function useAnimatedDrivers(driversList, liveByDriverKey, activeQuotes, coordsByQuoteId = {}) {
   /** @type {React.MutableRefObject<Record<string, {
    *   lng: number, lat: number, bearing: number, speedMph: number,
    *   moving: boolean, status: string, targetLng: number, targetLat: number,
@@ -37,22 +49,29 @@ export function useAnimatedDrivers(driversList, liveByDriverKey, activeQuotes) {
 
   useEffect(() => {
     const now = performance.now()
+    let changed = false
     for (const d of driversList || []) {
       const id = String(d?.id ?? '').trim()
       if (!id) continue
       const live = liveByDriverKey[id]
-      const nameNorm = String(d.name || '').trim().toLowerCase()
-      const assigned = (activeQuotes || []).filter(
-        (q) => String(q.assigned_driver_name || '').trim().toLowerCase() === nameNorm,
-      )
+      const assigned = quotesForDriver(activeQuotes, id, d.name)
       const status = driverStatusFromContext(d, live, assigned)
       const hasGps = live != null && Number.isFinite(Number(live.lng)) && Number.isFinite(Number(live.lat))
-      const targetLng = hasGps ? Number(live.lng) : null
-      const targetLat = hasGps ? Number(live.lat) : null
+      const jobPoint = assigned
+        .map((q) => coordsByQuoteId[String(q.id)]?.pickup)
+        .find((point) => point && Number.isFinite(Number(point.lng)) && Number.isFinite(Number(point.lat)))
+      const targetLng = hasGps ? Number(live.lng) : jobPoint ? Number(jobPoint.lng) : null
+      const targetLat = hasGps ? Number(live.lat) : jobPoint ? Number(jobPoint.lat) : null
 
       let slot = animRef.current[id]
+      if (targetLng == null || targetLat == null) {
+        if (slot && !hasGps) {
+          delete animRef.current[id]
+          changed = true
+        }
+        continue
+      }
       if (!slot) {
-        if (targetLng == null) continue
         slot = {
           lng: targetLng,
           lat: targetLat,
@@ -68,13 +87,12 @@ export function useAnimatedDrivers(driversList, liveByDriverKey, activeQuotes) {
           lastGpsAt: live?.updated_at != null ? String(live.updated_at) : null,
         }
         animRef.current[id] = slot
+        changed = true
         continue
       }
 
       slot.status = status
       slot.lastGpsAt = live?.updated_at != null ? String(live.updated_at) : slot.lastGpsAt
-
-      if (targetLng == null || targetLat == null) continue
 
       const dist =
         Math.abs(targetLng - slot.lng) + Math.abs(targetLat - slot.lat)
@@ -87,7 +105,8 @@ export function useAnimatedDrivers(driversList, liveByDriverKey, activeQuotes) {
         slot.bearing = bearingDeg(slot.fromLat, slot.fromLng, targetLat, targetLng)
       }
     }
-  }, [driversList, liveByDriverKey, activeQuotes])
+    if (changed) setTick((x) => x + 1)
+  }, [driversList, liveByDriverKey, activeQuotes, coordsByQuoteId])
 
   useEffect(() => {
     let raf = 0
@@ -124,10 +143,7 @@ export function useAnimatedDrivers(driversList, liveByDriverKey, activeQuotes) {
       const id = String(d?.id ?? '')
       const slot = animRef.current[id]
       if (!slot) return null
-      const nameNorm = String(d.name || '').trim().toLowerCase()
-      const assigned = (activeQuotes || []).filter(
-        (q) => String(q.assigned_driver_name || '').trim().toLowerCase() === nameNorm,
-      )
+      const assigned = quotesForDriver(activeQuotes, id, d.name)
       const live = liveByDriverKey[id]
       const quoteRefFromLive =
         live?.quote_ref != null && String(live.quote_ref).trim()
@@ -157,6 +173,7 @@ export function useAnimatedDrivers(driversList, liveByDriverKey, activeQuotes) {
         stale: Boolean(live?.stale),
         staleLabel: live?.stale_label != null ? String(live.stale_label) : null,
         online: live != null && !live?.stale && String(d.status) !== 'Suspended',
+        waitingGps: !(live != null && Number.isFinite(Number(live.lng)) && Number.isFinite(Number(live.lat))),
       }
     })
     .filter(Boolean)

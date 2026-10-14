@@ -76,16 +76,93 @@ export default function JobDispatchControlPanel({
   const collection = resolveQuoteCollectionAddress(q, linkedJob)
   const delivery = resolveQuoteDeliveryAddress(q, linkedJob)
 
+  const accepted = backHref.includes('/active-jobs')
   const btn =
-    'inline-flex min-h-[32px] items-center justify-center rounded-md px-2.5 text-[11px] font-semibold transition disabled:cursor-not-allowed disabled:opacity-40'
+    'inline-flex h-8 items-center justify-center rounded-md px-2.5 text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-40'
   const btnPrimary = `${btn} bg-emerald-600 text-white hover:bg-emerald-700`
-  const btnSecondary = `${btn} border border-slate-600 bg-slate-800 text-white hover:bg-slate-700`
-  const btnGhost = `${btn} border border-slate-500/60 text-slate-100 hover:bg-slate-800`
-  const btnDanger = `${btn} border border-red-400/50 text-red-100 hover:bg-red-950/40`
+  const btnSecondary = accepted
+    ? `${btn} border border-slate-200 bg-white text-slate-800 hover:bg-slate-50`
+    : `${btn} border border-slate-600 bg-slate-800 text-white hover:bg-slate-700`
+  const btnGhost = accepted
+    ? `${btn} border border-slate-200 bg-white text-slate-700 hover:bg-slate-50`
+    : `${btn} border border-slate-500/60 text-slate-100 hover:bg-slate-800`
+  const btnDanger = accepted
+    ? `${btn} border border-red-200 bg-white text-red-700 hover:bg-red-50`
+    : `${btn} border border-red-400/50 text-red-100 hover:bg-red-950/40`
+
+  const actions = (
+    <div className="flex w-full flex-wrap gap-1.5 sm:ml-auto sm:w-auto">
+      <button type="button" disabled={terminal} onClick={onMarkComplete} className={btnPrimary}>
+        Complete
+      </button>
+      <button type="button" disabled={terminal} onClick={onMarkCompleteWithIssues} className={btnSecondary}>
+        Complete with issues
+      </button>
+      <button type="button" disabled={terminal} onClick={onCancelJob} className={btnDanger}>
+        Cancel job
+      </button>
+      <GenerateJobSheetButton
+        quote={q}
+        internalNotes={notesDraft}
+        variant="secondary"
+        className={`${btnGhost} !h-8 !min-h-0 !rounded-md !px-2.5 !py-0 !text-xs`}
+        onSuccess={(msg) => onNotify?.(msg)}
+        onError={(msg) => onNotify?.(msg)}
+      />
+      {!terminal && q?.id ? (
+        <Link
+          to={`${accepted ? '/admin/active-jobs' : '/admin/available-jobs'}/${q.id}/edit`}
+          className={btnGhost}
+        >
+          Edit Booking
+        </Link>
+      ) : null}
+    </div>
+  )
 
   return (
     <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-      {/* Top control bar */}
+      {accepted ? (
+        <div className="border-b border-slate-200 bg-white px-3 py-3 sm:px-4">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="min-w-0">
+              <Link to={backHref} className="text-xs font-semibold text-slate-500 hover:text-slate-800 hover:underline">
+                ← {backLabel}
+              </Link>
+              <p className="mt-1 truncate text-base font-bold text-slate-900">{service}</p>
+              <p className="font-mono text-[11px] text-slate-500">{ref}</p>
+              <CustomerIdentitySummary email={q.email} kind={q.customer_kind} />
+            </div>
+            <div className="flex flex-wrap items-center gap-1.5">
+              <JobStatusBadge label={customerPayment.label} tone={customerPayment.tone} />
+              {['paid', 'deposit_paid', 'unpaid', 'pending_payment'].includes(String(badge.label).toLowerCase()) ? null : (
+                <JobStatusBadge label={badge.label} tone={badge.tone} />
+              )}
+            </div>
+          </div>
+          <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+            <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+              <p className="text-[10px] font-bold uppercase tracking-wide text-slate-500">Volume</p>
+              <p className="mt-0.5 text-sm font-semibold tabular-nums text-slate-900">{volCrew}</p>
+            </div>
+            <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+              <p className="text-[10px] font-bold uppercase tracking-wide text-slate-500">Move date</p>
+              <p className="mt-0.5 text-sm font-semibold text-slate-900">{moveDate}</p>
+            </div>
+            <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+              <p className="text-[10px] font-bold uppercase tracking-wide text-slate-500">Paid</p>
+              <p className="mt-0.5 text-sm font-semibold tabular-nums text-slate-900">{money(customerPayment.paid)}</p>
+            </div>
+            <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+              <p className="text-[10px] font-bold uppercase tracking-wide text-slate-500">Balance</p>
+              <p className="mt-0.5 text-sm font-semibold tabular-nums text-slate-900">
+                {customerPayment.remaining != null ? money(customerPayment.remaining) : '—'}
+              </p>
+            </div>
+          </div>
+          <div className="mt-3">{actions}</div>
+        </div>
+      ) : (
       <div className="border-b border-slate-700 bg-slate-900 px-3 py-2 text-white sm:px-4">
         <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
           <Link to={backHref} className="text-[11px] font-medium text-slate-300 hover:text-white hover:underline">
@@ -112,35 +189,10 @@ export default function JobDispatchControlPanel({
           {['paid', 'deposit_paid', 'unpaid', 'pending_payment'].includes(String(badge.label).toLowerCase()) ? null : (
             <JobStatusBadge label={badge.label} tone={badge.tone} />
           )}
-          <div className="flex w-full flex-wrap gap-1.5 sm:ml-auto sm:w-auto">
-            <button type="button" disabled={terminal} onClick={onMarkComplete} className={btnPrimary}>
-              Complete
-            </button>
-            <button type="button" disabled={terminal} onClick={onMarkCompleteWithIssues} className={btnSecondary}>
-              Complete with issues
-            </button>
-            <button type="button" disabled={terminal} onClick={onCancelJob} className={btnDanger}>
-              Cancel job
-            </button>
-            <GenerateJobSheetButton
-              quote={q}
-              internalNotes={notesDraft}
-              variant="secondary"
-              className={`${btnGhost} !min-h-[32px] !rounded-md !px-2.5 !py-1 !text-[11px]`}
-              onSuccess={(msg) => onNotify?.(msg)}
-              onError={(msg) => onNotify?.(msg)}
-            />
-            {!terminal && q?.id ? (
-              <Link
-                to={`${backHref.includes('/active-jobs') ? '/admin/active-jobs' : '/admin/available-jobs'}/${q.id}/edit`}
-                className={btnGhost}
-              >
-                Edit Booking
-              </Link>
-            ) : null}
-          </div>
+          {actions}
         </div>
       </div>
+      )}
 
       {/* Assignment row */}
       <JobDriverAssignmentPanel
@@ -154,7 +206,7 @@ export default function JobDispatchControlPanel({
       {/* Map + timeline grid */}
       <div className="grid lg:grid-cols-[minmax(0,1fr)_11rem] xl:grid-cols-[minmax(0,1fr)_12.5rem]">
         <div className="min-w-0">
-          <JobDispatchRouteMap q={q} job={linkedJob} />
+          <JobDispatchRouteMap q={q} job={linkedJob} liveTracking={backHref.includes('/active-jobs')} />
 
           <div className="grid divide-y border-t border-slate-200 md:grid-cols-2 md:divide-x md:divide-y-0">
             <DispatchStopBlock

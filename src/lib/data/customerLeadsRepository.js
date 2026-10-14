@@ -115,6 +115,8 @@ export async function fetchCustomerLeadsForAdmin(opts = {}) {
     status_label: CUSTOMER_LEAD_STATUS_LABELS[effectiveCustomerLeadStatus(row)] || row.status,
   }))
 
+  rows = await attachCustomerPaid(rows)
+
   const filter = (opts.filter || 'all').toLowerCase()
   if (filter !== 'all') {
     rows = rows.filter((r) => {
@@ -172,11 +174,74 @@ export async function fetchCustomerLeadById(id) {
   if (error) throw new Error(error.message || 'Failed to load lead.')
   if (!data) return null
   const effective_status = effectiveCustomerLeadStatus(data)
+  const [withPayment] = await attachCustomerPaid([data])
   return {
-    ...data,
+    ...withPayment,
     effective_status,
     status_label: CUSTOMER_LEAD_STATUS_LABELS[effective_status] || data.status,
   }
+}
+
+/**
+ * A quote with a Stripe payment intent was paid by the customer.
+ * Admin Create job marks a booking paid without that charge.
+ * @param {Record<string, unknown>[]} rows
+ */
+async function attachCustomerPaid(rows) {
+  const ids = [...new Set(rows.map((row) => row.quote_id).filter(Boolean).map(String))]
+  if (!ids.length || !supabase) {
+    return rows.map((row) => ({ ...row, customer_paid: false }))
+  }
+  const { data, error } = await supabase
+    .from('quotes')
+    .select('id, stripe_payment_intent_id')
+    .in('id', ids)
+  if (error) return rows.map((row) => ({ ...row, customer_paid: false }))
+  const paid = new Set(
+    (data || [])
+      .filter((quote) => String(quote.stripe_payment_intent_id || '').trim())
+      .map((quote) => String(quote.id)),
+  )
+  return rows.map((row) => ({
+    ...row,
+    customer_paid: paid.has(String(row.quote_id || '')),
+  }))
+}
+
+/**
+ * Mark the lead as called, store what the customer said, and optionally when to call again.
+ * @param {{ id: string, note?: string, callbackAt?: string | null, calledBy?: string }} params
+ */
+export async function saveCustomerLeadCall({ id, note = '', callbackAt = null, calledBy = '' }) {
+  const now = new Date().toISOString()
+  const callback = callbackAt ? new Date(callbackAt).toISOString() : null
+  if (callbackAt && !Number.isFinite(Date.parse(callback || ''))) {
+    throw new Error('That callback time is not valid.')
+  }
+  const updated = await updateCustomerLeadById(id, {
+    called_at: now,
+    call_note: String(note || '').trim() || null,
+    called_by: String(calledBy || '').trim() || null,
+    callback_at: callback,
+    callback_dismissed_at: null,
+    updated_at: now,
+  })
+  if (!updated) throw new Error('Failed to save the call.')
+  return updated
+}
+
+/**
+ * Close the callback notice without deleting the call note.
+ * @param {string} id
+ */
+export async function dismissCustomerLeadCallback(id) {
+  const now = new Date().toISOString()
+  const updated = await updateCustomerLeadById(id, {
+    callback_dismissed_at: now,
+    updated_at: now,
+  })
+  if (!updated) throw new Error('Failed to close the callback notice.')
+  return updated
 }
 
 /**
@@ -191,17 +256,53 @@ export async function updateCustomerLeadById(id, patch) {
 }
 
 /**
- * Remove a customer lead record from admin. Does not delete the linked quote/booking.
+ * Move a customer lead to Trash. Does not delete the linked quote/booking.
  * @param {string} id
  */
 export async function deleteCustomerLeadById(id) {
   if (!isSupabaseConfigured || !supabase || !id) {
     throw new Error('Supabase is not configured.')
   }
-  const { error } = await supabase.from(TABLE).delete().eq('id', id)
+  const deletedAt = new Date().toISOString()
+  const { data, error } = await supabase
+    .from(TABLE)
+    .update({
+      deleted_at: deletedAt,
+      next_recovery_email_at: null,
+      updated_at: deletedAt,
+    })
+    .eq('id', id)
+    .select('*')
+    .maybeSingle()
   if (error) {
     throw new Error(error.message || 'Failed to delete lead.')
   }
+  if (!data) throw new Error('Failed to delete lead.')
+  return data
+}
+
+/**
+ * Put a trashed customer lead back on the Customer Leads list.
+ * @param {string} id
+ */
+export async function restoreCustomerLeadById(id) {
+  if (!isSupabaseConfigured || !supabase || !id) {
+    throw new Error('Supabase is not configured.')
+  }
+  const { data, error } = await supabase
+    .from(TABLE)
+    .update({
+      deleted_at: null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', id)
+    .select('*')
+    .maybeSingle()
+  if (error) {
+    throw new Error(error.message || 'Failed to restore lead.')
+  }
+  if (!data) throw new Error('Failed to restore lead.')
+  return data
 }
 
 /**

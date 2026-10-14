@@ -5,7 +5,7 @@ import LiveDriverMap from '../components/tracking/LiveDriverMap'
 import { getPortalBooking, getPortalContact, listPortalBookings, payPortalAmendment } from '../lib/customerPortalApi'
 import { trackingClient } from '../lib/jobCustomerTracking'
 import { formatGbp, jobModificationLock, portalPaymentFigures, portalTrackingPresentation, resolveDriverContact } from '../lib/customerPortalModel'
-import { isTrackingGpsFresh } from '../lib/trackingDriverEta'
+import { formatTrackingLocationLabel, isTrackingGpsFresh } from '../lib/trackingDriverEta'
 import { resolveCustomerTrackingStage } from '../lib/trackingJobStage'
 import { COMPANY_PHONE_DISPLAY, COMPANY_PHONE_TEL } from '../constants/companyContact'
 import CustomerKindBadge from '../components/admin/CustomerKindBadge'
@@ -352,14 +352,23 @@ function HeroMove({ booking }) {
       return undefined
     }
     let cancelled = false
+    let timer = 0
     async function load() {
       const { data: portal, error } = await client.rpc('public_get_job_tracking', { p_token: id })
       if (cancelled) return
       setTrackingReady(true)
-      setTracking(!error && portal?.ok ? portal : null)
+      if (error || !portal?.ok) {
+        setTracking(null)
+        return
+      }
+      const closed = Boolean(portal.completed || portal.cancelled)
+      setTracking(closed
+        ? { ...portal, tracking_live: false, location: { available: false, live: false } }
+        : portal)
+      if (closed) window.clearInterval(timer)
     }
     load()
-    const timer = window.setInterval(load, 10000)
+    timer = window.setInterval(() => { void load() }, 10000)
     return () => {
       cancelled = true
       window.clearInterval(timer)
@@ -575,29 +584,34 @@ function DriverCard({ booking, token, tracking }) {
             latitude={Number(data.location.latitude)}
             longitude={Number(data.location.longitude)}
             heading={Number(data.location.heading)}
-            live={gpsFresh}
+            live={presentation.live}
             driverName={driverName}
             quoteRef={booking.quote_ref || data?.quote_ref || ''}
             pickupAddress={data?.pickup_address || booking.pickup_address || ''}
             deliveryAddress={data?.delivery_address || booking.delivery_address || ''}
-            destinationKind={stage.etaKind || (stage.stage === 'en_route_collection' ? 'collection' : null)}
+            destinationKind={presentation.awaitingStart ? null : (stage.etaKind || (stage.stage === 'en_route_collection' ? 'collection' : null))}
           />
+          {!gpsFresh ? (
+            <p className="mt-2 text-sm font-medium text-amber-900">
+              {formatTrackingLocationLabel(data?.location?.updated_at).text}
+            </p>
+          ) : null}
         </div>
       ) : null}
       <p className="mt-3 inline-flex items-center gap-2 text-sm text-slate-600">
         <ClockIcon />
         {presentation.awaitingStart || !data
-          ? 'Not on the way yet'
+          ? 'Your driver has not yet started the journey to collection.'
           : stage.badge || 'On the job'}
       </p>
       <Link to={trackTo} className="mt-3 flex w-full items-center justify-center rounded-xl bg-emerald-600 px-4 py-3 text-sm font-bold text-white shadow-sm hover:bg-emerald-700">
         Track my driver
       </Link>
       <p className="mt-2 text-center text-xs text-slate-500">
-        {presentation.message
-          || (presentation.showLivePosition
-            ? 'Live position updates while the GPS signal is fresh.'
-            : 'Tracking becomes available when your driver starts the journey.')}
+        {presentation.awaitingStart
+          ? 'The van shows your driver’s current position. Arrival time appears after they start this job.'
+          : presentation.message
+            || (presentation.showLivePosition ? 'Live position updates while the GPS signal is fresh.' : '')}
       </p>
     </section>
   )

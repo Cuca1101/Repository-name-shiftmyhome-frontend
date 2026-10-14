@@ -141,6 +141,19 @@ export function buildMoveTimeline(events, photos = [], opts = {}) {
   const rows = [...(events || [])].filter((row) => row && normStatus(row.status) && !SKIP_STATUSES.has(normStatus(row.status)))
   const corrections = rows.filter((row) => row.corrects_event_id)
   const primary = rows.filter((row) => !row.corrects_event_id)
+  primary.sort(
+    (a, b) =>
+      new Date(a.occurred_at || a.created_at || 0).getTime() - new Date(b.occurred_at || b.created_at || 0).getTime(),
+  )
+  let deliveryPhase = false
+  for (const row of primary) {
+    const status = normStatus(row.status)
+    if (status === 'arrived') row.status = deliveryPhase ? 'arrived_delivery' : 'arrived_pickup'
+    const stamped = normStatus(row.status)
+    if (['in_transit', 'arrived_delivery', 'unloading_completed', 'completed', 'pickup_completed', 'loaded'].includes(stamped)) {
+      deliveryPhase = true
+    }
+  }
   const used = new Set()
 
   const milestones = MOVE_MILESTONES.map((step) => {
@@ -174,9 +187,17 @@ export function buildMoveTimeline(events, photos = [], opts = {}) {
       accuracyM: Number.isFinite(Number(match?.accuracy_m)) ? Number(match.accuracy_m) : null,
       notes: String(match?.notes || '').trim(),
       fromBooking,
+      startedAt: displayAt || '',
+      endedAt: '',
       photos: stagePhotos,
       corrections: corrections.filter((row) => String(row.corrects_event_id) === String(match?.id || '')),
     }
+  })
+
+  milestones.forEach((step, index) => {
+    if (!step.recorded || !step.startedAt) return
+    const next = milestones.slice(index + 1).find((item) => item.recorded && item.startedAt)
+    step.endedAt = next?.startedAt || ''
   })
 
   const contacts = primary

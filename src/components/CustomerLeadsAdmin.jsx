@@ -5,9 +5,18 @@ import AdminRecordsSearchRow from './admin/AdminRecordsSearchRow'
 import LeadCallButton from './admin/LeadCallButton'
 import {
   deleteCustomerLeadById,
+  dismissCustomerLeadCallback,
   fetchCustomerLeadsForAdmin,
+  restoreCustomerLeadById,
 } from '../lib/data/customerLeadsRepository'
 import { CUSTOMER_LEAD_STATUS_LABELS, customerLeadBookingRef } from '../lib/customerLeadStatus'
+import {
+  customerLeadCallbackDue,
+  customerLeadIsConverted,
+  customerLeadMoveCountdown,
+  customerLeadNeedsFirstCall,
+  customerLeadVisibleInList,
+} from '../lib/customerLeadList'
 import { formatDateTimeUK } from '../lib/formatDateDisplay'
 import { formatGbp, resolveChargeableTotal } from '../lib/adminAgreedPrice'
 import {
@@ -19,27 +28,12 @@ import { isSupabaseConfigured, supabase } from '../lib/supabase'
 
 const FILTERS = [
   { id: 'all', label: 'All' },
+  { id: 'to_call', label: 'To call' },
   { id: 'new', label: 'New' },
   { id: 'abandoned', label: 'Abandoned' },
   { id: 'converted', label: 'Converted' },
+  { id: 'trash', label: 'Trash' },
 ]
-
-/** @param {Record<string, unknown>} row @param {string} filterId */
-function leadMatchesFilter(row, filterId) {
-  if (filterId === 'all') return true
-  const eff = String(row.effective_status || row.status || '')
-  if (filterId === 'new') {
-    return (
-      eff === 'new_lead' ||
-      eff === 'quote_started' ||
-      eff === 'quote_viewed' ||
-      eff === 'payment_started'
-    )
-  }
-  if (filterId === 'abandoned') return eff === 'abandoned' || eff === 'payment_failed'
-  if (filterId === 'converted') return eff === 'converted_to_booking' || Boolean(row.converted_at)
-  return true
-}
 
 const BADGE_TONES = {
   slate: 'bg-slate-100 text-slate-700 ring-slate-200/80',
@@ -59,14 +53,62 @@ function statusTone(status) {
   return 'slate'
 }
 
-/** True when lead was converted to an unpaid job (status and/or converted_at). */
 function leadIsConverted(row) {
-  if (!row) return false
-  const st = String(row.status || '')
-  const eff = String(row.effective_status || st)
-  if (st === 'converted_to_booking' || eff === 'converted_to_booking') return true
-  if (row.converted_at) return true
-  return false
+  return customerLeadIsConverted(row)
+}
+
+function CallBadge({ row, now }) {
+  if (customerLeadCallbackDue(row, now)) {
+    return (
+      <span className="inline-flex rounded-md bg-emerald-600 px-2 py-0.5 text-[11px] font-semibold text-white">
+        Call now
+      </span>
+    )
+  }
+  if (customerLeadNeedsFirstCall(row, now)) {
+    return (
+      <span className="inline-flex rounded-md bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold text-emerald-900 ring-1 ring-inset ring-emerald-300">
+        To call
+      </span>
+    )
+  }
+  const callbackAt = Date.parse(String(row.callback_at || ''))
+  if (Number.isFinite(callbackAt) && callbackAt > now) {
+    return (
+      <span className="inline-flex rounded-md bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-700 ring-1 ring-inset ring-slate-200">
+        Call {formatDateTimeUK(row.callback_at)}
+      </span>
+    )
+  }
+  if (row.called_at) {
+    const by = String(row.called_by || '').trim()
+    return (
+      <span
+        className="inline-flex max-w-[14rem] flex-col items-start rounded-md bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-600 ring-1 ring-inset ring-slate-200"
+        title={by ? `Called by ${by}` : 'Called'}
+      >
+        <span>Called</span>
+        {by ? <span className="max-w-full truncate font-medium">{by}</span> : null}
+      </span>
+    )
+  }
+  return null
+}
+
+function MoveCountdownBadge({ moveDate }) {
+  const badge = customerLeadMoveCountdown(moveDate)
+  if (!badge) return null
+  const tone =
+    badge.tone === 'expired'
+      ? 'bg-red-100 text-red-800 ring-red-200'
+      : badge.highlight
+        ? 'bg-amber-100 text-amber-950 ring-amber-300'
+        : 'bg-slate-100 text-slate-700 ring-slate-200/80'
+  return (
+    <span className={`inline-flex rounded-md px-2 py-0.5 text-[11px] font-semibold ring-1 ring-inset ${tone}`}>
+      {badge.label}
+    </span>
+  )
 }
 
 function StatusBadge({ status }) {
@@ -76,6 +118,38 @@ function StatusBadge({ status }) {
     <span className={`inline-flex rounded-md px-2 py-0.5 text-[11px] font-semibold ring-1 ring-inset ${tone}`}>
       {label}
     </span>
+  )
+}
+
+function postcodeFromText(value) {
+  const found = String(value || '').toUpperCase().match(/([A-Z]{1,2}\d[A-Z\d]?)\s*(\d[A-Z]{2})/)
+  return found ? `${found[1]} ${found[2]}` : ''
+}
+
+function leadRoutePostcodes(row) {
+  const step1 =
+    row?.wizard_data?.step1 && typeof row.wizard_data.step1 === 'object' ? row.wizard_data.step1 : {}
+  const label = String(row?.route_label || '').trim()
+  const parts = label.split(/\s*(?:→|->)\s*/)
+  const pickup =
+    postcodeFromText(step1.pickupPostcode) ||
+    postcodeFromText(row?.pickup_address) ||
+    postcodeFromText(parts[0])
+  const delivery =
+    postcodeFromText(step1.deliveryPostcode) ||
+    postcodeFromText(row?.delivery_address) ||
+    postcodeFromText(parts[1])
+  return { pickup, delivery }
+}
+
+function LeadRoute({ row }) {
+  const { pickup, delivery } = leadRoutePostcodes(row)
+  if (!pickup && !delivery) return '—'
+  return (
+    <div className="whitespace-nowrap font-medium leading-snug tabular-nums">
+      {pickup ? <p>{pickup}</p> : null}
+      {delivery ? <p className="text-slate-600">{delivery}</p> : null}
+    </div>
   )
 }
 
@@ -220,9 +294,11 @@ function LeadActionsMenu({
   convertDisabled,
   revertDisabled,
   deleteDisabled,
+  trashed,
   onConvert,
   onRevert,
   onDelete,
+  onRestore,
 }) {
   const navigate = useNavigate()
   const buttonRef = useRef(null)
@@ -347,7 +423,7 @@ function LeadActionsMenu({
             >
               Details
             </button>
-            {converted ? (
+            {trashed ? null : converted ? (
               <button
                 type="button"
                 role="menuitem"
@@ -371,15 +447,27 @@ function LeadActionsMenu({
               </button>
             )}
             <div className="my-1 h-px bg-slate-100" role="separator" />
-            <button
-              type="button"
-              role="menuitem"
-              disabled={deleteDisabled}
-              className={`${itemClass} text-red-800 hover:bg-red-50`}
-              onClick={() => choose(onDelete)}
-            >
-              {busyDelete ? 'Deleting…' : 'Delete'}
-            </button>
+            {trashed ? (
+              <button
+                type="button"
+                role="menuitem"
+                disabled={deleteDisabled}
+                className={`${itemClass} text-emerald-900 hover:bg-emerald-50`}
+                onClick={() => choose(onRestore)}
+              >
+                {busyDelete ? 'Restoring…' : 'Restore'}
+              </button>
+            ) : (
+              <button
+                type="button"
+                role="menuitem"
+                disabled={deleteDisabled}
+                className={`${itemClass} text-red-800 hover:bg-red-50`}
+                onClick={() => choose(onDelete)}
+              >
+                {busyDelete ? 'Deleting…' : 'Delete'}
+              </button>
+            )}
           </div>,
           document.body,
         )
@@ -399,7 +487,7 @@ function LeadActionsMenu({
         onClick={() => onOpenChange(!open)}
         className="inline-flex min-h-10 items-center gap-1 whitespace-nowrap rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-800 shadow-sm hover:bg-slate-50 disabled:opacity-50 sm:min-h-8"
       >
-        {busyConvert ? 'Creating…' : busyRevert ? 'Undoing…' : busyDelete ? 'Deleting…' : 'Actions'}
+        {busyConvert ? 'Creating…' : busyRevert ? 'Undoing…' : busyDelete ? (trashed ? 'Restoring…' : 'Deleting…') : 'Actions'}
         <svg
           className={`h-3.5 w-3.5 text-slate-500 transition ${open ? 'rotate-180' : ''}`}
           fill="none"
@@ -431,6 +519,7 @@ export default function CustomerLeadsAdmin() {
   const [searchInput, setSearchInput] = useState('')
   const [activeSearch, setActiveSearch] = useState('')
   const [filter, setFilter] = useState('all')
+  const [listNow, setListNow] = useState(() => Date.now())
   const [allRows, setAllRows] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -440,6 +529,7 @@ export default function CustomerLeadsAdmin() {
   const [convertingId, setConvertingId] = useState('')
   const [revertingId, setRevertingId] = useState('')
   const [actionMsg, setActionMsg] = useState('')
+  const [callDismissingId, setCallDismissingId] = useState('')
   const [openActionsId, setOpenActionsId] = useState('')
 
   useEffect(() => {
@@ -465,6 +555,11 @@ export default function CustomerLeadsAdmin() {
     load()
   }, [load])
 
+  useEffect(() => {
+    const timer = window.setInterval(() => setListNow(Date.now()), 60_000)
+    return () => window.clearInterval(timer)
+  }, [])
+
   const runSearchNow = useCallback(() => {
     setActiveSearch(searchInput.trim())
   }, [searchInput])
@@ -475,21 +570,24 @@ export default function CustomerLeadsAdmin() {
       const eff = row.effective_status || row.status
       const isConverted = eff === 'converted_to_booking'
       const msg = isConverted
-        ? `Delete lead ${ref}? The booking/quote (${row.quote_ref || 'linked record'}) stays in the system — only this lead row is removed.`
-        : `Delete lead ${ref}? This cannot be undone.`
+        ? `Move lead ${ref} to Trash? The booking (${row.quote_ref || 'linked record'}) stays in Available Jobs or Active Jobs. You can restore this lead from Trash.`
+        : `Move lead ${ref} to Trash? You can restore it later. The booking, if one exists, stays in the system.`
       if (!window.confirm(msg)) return
 
       setDeletingId(String(row.id))
       setError('')
       setActionMsg('')
       try {
-        await deleteCustomerLeadById(String(row.id))
-        setAllRows((prev) => prev.filter((r) => String(r.id) !== String(row.id)))
+        const updated = await deleteCustomerLeadById(String(row.id))
+        setAllRows((prev) =>
+          prev.map((r) => (String(r.id) === String(row.id) ? { ...r, ...updated } : r)),
+        )
         setSelectedIds((prev) => {
           const next = new Set(prev)
           next.delete(String(row.id))
           return next
         })
+        setActionMsg(`Moved ${ref} to Trash.`)
       } catch (e) {
         setError(e?.message || 'Failed to delete lead.')
       } finally {
@@ -498,6 +596,27 @@ export default function CustomerLeadsAdmin() {
     },
     [],
   )
+
+  const handleRestoreLead = useCallback(async (row) => {
+    const ref = customerLeadBookingRef(row) || row.lead_ref || 'this lead'
+    setDeletingId(String(row.id))
+    setError('')
+    setActionMsg('')
+    try {
+      const updated = await restoreCustomerLeadById(String(row.id))
+      setAllRows((prev) => prev.map((r) => (String(r.id) === String(row.id) ? { ...r, ...updated } : r)))
+      setSelectedIds((prev) => {
+        const next = new Set(prev)
+        next.delete(String(row.id))
+        return next
+      })
+      setActionMsg(`Restored ${ref}.`)
+    } catch (e) {
+      setError(e?.message || 'Failed to restore lead.')
+    } finally {
+      setDeletingId('')
+    }
+  }, [])
 
   const handleConvertLead = useCallback(
     async (row) => {
@@ -594,19 +713,38 @@ export default function CustomerLeadsAdmin() {
   )
 
   const filterCounts = useMemo(() => {
-    const counts = { all: allRows.length, new: 0, abandoned: 0, converted: 0 }
+    const counts = { all: 0, to_call: 0, new: 0, abandoned: 0, converted: 0, trash: 0 }
     for (const row of allRows) {
-      if (leadMatchesFilter(row, 'new')) counts.new += 1
-      if (leadMatchesFilter(row, 'abandoned')) counts.abandoned += 1
-      if (leadMatchesFilter(row, 'converted')) counts.converted += 1
+      for (const item of FILTERS) {
+        if (customerLeadVisibleInList(row, item.id, listNow)) counts[item.id] += 1
+      }
     }
     return counts
-  }, [allRows])
+  }, [allRows, listNow])
 
   const rows = useMemo(
-    () => (filter === 'all' ? allRows : allRows.filter((row) => leadMatchesFilter(row, filter))),
-    [allRows, filter],
+    () => allRows.filter((row) => customerLeadVisibleInList(row, filter, listNow)),
+    [allRows, filter, listNow],
   )
+
+  const dueCalls = useMemo(
+    () => allRows.filter((row) => customerLeadVisibleInList(row, 'all', listNow) && customerLeadCallbackDue(row, listNow)),
+    [allRows, listNow],
+  )
+
+  const dismissCallback = useCallback(async (id) => {
+    setCallDismissingId(id)
+    setError('')
+    try {
+      const updated = await dismissCustomerLeadCallback(id)
+      setAllRows((prev) => prev.map((row) => (String(row.id) === id ? { ...row, ...updated } : row)))
+      setActionMsg('Callback notice closed.')
+    } catch (e) {
+      setError(e?.message || 'Failed to close the callback notice.')
+    } finally {
+      setCallDismissingId('')
+    }
+  }, [])
 
   const visibleIds = useMemo(() => rows.map((row) => String(row.id)), [rows])
   const selectedVisibleCount = visibleIds.filter((id) => selectedIds.has(id)).length
@@ -636,39 +774,50 @@ export default function CustomerLeadsAdmin() {
   const handleDeleteSelected = useCallback(async () => {
     const ids = visibleIds.filter((id) => selectedIds.has(id))
     if (!ids.length || bulkDeleting) return
+    const restoring = filter === 'trash'
     const ok = window.confirm(
-      `Delete ${ids.length} selected lead${ids.length === 1 ? '' : 's'}? This cannot be undone. Linked bookings stay in the system.`,
+      restoring
+        ? `Restore ${ids.length} selected lead${ids.length === 1 ? '' : 's'}?`
+        : `Move ${ids.length} selected lead${ids.length === 1 ? '' : 's'} to Trash? Linked bookings stay in the system.`,
     )
     if (!ok) return
 
     setBulkDeleting(true)
     setError('')
     setActionMsg('')
-    const deleted = []
+    const done = []
     let failed = 0
     for (const id of ids) {
       try {
-        await deleteCustomerLeadById(id)
-        deleted.push(id)
+        const updated = restoring ? await restoreCustomerLeadById(id) : await deleteCustomerLeadById(id)
+        done.push({ id, updated })
       } catch {
         failed += 1
       }
     }
-    const deletedSet = new Set(deleted)
-    setAllRows((prev) => prev.filter((row) => !deletedSet.has(String(row.id))))
+    const doneById = new Map(done.map((item) => [item.id, item.updated]))
+    setAllRows((prev) => prev.map((row) => (doneById.has(String(row.id)) ? { ...row, ...doneById.get(String(row.id)) } : row)))
     setSelectedIds((prev) => {
       const next = new Set(prev)
-      deleted.forEach((id) => next.delete(id))
+      done.forEach((item) => next.delete(item.id))
       return next
     })
     if (failed) {
-      setError(`Could not delete ${failed} lead${failed === 1 ? '' : 's'}.`)
+      setError(
+        restoring
+          ? `Could not restore ${failed} lead${failed === 1 ? '' : 's'}.`
+          : `Could not delete ${failed} lead${failed === 1 ? '' : 's'}.`,
+      )
     }
-    if (deleted.length) {
-      setActionMsg(`Deleted ${deleted.length} lead${deleted.length === 1 ? '' : 's'}.`)
+    if (done.length) {
+      setActionMsg(
+        restoring
+          ? `Restored ${done.length} lead${done.length === 1 ? '' : 's'}.`
+          : `Moved ${done.length} lead${done.length === 1 ? '' : 's'} to Trash.`,
+      )
     }
     setBulkDeleting(false)
-  }, [bulkDeleting, selectedIds, visibleIds])
+  }, [bulkDeleting, filter, selectedIds, visibleIds])
 
   const selectAllRef = useRef(null)
   useEffect(() => {
@@ -679,8 +828,12 @@ export default function CustomerLeadsAdmin() {
   const emptyMessage = useMemo(() => {
     if (loading) return ''
     if (rows.length > 0) return ''
-    return activeSearch ? 'No leads found.' : 'No customer leads yet.'
-  }, [loading, rows.length, activeSearch])
+    if (activeSearch) return 'No leads found.'
+    if (filter === 'trash') return 'Trash is empty.'
+    if (filter === 'converted') return 'No converted leads from the last 12 hours.'
+    if (filter === 'to_call') return 'No leads to call.'
+    return 'No customer leads yet.'
+  }, [loading, rows.length, activeSearch, filter])
 
   const bodyRef = useRef(null)
 
@@ -689,20 +842,22 @@ export default function CustomerLeadsAdmin() {
   }, [filter, activeSearch, rows])
 
   return (
-    <div className="space-y-6">
+    <div className="w-full min-w-0 space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <h2 className="text-2xl font-bold text-slate-900">
             Customer Leads{' '}
             <span className="text-lg font-semibold tabular-nums text-slate-500">
-              ({loading ? '…' : filterCounts.all})
+              ({loading ? '…' : filterCounts[filter] ?? 0})
             </span>
           </h2>
           <p className="mt-1 text-sm text-slate-600">
             Quote wizard and homepage enquiries saved before payment — reference format{' '}
             <code className="rounded bg-slate-100 px-1">SMH-LEAD-000001</code>. Use Create job to
             convert a lead into a Paid Available Jobs booking. Use Undo convert to put the lead back
-            if the job is still unassigned (card-paid bookings stay protected).
+            if the job is still unassigned (card-paid bookings stay protected). Converted leads stay
+            in this list for 12 hours, then leave Customer Leads. The booking stays in Available Jobs
+            or Active Jobs. Delete moves a lead to Trash.
           </p>
         </div>
         <button
@@ -742,6 +897,33 @@ export default function CustomerLeadsAdmin() {
         })}
       </div>
 
+      {dueCalls.length > 0 ? (
+        <div className="space-y-2 rounded-xl border border-emerald-300 bg-emerald-50 px-4 py-3">
+          <p className="text-sm font-semibold text-emerald-950">Time to call</p>
+          {dueCalls.map((row) => (
+            <div key={row.id} className="flex flex-wrap items-center justify-between gap-2 text-sm text-emerald-950">
+              <p className="min-w-0">
+                <Link to={`/admin/customer-leads/${row.id}`} className="font-mono font-semibold hover:underline">
+                  {customerLeadBookingRef(row) || row.lead_ref}
+                </Link>
+                {' · '}
+                {formatDateTimeUK(row.callback_at)}
+                {row.called_by ? ` · marked by ${row.called_by}` : ''}
+                {row.call_note ? ` · ${row.call_note}` : ''}
+              </p>
+              <button
+                type="button"
+                disabled={callDismissingId === String(row.id)}
+                onClick={() => void dismissCallback(String(row.id))}
+                className="inline-flex h-8 items-center rounded-md bg-emerald-600 px-3 text-xs font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
+              >
+                Close notice
+              </button>
+            </div>
+          ))}
+        </div>
+      ) : null}
+
       <AdminRecordsSearchRow
         searchInput={searchInput}
         onSearchInputChange={(e) => setSearchInput(e.target.value)}
@@ -758,17 +940,29 @@ export default function CustomerLeadsAdmin() {
       ) : null}
 
       {selectedVisibleCount > 0 ? (
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-red-200 bg-red-50 px-3 py-1.5">
-          <p className="text-sm font-semibold text-red-900">
+        <div
+          className={`flex flex-wrap items-center justify-between gap-3 rounded-xl border px-3 py-1.5 ${
+            filter === 'trash' ? 'border-emerald-200 bg-emerald-50' : 'border-red-200 bg-red-50'
+          }`}
+        >
+          <p className={`text-sm font-semibold ${filter === 'trash' ? 'text-emerald-950' : 'text-red-900'}`}>
             {selectedVisibleCount} selected
           </p>
           <button
             type="button"
             disabled={bulkDeleting}
             onClick={() => void handleDeleteSelected()}
-            className="min-h-[40px] rounded-lg bg-red-700 px-4 py-2 text-sm font-semibold text-white hover:bg-red-800 disabled:opacity-50"
+            className={`min-h-[40px] rounded-lg px-4 py-2 text-sm font-semibold text-white disabled:opacity-50 ${
+              filter === 'trash' ? 'bg-emerald-700 hover:bg-emerald-800' : 'bg-red-700 hover:bg-red-800'
+            }`}
           >
-            {bulkDeleting ? 'Deleting…' : 'Delete selected'}
+            {bulkDeleting
+              ? filter === 'trash'
+                ? 'Restoring…'
+                : 'Deleting…'
+              : filter === 'trash'
+                ? 'Restore selected'
+                : 'Delete selected'}
           </button>
         </div>
       ) : null}
@@ -778,17 +972,32 @@ export default function CustomerLeadsAdmin() {
       ) : emptyMessage ? (
         <p className="py-8 text-center text-slate-600">{emptyMessage}</p>
       ) : (
-        <div className="relative min-w-0">
+        <div className="relative w-full min-w-0">
           <LeadsHorizontalScrollbar scrollRef={bodyRef} placement="top" />
           <div
             ref={bodyRef}
             id="customer-leads-table"
-            className="leads-table-scroll min-w-0 overflow-x-auto"
+            className="leads-table-scroll w-full min-w-0 overflow-x-auto"
           >
-            <table className="w-full min-w-[1380px] border-collapse text-left text-sm [&_td]:border [&_td]:border-blue-200/80 [&_th]:border [&_th]:border-blue-300">
+            <table className="w-full border-collapse text-left text-sm [&_td]:border [&_td]:border-blue-200/80 [&_th]:border [&_th]:border-blue-300">
+              <colgroup>
+                <col className="w-px" />
+                <col className="w-px" />
+                <col className="w-36" />
+                <col className="w-px" />
+                <col />
+                <col className="w-px" />
+                <col className="w-px" />
+                <col className="w-px" />
+                <col className="w-px" />
+                <col className="w-px" />
+                <col className="w-px" />
+                <col className="w-px" />
+                <col className="w-px" />
+              </colgroup>
               <thead className="bg-blue-50 text-xs font-semibold uppercase tracking-wide text-blue-900">
                 <tr>
-                  <th className="px-2 py-2.5">
+                  <th className="w-px px-2 py-2.5">
                     <input
                       ref={selectAllRef}
                       type="checkbox"
@@ -798,18 +1007,18 @@ export default function CustomerLeadsAdmin() {
                       className="h-4 w-4 rounded border-slate-300"
                     />
                   </th>
-                  <th className="whitespace-nowrap px-2 py-2.5">Reference</th>
-                  <th className="whitespace-nowrap px-2 py-2.5">Name</th>
-                  <th className="min-w-[12.5rem] whitespace-nowrap px-2 py-2.5">Phone</th>
-                  <th className="whitespace-nowrap px-2 py-2.5">Email</th>
-                  <th className="whitespace-nowrap px-2 py-2.5">Service</th>
-                  <th className="min-w-[10rem] whitespace-nowrap px-2 py-2.5">Route</th>
-                  <th className="whitespace-nowrap px-2 py-2.5">Quote price</th>
-                  <th className="whitespace-nowrap px-2 py-2.5">Agreed</th>
-                  <th className="whitespace-nowrap px-2 py-2.5">Status</th>
-                  <th className="whitespace-nowrap px-2 py-2.5">Last activity</th>
-                  <th className="whitespace-nowrap px-2 py-2.5">Created</th>
-                  <th className="whitespace-nowrap px-2 py-2.5 text-right">Actions</th>
+                  <th className="w-px whitespace-nowrap px-3 py-2.5">Reference</th>
+                  <th className="w-36 whitespace-nowrap px-3 py-2.5">Name</th>
+                  <th className="w-px whitespace-nowrap px-3 py-2.5">Phone</th>
+                  <th className="w-full px-3 py-2.5">Email</th>
+                  <th className="w-px whitespace-nowrap px-3 py-2.5">Service</th>
+                  <th className="w-px whitespace-nowrap px-3 py-2.5">Postcode</th>
+                  <th className="w-px whitespace-nowrap px-3 py-2.5">Quote price</th>
+                  <th className="w-px whitespace-nowrap px-3 py-2.5">Agreed</th>
+                  <th className="w-px whitespace-nowrap px-3 py-2.5">Status</th>
+                  <th className="w-px whitespace-nowrap px-3 py-2.5">Last activity</th>
+                  <th className="w-px whitespace-nowrap px-3 py-2.5">Created</th>
+                  <th className="w-px whitespace-nowrap px-3 py-2.5 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -818,17 +1027,27 @@ export default function CustomerLeadsAdmin() {
                   const selected = selectedIds.has(rowId)
                   const eff = row.effective_status || row.status
                   const converted = leadIsConverted(row)
+                  const trashed = Boolean(row.deleted_at)
+                  const countdown = converted ? null : customerLeadMoveCountdown(row.move_date)
                   const phone = row.customer_phone
                   const email = row.customer_email
                   const emailHref = mailHref(email)
                   const busyConvert = convertingId === String(row.id)
                   const busyRevert = revertingId === String(row.id)
                   const zebra = index % 2 === 0 ? 'bg-white' : 'bg-blue-50/50'
-                  const rowBg = selected ? 'bg-red-50' : zebra
+                  const urgentBg =
+                    countdown?.tone === 'expired' ? 'bg-red-50' : countdown?.highlight ? 'bg-amber-50' : zebra
+                  const rowBg = selected ? 'bg-red-50' : urgentBg
+                  const edge =
+                    countdown?.tone === 'expired'
+                      ? 'shadow-[inset_4px_0_0_0_#dc2626]'
+                      : countdown?.highlight
+                        ? 'shadow-[inset_4px_0_0_0_#d97706]'
+                        : ''
 
                   return (
-                    <tr key={row.id} className={`align-middle text-slate-800 ${rowBg} hover:bg-blue-50`}>
-                      <td className="px-2 py-2">
+                    <tr key={row.id} className={`align-middle text-slate-800 ${rowBg} ${edge} hover:bg-blue-50`}>
+                      <td className="w-px px-2 py-2">
                         <input
                           type="checkbox"
                           checked={selected}
@@ -837,10 +1056,10 @@ export default function CustomerLeadsAdmin() {
                           className="h-4 w-4 rounded border-slate-300"
                         />
                       </td>
-                      <td className="whitespace-nowrap px-2 py-2">
+                      <td className="w-px px-3 py-2 align-top">
                         <Link
                           to={`/admin/customer-leads/${row.id}`}
-                          className="font-mono text-xs font-semibold text-brand-700 hover:underline"
+                          className="whitespace-nowrap font-mono text-xs font-semibold text-brand-700 hover:underline"
                           title={
                             row.quote_ref && row.lead_ref && row.quote_ref !== row.lead_ref
                               ? `Booking ref (same as quote). Internal lead id: ${row.lead_ref}`
@@ -849,36 +1068,54 @@ export default function CustomerLeadsAdmin() {
                         >
                           {customerLeadBookingRef(row) || '—'}
                         </Link>
+                        {countdown || customerLeadCallbackDue(row, listNow) || customerLeadNeedsFirstCall(row, listNow) || row.called_at || row.callback_at ? (
+                          <div className="mt-1 flex flex-col items-start gap-1">
+                            {countdown ? <MoveCountdownBadge moveDate={row.move_date} /> : null}
+                            <CallBadge row={row} now={listNow} />
+                          </div>
+                        ) : null}
                       </td>
-                      <td className="whitespace-nowrap px-2 py-2">{row.customer_name || '—'}</td>
-                      <td className="min-w-[12.5rem] whitespace-nowrap px-2 py-2">
+                      <td className="w-px px-3 py-2">
+                        <p
+                          className="w-36 whitespace-normal break-words leading-snug"
+                          title={row.customer_name || undefined}
+                        >
+                          {row.customer_name || '—'}
+                        </p>
+                      </td>
+                      <td className="w-px whitespace-nowrap px-3 py-2">
                         <LeadCallButton phone={phone || ''} />
                       </td>
-                      <td className="max-w-[200px] truncate px-2 py-2" title={email || undefined}>
+                      <td className="w-full max-w-0 truncate px-3 py-2" title={email || undefined}>
                         {email || '—'}
                       </td>
-                      <td className="whitespace-nowrap px-2 py-2">{row.service_type || '—'}</td>
-                      <td className="max-w-[220px] truncate px-2 py-2" title={row.route_label || undefined}>
-                        {row.route_label || '—'}
+                      <td className="w-px whitespace-nowrap px-3 py-2">{row.service_type || '—'}</td>
+                      <td className="w-px px-3 py-2 align-top">
+                        <LeadRoute row={row} />
                       </td>
-                      <td className="whitespace-nowrap px-2 py-2 tabular-nums">{money(row.estimated_total)}</td>
-                      <td className="whitespace-nowrap px-2 py-2 tabular-nums">
+                      <td className="w-px whitespace-nowrap px-3 py-2 tabular-nums">{money(row.estimated_total)}</td>
+                      <td className="w-px whitespace-nowrap px-3 py-2 tabular-nums">
                         {row.agreed_price != null ? (
                           <span className="font-semibold text-brand-800">{money(row.agreed_price)}</span>
                         ) : (
                           '—'
                         )}
                       </td>
-                      <td className="whitespace-nowrap px-2 py-2">
+                      <td className="w-px whitespace-nowrap px-3 py-2">
                         <StatusBadge status={eff} />
+                        {trashed ? (
+                          <p className="mt-1 text-[11px] text-slate-500">
+                            Deleted {formatDateTimeUK(row.deleted_at)}
+                          </p>
+                        ) : null}
                       </td>
-                      <td className="whitespace-nowrap px-2 py-2 text-xs text-slate-600">
+                      <td className="w-px whitespace-nowrap px-3 py-2 text-slate-600">
                         {formatDateTimeUK(row.last_activity_at)}
                       </td>
-                      <td className="whitespace-nowrap px-2 py-2 text-xs text-slate-500">
+                      <td className="w-px whitespace-nowrap px-3 py-2 text-slate-500">
                         {formatDateTimeUK(row.created_at)}
                       </td>
-                      <td className="whitespace-nowrap px-2 py-2 text-right">
+                      <td className="w-px whitespace-nowrap px-3 py-2 text-right">
                         <LeadActionsMenu
                           open={openActionsId === rowId}
                           onOpenChange={(next) => setOpenActionsId(next ? rowId : '')}
@@ -892,9 +1129,11 @@ export default function CustomerLeadsAdmin() {
                           convertDisabled={busyConvert || Boolean(convertingId) || Boolean(revertingId)}
                           revertDisabled={busyRevert || Boolean(convertingId) || Boolean(revertingId)}
                           deleteDisabled={bulkDeleting || deletingId === rowId}
+                          trashed={trashed}
                           onConvert={() => void handleConvertLead(row)}
                           onRevert={() => void handleRevertLead(row)}
                           onDelete={() => handleDeleteLead(row)}
+                          onRestore={() => void handleRestoreLead(row)}
                         />
                       </td>
                     </tr>
