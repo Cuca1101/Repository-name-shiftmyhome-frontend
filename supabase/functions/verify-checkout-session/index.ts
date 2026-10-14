@@ -3,6 +3,7 @@ import Stripe from 'npm:stripe@14.21.0'
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import { updateQuoteFromCheckoutSession } from '../_shared/updateQuoteFromCheckoutSession.ts'
 import { sendAdminBookingNotificationIfNeeded } from '../_shared/adminAvailableJobNotification.ts'
+import { sendPaymentConfirmationWithPdfIfNeeded } from '../_shared/paymentConfirmationEmail.ts'
 import { guardStripeSecretKey, respondStripeConfigFailure } from '../_shared/stripeSecretGuard.ts'
 
 const corsHeaders = {
@@ -56,7 +57,13 @@ Deno.serve(async (req) => {
 
   let session: Stripe.Checkout.Session
   try {
-    session = await stripe.checkout.sessions.retrieve(session_id)
+    if (session_id.startsWith('pi_')) {
+      const list = await stripe.checkout.sessions.list({ payment_intent: session_id, limit: 1 })
+      if (!list.data[0]) return jsonResponse({ error: 'No Checkout session for this payment' }, 404)
+      session = list.data[0]
+    } else {
+      session = await stripe.checkout.sessions.retrieve(session_id)
+    }
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e)
     return jsonResponse({ error: msg }, 400)
@@ -77,6 +84,27 @@ Deno.serve(async (req) => {
 
   const supabase = createClient(supabaseUrl, serviceRole)
   const result = await updateQuoteFromCheckoutSession(supabase, session, 'paid')
+
+  let confirmation_email: unknown
+  const piId =
+    typeof session.payment_intent === 'string' ? session.payment_intent : session.payment_intent?.id
+  if (result.ok && result.quote_id && piId) {
+    try {
+      const pi = await stripe.paymentIntents.retrieve(piId)
+      confirmation_email = await sendPaymentConfirmationWithPdfIfNeeded({
+        supabase,
+        paymentIntent: pi,
+        updateResult: result,
+        resendApiKey: (Deno.env.get('RESEND_API_KEY') || '').trim(),
+        resendFromEmail: (Deno.env.get('RESEND_FROM_EMAIL') || 'ShiftMyHome <onboarding@resend.dev>').trim(),
+      })
+    } catch (e) {
+      console.error('[verify-checkout-session] confirmation email error', {
+        message: e instanceof Error ? e.message : String(e),
+        quote_id: result.quote_id,
+      })
+    }
+  }
 
   let admin_notify: unknown
   if (result.ok && result.quote_id) {
@@ -108,6 +136,7 @@ Deno.serve(async (req) => {
     amount_gbp: (session.amount_total ?? 0) / 100,
     currency: session.currency || 'gbp',
     payment_status: session.payment_status,
+    confirmation_email,
     admin_notify,
   })
 })
