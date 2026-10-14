@@ -76,6 +76,7 @@ export async function updateQuoteFromCheckoutSession(
           stripe_payment_intent_id: paymentIntentId,
           paid_at: paidAt,
           payment_type: resolvedPaymentType,
+          ...(resolvedPaymentType === 'full' ? { remaining_balance: 0 } : {}),
         }
       : {
           payment_status: 'failed',

@@ -20,7 +20,15 @@ const STARTED_KEYS = new Set([
   'in_progress',
   'on_way_to_delivery',
   'arrived_delivery',
+  'at_delivery',
+  'left_for_collection',
+  'at_collection',
+  'loading_started',
+  'collection_finished',
+  'items_collected',
+  'left_for_delivery',
   'unloading',
+  'unloading_started',
 ])
 
 /** Stripe GBP minimum charge. Smaller increases wait for the team. */

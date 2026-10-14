@@ -142,8 +142,8 @@ export function buildCustomerSentEmailPreview({ quote = {}, eventKey = '', track
 
   if (key === 'status_on_way') {
     return shell({
-      title: 'Your driver is on the way',
-      intro: `Hi ${name}, ${driverName} is on the way to your pickup.`,
+      title: 'Left for collection',
+      intro: `Hi ${name}, ${driverName} has left for collection.`,
       rows: [
         { label: 'Booking reference', value: quoteRef },
         { label: 'Driver', value: driverName },

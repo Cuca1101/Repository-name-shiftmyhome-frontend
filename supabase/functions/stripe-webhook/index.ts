@@ -1,6 +1,7 @@
 import Stripe from 'npm:stripe@14.21.0'
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import { updateQuoteFromPaymentIntent } from '../_shared/updateQuoteFromPaymentIntent.ts'
+import { updateQuoteFromCheckoutSession } from '../_shared/updateQuoteFromCheckoutSession.ts'
 import { sendPaymentConfirmationWithPdfIfNeeded } from '../_shared/paymentConfirmationEmail.ts'
 import { sendExtraChargePaidConfirmationEmail } from '../_shared/extraChargePaidConfirmationEmail.ts'
 import { applyJobTipPaidFromCheckout } from '../_shared/confirmJobTipPaid.ts'
@@ -238,6 +239,39 @@ Deno.serve(async (req) => {
         already_paid: tipResult.alreadyPaid || false,
         error: tipResult.error || null,
       })
+    } else if (session.metadata?.recovery === '1' && session.payment_status === 'paid') {
+      // Quote recovery pay link (create-recovery-checkout).
+      const result = await updateQuoteFromCheckoutSession(supabase, session, 'paid')
+      console.log('[stripe-webhook] recovery checkout completed', {
+        session_id: session.id,
+        quote_ref: session.metadata?.quote_ref || null,
+        ok: result.ok,
+        quote_id: result.quote_id ?? null,
+        error: result.error ?? null,
+      })
+      const piId =
+        typeof session.payment_intent === 'string' ? session.payment_intent : session.payment_intent?.id
+      if (result.ok && piId) {
+        try {
+          const pi = await stripe.paymentIntents.retrieve(piId)
+          // Newer recovery sessions copy metadata onto the PI; payment_intent.succeeded sends the emails.
+          if (!pi.metadata?.quote_ref && !pi.metadata?.quote_id) {
+            await sendPaymentConfirmationWithPdfIfNeeded({
+              supabase,
+              paymentIntent: pi,
+              updateResult: result,
+              resendApiKey,
+              resendFromEmail: resendFrom,
+            })
+            await runAfterPaymentVerifiedHooks({ supabase, paymentIntent: pi, quoteId: result.quote_id ?? null })
+          }
+        } catch (e) {
+          console.error('[stripe-webhook] recovery checkout follow-up error', {
+            message: e instanceof Error ? e.message : String(e),
+            session_id: session.id,
+          })
+        }
+      }
     }
   }
 

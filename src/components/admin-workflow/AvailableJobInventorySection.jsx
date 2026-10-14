@@ -5,6 +5,13 @@ import {
 } from '../../lib/availableJobInventoryDisplay'
 
 const cardShell = 'overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-[0_1px_3px_rgba(15,23,42,0.06)]'
+const NOT_RECORDED = 'Not recorded'
+
+/** @param {unknown} v */
+function volumeText(v) {
+  const s = String(v ?? '').trim()
+  return s && s !== '—' ? s : NOT_RECORDED
+}
 
 /**
  * Inventory block for Available Job Details only — table + summary cards.
@@ -52,12 +59,20 @@ function InventoryIcon() {
   )
 }
 
-/** @param {{ summary: { itemCount: number, qtyTotal: number, volumeLabel: string } }} props */
+/** @param {{ summary: { itemCount: number, qtyTotal: number, volumeLabel: string, missingVolumeRows: number } }} props */
 function SummaryStrip({ summary }) {
+  const missing = summary.missingVolumeRows
   const cards = [
-    { label: 'Total items', value: summary.itemCount },
-    { label: 'Total quantity', value: summary.qtyTotal },
-    { label: 'Total volume', value: summary.volumeLabel },
+    { label: 'Total items', value: summary.itemCount, note: '' },
+    { label: 'Total quantity', value: summary.qtyTotal, note: '' },
+    {
+      label: 'Total volume',
+      value: volumeText(summary.volumeLabel),
+      note:
+        missing > 0 && summary.volumeLabel !== '—'
+          ? `${missing} item${missing === 1 ? '' : 's'} without a saved volume not included`
+          : '',
+    },
   ]
 
   return (
@@ -69,13 +84,14 @@ function SummaryStrip({ summary }) {
         >
           <p className="text-[10px] font-bold uppercase tracking-wide text-slate-500">{c.label}</p>
           <p className="mt-1.5 text-2xl font-bold tabular-nums tracking-tight text-slate-900">{c.value}</p>
+          {c.note ? <p className="mt-1 text-xs text-amber-700">{c.note}</p> : null}
         </div>
       ))}
     </div>
   )
 }
 
-/** @param {{ rows: { name: string, qty: number | string, volume: string, sizeType: string }[] }} props */
+/** @param {{ rows: { name: string, qty: number | string, unitVolume?: string, volume: string, sizeType: string }[] }} props */
 function InventoryTable({ rows }) {
   return (
     <>
@@ -86,14 +102,18 @@ function InventoryTable({ rows }) {
             className="rounded-xl border border-slate-200/90 bg-white p-4 shadow-sm ring-1 ring-slate-900/[0.02]"
           >
             <p className="font-semibold leading-snug text-slate-900">{r.name}</p>
-            <dl className="mt-3 grid grid-cols-3 gap-3 text-xs">
+            <dl className="mt-3 grid grid-cols-2 gap-3 text-xs">
               <div>
                 <dt className="font-semibold text-slate-500">Qty</dt>
                 <dd className="mt-0.5 tabular-nums font-medium text-slate-900">{r.qty}</dd>
               </div>
               <div>
-                <dt className="font-semibold text-slate-500">Volume</dt>
-                <dd className="mt-0.5 font-medium text-slate-900">{r.volume}</dd>
+                <dt className="font-semibold text-slate-500">Per item</dt>
+                <dd className="mt-0.5 tabular-nums font-medium text-slate-900">{volumeText(r.unitVolume)}</dd>
+              </div>
+              <div>
+                <dt className="font-semibold text-slate-500">Line volume</dt>
+                <dd className="mt-0.5 tabular-nums font-medium text-slate-900">{volumeText(r.volume)}</dd>
               </div>
               <div className="min-w-0">
                 <dt className="font-semibold text-slate-500">Size / type</dt>
@@ -106,13 +126,14 @@ function InventoryTable({ rows }) {
         ))}
       </ul>
 
-      <div className="hidden overflow-hidden rounded-xl border border-slate-200/90 bg-white shadow-sm ring-1 ring-slate-900/[0.03] md:block">
-        <table className="w-full min-w-[560px] text-left text-sm">
+      <div className="hidden overflow-x-auto rounded-xl border border-slate-200/90 bg-white shadow-sm ring-1 ring-slate-900/[0.03] md:block">
+        <table className="w-full min-w-[640px] text-left text-sm">
           <thead>
             <tr className="border-b border-slate-200 bg-slate-50/95 text-[11px] font-bold uppercase tracking-wide text-slate-500">
               <th className="px-5 py-3.5">Item</th>
-              <th className="w-20 px-4 py-3.5 text-right">Qty</th>
-              <th className="w-28 px-4 py-3.5 text-right">Volume</th>
+              <th className="w-16 px-4 py-3.5 text-right">Qty</th>
+              <th className="w-28 px-4 py-3.5 text-right">Per item</th>
+              <th className="w-28 px-4 py-3.5 text-right">Line volume</th>
               <th className="px-5 py-3.5">Size / type</th>
             </tr>
           </thead>
@@ -124,7 +145,8 @@ function InventoryTable({ rows }) {
               >
                 <td className="px-5 py-3.5 font-medium leading-snug text-slate-900">{r.name}</td>
                 <td className="px-4 py-3.5 text-right tabular-nums text-slate-800">{r.qty}</td>
-                <td className="px-4 py-3.5 text-right tabular-nums text-slate-800">{r.volume}</td>
+                <td className="px-4 py-3.5 text-right tabular-nums text-slate-800">{volumeText(r.unitVolume)}</td>
+                <td className="px-4 py-3.5 text-right tabular-nums text-slate-800">{volumeText(r.volume)}</td>
                 <td className="px-5 py-3.5 text-slate-600">{r.sizeType}</td>
               </tr>
             ))}

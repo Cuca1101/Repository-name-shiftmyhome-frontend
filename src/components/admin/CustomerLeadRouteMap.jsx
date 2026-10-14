@@ -197,9 +197,6 @@ function LeadTrafficMap({
       onDriveTimeRef.current?.(Number.isFinite(route?.durationSeconds) ? route.durationSeconds : null)
     }
 
-    if (map.isStyleLoaded()) void draw()
-    else map.once('load', () => void draw())
-
     const resize = () => {
       try {
         map.resize()
@@ -207,6 +204,13 @@ function LeadTrafficMap({
         /* ignore */
       }
     }
+    const onLoad = () => {
+      resize()
+      void draw()
+    }
+    if (map.isStyleLoaded()) onLoad()
+    else map.once('load', onLoad)
+    map.on('webglcontextrestored', resize)
     resize()
     const timers = [80, 250, 600].map((ms) => window.setTimeout(resize, ms))
     let observer
@@ -277,7 +281,7 @@ function LeadTrafficMap({
   return (
     <div
       ref={hostRef}
-      className={`${frameClass} bg-slate-200`}
+      className={`smh-lead-map-host ${frameClass} bg-slate-200`}
       role="img"
       aria-label={driverName ? `Live traffic map, tracking ${driverName}` : 'Route map with live traffic'}
     />

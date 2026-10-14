@@ -6,6 +6,7 @@ import MoveSummary from '../quote-wizard/MoveSummary'
 import AdminQuotePriceBreakdown from './AdminQuotePriceBreakdown'
 import AdminAccessDetailsSection from './AdminAccessDetailsSection'
 import AdminPhoneBookingProgress from './AdminPhoneBookingProgress'
+import AdminPhoneQuoteActions from './AdminPhoneQuoteActions'
 import { SERVICE_TYPES } from '../../constants/serviceTypes'
 import { fetchPricingSettings } from '../../lib/data/pricingSettingsRepository'
 import { onPricingSettingsUpdated } from '../../lib/pricingSettingsEvents'
@@ -82,6 +83,7 @@ export default function AdminPhoneBookingForm({
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
   const [fieldErrors, setFieldErrors] = useState(/** @type {Record<string, string>} */ ({}))
+  const [actionsRefreshKey, setActionsRefreshKey] = useState(0)
 
   const applyFormState = useCallback((state) => {
     setWizard(state.wizard)
@@ -120,7 +122,7 @@ export default function AdminPhoneBookingForm({
         if (cancelled) return
         applyFormState(loaded)
         setSavedQuoteId(loaded.id)
-        setSavedNotice(`Editing booking ${loaded.quote_ref}. Change anything below, then click Save changes.`)
+        setSavedNotice(`Editing quote ${loaded.quote_ref}. Change anything below, then click Save draft.`)
         setStep(loaded.step || 3)
       } catch (err) {
         if (!cancelled) setError(err?.message || 'Could not load booking for edit.')
@@ -355,11 +357,16 @@ export default function AdminPhoneBookingForm({
 
   async function handleSubmit(e) {
     e.preventDefault()
+    await saveDraft()
+  }
+
+  /** Saves the phone booking as a draft. Never sends email. */
+  async function saveDraft() {
     if (step !== 3) {
-      setError('Use “Continue to review →” to reach step 3 before creating the booking.')
-      return
+      setError('Use “Continue to review →” to reach step 3 before saving the quote.')
+      return null
     }
-    if (submitting) return
+    if (submitting) return null
     setError('')
 
     const validationErrorList = collectAdminPhoneBookingFieldErrors(wizard)
@@ -372,26 +379,26 @@ export default function AdminPhoneBookingForm({
             : null
         anchor?.scrollIntoView({ behavior: 'smooth', block: 'center' })
       })
-      return
+      return null
     }
 
     if (!breakdown) {
       setError('Pricing is not ready yet. Wait for settings to load or add inventory.')
-      return
+      return null
     }
 
     if (priceResolution.invalid) {
       setFieldErrors({ finalPriceOverride: 'Enter a valid final price (0 or more).' })
       setError('Enter a valid final price override, or use the calculated price.')
       if (step !== 3) goToStep(3, { preserveErrors: true })
-      return
+      return null
     }
 
     if (!useCalculatedPrice && priceResolution.final == null) {
       setFieldErrors({ finalPriceOverride: 'Enter the final price to charge.' })
       setError('Enter the final price to charge.')
       if (step !== 3) goToStep(3, { preserveErrors: true })
-      return
+      return null
     }
 
     setSubmitting(true)
@@ -421,7 +428,7 @@ export default function AdminPhoneBookingForm({
       setQuoteRef(saved.quote_ref)
       setCustomQuoteRef('')
       setSavedNotice(
-        `Booking ${saved.quote_ref} saved. You can keep editing below and click Save changes again.`,
+        `Quote ${saved.quote_ref} saved as a draft. Keep editing, preview it, or send it by email below.`,
       )
       clearAdminPhoneBookingDraft()
       if (isUpdate) {
@@ -431,8 +438,11 @@ export default function AdminPhoneBookingForm({
       }
       setError('')
       setFieldErrors({})
+      setActionsRefreshKey((k) => k + 1)
+      return saved
     } catch (err) {
       setError(err?.message || 'Could not save booking.')
+      return null
     } finally {
       setSubmitting(false)
     }
@@ -577,8 +587,7 @@ export default function AdminPhoneBookingForm({
           }}
         />
         <p className="mt-2 text-xs text-slate-500">
-          Step {step} of 3 — nothing is saved until you click{' '}
-          {savedQuoteId ? 'Save changes' : 'Save phone booking'} at the end of step 3.
+          Step {step} of 3 — nothing is saved until you click Save draft in step 3. Saving never emails the customer.
         </p>
       </div>
 
@@ -800,6 +809,17 @@ export default function AdminPhoneBookingForm({
                   </div>
                 </div>
               </AdminSection>
+
+              <AdminPhoneQuoteActions
+                savedQuoteId={savedQuoteId}
+                saving={submitting}
+                disabled={loadingSettings}
+                calculatedPrice={priceResolution.calculated}
+                finalPrice={priceResolution.final}
+                customerEmail={String(wizard.email || '')}
+                onSaveDraft={saveDraft}
+                refreshKey={actionsRefreshKey}
+              />
             </>
           ) : null}
 
@@ -832,20 +852,7 @@ export default function AdminPhoneBookingForm({
                 >
                   {step === 1 ? 'Continue to inventory →' : 'Continue to review →'}
                 </button>
-              ) : (
-                <button
-                  type="button"
-                  disabled={submitting || loadingSettings}
-                  onClick={(e) => handleSubmit(e)}
-                  className="inline-flex min-h-[48px] items-center rounded-xl bg-brand-600 px-6 py-2.5 text-sm font-bold text-white shadow-md hover:bg-brand-700 disabled:opacity-60"
-                >
-                  {submitting
-                    ? 'Saving…'
-                    : savedQuoteId
-                      ? 'Save changes'
-                      : 'Save phone booking'}
-                </button>
-              )}
+              ) : null}
             </div>
           </div>
         </div>

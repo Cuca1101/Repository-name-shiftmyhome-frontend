@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
-import { buildDispatchTimelineState, formatLoadDuration } from '../../lib/jobDispatchTimeline'
+import { buildDispatchTimelineState, formatLoadDuration, resolveLiveStageLabel } from '../../lib/jobDispatchTimeline'
+import { buildStageClocks } from '../../lib/stageClocks'
 
 /**
  * @param {{
@@ -28,7 +29,12 @@ export default function JobDispatchOpsTimeline({
     statusHistory,
   )
 
-  const current = steps.find((step) => step.state === 'current')
+  const clocks = buildStageClocks(statusHistory)
+  const completed = steps.find((step) => step.id === 'completed')?.state === 'done'
+    || steps.find((step) => step.id === 'completed')?.state === 'current'
+  const liveLabel = resolveLiveStageLabel(workflow?.workflow_status || q?.status, clocks, completed)
+    || steps.find((step) => step.state === 'current')?.label
+    || 'Not started'
   const doneCount = steps.filter((step) => step.state === 'done' || step.state === 'current').length
   const clockRuns = steps.some((step, index) => step.state === 'current' && step.startedAt && !step.endedAt && index < steps.length - 1)
   const [nowMs, setNowMs] = useState(() => Date.now())
@@ -42,13 +48,14 @@ export default function JobDispatchOpsTimeline({
   return (
     <div className="border-t border-slate-200 bg-white p-3 lg:border-l lg:border-t-0">
       <p className="text-[10px] font-bold uppercase tracking-wide text-slate-500">Live stage</p>
-      <p className="mt-1 text-sm font-semibold text-slate-900">{current?.label || 'Not started'}</p>
+      <p className="mt-1 text-sm font-semibold text-slate-900">{liveLabel}</p>
       <p className="mt-0.5 text-[11px] text-slate-500">{doneCount} of {steps.length}</p>
       <ol className="mt-3">
         {steps.map((step, i) => {
           const isLast = i === steps.length - 1
           const done = step.state === 'done'
           const now = step.state === 'current'
+          const unrecorded = step.state === 'unrecorded'
           const cancelled = step.state === 'cancelled'
           const dot = done
             ? 'border-emerald-600 bg-emerald-600 text-white'
@@ -56,7 +63,9 @@ export default function JobDispatchOpsTimeline({
               ? 'border-sky-500 bg-white text-sky-700 ring-4 ring-sky-100'
               : cancelled
                 ? 'border-red-400 bg-red-500 text-white'
-                : 'border-slate-200 bg-white text-slate-400'
+                : unrecorded
+                  ? 'border-slate-200 bg-slate-50 text-slate-400'
+                  : 'border-slate-200 bg-white text-slate-400'
           return (
             <li key={step.id} className="relative flex gap-2.5 pb-3">
               {!isLast ? (
@@ -69,6 +78,7 @@ export default function JobDispatchOpsTimeline({
                 <p className={`text-xs leading-tight ${done || now ? 'font-semibold text-slate-900' : 'text-slate-500'}`}>
                   {step.label}
                   {now ? <span className="ml-1.5 rounded bg-sky-100 px-1.5 py-px text-[9px] font-bold uppercase text-sky-800">Now</span> : null}
+                  {unrecorded ? <span className="ml-1.5 text-[10px] font-medium text-slate-400">Not recorded</span> : null}
                 </p>
                 {step.id === 'arrived_pickup' || step.id === 'arrived_delivery' ? (
                   <div className="mt-0.5 space-y-0.5 text-[10px] tabular-nums text-slate-600">
@@ -82,7 +92,7 @@ export default function JobDispatchOpsTimeline({
                 ) : (
                   step.timestamp ? <p className="mt-0.5 text-[10px] tabular-nums text-slate-500">{step.timestamp}</p> : null
                 )}
-                {step.id !== 'accepted' && step.startedAt && (step.endedAt || (now && !isLast)) ? (
+                {(step.id === 'arrived_pickup' || step.id === 'loading' || step.id === 'arrived_delivery' || step.id === 'unloading') && step.startedAt ? (
                   <p className="mt-0.5 text-[11px] font-semibold tabular-nums text-emerald-800">
                     {formatLoadDuration(step.startedAt, step.endedAt, nowMs)}
                   </p>

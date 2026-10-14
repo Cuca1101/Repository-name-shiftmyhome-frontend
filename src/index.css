@@ -1042,6 +1042,13 @@
   .quote-route-map--pass-scroll .mapboxgl-canvas {
     touch-action: pan-y pinch-zoom;
   }
+
+  .smh-lead-map-host .mapboxgl-canvas-container,
+  .smh-lead-map-host .mapboxgl-canvas {
+    width: 100% !important;
+    height: 100% !important;
+    max-width: none;
+  }
 }
 
 @media (min-width: 768px) {

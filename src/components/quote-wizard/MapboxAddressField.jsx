@@ -108,6 +108,8 @@ export default function MapboxAddressField({
   const rootRef = useRef(null)
   const inputRef = useRef(null)
   const pickingRef = useRef(false)
+  const latestRef = useRef({ address, lng, lat })
+  latestRef.current = { address, lng, lat }
   const sessionRef = useRef(null)
   const requestRef = useRef(0)
   const [open, setOpen] = useState(false)
@@ -195,10 +197,17 @@ export default function MapboxAddressField({
   const geocodeManualAddress = useCallback(async () => {
     const trimmed = (address || '').trim()
     if (!hasGoogleMapsKey() || selectedFromList || trimmed.length < MIN_MANUAL_ADDRESS_LENGTH) return
+    // Clicking a suggestion blurs the input; the picked place must win over the typed-text lookup.
+    const pickedSinceTyping = () =>
+      pickingRef.current ||
+      (latestRef.current.lng != null && latestRef.current.lat != null) ||
+      String(latestRef.current.address || '').trim() !== trimmed
+    if (pickedSinceTyping()) return
 
     try {
       const place = await findUkAddressByText(trimmed)
       if (!place || place.lng == null || place.lat == null || !rootRef.current) return
+      if (pickedSinceTyping()) return
       const patch = {
         ...addressPlacePatch(prefix, place, { keepTypedAddress: true, typedAddress: trimmed }),
         [lngKey]: place.lng,

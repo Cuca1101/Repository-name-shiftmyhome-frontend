@@ -63,9 +63,8 @@ assert.equal(job.fromBooking, true)
 assert.notEqual(job.whenLabel, NOT_RECORDED)
 assert.equal(job.sourceLabel, NOT_RECORDED)
 
-assert.equal(timeline.contacts.length, 1)
-assert.equal(timeline.contacts[0].stage, 'Collection')
-assert.equal(timeline.contacts[0].notes, 'No answer at the door')
+assert.equal(timeline.contacts, undefined)
+assert.ok(timeline.other.every((row) => row.status !== 'customer_not_available'))
 
 const oldOnly = buildMoveTimeline([], [], {})
 assert.ok(oldOnly.milestones.every((step) => step.whenLabel === NOT_RECORDED))

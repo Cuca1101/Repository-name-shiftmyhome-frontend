@@ -27,12 +27,14 @@ function base64ToPdfBlob(contentBase64) {
 /**
  * Saved customer emails and the invoice file that was attached.
  * Preview and download read stored copies. They do not send mail or build a new invoice.
- * @param {{ quote?: Record<string, unknown> }} props
+ * @param {{ quote?: Record<string, unknown>, forceOpen?: boolean, children?: import('react').ReactNode }} props
  */
-export default function CustomerEmailsSection({ quote }) {
+export default function CustomerEmailsSection({ quote, forceOpen = false, children = null }) {
   const quoteId = String(quote?.id || '').trim()
   const quoteEmail = String(quote?.email || '')
   const paymentSentAt = quote?.payment_confirmation_email_sent_at || null
+  const [open, setOpen] = useState(forceOpen)
+  const [previewRow, setPreviewRow] = useState(null)
   const [rows, setRows] = useState([])
   const [invoiceArchive, setInvoiceArchive] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -91,10 +93,23 @@ export default function CustomerEmailsSection({ quote }) {
   }, [load])
 
   useEffect(() => {
+    if (forceOpen) setOpen(true)
+  }, [forceOpen])
+
+  useEffect(() => {
     return () => {
       if (invoiceUrl) URL.revokeObjectURL(invoiceUrl)
     }
   }, [invoiceUrl])
+
+  useEffect(() => {
+    if (!previewRow) return undefined
+    const onKey = (event) => {
+      if (event.key === 'Escape') setPreviewRow(null)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [previewRow])
 
   async function loadStoredInvoice(target) {
     if (!supabase) throw new Error('Supabase is not configured.')
@@ -160,7 +175,36 @@ export default function CustomerEmailsSection({ quote }) {
   }
 
   return (
-    <div className="space-y-4">
+    <section className="rounded-2xl border border-slate-200/90 bg-white shadow-[0_1px_3px_rgba(15,23,42,0.06)]">
+      <button
+        type="button"
+        onClick={() => setOpen((value) => !value)}
+        aria-expanded={open}
+        className="flex w-full items-center justify-between gap-3 px-5 py-4 text-left sm:px-6"
+      >
+        <span className="flex items-center gap-2">
+          <span className="text-base font-semibold tracking-tight text-slate-900 sm:text-lg">Customer emails</span>
+          <span className="rounded-md bg-slate-100 px-2 py-0.5 text-xs font-bold tabular-nums text-slate-700">
+            {loading ? '…' : rows.length}
+          </span>
+        </span>
+        <svg
+          className={`h-5 w-5 shrink-0 text-slate-500 transition-transform ${open ? 'rotate-180' : ''}`}
+          viewBox="0 0 20 20"
+          fill="currentColor"
+          aria-hidden
+        >
+          <path
+            fillRule="evenodd"
+            d="M5.23 7.21a.75.75 0 0 1 1.06.02L10 11.17l3.71-3.94a.75.75 0 1 1 1.08 1.04l-4.25 4.5a.75.75 0 0 1-1.08 0l-4.25-4.5a.75.75 0 0 1 .02-1.06Z"
+            clipRule="evenodd"
+          />
+        </svg>
+      </button>
+
+      {open ? (
+    <div className="space-y-4 border-t border-slate-100 px-5 pb-5 pt-4 sm:px-6 sm:pb-6">
+      {children}
       <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3">
         <p className="text-sm font-semibold text-slate-900">Invoice</p>
         <p className="mt-1 text-xs text-slate-600">
@@ -211,17 +255,20 @@ export default function CustomerEmailsSection({ quote }) {
                     {row.sentAt ? formatDateTimeUK(row.sentAt) : '—'}
                   </p>
                 </div>
-                <span
-                  className={`inline-flex w-fit shrink-0 rounded-md px-2 py-0.5 text-[11px] font-semibold ring-1 ring-inset ${STATUS_TONE[row.status] || STATUS_TONE.sent}`}
-                >
-                  {providerStatusLabel(row.status)}
-                </span>
-              </div>
-              <div className="mt-3 overflow-hidden rounded-lg border border-slate-200">
-                <p className="border-b border-slate-100 bg-slate-50 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                  {row.hasSnapshot ? 'Preview' : 'Preview from booking details'}
-                </p>
-                <RecoveryEmailPreviewFrame html={previewHtmlFor(row)} />
+                <div className="flex shrink-0 items-center gap-2">
+                  <span
+                    className={`inline-flex w-fit rounded-md px-2 py-0.5 text-[11px] font-semibold ring-1 ring-inset ${STATUS_TONE[row.status] || STATUS_TONE.sent}`}
+                  >
+                    {providerStatusLabel(row.status)}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setPreviewRow(row)}
+                    className="rounded-lg border border-slate-300 bg-white px-2.5 py-1 text-xs font-semibold text-slate-800 hover:bg-slate-50"
+                  >
+                    Preview
+                  </button>
+                </div>
               </div>
               {row.hasInvoice ? (
                 <div className="mt-2 flex flex-wrap gap-2">
@@ -278,5 +325,50 @@ export default function CustomerEmailsSection({ quote }) {
         </div>
       ) : null}
     </div>
+      ) : null}
+
+      {previewRow ? (
+        <div
+          className="fixed inset-0 z-50 flex items-end justify-center bg-slate-900/50 sm:items-center sm:p-4"
+          onClick={() => setPreviewRow(null)}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label={`Email preview: ${previewRow.subject}`}
+            className="flex max-h-[92vh] w-full max-w-3xl flex-col overflow-hidden rounded-t-2xl bg-white shadow-xl sm:rounded-2xl"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-3 border-b border-slate-200 px-4 py-3">
+              <div className="min-w-0">
+                <p className="font-semibold text-slate-900">{previewRow.subject}</p>
+                <p className="mt-0.5 text-xs text-slate-600">
+                  {previewRow.recipient || '—'}
+                  {' · '}
+                  {previewRow.sentAt ? formatDateTimeUK(previewRow.sentAt) : '—'}
+                  {' · '}
+                  {providerStatusLabel(previewRow.status)}
+                </p>
+                {!previewRow.hasSnapshot ? (
+                  <p className="mt-1 text-xs text-amber-800">
+                    The sent copy of this email was not saved. This view is rebuilt from the booking details.
+                  </p>
+                ) : null}
+              </div>
+              <button
+                type="button"
+                onClick={() => setPreviewRow(null)}
+                className="shrink-0 rounded-lg border border-slate-200 px-3 py-1.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+              >
+                Close
+              </button>
+            </div>
+            <div className="min-h-0 flex-1 overflow-auto">
+              <RecoveryEmailPreviewFrame html={previewHtmlFor(previewRow)} />
+            </div>
+          </div>
+        </div>
+      ) : null}
+    </section>
   )
 }

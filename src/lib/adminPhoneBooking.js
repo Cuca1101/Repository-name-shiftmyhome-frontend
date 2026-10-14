@@ -28,6 +28,7 @@ import {
 import { SERVICE_TYPES } from '../constants/serviceTypes'
 import { initialWizardState } from './quoteWizardDefaults'
 import { hydrateWizardFromDraft } from './quoteDraftStorage'
+import { phoneQuoteFinalTotal } from './phoneQuotePaymentRules'
 
 const QUOTES_TABLE = 'quotes'
 
@@ -268,8 +269,7 @@ export function buildAdminPhoneBookingQuoteRow({
 
   const staffLines = [
     createdBy ? `Created by admin (${createdBy})` : 'Created by admin (phone booking)',
-    'Phone booking — payment to be arranged manually',
-    'Payment status: unpaid (no Stripe checkout)',
+    'Phone booking — customer pays from the emailed quote link, or payment is arranged manually',
     'Awaiting release from New phone booking to Available Jobs',
   ]
   if (!useCalculatedPrice && overrideReason.trim()) {
@@ -463,6 +463,20 @@ export async function updateAdminPhoneBookingFromWizard(form) {
     ...form,
     quoteRef: String(existing.quote_ref || form.quoteRef || ''),
   })
+
+  const paidStatus = String(existing.payment_status || '').trim().toLowerCase()
+  const customerPaid = paidStatus === 'paid' || paidStatus === 'deposit_paid'
+  const previousFinal = phoneQuoteFinalTotal(existing)
+  const nextFinal = phoneQuoteFinalTotal(row)
+  if (customerPaid && previousFinal != null && nextFinal != null && Math.abs(previousFinal - nextFinal) > 0.009) {
+    throw new Error(
+      `The customer has already paid (${paidStatus === 'paid' ? 'paid in full' : 'deposit paid'}). The price cannot be changed here.`,
+    )
+  }
+  const amountPaid = Math.max(0, Number(existing.amount_paid) || 0)
+  if (nextFinal != null) {
+    row.remaining_balance = Math.max(0, Math.round((nextFinal - amountPaid) * 100) / 100)
+  }
 
   const patch = {
     ...row,

@@ -65,3 +65,6 @@ verify_jwt = true
 
 [functions.send-auth-email]
 verify_jwt = false
+
+[functions.phone-quote]
+verify_jwt = false

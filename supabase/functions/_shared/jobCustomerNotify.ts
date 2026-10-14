@@ -16,12 +16,12 @@ export type JobNotifyEventKey =
 export const JOB_NOTIFY_EVENT_LABELS: Record<JobNotifyEventKey, string> = {
   driver_assigned: 'Driver assigned',
   driver_reassigned: 'Driver reassigned',
-  status_on_way: 'Driver on the way to pickup',
-  status_arrived_pickup: 'Driver arrived at pickup',
-  status_pickup_completed: 'Pickup completed',
-  status_in_transit: 'On the way to delivery',
-  status_arrived_delivery: 'Driver arrived at delivery',
-  status_completed: 'Job completed',
+  status_on_way: 'Left for collection',
+  status_arrived_pickup: 'At collection',
+  status_pickup_completed: 'Items collected',
+  status_in_transit: 'Left for delivery',
+  status_arrived_delivery: 'At delivery',
+  status_completed: 'Completed',
   tip_received: 'Tip payment received',
 }
 
@@ -36,28 +36,31 @@ export function customerStatusLabel(raw: string | null | undefined): string {
     accepted: 'Driver assigned',
     booked: 'Driver assigned',
     active: 'Driver assigned',
-    on_way: 'On the way',
-    started: 'On the way',
-    start: 'On the way',
-    arrived: 'Arrived at pickup',
-    arrived_pickup: 'Arrived at pickup',
+    on_way: 'Left for collection',
+    started: 'Left for collection',
+    start: 'Left for collection',
+    arrived: 'At collection',
+    arrived_pickup: 'At collection',
     loading: 'Loading',
-    loaded: 'Loading',
-    pickup_completed: 'Pickup completed',
-    in_transit: 'On the way to delivery',
-    in_progress: 'In progress',
-    arrived_delivery: 'Arrived at delivery',
+    loading_started: 'Loading',
+    loaded: 'Collection finished',
+    pickup_completed: 'Collection finished',
+    in_transit: 'Left for delivery',
+    in_progress: 'Left for collection',
+    arrived_delivery: 'At delivery',
     unloading: 'Unloading',
+    unloading_started: 'Unloading',
     completed: 'Completed',
     cancelled: 'Cancelled',
   }
   if (map[s]) return map[s]
-  // operational_status style "On way"
   const spaced = String(raw || '').trim().toLowerCase()
-  if (spaced === 'on way') return 'On the way'
-  if (spaced === 'arrived') return 'Arrived at pickup'
-  if (spaced === 'in transit') return 'On the way to delivery'
-  if (spaced === 'in progress') return 'In progress'
+  if (spaced === 'on way' || spaced === 'left for collection') return 'Left for collection'
+  if (spaced === 'arrived' || spaced === 'at collection') return 'At collection'
+  if (spaced === 'in transit' || spaced === 'left for delivery') return 'Left for delivery'
+  if (spaced === 'in progress') return 'Left for collection'
+  if (spaced === 'collection finished' || spaced === 'items collected') return 'Items collected'
+  if (spaced === 'at delivery') return 'At delivery'
   if (spaced === 'completed') return 'Completed'
   if (spaced === 'assigned') return 'Driver assigned'
   return String(raw || 'Driver assigned')

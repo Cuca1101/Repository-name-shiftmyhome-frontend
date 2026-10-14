@@ -9,7 +9,10 @@ import {
   parseInventoryTableRows,
 } from './quoteJobAdminModel'
 
-/** @typedef {{ name: string, qty: number | string, volume: string, sizeType: string }} InventoryDisplayRow */
+/**
+ * `volume` is the line volume (quantity already included); `unitVolume` is one piece.
+ * @typedef {{ name: string, qty: number | string, volume: string, unitVolume?: string, sizeType: string }} InventoryDisplayRow
+ */
 
 /**
  * @param {unknown} v
@@ -136,12 +139,56 @@ function parseLooseInventoryChunk(chunk) {
  * @returns {InventoryDisplayRow}
  */
 function normalizeInventoryDisplayRow(row) {
+  const qty = displayQty(row.qty)
+  const volume = displayVolume(row.volume)
+  let unitVolume = displayVolume(row.unitVolume)
+  if (unitVolume === '—') {
+    const line = m3FromLabel(volume)
+    if (line != null) unitVolume = `${Math.round((line / qty) * 1000) / 1000} m³`
+  }
   return {
     name: String(row.name || 'Item').trim() || 'Item',
-    qty: displayQty(row.qty),
-    volume: displayVolume(row.volume),
+    qty,
+    unitVolume,
+    volume,
     sizeType: displaySizeType(row.sizeType),
   }
+}
+
+/** @param {unknown} label */
+function m3FromLabel(label) {
+  const m = String(label || '').match(/([\d,.]+)\s*m³/i)
+  if (!m) return null
+  const v = parseFloat(m[1].replace(/,/g, ''))
+  return Number.isFinite(v) ? v : null
+}
+
+/** @param {unknown} name */
+function inventoryNameKey(name) {
+  return String(name || '')
+    .toLowerCase()
+    .replace(/\[[^\]]*\]/g, ' ')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim()
+}
+
+/**
+ * Structured rows without a volume take the line volume from the saved inventory text
+ * when the same item sits at the same position.
+ * @param {InventoryDisplayRow[]} rows
+ * @param {Record<string, unknown>} q
+ */
+function fillMissingVolumesFromSnapshot(rows, q) {
+  if (!rows.some((r) => !r.volume || r.volume === '—')) return rows
+  const snapshot = parseInventoryTableRows(q.inventory_text, q.details)
+  if (!snapshot.length) return rows
+  return rows.map((row, i) => {
+    if (row.volume && row.volume !== '—') return row
+    const snap = snapshot[i]
+    if (!snap || inventoryNameKey(snap.name) !== inventoryNameKey(row.name)) return row
+    if (Number(snap.qty) !== Number(row.qty)) return row
+    return { ...row, volume: snap.volume, unitVolume: '—' }
+  })
 }
 
 /**
@@ -176,7 +223,7 @@ export function buildAvailableJobInventoryDisplayRows(q) {
     rows = splitRichInventoryText(String(q.inventory_text))
   }
 
-  return rows.map(normalizeInventoryDisplayRow)
+  return fillMissingVolumesFromSnapshot(rows, q).map(normalizeInventoryDisplayRow)
 }
 
 /**
@@ -186,25 +233,25 @@ export function summarizeAvailableJobInventory(rows) {
   let qtyTotal = 0
   let volSum = 0
   let volParsed = false
+  let missingVolumeRows = 0
 
   for (const r of rows) {
     const qn = Number(r.qty)
     qtyTotal += Number.isFinite(qn) && qn > 0 ? qn : 1
 
-    const vm = String(r.volume || '')
-    const m = vm.match(/([\d,.]+)\s*m³/i)
-    if (m) {
-      const v = parseFloat(m[1].replace(/,/g, ''))
-      if (Number.isFinite(v)) {
-        volSum += v
-        volParsed = true
-      }
+    const v = m3FromLabel(r.volume)
+    if (v != null) {
+      volSum += v
+      volParsed = true
+    } else {
+      missingVolumeRows += 1
     }
   }
 
   return {
     itemCount: rows.length,
     qtyTotal,
-    volumeLabel: volParsed ? `${Math.round(volSum * 100) / 100} m³` : '—',
+    volumeLabel: volParsed ? `${(Math.round(volSum * 100) / 100).toFixed(2)} m³` : '—',
+    missingVolumeRows,
   }
 }

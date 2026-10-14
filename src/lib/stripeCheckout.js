@@ -90,6 +90,26 @@ export async function verifyPaymentIntent(paymentIntentId) {
   return data
 }
 
+/** Stripe Checkout return (`/payment-success?session_id=`), e.g. quote recovery pay links. */
+export async function verifyCheckoutSession(sessionId) {
+  if (!isSupabaseConfigured || !supabase) {
+    throw new Error('Supabase is not configured.')
+  }
+  if (!sessionId) return { ok: false, skipped: true }
+
+  const verifyOpts = { body: { session_id: sessionId } }
+  const verifyHeaders = functionsInvokeHeaders()
+  if (verifyHeaders) verifyOpts.headers = verifyHeaders
+
+  const { data, error } = await supabase.functions.invoke('verify-checkout-session', verifyOpts)
+
+  if (error) {
+    throw new Error(await detailFromFunctionsInvokeError(error, 'Could not verify payment.'))
+  }
+
+  return data
+}
+
 /**
  * Notify admin inbox (Resend) after payment verified — idempotent on server.
  * @param {{ paymentIntentId?: string, quoteId?: string }} params

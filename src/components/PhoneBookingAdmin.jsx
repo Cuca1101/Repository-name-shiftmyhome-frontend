@@ -12,8 +12,8 @@ export default function PhoneBookingAdmin() {
   function handleBookingSaved(saved, { updated = false } = {}) {
     setCreatedBanner(
       updated
-        ? `Booking ${saved.quote_ref} updated. It remains under My jobs created until you send it to Available Jobs.`
-        : `Booking ${saved.quote_ref} saved under My jobs created (Waiting to send).`,
+        ? `Quote ${saved.quote_ref} updated. No email was sent.`
+        : `Quote ${saved.quote_ref} saved as a draft under My jobs created. No email was sent.`,
     )
     setPendingRefreshKey((k) => k + 1)
   }
@@ -24,9 +24,9 @@ export default function PhoneBookingAdmin() {
         <div>
           <h2 className="text-2xl font-bold text-slate-900">New phone booking</h2>
           <p className="mt-1 max-w-2xl text-sm text-slate-600">
-            Create a booking with the quote wizard. It appears under{' '}
-            <strong className="font-semibold text-slate-800">My jobs created</strong> first — not in
-            Available Jobs until you send it there.
+            Create a quote with the wizard, adjust the price, then email the customer a link to pay. It
+            appears under <strong className="font-semibold text-slate-800">My jobs created</strong>. When
+            the customer pays, it moves to Available Jobs automatically.
           </p>
         </div>
         <Link

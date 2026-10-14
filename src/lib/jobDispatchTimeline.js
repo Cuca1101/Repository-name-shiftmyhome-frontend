@@ -2,6 +2,7 @@ import { formatDateTimeUK } from './formatDateDisplay'
 import { mergedAdminWorkflowForQuote } from './quoteAdminWorkflowMerge'
 import { quoteIsCancelled, quoteIsCompleted } from './adminWorkflowFilters'
 import { quoteJobIsStarted } from './adminJobAcceptedStatus'
+import { buildStageClocks, resolveLiveStageLabel } from './stageClocks'
 
 /** @typedef {{ id: string, label: string, match: RegExp }} DispatchTimelineStepDef */
 
@@ -13,7 +14,7 @@ export const DISPATCH_TIMELINE_STEPS = /** @type {DispatchTimelineStepDef[]} */ 
     label: 'At collection',
     match: /\b(arrived_pickup|at collection|at pickup)\b/i,
   },
-  { id: 'loading', label: 'Loading', match: /\b(loading_started|loading|loaded|pickup_completed)\b/i },
+  { id: 'loading', label: 'Loading', match: /\b(loading_started|^loading$)\b/i },
   {
     id: 'in_transit',
     label: 'Left for delivery',
@@ -22,8 +23,9 @@ export const DISPATCH_TIMELINE_STEPS = /** @type {DispatchTimelineStepDef[]} */ 
   {
     id: 'arrived_delivery',
     label: 'At delivery',
-    match: /\b(arrived_delivery|at delivery|arrived delivery|unloading)\b/i,
+    match: /\b(arrived_delivery|at delivery|arrived delivery)\b/i,
   },
+  { id: 'unloading', label: 'Unloading', match: /\b(unloading_started)\b/i },
   { id: 'completed', label: 'Completed', match: /\b(completed|complete|delivered)\b/i },
 ])
 
@@ -39,17 +41,18 @@ const WORKFLOW_STEP_BY_STATUS = {
   'in progress': 1,
   arrived_pickup: 2,
   arrived: 2,
-  pickup_completed: 3,
-  loaded: 3,
   loading: 3,
   loading_started: 3,
+  pickup_completed: 4,
+  loaded: 4,
   in_transit: 4,
   'in transit': 4,
   arrived_delivery: 5,
   'arrived delivery': 5,
-  completed: 6,
-  complete: 6,
-  delivered: 6,
+  unloading_started: 6,
+  completed: 7,
+  complete: 7,
+  delivered: 7,
 }
 
 /**
@@ -83,7 +86,9 @@ export function historyStatusToTimelineStepId(rawStatus, ctx = {}) {
   if (n === 'arrived_pickup') return 'arrived_pickup'
   if (n === 'arrived_delivery') return 'arrived_delivery'
   if (n === 'arrived') return ctx.deliveryPhase ? 'arrived_delivery' : 'arrived_pickup'
-  if (n === 'loading_started' || n === 'loading' || n === 'pickup_completed' || n === 'loaded') return 'loading'
+  if (n === 'loading_started' || n === 'loading') return 'loading'
+  if (n === 'pickup_completed' || n === 'loaded') return null
+  if (n === 'unloading_started') return 'unloading'
   if (n === 'in_transit') return 'in_transit'
   if (n === 'completed' || n === 'complete' || n === 'delivered') return 'completed'
 
@@ -109,12 +114,12 @@ export function buildStepTimestampsFromHistory(historyRows, opts = {}) {
   if (acceptedAt) timestamps.accepted = acceptedAt
 
   const sorted = [...(historyRows || [])].sort(
-    (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
+    (a, b) => new Date(a.occurred_at || a.created_at || 0).getTime() - new Date(b.occurred_at || b.created_at || 0).getTime(),
   )
 
   let deliveryPhase = false
   for (const row of sorted) {
-    const at = String(row.created_at || '').trim()
+    const at = String(row.occurred_at || row.created_at || '').trim()
     if (!at) continue
     const stepId = historyStatusToTimelineStepId(row.status, { deliveryPhase })
     if (stepId === 'in_transit' || stepId === 'arrived_delivery' || stepId === 'completed') {
@@ -130,28 +135,24 @@ export function buildStepTimestampsFromHistory(historyRows, opts = {}) {
 }
 
 /**
- * Loading clock: from collection start until pickup is finished.
- * Falls back to arrival at collection when the driver did not stamp a separate start.
+ * Loading clock. Starts only when loading_started was recorded.
+ * Ends when collection is completed. Arrival time is never copied in.
  *
  * @param {Array<{ status?: string, created_at?: string, occurred_at?: string }>} historyRows
  * @returns {{ startedAt: string, finishedAt: string }}
  */
 export function resolveLoadingWindow(historyRows) {
-  let startedAt = ''
-  let arrivedAt = ''
-  let finishedAt = ''
-  const sorted = [...(historyRows || [])].sort(
-    (a, b) => new Date(a.occurred_at || a.created_at || 0).getTime() - new Date(b.occurred_at || b.created_at || 0).getTime(),
-  )
-  for (const row of sorted) {
-    const n = normalizeWorkflowStatus(row.status)
-    const at = String(row.occurred_at || row.created_at || '').trim()
-    if (!at || HISTORY_SKIP_STATUSES.has(n)) continue
-    if (!startedAt && (n === 'loading_started' || n === 'loading')) startedAt = at
-    if (!arrivedAt && (n === 'arrived_pickup' || (n === 'arrived' && !finishedAt))) arrivedAt = at
-    if (!finishedAt && (n === 'pickup_completed' || n === 'loaded')) finishedAt = at
-  }
-  return { startedAt: startedAt || (finishedAt ? arrivedAt : ''), finishedAt }
+  const clocks = buildStageClocks(historyRows)
+  return { startedAt: clocks.loading.startedAt, finishedAt: clocks.loading.endedAt }
+}
+
+/**
+ * @param {Array<{ status?: string, created_at?: string, occurred_at?: string }>} historyRows
+ * @returns {{ startedAt: string, finishedAt: string }}
+ */
+export function resolveUnloadingWindow(historyRows) {
+  const clocks = buildStageClocks(historyRows)
+  return { startedAt: clocks.unloading.startedAt, finishedAt: clocks.unloading.endedAt }
 }
 
 /**
@@ -261,35 +262,57 @@ export function buildDispatchTimelineState(
   const acceptedAt = q.assigned_at ? String(q.assigned_at) : ''
   const completedAt = String(q.completed_at || overrides.workflowCompletedAt || '').trim()
   const stepTimestamps = buildStepTimestampsFromHistory(statusHistory, { acceptedAt, completedAt })
+  const clocks = buildStageClocks(statusHistory)
+  const statusNorm = normalizeWorkflowStatus(op)
+  const collectionFinished = statusNorm === 'pickup_completed' || statusNorm === 'loaded'
 
   const steps = DISPATCH_TIMELINE_STEPS.map((step, index) => {
+    const clock =
+      step.id === 'arrived_pickup' ? clocks.atCollection
+      : step.id === 'loading' ? clocks.loading
+      : step.id === 'arrived_delivery' ? clocks.atDelivery
+      : step.id === 'unloading' ? clocks.unloading
+      : null
+
     let state = 'upcoming'
     if (cancelled) state = 'cancelled'
-    else if (completed && index <= currentIndex) state = 'done'
+    else if (step.id === 'loading' || step.id === 'unloading') {
+      if (!clock?.startedAt) state = 'unrecorded'
+      else if (clock.endedAt || completed) state = 'done'
+      else state = 'current'
+    } else if (step.id === 'arrived_pickup' && clocks.atCollection.startedAt && !clocks.atCollection.endedAt && !completed) {
+      state = 'current'
+    } else if (step.id === 'arrived_delivery' && clocks.atDelivery.startedAt && !clocks.atDelivery.endedAt && !completed) {
+      state = 'current'
+    } else if (step.id === 'in_transit' && collectionFinished && !stepTimestamps.in_transit && !completed) {
+      state = 'upcoming'
+    } else if (completed && index <= currentIndex) state = 'done'
     else if (index < currentIndex) state = 'done'
     else if (index === currentIndex) state = 'current'
 
-    const rawTs = step.id === 'accepted' ? '' : stepTimestamps[step.id] || ''
-    const timestamp =
-      rawTs && (state === 'done' || state === 'current') ? formatDateTimeUK(rawTs) : ''
+    const rawTs = clock
+      ? clock.startedAt
+      : step.id === 'accepted'
+        ? ''
+        : stepTimestamps[step.id] || ''
+    const showTime = state === 'done' || state === 'current'
+    const endedAt = clock && showTime ? clock.endedAt : ''
 
     return {
       ...step,
       state,
-      timestamp,
-      startedAt: rawTs && (state === 'done' || state === 'current') ? rawTs : '',
-      endedAt: '',
+      timestamp: rawTs && showTime ? formatDateTimeUK(rawTs) : '',
+      startedAt: rawTs && showTime ? rawTs : '',
+      endedAt,
+      loadingStartedAt: step.id === 'loading' ? clocks.loading.startedAt : '',
+      loadingFinishedAt: step.id === 'loading' ? clocks.loading.endedAt : '',
     }
-  })
-
-  steps.forEach((step, index) => {
-    if (!step.startedAt) return
-    const next = steps.slice(index + 1).find((item) => item.startedAt)
-    step.endedAt = next?.startedAt || ''
   })
 
   return steps
 }
+
+export { resolveLiveStageLabel }
 
 /**
  * @param {Record<string, unknown>} q

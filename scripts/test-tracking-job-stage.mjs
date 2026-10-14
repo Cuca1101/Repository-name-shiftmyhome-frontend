@@ -25,14 +25,16 @@ function assert(cond, msg) {
   const s = resolveTrackingJobStage('In transit', 'in_transit')
   assert(s.stage === 'en_route_delivery', 'delivery')
   assert(s.etaKind === 'delivery', 'eta delivery')
-  assert(/collected/i.test(String(s.stageMessage || '')), 'collected message')
+  assert(s.badge === 'Left for delivery', 'left for delivery badge')
+  assert(/left for delivery/i.test(String(s.stageMessage || '')), 'left for delivery message')
 }
 
 {
   const s = resolveTrackingJobStage('Loaded', 'pickup_completed')
   assert(s.stage === 'collected', 'collected stage')
   assert(s.etaKind === 'delivery', 'route switches to delivery')
-  assert(/Job collected/i.test(String(s.stageMessage || '')), 'job collected copy')
+  assert(s.badge === 'Items collected', 'items collected badge')
+  assert(/items collected/i.test(String(s.stageMessage || '')), 'items collected copy')
 }
 
 {

@@ -120,9 +120,9 @@ function DlItem({ label, value }) {
   )
 }
 
-function CustomerEmailsBlock({ q, adminEmailPreview, onOpenPreview, onClosePreview }) {
+function CustomerEmailsBlock({ q, adminEmailPreview, onOpenPreview, onClosePreview, forceOpen = false }) {
   return (
-    <>
+    <CustomerEmailsSection quote={q} forceOpen={forceOpen || Boolean(adminEmailPreview)}>
       {adminEmailPreview ? (
         <div className="mb-4 border-b border-slate-100 pb-4">
           <p className="text-sm font-semibold text-slate-900">Email preview</p>
@@ -146,18 +146,17 @@ function CustomerEmailsBlock({ q, adminEmailPreview, onOpenPreview, onClosePrevi
           </button>
         </div>
       ) : (
-        <div className="mb-4 flex justify-end border-b border-slate-100 pb-3">
+        <div className="flex justify-end">
           <button
             type="button"
             onClick={onOpenPreview}
             className="rounded-md border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-800 hover:bg-slate-50"
           >
-            Preview email
+            Preview admin email
           </button>
         </div>
       )}
-      <CustomerEmailsSection quote={q} />
-    </>
+    </CustomerEmailsSection>
   )
 }
 
@@ -692,20 +691,18 @@ export default function AvailableJobDetails() {
             </AdminCard>
           ) : null}
           {fullPageDispatch && q?.id ? (
-            <AdminCard title="Customer emails">
-              <CustomerEmailsBlock
-                q={q}
-                adminEmailPreview={adminEmailPreview}
-                onOpenPreview={() => setAdminEmailPreview(buildAdminBookingEmailPreview(q).html)}
-                onClosePreview={() => {
-                  setAdminEmailPreview('')
-                  if (searchParams.get('emailPreview') !== '1') return
-                  const next = new URLSearchParams(searchParams)
-                  next.delete('emailPreview')
-                  setSearchParams(next, { replace: true })
-                }}
-              />
-            </AdminCard>
+            <CustomerEmailsBlock
+              q={q}
+              adminEmailPreview={adminEmailPreview}
+              onOpenPreview={() => setAdminEmailPreview(buildAdminBookingEmailPreview(q).html)}
+              onClosePreview={() => {
+                setAdminEmailPreview('')
+                if (searchParams.get('emailPreview') !== '1') return
+                const next = new URLSearchParams(searchParams)
+                next.delete('emailPreview')
+                setSearchParams(next, { replace: true })
+              }}
+            />
           ) : null}
           {fullPageDispatch ? (
             <JobDispatchDetailExtras
@@ -846,20 +843,19 @@ export default function AvailableJobDetails() {
       ) : null}
 
       {!fullPageDispatch && tab === 'emails' && q?.id ? (
-        <AdminCard title="Customer emails">
-          <CustomerEmailsBlock
-            q={q}
-            adminEmailPreview={adminEmailPreview}
-            onOpenPreview={() => setAdminEmailPreview(buildAdminBookingEmailPreview(q).html)}
-            onClosePreview={() => {
-              setAdminEmailPreview('')
-              if (searchParams.get('emailPreview') !== '1') return
-              const next = new URLSearchParams(searchParams)
-              next.delete('emailPreview')
-              setSearchParams(next, { replace: true })
-            }}
-          />
-        </AdminCard>
+        <CustomerEmailsBlock
+          q={q}
+          forceOpen
+          adminEmailPreview={adminEmailPreview}
+          onOpenPreview={() => setAdminEmailPreview(buildAdminBookingEmailPreview(q).html)}
+          onClosePreview={() => {
+            setAdminEmailPreview('')
+            if (searchParams.get('emailPreview') !== '1') return
+            const next = new URLSearchParams(searchParams)
+            next.delete('emailPreview')
+            setSearchParams(next, { replace: true })
+          }}
+        />
       ) : null}
 
       {!fullPageDispatch && tab === 'notes' ? (

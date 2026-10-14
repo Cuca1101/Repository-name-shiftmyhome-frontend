@@ -1,7 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { Check, Copy } from 'lucide-react'
-import { verifyPaymentIntent, scheduleAdminAvailableJobNotification } from '../lib/stripeCheckout'
+import {
+  verifyCheckoutSession,
+  verifyPaymentIntent,
+  scheduleAdminAvailableJobNotification,
+} from '../lib/stripeCheckout'
 import { clearQuoteDraft } from '../lib/quoteDraftStorage'
 import { consumePhotoUploadNotice } from '../lib/quotePhotoUpload'
 import { trackWebsiteLeadEvent } from '../lib/websiteLeadTracker'
@@ -21,6 +25,8 @@ function scrollToEl(el, block = 'center') {
 export default function PaymentSuccessPage() {
   const [params] = useSearchParams()
   const paymentIntentId = params.get('payment_intent')
+  const checkoutSessionId = params.get('session_id')
+  const transactionId = paymentIntentId || checkoutSessionId
   const [quoteRef, setQuoteRef] = useState(null)
   const [packageSummary, setPackageSummary] = useState('')
   const [photoUploadNotice, setPhotoUploadNotice] = useState(() => consumePhotoUploadNotice())
@@ -30,15 +36,19 @@ export default function PaymentSuccessPage() {
   const hasScrolledToBookingRef = useRef(false)
 
   useEffect(() => {
-    if (!paymentIntentId) return
+    if (!transactionId) return
     let cancelled = false
     ;(async () => {
       try {
-        const data = await verifyPaymentIntent(paymentIntentId)
-        scheduleAdminAvailableJobNotification({
-          paymentIntentId,
-          quoteId: data?.quote_id != null ? String(data.quote_id) : undefined,
-        })
+        const data = paymentIntentId
+          ? await verifyPaymentIntent(paymentIntentId)
+          : await verifyCheckoutSession(checkoutSessionId)
+        if (paymentIntentId) {
+          scheduleAdminAvailableJobNotification({
+            paymentIntentId,
+            quoteId: data?.quote_id != null ? String(data.quote_id) : undefined,
+          })
+        }
         if (!cancelled && data?.quote_ref && typeof data.quote_ref === 'string') {
           const ref = data.quote_ref.trim()
           setQuoteRef(ref)
@@ -67,7 +77,7 @@ export default function PaymentSuccessPage() {
               ? data.currency.trim().toUpperCase()
               : 'GBP'
           trackMarketingPurchase({
-            transactionId: paymentIntentId,
+            transactionId,
             quoteRef: ref,
             value: hasAmount ? amountGbp : undefined,
             currency,
@@ -88,7 +98,7 @@ export default function PaymentSuccessPage() {
     return () => {
       cancelled = true
     }
-  }, [paymentIntentId])
+  }, [paymentIntentId, checkoutSessionId, transactionId])
 
   useEffect(() => {
     const el = successContentRef.current
@@ -162,7 +172,7 @@ export default function PaymentSuccessPage() {
           ) : null}
 
           <div className="mt-4 space-y-3 text-sm leading-relaxed text-slate-600 sm:mt-6 sm:space-y-4 sm:text-[15px]">
-            {paymentIntentId ? (
+            {transactionId ? (
               <>
                 <p>Thank you — your payment has been received.</p>
                 {packageSummary ? <p className="font-semibold text-slate-800">{packageSummary}</p> : null}

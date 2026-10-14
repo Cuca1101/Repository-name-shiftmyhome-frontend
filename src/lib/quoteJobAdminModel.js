@@ -345,6 +345,18 @@ function formatInventoryVolumeCell(v) {
   return s
 }
 
+/** @param {unknown} v */
+function positiveM3(v) {
+  if (v == null || v === '') return null
+  const n = Number(String(v).replace(/[^\d.]/g, ''))
+  return Number.isFinite(n) && n > 0 ? n : null
+}
+
+/** @param {number} n */
+function roundM3(n) {
+  return Math.round(n * 1000) / 1000
+}
+
 /**
  * Pipe table row: "Item name | 4 | 4 m³ | large"
  * @param {string} line
@@ -447,16 +459,17 @@ function quoteRowInventoryToRows(q) {
       }
       out.push({ name: String(row.summary), qty: 1, volume: '—', sizeType: '—' })
     } else if (row && typeof row === 'object') {
-      const rawVol =
-        row.line_volume_m3 != null
-          ? row.line_volume_m3
-          : row.volume_m3 != null
-            ? row.volume_m3
-            : null
+      const qty = Math.max(1, num(row.quantity))
+      // Wizard rows store m3 per unit; line_volume_m3 / volume_m3 already include quantity.
+      const unit = positiveM3(row.unit_volume_m3 ?? row.m3)
+      const line = positiveM3(row.line_volume_m3 ?? row.volume_m3)
+      const lineM3 = line ?? (unit != null ? roundM3(unit * qty) : null)
+      const unitM3 = unit ?? (line != null ? roundM3(line / qty) : null)
       out.push({
         name: String(row.item_name ?? row.name ?? 'Item'),
-        qty: Math.max(1, num(row.quantity)),
-        volume: formatInventoryVolumeCell(rawVol),
+        qty,
+        volume: formatInventoryVolumeCell(lineM3),
+        unitVolume: formatInventoryVolumeCell(unitM3),
         sizeType: String(row.weight_type ?? row.size_category ?? row.size_type ?? '—'),
       })
     }

@@ -32,6 +32,7 @@ export async function onRequest(context) {
     path === '/quote' ||
     path.startsWith('/quote/resume/') ||
     path.startsWith('/quote/pay/') ||
+    path.startsWith('/quote/view/') ||
     path.startsWith('/track/') ||
     path === '/payment-success' ||
     path === '/payment-cancelled' ||

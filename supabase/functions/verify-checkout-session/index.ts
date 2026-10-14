@@ -70,6 +70,11 @@ Deno.serve(async (req) => {
     })
   }
 
+  const metaPaymentType = String(session.metadata?.payment_type || '')
+  if (metaPaymentType && metaPaymentType !== 'full' && metaPaymentType !== 'deposit') {
+    return jsonResponse({ ok: false, error: 'Not a booking payment session' }, 400)
+  }
+
   const supabase = createClient(supabaseUrl, serviceRole)
   const result = await updateQuoteFromCheckoutSession(supabase, session, 'paid')
 
@@ -98,6 +103,10 @@ Deno.serve(async (req) => {
     ok: result.ok,
     updated: result.ok,
     error: result.error,
+    quote_id: result.quote_id ?? null,
+    quote_ref: session.metadata?.quote_ref || null,
+    amount_gbp: (session.amount_total ?? 0) / 100,
+    currency: session.currency || 'gbp',
     payment_status: session.payment_status,
     admin_notify,
   })

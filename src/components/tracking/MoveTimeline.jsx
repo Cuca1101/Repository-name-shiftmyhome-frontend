@@ -204,7 +204,7 @@ export default function MoveTimeline({
                 {stageStamp(step)}
               </p>
             </div>
-            {step.recorded && step.startedAt && (step.endedAt || index < timeline.milestones.length - 1) ? (
+            {step.clock && step.recorded && step.startedAt ? (
               <p className="mt-0.5 text-xs font-semibold tabular-nums text-emerald-800">
                 {formatLoadDuration(step.startedAt, step.endedAt, nowMs)}
               </p>
@@ -254,28 +254,6 @@ export default function MoveTimeline({
         })}
       </ol> : null}
 
-      {ready && !loadError && timeline.contacts.length ? (
-        <div className="mt-4">
-          <h3 className="text-sm font-bold text-slate-900">Customer contact</h3>
-          <ul className="mt-2 space-y-2">
-            {timeline.contacts.map((item) => (
-              <li key={item.id} className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-3 text-sm">
-                <p className="font-bold text-slate-900">{item.label}</p>
-                <p className="mt-1 text-slate-700">{item.whenLabel} · {item.stage}</p>
-                {item.notes ? <p className="mt-1 text-slate-800">{item.notes}</p> : <p className="mt-1 text-slate-500">No explanation recorded.</p>}
-                {admin ? (
-                  <p className="mt-1 text-slate-600">
-                    {item.driverName} · {item.sourceLabel}
-                    {item.latitude != null ? ` · ${item.latitude.toFixed(5)}, ${item.longitude.toFixed(5)}` : ' · Position not recorded'}
-                    {item.accuracyM != null ? ` · ${Math.round(item.accuracyM)} m` : ' · Accuracy not recorded'}
-                  </p>
-                ) : null}
-              </li>
-            ))}
-          </ul>
-        </div>
-      ) : null}
-
       {ready && !loadError && admin && timeline.other.length ? (
         <div className="mt-4">
           <h3 className="text-sm font-bold text-slate-900">Other recorded events</h3>
@@ -313,6 +291,7 @@ export default function MoveTimeline({
 function stageStamp(step) {
   if (!step.recorded) return 'Waiting'
   if (step.key === 'arrived_collection' || step.key === 'arrived_delivery') return `Arrived ${step.whenLabel}`
+  if (step.key === 'loading_started' || step.key === 'unloading_started') return `Started ${step.whenLabel}`
   if (step.key === 'departed_collection' || step.key === 'departed_delivery') return `Left ${step.whenLabel}`
   return step.whenLabel
 }

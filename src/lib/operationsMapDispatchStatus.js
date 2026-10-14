@@ -1,6 +1,10 @@
 import { mergedAdminWorkflowForQuote } from './quoteAdminWorkflowMerge'
 
-/** @typedef {'idle'|'assigned'|'on_route'|'arrived_pickup'|'loading'|'in_transit'|'arrived_delivery'|'completed'|'offline'} DispatchDriverStatus */
+/** @typedef {'idle'|'assigned'|'on_route'|'arrived_pickup'|'loading'|'collected'|'in_transit'|'arrived_delivery'|'unloading'|'completed'|'offline'} DispatchDriverStatus */
+
+function stageKey(value) {
+  return String(value ?? '').trim().toLowerCase().replace(/[\s-]+/g, '_')
+}
 
 /**
  * @param {unknown} liveStatus
@@ -9,24 +13,28 @@ import { mergedAdminWorkflowForQuote } from './quoteAdminWorkflowMerge'
  * @param {boolean} hasLiveGps
  */
 export function resolveDispatchDriverStatus(liveStatus, operationalStatus, assignedCount, hasLiveGps) {
-  const live = String(liveStatus ?? '').trim().toLowerCase()
-  const op = String(operationalStatus ?? '').trim().toLowerCase()
+  const live = stageKey(liveStatus)
+  const op = stageKey(operationalStatus)
+  const has = (list) => list.includes(live) || list.includes(op)
 
-  if (/offline|away|suspended|off_duty|off duty/.test(live)) return 'offline'
-  if (/^available$/.test(live)) return hasLiveGps ? 'idle' : 'offline'
-  if (/^in_progress$|active_job/.test(live)) return hasLiveGps ? 'on_route' : 'assigned'
-  if (/^arrived$/.test(live)) return 'arrived_pickup'
-  if (/cancelled|canceled/.test(live)) return 'completed'
-  if (/completed|done|finished/.test(live) || op === 'completed') return 'completed'
-  if (/arrived.*delivery|at delivery|delivered/.test(live) || op === 'arrived_delivery') return 'arrived_delivery'
-  if (/in[\s_-]?transit|en[\s-]?route to delivery|to delivery/.test(live) || op === 'in_transit') return 'in_transit'
-  if (/loading|load(ing)?\b/.test(live) || op === 'loading') return 'loading'
-  if (/arrived.*pickup|at pickup|on site pickup/.test(live) || op === 'arrived_pickup') return 'arrived_pickup'
-  if (/on[\s_-]?route|heading|driving|transit|collect|pickup/.test(live) || /route|way|pickup/.test(op)) {
+  if (has(['offline', 'away', 'suspended', 'off_duty'])) return 'offline'
+  if (live === 'available') return hasLiveGps ? 'idle' : 'offline'
+  if (has(['completed', 'done', 'finished'])) return 'completed'
+  if (has(['cancelled', 'canceled'])) return 'completed'
+  if (has(['unloading', 'unloading_started'])) return 'unloading'
+  if (has(['arrived_delivery', 'at_delivery'])) return 'arrived_delivery'
+  if (has(['loading', 'loading_started'])) return 'loading'
+  if (has(['pickup_completed', 'loaded', 'collection_finished', 'items_collected'])) return 'collected'
+  if (has(['in_transit', 'left_for_delivery'])) return 'in_transit'
+  if (has(['arrived_pickup', 'at_collection', 'arrived'])) return 'arrived_pickup'
+  if (has(['on_way', 'on_route', 'left_for_collection', 'started', 'start', 'on_the_way'])) {
+    return hasLiveGps ? 'on_route' : 'assigned'
+  }
+  if (live === 'in_progress' || live === 'active_job' || live === 'active_job_location') {
     return hasLiveGps ? 'on_route' : 'assigned'
   }
   if (assignedCount > 0) return 'assigned'
-  if (hasLiveGps && /idle|available|standby/.test(live)) return 'idle'
+  if (hasLiveGps && ['idle', 'available', 'standby'].includes(live)) return 'idle'
   return hasLiveGps ? 'idle' : 'offline'
 }
 
@@ -35,11 +43,13 @@ export function dispatchStatusLabel(status) {
   const labels = {
     idle: 'Idle',
     assigned: 'Assigned',
-    on_route: 'On route',
-    arrived_pickup: 'At pickup',
+    on_route: 'Left for collection',
+    arrived_pickup: 'At collection',
     loading: 'Loading',
-    in_transit: 'In transit',
+    collected: 'Items collected',
+    in_transit: 'Left for delivery',
     arrived_delivery: 'At delivery',
+    unloading: 'Unloading',
     completed: 'Completed',
     offline: 'Offline',
   }
@@ -51,7 +61,7 @@ export function dispatchStatusTone(status) {
   if (status === 'offline') return 'slate'
   if (status === 'idle') return 'amber'
   if (status === 'completed') return 'emerald'
-  if (status === 'loading' || status === 'arrived_pickup' || status === 'arrived_delivery') return 'violet'
+  if (status === 'loading' || status === 'unloading' || status === 'collected' || status === 'arrived_pickup' || status === 'arrived_delivery') return 'violet'
   if (status === 'on_route' || status === 'in_transit') return 'sky'
   return 'blue'
 }

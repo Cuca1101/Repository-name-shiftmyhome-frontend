@@ -1,3 +1,5 @@
+import { buildStageClocks } from './stageClocks'
+
 export const NOT_RECORDED = 'Not recorded'
 const UK_TIME_ZONE = 'Europe/London'
 
@@ -11,19 +13,21 @@ export const MOVE_MILESTONES = [
   },
   {
     key: 'arrived_collection',
-    label: 'Arrived at collection',
+    label: 'At collection',
     statuses: ['arrived_pickup'],
     photoStage: null,
+    clock: 'atCollection',
   },
   {
     key: 'loading_started',
-    label: 'Collection started',
-    statuses: ['loading_started'],
+    label: 'Loading',
+    statuses: ['loading_started', 'loading'],
     photoStage: null,
+    clock: 'loading',
   },
   {
     key: 'loading_finished',
-    label: 'Collection finished',
+    label: 'Items collected',
     statuses: ['pickup_completed', 'loaded'],
     photoStage: 'collection',
   },
@@ -35,19 +39,21 @@ export const MOVE_MILESTONES = [
   },
   {
     key: 'arrived_delivery',
-    label: 'Arrived at delivery',
+    label: 'At delivery',
     statuses: ['arrived_delivery'],
     photoStage: null,
+    clock: 'atDelivery',
   },
   {
-    key: 'unloading_finished',
-    label: 'Delivery finished',
-    statuses: ['unloading_completed'],
+    key: 'unloading_started',
+    label: 'Unloading',
+    statuses: ['unloading_started'],
     photoStage: 'delivery',
+    clock: 'unloading',
   },
   {
     key: 'job_finished',
-    label: 'Job finished',
+    label: 'Completed',
     statuses: ['completed'],
     photoStage: 'proof',
   },
@@ -194,40 +200,17 @@ export function buildMoveTimeline(events, photos = [], opts = {}) {
     }
   })
 
-  milestones.forEach((step, index) => {
-    if (!step.recorded || !step.startedAt) return
-    const next = milestones.slice(index + 1).find((item) => item.recorded && item.startedAt)
-    step.endedAt = next?.startedAt || ''
+  const clocks = buildStageClocks(primary)
+  milestones.forEach((step) => {
+    if (!step.clock || !clocks[step.clock]) return
+    const clock = clocks[step.clock]
+    if (clock.startedAt) {
+      step.recorded = true
+      step.startedAt = clock.startedAt
+      step.whenLabel = formatMoveDateTime(clock.startedAt)
+    }
+    step.endedAt = clock.startedAt ? clock.endedAt : ''
   })
-
-  const contacts = primary
-    .filter((row) => CONTACT_STATUSES.has(normStatus(row.status)))
-    .map((row) => {
-      const times = eventTime(row)
-      const stop = normStatus(row.stop_type)
-      return {
-        id: row.id,
-        label: normStatus(row.status) === 'unable_to_contact'
-          ? 'Unable to contact customer'
-          : 'Customer not available',
-        stage: stop === 'pickup' || stop === 'collection'
-          ? 'Collection'
-          : stop === 'dropoff' || stop === 'delivery'
-            ? 'Delivery'
-            : NOT_RECORDED,
-        whenLabel: times.displayAt ? formatMoveDateTime(times.displayAt) : NOT_RECORDED,
-        occurredLabel: times.occurredAt ? formatMoveDateTime(times.occurredAt) : NOT_RECORDED,
-        receivedLabel: times.receivedAt ? formatMoveDateTime(times.receivedAt) : NOT_RECORDED,
-        showReceived: Boolean(times.occurredAt && times.receivedAt && times.occurredAt !== times.receivedAt),
-        driverName: String(row.driver_name || '').trim() || NOT_RECORDED,
-        sourceLabel: sourceLabel(row),
-        latitude: Number.isFinite(Number(row.latitude)) ? Number(row.latitude) : null,
-        longitude: Number.isFinite(Number(row.longitude)) ? Number(row.longitude) : null,
-        accuracyM: Number.isFinite(Number(row.accuracy_m)) ? Number(row.accuracy_m) : null,
-        notes: String(row.notes || '').trim(),
-        corrections: corrections.filter((item) => String(item.corrects_event_id) === String(row.id)),
-      }
-    })
 
   const other = primary.filter((row) => {
     if (used.has(row.id) || CONTACT_STATUSES.has(normStatus(row.status))) return false
@@ -237,5 +220,5 @@ export function buildMoveTimeline(events, photos = [], opts = {}) {
 
   const unmatchedPhotos = (photos || []).filter((photo) => !photoMoveStage(photo))
 
-  return { milestones, contacts, other, unmatchedPhotos }
+  return { milestones, other, unmatchedPhotos }
 }

@@ -32,6 +32,7 @@ const ADMIN_BLOCK = `# Admin SPA - must stay on index.html
 const CUSTOMER_SPA_BLOCK = `# Customer SPA routes (resume / pay / track / payment result)
 /quote/resume/:token  /index.html  200
 /quote/pay/:token     /index.html  200
+/quote/view/:token    /index.html  200
 /track/:token         /index.html  200
 /track/:token/feedback /index.html  200
 /track/:token/tip     /index.html  200

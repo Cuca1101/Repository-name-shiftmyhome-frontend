@@ -4,6 +4,7 @@ import { createClient } from 'npm:@supabase/supabase-js@2'
 import { guardStripeSecretKey, respondStripeConfigFailure } from '../_shared/stripeSecretGuard.ts'
 import { STRIPE_LOCALE } from '../_shared/stripeMode.ts'
 import { recoveryUrls } from '../_shared/quoteRecoveryEmail.ts'
+import { updateQuoteFromCheckoutSession } from '../_shared/updateQuoteFromCheckoutSession.ts'
 
 /**
  * Create Stripe Checkout for abandoned / payment-failed quote recovery (Pay Now / Retry).
@@ -231,7 +232,22 @@ Deno.serve(async (req) => {
     linkedQuotePaid = ps === 'paid' || ps === 'fully_paid' || ps === 'succeeded'
   }
 
+  // A previous session may have been paid without the webhook recording it — never overwrite it.
+  const priorSessionId = String(lead.stripe_checkout_session_id || '').trim()
+  if (!linkedQuotePaid && priorSessionId) {
+    try {
+      const prior = await stripe.checkout.sessions.retrieve(priorSessionId)
+      if (prior.payment_status === 'paid') {
+        await updateQuoteFromCheckoutSession(supabase, prior, 'paid')
+        linkedQuotePaid = true
+      }
+    } catch (err) {
+      console.warn('[create-recovery-checkout] prior session lookup failed', priorSessionId, err)
+    }
+  }
+
   if (linkedQuotePaid) {
+    await expireCheckoutSession(stripe, priorSessionId)
     return jsonResponse({ error: 'Booking already paid' }, 400)
   }
 
@@ -280,6 +296,19 @@ Deno.serve(async (req) => {
   const hasOverride =
     Number.isFinite(agreed) && Number.isFinite(calculated) && Math.abs(agreed - calculated) > 0.009
 
+  const paymentMetadata = stripeMetadata({
+    quote_ref: quoteRef,
+    quote_id: lead.quote_id ? String(lead.quote_id) : '',
+    customer_lead_id: String(lead.id),
+    payment_type: 'full',
+    recovery: '1',
+    customer_name: name,
+    customer_email: email,
+    agreed_price: Number.isFinite(agreed) ? String(agreed) : '',
+    calculated_total: Number.isFinite(calculated) ? String(calculated) : '',
+    admin_price_override: hasOverride ? '1' : '0',
+  })
+
   let session: Stripe.Checkout.Session
   try {
     session = await stripe.checkout.sessions.create({
@@ -307,17 +336,8 @@ Deno.serve(async (req) => {
       cancel_url: `${siteUrl}/payment-cancelled?resume=${encodeURIComponent(resumeToken)}${
         quoteRef ? `&quote_ref=${encodeURIComponent(quoteRef)}` : ''
       }`,
-      metadata: stripeMetadata({
-        quote_ref: quoteRef,
-        quote_id: lead.quote_id ? String(lead.quote_id) : '',
-        customer_lead_id: String(lead.id),
-        payment_type: 'full',
-        recovery: '1',
-        customer_name: name,
-        agreed_price: Number.isFinite(agreed) ? String(agreed) : '',
-        calculated_total: Number.isFinite(calculated) ? String(calculated) : '',
-        admin_price_override: hasOverride ? '1' : '0',
-      }),
+      metadata: paymentMetadata,
+      payment_intent_data: { metadata: paymentMetadata },
     })
   } catch (stripeErr) {
     const message = stripeErr instanceof Error ? stripeErr.message : String(stripeErr)

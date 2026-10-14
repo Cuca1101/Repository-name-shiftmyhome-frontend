@@ -86,10 +86,23 @@ export function resolveTrackingJobStage(operationalStatus, statusRaw) {
       waitingMessage: null,
     }
   }
+  if (has(['unloading_started'])) {
+    return {
+      stage: 'arrived_delivery',
+      badge: 'Unloading',
+      etaKind: null,
+      placeLabel: 'delivery',
+      showLiveEta: false,
+      journeyActive: true,
+      arrivedMessage: 'Your driver is unloading',
+      stageMessage: null,
+      waitingMessage: null,
+    }
+  }
   if (has(['arrived_delivery', 'unloading'])) {
     return {
       stage: 'arrived_delivery',
-      badge: 'Arrived at delivery',
+      badge: 'At delivery',
       etaKind: null,
       placeLabel: 'delivery',
       showLiveEta: false,
@@ -100,36 +113,49 @@ export function resolveTrackingJobStage(operationalStatus, statusRaw) {
     }
   }
   // Loaded / pickup done → items collected; next step is delivery.
+  if (has(['in_transit', 'on_way_to_delivery'])) {
+    return {
+      stage: 'en_route_delivery',
+      badge: 'Left for delivery',
+      etaKind: 'delivery',
+      placeLabel: 'delivery',
+      showLiveEta: true,
+      journeyActive: true,
+      arrivedMessage: null,
+      stageMessage: 'Left for delivery',
+      waitingMessage: null,
+    }
+  }
   if (has(['pickup_completed', 'loaded'])) {
     return {
       stage: 'collected',
-      badge: 'On the way to delivery',
+      badge: 'Items collected',
       etaKind: 'delivery',
       placeLabel: 'delivery',
       showLiveEta: true,
       journeyActive: true,
       arrivedMessage: null,
-      stageMessage: 'Job collected — next your driver will deliver',
+      stageMessage: 'Items collected',
       waitingMessage: null,
     }
   }
-  if (has(['in_transit', 'in_progress', 'on_way_to_delivery'])) {
-    return {
-      stage: 'en_route_delivery',
-      badge: 'On the way to delivery',
-      etaKind: 'delivery',
-      placeLabel: 'delivery',
-      showLiveEta: true,
-      journeyActive: true,
-      arrivedMessage: null,
-      stageMessage: 'Job collected — on the way to delivery',
-      waitingMessage: null,
-    }
-  }
-  if (has(['arrived', 'arrived_pickup', 'loading'])) {
+  if (has(['loading_started', 'loading'])) {
     return {
       stage: 'arrived_collection',
-      badge: 'Arrived at collection',
+      badge: 'Loading',
+      etaKind: null,
+      placeLabel: 'collection',
+      showLiveEta: false,
+      journeyActive: true,
+      arrivedMessage: 'Your driver is loading',
+      stageMessage: null,
+      waitingMessage: null,
+    }
+  }
+  if (has(['arrived', 'arrived_pickup'])) {
+    return {
+      stage: 'arrived_collection',
+      badge: 'At collection',
       etaKind: null,
       placeLabel: 'collection',
       showLiveEta: false,
@@ -143,7 +169,7 @@ export function resolveTrackingJobStage(operationalStatus, statusRaw) {
   if (has(['on_way', 'started', 'start', 'on_the_way', 'on_way_to_collection'])) {
     return {
       stage: 'en_route_collection',
-      badge: 'On the way to collection',
+      badge: 'Left for collection',
       etaKind: 'collection',
       placeLabel: 'collection',
       showLiveEta: true,

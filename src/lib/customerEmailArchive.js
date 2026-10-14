@@ -19,12 +19,12 @@ const EVENT_LABELS = {
   payment_confirmation: 'Payment confirmation',
   driver_assigned: 'Driver assigned',
   driver_reassigned: 'Driver reassigned',
-  status_on_way: 'Driver on the way',
-  status_arrived_pickup: 'Arrived at pickup',
-  status_pickup_completed: 'Pickup completed',
-  status_in_transit: 'On the way to delivery',
-  status_arrived_delivery: 'Arrived at delivery',
-  status_completed: 'Job completed',
+  status_on_way: 'Left for collection',
+  status_arrived_pickup: 'At collection',
+  status_pickup_completed: 'Items collected',
+  status_in_transit: 'Left for delivery',
+  status_arrived_delivery: 'At delivery',
+  status_completed: 'Completed',
   tip_received: 'Tip received confirmation',
 }
 

@@ -33,6 +33,38 @@ function asString(value: unknown): string {
 }
 
 /**
+ * Phone quote paid from /quote/view/:token: balance = agreed total − paid, and the booking
+ * leaves the New phone booking inbox for Available Jobs (same as "Send to Available Jobs").
+ * Safe to run twice (webhook + verify) — writes the same values.
+ */
+async function syncPhoneQuoteAfterPayment(
+  supabase: SupabaseClient,
+  quoteId: string,
+  pi: Stripe.PaymentIntent,
+  amountPaid: number,
+) {
+  const metaTotal = Number(asString(pi.metadata?.quote_total_gbp))
+  let total = Number.isFinite(metaTotal) && metaTotal > 0 ? metaTotal : NaN
+  if (!Number.isFinite(total)) {
+    const { data } = await supabase.from('quotes').select('agreed_price, estimated_total').eq('id', quoteId).maybeSingle()
+    const agreed = Number(data?.agreed_price)
+    const est = Number(data?.estimated_total)
+    total = Number.isFinite(agreed) && agreed > 0 ? agreed : est
+  }
+  if (Number.isFinite(total)) {
+    const balance = Math.max(0, Math.round((total - amountPaid) * 100) / 100)
+    const { error } = await supabase.from('quotes').update({ remaining_balance: balance }).eq('id', quoteId)
+    if (error) console.error('[updateQuoteFromPaymentIntent] phone quote balance', error.message)
+  }
+  const { error: relErr } = await supabase
+    .from('quotes')
+    .update({ operational_status: null, marketplace_visibility: 'hidden_from_partners' })
+    .eq('id', quoteId)
+    .eq('operational_status', 'phone_booking_pending')
+  if (relErr) console.error('[updateQuoteFromPaymentIntent] phone quote release', relErr.message)
+}
+
+/**
  * Updates quotes/jobs after Stripe Payment Element flow (PaymentIntent events).
  */
 export async function updateQuoteFromPaymentIntent(
@@ -142,6 +174,14 @@ export async function updateQuoteFromPaymentIntent(
 
   if (!updatedQuoteId && !updatedBookingId) {
     return { ok: false, error: 'could not find booking/quote for PaymentIntent metadata' }
+  }
+
+  if (
+    eventKind === 'paid' &&
+    updatedQuoteId &&
+    (asString(pi.metadata?.phone_quote) === '1' || asString(pi.metadata?.recovery) === '1')
+  ) {
+    await syncPhoneQuoteAfterPayment(supabase, updatedQuoteId, pi, amountPaid)
   }
 
   await insertActivity(supabase, {

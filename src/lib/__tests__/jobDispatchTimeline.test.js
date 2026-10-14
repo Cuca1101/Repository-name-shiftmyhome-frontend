@@ -39,7 +39,7 @@ describe('buildDispatchTimelineState', () => {
     expect(steps.find((s) => s.id === 'on_way')?.state).toBe('done')
   })
 
-  it('highlights Loading after pickup Complete', () => {
+  it('keeps Loading unrecorded when pickup is completed without a loading stamp', () => {
     const steps = buildDispatchTimelineState(
       baseQuote,
       {},
@@ -47,7 +47,9 @@ describe('buildDispatchTimelineState', () => {
       { status: 'in_progress' },
       { workflow_status: 'pickup_completed', workflow_at: '2026-05-28T12:00:00Z' },
     )
-    expect(steps.find((s) => s.id === 'loading')?.state).toBe('current')
+    expect(steps.find((s) => s.id === 'loading')?.state).toBe('unrecorded')
+    expect(steps.find((s) => s.id === 'arrived_pickup')?.state).toBe('done')
+    expect(steps.find((s) => s.id === 'in_transit')?.state).toBe('upcoming')
   })
 
   it('highlights In transit after dropoff Start', () => {
@@ -87,7 +89,9 @@ describe('buildDispatchTimelineState', () => {
       { workflow_status: 'completed', workflow_at: '2026-05-28T15:00:00Z' },
     )
     expect(steps.find((s) => s.id === 'completed')?.state).toBe('current')
-    expect(steps.every((s) => s.id === 'completed' || s.state === 'done')).toBe(true)
+    expect(steps.find((s) => s.id === 'loading')?.state).toBe('unrecorded')
+    expect(steps.find((s) => s.id === 'unloading')?.state).toBe('unrecorded')
+    expect(steps.filter((s) => s.state !== 'unrecorded').every((s) => s.id === 'completed' || s.state === 'done')).toBe(true)
   })
 
   it('stamps each completed step from job_status_history', () => {
@@ -105,7 +109,7 @@ describe('buildDispatchTimelineState', () => {
     expect(stamps.accepted).toBe('2026-05-28T10:00:00Z')
     expect(stamps.on_way).toBe('2026-05-28T11:00:00Z')
     expect(stamps.arrived_pickup).toBe('2026-05-28T11:15:00Z')
-    expect(stamps.loading).toBe('2026-05-28T12:00:00Z')
+    expect(stamps.loading).toBeUndefined()
     expect(stamps.in_transit).toBe('2026-05-28T13:00:00Z')
     expect(stamps.arrived_delivery).toBe('2026-05-28T14:00:00Z')
     expect(stamps.completed).toBe('2026-05-28T15:00:00Z')
@@ -119,8 +123,11 @@ describe('buildDispatchTimelineState', () => {
       history,
     )
     expect(steps.find((s) => s.id === 'on_way')?.timestamp).toBeTruthy()
-    expect(steps.find((s) => s.id === 'loading')?.timestamp).toBeTruthy()
+    expect(steps.find((s) => s.id === 'loading')?.state).toBe('unrecorded')
+    expect(steps.find((s) => s.id === 'loading')?.timestamp).toBe('')
     expect(steps.find((s) => s.id === 'arrived_delivery')?.timestamp).toBeTruthy()
+    const arrived = steps.find((s) => s.id === 'arrived_pickup')
+    expect(arrived?.endedAt).toBe('2026-05-28T12:00:00Z')
   })
 
   it('keeps how long loading took on the Loading step', () => {

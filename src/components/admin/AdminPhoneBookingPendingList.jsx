@@ -7,10 +7,12 @@ import {
   fetchSentAdminPhoneBookings,
   releaseAdminPhoneBookingToAvailableJobs,
 } from '../../lib/data/quotesAdminRepository'
-import { formatDateTimeUK } from '../../lib/formatDateDisplay'
+import { formatDateTimeUK, formatDateUK } from '../../lib/formatDateDisplay'
+import { phoneQuoteFinalTotal } from '../../lib/phoneQuotePaymentRules'
+import PhoneQuoteStatusBadge from './PhoneQuoteStatusBadge'
 
 const TABS = [
-  { id: 'waiting', label: 'Waiting to send' },
+  { id: 'waiting', label: 'Drafts & quotes sent' },
   { id: 'sent', label: 'In Available Jobs' },
 ]
 
@@ -33,27 +35,39 @@ function money(n) {
 function PhoneBookingJobRow({ q, mode, busy, onRelease, onDelete }) {
   const id = String(q.id)
   const ref = String(q.quote_ref || '—')
-  const total =
-    q.remaining_balance != null && q.remaining_balance !== ''
-      ? q.remaining_balance
-      : q.estimated_total
+  const total = phoneQuoteFinalTotal(q)
+  const balance =
+    q.remaining_balance != null && q.remaining_balance !== '' ? q.remaining_balance : total
 
   return (
     <li className="flex flex-col gap-3 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
       <div className="min-w-0 flex-1">
-        <p className="font-mono text-sm font-bold text-slate-900">{ref}</p>
+        <div className="flex flex-wrap items-center gap-2">
+          <p className="font-mono text-sm font-bold text-slate-900">{ref}</p>
+          <PhoneQuoteStatusBadge q={q} />
+        </div>
         <p className="mt-0.5 text-sm font-semibold text-slate-800">{String(q.full_name || '—')}</p>
         <p className="mt-1 text-xs text-slate-600">
           {String(q.pickup_address || '—')}
           {q.delivery_address ? ` → ${String(q.delivery_address)}` : ''}
         </p>
         <p className="mt-1 text-xs text-slate-500">
-          {q.move_date ? String(q.move_date) : '—'} · {money(total)} · {formatDateTimeUK(q.created_at)}
+          Move {q.move_date ? formatDateUK(q.move_date) : '—'} · Created {formatDateTimeUK(q.created_at)}
+          {q.quote_sent_at ? ` · Quote sent ${formatDateTimeUK(q.quote_sent_at)}` : ''}
+        </p>
+        <p className="mt-1 text-xs text-slate-700">
+          Total <strong className="tabular-nums">{money(total)}</strong>
+          {Number(q.amount_paid) > 0 ? (
+            <>
+              {' '}· Paid <strong className="tabular-nums">{money(q.amount_paid)}</strong>
+            </>
+          ) : null}
+          {' '}· Balance <strong className="tabular-nums">{money(balance)}</strong>
         </p>
         {mode === 'sent' ? (
-          <p className="mt-1 text-xs font-medium text-emerald-700">Sent to Available Jobs</p>
+          <p className="mt-1 text-xs font-medium text-emerald-700">In Available Jobs</p>
         ) : (
-          <p className="mt-1 text-xs font-medium text-amber-800">Waiting — not in Available Jobs yet</p>
+          <p className="mt-1 text-xs font-medium text-amber-800">Not in Available Jobs yet</p>
         )}
       </div>
       <div className="flex flex-wrap gap-2 sm:shrink-0">
@@ -201,8 +215,9 @@ export default function AdminPhoneBookingPendingList({ refreshKey = 0, onRelease
       <div className="border-b border-slate-100 px-4 py-4 sm:px-6">
         <h3 className="text-lg font-bold text-slate-900">My jobs created</h3>
         <p className="mt-1 text-sm text-slate-600">
-          Every phone booking you create appears here first. Send to{' '}
-          <strong className="font-semibold text-slate-800">Available Jobs</strong> when you are ready.
+          Drafts and quotes waiting for payment stay here. A paid quote moves to{' '}
+          <strong className="font-semibold text-slate-800">Available Jobs</strong> automatically; you can also send
+          one there manually.
         </p>
         <div className="mt-4 flex flex-wrap gap-2">
           {TABS.map((t) => {
@@ -260,7 +275,7 @@ export default function AdminPhoneBookingPendingList({ refreshKey = 0, onRelease
                 ? 'No matching jobs in this tab.'
                 : tab === 'waiting'
                   ? 'No jobs waiting — create one with the form below.'
-                  : 'No jobs sent yet — use "Send to Available Jobs" on the Waiting tab.'}
+                  : 'Nothing in Available Jobs yet — paid quotes move here automatically.'}
             </p>
             {tab === 'waiting' ? (
               <p>

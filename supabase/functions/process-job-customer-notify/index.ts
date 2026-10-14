@@ -238,9 +238,9 @@ async function sendEventEmail(
       { label: 'Vehicle', value: vehicleBits },
     )
   } else if (eventKey === 'status_on_way') {
-    title = 'Your driver is on the way'
-    intro = `Hi ${name}, ${driverName} is on the way to your pickup.`
-    subject = `[ShiftMyHome] Driver on the way — ${quoteRef}`
+    title = 'Left for collection'
+    intro = `Hi ${name}, ${driverName} has left for collection.`
+    subject = `[ShiftMyHome] Left for collection — ${quoteRef}`
     primary = { label: 'Track My Driver', url: track }
     rows.push(
       { label: 'Driver', value: driverName },
