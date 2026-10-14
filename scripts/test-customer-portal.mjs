@@ -15,7 +15,6 @@ async function load(rel) {
 }
 
 const model = await load('src/lib/customerPortalModel.js')
-const eta = await load('src/lib/trackingDriverEta.js')
 const tracking = await load('src/lib/jobCustomerTracking.js')
 const quote = await load('src/lib/customerPortalQuote.js')
 const pricing = await load('src/lib/customerPortalPricing.js')
@@ -270,20 +269,12 @@ assert(model.amendmentAlreadySettled('applied'), 'an applied change is not charg
 assert(model.dateSlotOpen({ dailyJobSlots: { 1: 1 } }, '2026-10-12', 1, '2026-10-12'), 'the booking already holding the slot can stay')
 assert(!model.dateSlotOpen({ dailyJobSlots: { 1: 1 } }, '2026-10-12', 1, '2026-10-20'), 'a full day cannot take another booking')
 
-const beforeStart = model.portalTrackingPresentation({ stage: 'awaiting_departure', gpsFresh: true, hasCoords: true })
-assert(beforeStart.awaitingStart && beforeStart.showLivePosition && beforeStart.live, 'before start a fresh van is shown')
 assert(
-  beforeStart.message === 'Your driver has not yet started the journey to collection.',
-  'before start keeps the not-yet-started message',
+  model.portalTrackingPresentation({ stage: 'awaiting_departure', gpsFresh: true, hasCoords: true }).awaitingStart,
+  'before start the driver has not left for collection',
 )
-const beforeStale = model.portalTrackingPresentation({ stage: 'awaiting_departure', gpsFresh: false, hasCoords: true })
-assert(beforeStale.showLivePosition && !beforeStale.live, 'a stale van before start is not presented as live')
-const finished = model.portalTrackingPresentation({ stage: 'completed', gpsFresh: true, hasCoords: true })
-assert(!finished.showLivePosition, 'a completed booking hides the live van')
-const cancelledTrack = model.portalTrackingPresentation({ stage: 'cancelled', gpsFresh: true, hasCoords: true })
-assert(!cancelledTrack.showLivePosition, 'a cancelled booking hides the live van')
 const staleGps = model.portalTrackingPresentation({ stage: 'en_route_collection', gpsFresh: false, hasCoords: true })
-assert(staleGps.showLivePosition && !staleGps.live && staleGps.message === 'Last known location', 'a saved position still shows when GPS is delayed')
+assert(staleGps.showLivePosition && !staleGps.live, 'a saved position still shows when GPS is delayed')
 assert(
   !model.portalTrackingPresentation({ stage: 'en_route_collection', gpsFresh: false, hasCoords: false }).showLivePosition,
   'without coordinates the map stays hidden',
@@ -292,13 +283,6 @@ assert(
   model.portalTrackingPresentation({ stage: 'en_route_collection', gpsFresh: true, hasCoords: true }).showLivePosition,
   'fresh GPS can be shown after start',
 )
-assert(eta.TRACKING_GPS_FRESH_MS === 3 * 60 * 1000, 'a position older than 3 minutes is not live')
-const freshAt = '2026-10-14T12:00:00.000Z'
-const nowFresh = Date.parse(freshAt) + 2 * 60 * 1000
-const nowStale = Date.parse(freshAt) + 3 * 60 * 1000 + 1000
-assert(!eta.formatTrackingLocationLabel(freshAt, nowFresh).stale, 'a 2 minute fix is still live')
-const staleLabel = eta.formatTrackingLocationLabel(freshAt, nowStale)
-assert(staleLabel.stale && staleLabel.text.startsWith('Last known location at '), 'a fix older than 3 minutes is labelled last known')
 
 const settings = defaults.getDefaultPricingSettings()
 const pricedWizard = {

@@ -78,8 +78,8 @@ export function resolveTrackingEtaDestination(operationalStatus, statusRaw) {
   return null
 }
 
-/** Fresh enough to call a position live. Older fixes are last-known only. */
-export const TRACKING_GPS_FRESH_MS = 3 * 60 * 1000
+/** Fresh enough for live ETA (customer portal). Aligns with RPC live window. */
+export const TRACKING_GPS_FRESH_MS = 5 * 60 * 1000
 
 /**
  * Visible GPS age from the last position timestamp (not the page refresh clock).

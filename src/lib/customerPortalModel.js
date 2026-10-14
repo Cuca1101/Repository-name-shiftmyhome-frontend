@@ -400,12 +400,9 @@ export function classifyMagicLinkError(message) {
   return 'error'
 }
 
-const NOT_STARTED_MESSAGE = 'Your driver has not yet started the journey to collection.'
-
 /**
- * From move day, show the assigned van before Start Job when coordinates exist.
- * Completed and cancelled bookings never keep the live marker.
- * A fix older than the live window stays on the map as last known, not live.
+ * Show the driver map once the job has started and a position exists.
+ * A position older than the live window stays on the map as the last known point.
  * @param {{ stage?: string, gpsFresh?: boolean, hasCoords?: boolean }} args
  */
 export function portalTrackingPresentation(args) {
@@ -415,10 +412,10 @@ export function portalTrackingPresentation(args) {
   }
   if (stage === 'awaiting_departure' || stage === 'pending' || !stage) {
     return {
-      showLivePosition: Boolean(args.hasCoords),
+      showLivePosition: false,
       awaitingStart: true,
-      live: Boolean(args.hasCoords && args.gpsFresh),
-      message: NOT_STARTED_MESSAGE,
+      live: false,
+      message: 'Your driver has not started towards collection yet.',
     }
   }
   if (args.hasCoords) {
@@ -426,7 +423,7 @@ export function portalTrackingPresentation(args) {
       showLivePosition: true,
       awaitingStart: false,
       live: Boolean(args.gpsFresh),
-      message: args.gpsFresh ? '' : 'Last known location',
+      message: args.gpsFresh ? '' : 'Showing the last known position. A new GPS update has not arrived yet.',
     }
   }
   return {
