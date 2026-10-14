@@ -5,9 +5,9 @@ import {
   filterReviewsByTab,
   formatRelativeReviewDate,
   getSummaryForTab,
-  REVIEWS_LIVE_STATS_CONNECTED,
-  REVIEWS_PLATFORM_SUMMARIES,
+  isGoogleReviewsLive,
 } from '../../lib/reviews/externalReviews'
+import { getCachedGoogleBusinessProfile } from '../../lib/reviews/googleBusinessProfile'
 
 const LeaveReviewPlatformModal = lazy(() => import('./LeaveReviewPlatformModal'))
 
@@ -128,7 +128,7 @@ export default function ReviewsDrawer({ open, onClose }) {
 
   const summary = getSummaryForTab(activeTab, reviews)
   const visibleReviews = filterReviewsByTab(activeTab, reviews)
-  const googleSummary = REVIEWS_PLATFORM_SUMMARIES.find((p) => p.source === 'google')
+  const googleSummary = getCachedGoogleBusinessProfile()
 
   const tabRating = (tabId) => {
     if (tabId === 'all') return summary.averageRating.toFixed(1)
@@ -200,8 +200,8 @@ export default function ReviewsDrawer({ open, onClose }) {
             </div>
             <p className="mt-1 text-sm text-slate-600">
               {summary.reviewCount.toLocaleString('en-GB')} reviews
-              {!REVIEWS_LIVE_STATS_CONNECTED && activeTab !== 'all' && reviews.length === 0 ? (
-                <span className="text-slate-400"> · sample totals</span>
+              {activeTab === 'google' && isGoogleReviewsLive() ? (
+                <span className="text-slate-400"> · Google Business Profile</span>
               ) : null}
             </p>
           </div>
@@ -235,7 +235,7 @@ export default function ReviewsDrawer({ open, onClose }) {
 
         {!loading && googleSummary ? (
           <div className="shrink-0 border-t border-slate-100 bg-white px-4 py-3 text-center text-xs text-slate-500 sm:px-5">
-            Google average {googleSummary.averageRating.toFixed(1)} ·{' '}
+            Google average {googleSummary.rating.toFixed(1)} ·{' '}
             {googleSummary.reviewCount.toLocaleString('en-GB')} reviews
           </div>
         ) : null}

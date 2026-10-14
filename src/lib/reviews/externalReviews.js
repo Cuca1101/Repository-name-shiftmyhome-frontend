@@ -4,6 +4,7 @@
  */
 
 import { fetchPublicDisplayReviews } from '../data/reviewsRepository'
+import { fetchGoogleBusinessProfile, getCachedGoogleBusinessProfile } from './googleBusinessProfile.js'
 /** @typedef {'google' | 'trustpilot' | 'customer'} ReviewSource */
 
 /**
@@ -31,8 +32,10 @@ export const REVIEWS_BADGE_VERSION_KEY = 'smh-reviews-badge-version'
 export const REVIEWS_BADGE_VERSION = '3'
 export const REVIEWS_BADGE_DISMISS_DAYS = 30
 
-/** Set true once Google / Trustpilot APIs supply live averages and counts. */
-export const REVIEWS_LIVE_STATS_CONNECTED = false
+/** Google Business Profile totals come from Places. Trustpilot is not connected. */
+export function isGoogleReviewsLive() {
+  return Boolean(getCachedGoogleBusinessProfile())
+}
 
 export const GOOGLE_LEAVE_REVIEW_URL =
   String(import.meta.env.VITE_GOOGLE_REVIEWS_URL || '').trim()
@@ -42,95 +45,19 @@ export const TRUSTPILOT_LEAVE_REVIEW_URL =
   import.meta.env.VITE_TRUSTPILOT_REVIEWS_URL ||
   'https://www.trustpilot.com/evaluate/www.shiftmyhome.co.uk'
 
-/** Placeholder averages/counts — replace when live widgets or APIs are connected. */
-export const REVIEWS_PLATFORM_SUMMARIES = [
-  {
-    source: 'google',
+/** @param {import('./googleBusinessProfile.js').GoogleBusinessProfile | null} profile */
+function googleSummaryFromProfile(profile) {
+  if (!profile) return null
+  return {
+    averageRating: profile.rating,
+    reviewCount: profile.reviewCount,
     label: 'Google Reviews',
-    averageRating: 4.9,
-    reviewCount: 127,
-    subtitle: 'Google Reviews',
-  },
-  {
-    source: 'trustpilot',
-    label: 'Trustpilot Reviews',
-    averageRating: 4.8,
-    reviewCount: 89,
-    subtitle: 'Trustpilot Reviews',
-  },
-]
-
-/** Placeholder cards — swap with API responses in fetchExternalReviews. */
-const PLACEHOLDER_REVIEWS = [
-  {
-    id: 'google-1',
-    source: 'google',
-    authorName: 'Michael R.',
-    body: 'Fantastic team — punctual, careful with our furniture, and the final price matched the online quote exactly.',
-    rating: 5,
-    date: '2026-04-12',
-  },
-  {
-    id: 'google-2',
-    source: 'google',
-    authorName: 'Emma L.',
-    body: 'Used ShiftMyHome for a Glasgow flat move. Professional crew, great communication on WhatsApp throughout.',
-    rating: 5,
-    date: '2026-03-28',
-  },
-  {
-    id: 'google-3',
-    source: 'google',
-    authorName: 'Andrew K.',
-    body: 'Man with van service was brilliant. Sofa and wardrobe moved without a scratch. Would definitely use again.',
-    rating: 5,
-    date: '2026-02-15',
-  },
-  {
-    id: 'google-4',
-    source: 'google',
-    authorName: 'Priya S.',
-    body: 'Same-week slot for an Edinburgh move. Friendly drivers and very fair pricing compared to other quotes.',
-    rating: 5,
-    date: '2026-01-20',
-  },
-  {
-    id: 'trustpilot-1',
-    source: 'trustpilot',
-    authorName: 'Helen M.',
-    body: 'Excellent service from booking to completion. Everything was wrapped and handled with care.',
-    rating: 5,
-    date: '2026-04-05',
-  },
-  {
-    id: 'trustpilot-2',
-    source: 'trustpilot',
-    authorName: 'Chris B.',
-    body: 'Office relocation handled smoothly over a weekend. Minimal disruption and clear updates at every stage.',
-    rating: 5,
-    date: '2026-03-10',
-  },
-  {
-    id: 'trustpilot-3',
-    source: 'trustpilot',
-    authorName: 'Laura T.',
-    body: 'Trustworthy local company. IKEA furniture collection and delivery was quick and well organised.',
-    rating: 5,
-    date: '2026-02-22',
-  },
-  {
-    id: 'trustpilot-4',
-    source: 'trustpilot',
-    authorName: 'Daniel W.',
-    body: 'Stress-free house move across Scotland. Crew worked efficiently and nothing was damaged.',
-    rating: 4,
-    date: '2026-01-08',
-  },
-]
+  }
+}
 
 /**
- * Lazy-load review data when the modal opens.
- * Merges published admin reviews with platform placeholders until APIs are connected.
+ * Lazy-load review data when the drawer opens.
+ * Google cards and totals come from the Business Profile listing.
  * @returns {Promise<ExternalReview[]>}
  */
 export async function fetchExternalReviews() {
@@ -150,8 +77,9 @@ export async function fetchExternalReviews() {
     /* admin reviews optional */
   }
 
-  await new Promise((r) => setTimeout(r, 80))
-  return [...customerReviews, ...PLACEHOLDER_REVIEWS].sort((a, b) => b.date.localeCompare(a.date))
+  const profile = await fetchGoogleBusinessProfile()
+  const googleReviews = profile?.reviews || []
+  return [...customerReviews, ...googleReviews].sort((a, b) => b.date.localeCompare(a.date))
 }
 
 /**
@@ -170,6 +98,11 @@ export function filterReviewsByTab(tab, reviews) {
  * @param {ExternalReview[]} [reviews]
  */
 export function getSummaryForTab(tab, reviews = []) {
+  if (tab === 'all') {
+    const google = googleSummaryFromProfile(getCachedGoogleBusinessProfile())
+    if (google) return google
+  }
+
   if (tab === 'all' && reviews.length > 0) {
     const count = reviews.length
     const weighted = reviews.reduce((s, r) => s + r.rating, 0)
@@ -181,16 +114,8 @@ export function getSummaryForTab(tab, reviews = []) {
   }
 
   if (tab === 'all') {
-    const total = REVIEWS_PLATFORM_SUMMARIES.reduce((s, p) => s + p.reviewCount, 0)
-    const weighted = REVIEWS_PLATFORM_SUMMARIES.reduce(
-      (s, p) => s + p.averageRating * p.reviewCount,
-      0,
-    )
-    return {
-      averageRating: total ? weighted / total : 0,
-      reviewCount: total,
-      label: 'All platforms',
-    }
+    const google = googleSummaryFromProfile(getCachedGoogleBusinessProfile())
+    return google || { averageRating: 0, reviewCount: 0, label: 'All platforms' }
   }
   if (tab === 'customer' && reviews.length > 0) {
     const customerOnly = reviews.filter((r) => r.source === 'customer')
@@ -203,17 +128,9 @@ export function getSummaryForTab(tab, reviews = []) {
     }
   }
 
-  if (tab === 'google' && reviews.length > 0) {
-    const platform = reviews.filter((r) => r.source === 'google')
-    if (platform.length) {
-      const count = platform.length
-      const weighted = platform.reduce((s, r) => s + r.rating, 0)
-      return {
-        averageRating: weighted / count,
-        reviewCount: count,
-        label: 'Google Reviews',
-      }
-    }
+  if (tab === 'google') {
+    const google = googleSummaryFromProfile(getCachedGoogleBusinessProfile())
+    if (google) return google
   }
 
   if (tab === 'trustpilot' && reviews.length > 0) {
@@ -229,14 +146,7 @@ export function getSummaryForTab(tab, reviews = []) {
     }
   }
 
-  const platform = REVIEWS_PLATFORM_SUMMARIES.find((p) => p.source === tab)
-  return platform
-    ? {
-        averageRating: platform.averageRating,
-        reviewCount: platform.reviewCount,
-        label: platform.label,
-      }
-    : { averageRating: 0, reviewCount: 0, label: '' }
+  return { averageRating: 0, reviewCount: 0, label: '' }
 }
 
 /**
