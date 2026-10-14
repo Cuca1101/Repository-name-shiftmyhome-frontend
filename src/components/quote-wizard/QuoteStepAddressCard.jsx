@@ -431,7 +431,7 @@ export default function QuoteStepAddressCard({
     <div className="mt-3 grid grid-cols-2 items-start gap-2">
       <div className="min-w-0">
         <label className="block">
-          <span className="mb-1 block text-xs font-medium text-slate-600">House number</span>
+          <span className="mb-1 block min-h-12 text-xs font-medium leading-snug text-slate-600">House number</span>
           <input
             type="text"
             value={houseNumber}
@@ -452,7 +452,7 @@ export default function QuoteStepAddressCard({
         ) : null}
       </div>
       <label className="min-w-0">
-        <span className="mb-1 block text-xs font-medium leading-snug text-slate-600">Flat / Apartment (optional)</span>
+        <span className="mb-1 block min-h-12 text-xs font-medium leading-snug text-slate-600">Flat / Apartment (optional)</span>
         <input
           type="text"
           value={apartment}
@@ -555,11 +555,18 @@ export default function QuoteStepAddressCard({
               Find my address
             </button>
             </div>
+          </div>
+        </div>
+      )}
 
+      {numberFields}
+
+      {!selected && !manual ? (
+        <div className="mt-3">
           <div
             className={
               quotePage || results.length > 0
-                ? `mt-2 overflow-hidden rounded-xl border bg-white ${
+                ? `overflow-hidden rounded-xl border bg-white ${
                     results.length > 0 ? 'border-2 border-blue-500 shadow-lg' : 'border-slate-200 shadow-sm'
                   }`
                 : ''
@@ -608,17 +615,23 @@ export default function QuoteStepAddressCard({
               </div>
             ) : null}
           </div>
-
           {notice ? (
             <p className="mt-2 text-sm font-medium leading-snug text-red-600" role="status">
               {notice}
             </p>
           ) : null}
-          </div>
         </div>
-      )}
+      ) : null}
 
-      {numberFields}
+      <button
+        type="button"
+        onClick={manual ? () => setManual(false) : startManual}
+        className={`mt-2 text-sm font-medium underline-offset-2 hover:underline ${
+          quotePage ? 'text-blue-600 hover:text-blue-800' : 'text-xs font-semibold text-slate-500 hover:text-slate-800'
+        }`}
+      >
+        {manual ? 'Search for an address' : 'Enter address manually'}
+      </button>
 
       <label className="mt-3 block">
         <span className="mb-1 block text-xs font-medium text-slate-600">Property type</span>
@@ -636,15 +649,6 @@ export default function QuoteStepAddressCard({
         </select>
       </label>
 
-      <button
-        type="button"
-        onClick={manual ? () => setManual(false) : startManual}
-        className={`mt-2 text-sm font-medium underline-offset-2 hover:underline ${
-          quotePage ? 'text-blue-600 hover:text-blue-800' : 'text-xs font-semibold text-slate-500 hover:text-slate-800'
-        }`}
-      >
-        {manual ? 'Search for an address' : 'Enter address manually'}
-      </button>
       {children}
     </section>
   )
