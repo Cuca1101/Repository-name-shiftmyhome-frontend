@@ -293,6 +293,26 @@ function NavIcon({ name, className }) {
           />
         </svg>
       )
+    case 'external':
+      return (
+        <svg className={cn} fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" aria-hidden>
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            d="M13.5 6H5.25A2.25 2.25 0 0 0 3 8.25v10.5A2.25 2.25 0 0 0 5.25 21h10.5A2.25 2.25 0 0 0 18 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25"
+          />
+        </svg>
+      )
+    case 'logout':
+      return (
+        <svg className={cn} fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" aria-hidden>
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            d="M15.75 9V5.25A2.25 2.25 0 0 0 13.5 3h-6a2.25 2.25 0 0 0-2.25 2.25v13.5A2.25 2.25 0 0 0 7.5 21h6a2.25 2.25 0 0 0 2.25-2.25V15m3 0 3-3m0 0-3-3m3 3H9"
+          />
+        </svg>
+      )
     default:
       return null
   }
@@ -533,7 +553,7 @@ export default function AdminLayout() {
           </button>
         </div>
 
-        <nav className="flex-1 overflow-y-auto px-3 py-4" aria-label="Admin navigation">
+        <nav className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-3 py-4" aria-label="Admin navigation">
           {mainSections.map((section) => (
             <div key={section.title} className="mb-7 last:mb-0">
               <p className="mb-2.5 px-3 text-[10px] font-semibold uppercase tracking-wider text-slate-500">
@@ -601,23 +621,36 @@ export default function AdminLayout() {
               />
             </ul>
           </div>
-        </nav>
 
-        <div className="shrink-0 border-t border-white/10 p-3">
-          <Link
-            to="/"
-            className="mb-2 flex min-h-[44px] items-center justify-center rounded-xl border border-white/15 bg-white/5 px-3 text-sm font-medium text-slate-200 transition hover:bg-white/10 hover:text-white"
-          >
-            View site
-          </Link>
-          <button
-            type="button"
-            onClick={handleLogout}
-            className="flex min-h-[44px] w-full items-center justify-center rounded-xl bg-emerald-600 px-3 text-sm font-semibold text-white shadow-lg shadow-emerald-900/30 transition hover:bg-emerald-500"
-          >
-            Log out
-          </button>
-        </div>
+          <div className="mt-4 border-t border-white/10 pt-3">
+            <ul className="space-y-0.5">
+              <li>
+                <Link
+                  to="/"
+                  onClick={closeSidebar}
+                  className="group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-slate-400 transition hover:bg-white/5 hover:text-white"
+                >
+                  <span className="text-slate-500 group-hover:text-slate-300">
+                    <NavIcon name="external" />
+                  </span>
+                  <span className="min-w-0 flex-1 truncate">View site</span>
+                </Link>
+              </li>
+              <li>
+                <button
+                  type="button"
+                  onClick={handleLogout}
+                  className="group flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-medium text-slate-400 transition hover:bg-red-500/10 hover:text-red-300"
+                >
+                  <span className="text-slate-500 group-hover:text-red-300">
+                    <NavIcon name="logout" />
+                  </span>
+                  <span className="min-w-0 flex-1 truncate">Log out</span>
+                </button>
+              </li>
+            </ul>
+          </div>
+        </nav>
       </aside>
 
       {/* Main column sits beside the fixed sidebar. pl-64 is the sidebar width; do not use 100vw. */}

@@ -19,6 +19,7 @@ const {
   financeAmountPence,
   financeDraftProfitPence,
   financeRowHasEntry,
+  financeRowsConfirmedOnSave,
   validateFinanceDayDraft,
   financeFetchRanges,
   financePdfFilename,
@@ -33,11 +34,16 @@ const {
   parseDeductionPercent,
   parseGbpAllowZero,
   parseGbpInput,
+  periodDriverReport,
   profitTone,
+  resolveIncomeSource,
+  rowAttendance,
+  splitIncomeSource,
   shiftWeek,
   summarizeFinance,
   toPence,
   weekRangeContaining,
+  weeklyAttendance,
 } = await import('../src/lib/financeProfit.js')
 
 const { renderFinanceMonthPdf, setFinancePdfFontBase64 } = await import('../src/lib/financeProfitPdf.js')
@@ -356,6 +362,12 @@ assert(migration143.includes("values ('default', 25)"), 'deduction starts at 25%
 assert(migration143.includes('deduction_percent >= 0 and deduction_percent <= 100'), 'deduction stays between 0 and 100')
 assert(migration143.includes('income_gbp = v_income'), 'a saved day stores the amounts entered for that day')
 assert(!migration143.includes("'Alex'") && !migration143.includes("'Mihai'") && !migration143.includes('AnyVan'), 'live data is not seeded with the sample day')
+const archiveFn = migration143.slice(
+  migration143.indexOf('function public.finance_set_driver_archived'),
+  migration143.indexOf('function public.finance_save_driver_day'),
+)
+assert(archiveFn.includes('set archived_at'), 'delete driver deactivates the finance driver')
+assert(!/delete\s+from\s+public\.finance_driver_days/i.test(archiveFn), 'deleting a driver does not remove daily records')
 
 const octoberCells = calendarCells(2026, 10)
 assert(octoberCells[0] === null && octoberCells[3] === '2026-10-01', 'October 2026 starts on Thursday')
@@ -415,12 +427,14 @@ const savedDraft = buildFinanceDayDraft(
   { ...blankDay, driverDays: workedDay.driverDays, incomes: workedDay.incomes, expenses: workedDay.expenses },
   '2026-10-16',
 )
-assert(savedDraft.rows.length === 2, 'a saved day loads its own rows, not an empty template for every driver')
+assert(savedDraft.rows.length === 6, 'a saved day still lists every saved driver')
 const alexRow = savedDraft.rows.find((row) => row.driverName === 'Alex')
 const mihaiRow = savedDraft.rows.find((row) => row.driverName === 'Mihai')
+const danRow = savedDraft.rows.find((row) => row.driverName === 'Dan')
 assert(alexRow && financeAmountPence(alexRow.income) === 60000 && alexRow.salary === '120.00', 'Alex reopens with the saved income and salary')
 assert(mihaiRow && financeAmountPence(mihaiRow.income) === 30000 && mihaiRow.otherDescription === 'Bags', 'Mihai reopens with the saved figures')
-assert(!savedDraft.rows.some((row) => row.driverName === 'Dan'), 'drivers without a record are not written over the saved day')
+assert(danRow && !danRow.id && danRow.income === '' && rowAttendance(danRow) === 'not_set', 'a driver without a record stays empty and Not set')
+assert(rowAttendance(alexRow) === 'worked', 'an existing daily record stays Worked')
 
 const reopened = applyFinanceDayDraft(
   { ...blankDay, driverDays: workedDay.driverDays, incomes: workedDay.incomes, expenses: workedDay.expenses },
@@ -471,11 +485,135 @@ assert(
 
 const workedOnly = {
   ...placeholders.rows[0],
+  attendance: 'worked',
   worked: true,
 }
 assert(financeRowHasEntry(workedOnly), 'marking a driver as worked stores that row')
+const absentOnly = { ...placeholders.rows[2], attendance: 'absent' }
+assert(financeRowHasEntry(absentOnly), 'Did not work is stored even with no amounts')
+const notSetOnly = placeholders.rows[3]
+assert(!financeRowHasEntry(notSetOnly), 'Not set with no amounts is not stored')
 const withFigures = { ...placeholders.rows[1], income: '10' }
 assert(financeRowHasEntry(withFigures), 'a figure marks the row as an entry')
+
+const fourDrivers = ['Alex', 'Mihai', 'Dan', 'Ion'].map((name, index) => ({ id: `four-${index + 1}`, name, archived: false }))
+const fourDate = '2026-10-16'
+const fourBlank = { drivers: fourDrivers, driverDays: [], incomes: [], expenses: [], categories }
+const fourDraft = buildFinanceDayDraft(fourBlank, fourDate)
+assert(applyFinanceDayDraft(fourBlank, fourDate, fourDraft).driverDays.length === 0, 'opening a date does not create worked-day records')
+const fourTicked = {
+  ...fourDraft,
+  rows: fourDraft.rows.map((row) => (row.driverName === 'Ion' ? { ...row, attendance: 'absent', sourceChoice: 'other', sourceCustom: '' } : row)),
+}
+const fourErrors = validateFinanceDayDraft(fourTicked)
+assert(!fourErrors.some((error) => error.includes('income source')), 'an absent driver does not need an income source')
+const fourConfirmed = financeRowsConfirmedOnSave(fourTicked.rows)
+assert(fourConfirmed.filter((row) => row.attendance === 'worked').length === 3, 'saving records the three unticked drivers as Worked')
+assert(fourConfirmed.filter((row) => row.attendance === 'absent').length === 1, 'saving records the ticked driver as absent')
+assert(fourConfirmed.every((row) => row.attendance === 'worked' || row.driverName === 'Ion'), 'only the ticked driver is absent')
+const fourSaved = applyFinanceDayDraft(fourBlank, fourDate, { ...fourTicked, rows: fourConfirmed })
+assert(fourSaved.driverDays.filter((row) => row.attendance === 'worked').length === 3, 'three worked records are stored')
+assert(
+  fourSaved.driverDays.filter((row) => row.attendance === 'absent' && row.income_gbp === '0.00' && row.another_income_gbp === '0.00').length === 1,
+  'the absent driver is stored with zero amounts',
+)
+const fourWeek = weeklyAttendance(fourSaved, weekRangeContaining(fourDate).from, weekRangeContaining(fourDate).to)
+assert(fourWeek.rows.find((row) => row.name === 'Ion').daysWorked === 0, 'Did not work is excluded from days worked')
+assert(
+  fourWeek.rows.filter((row) => row.name !== 'Ion').every((row) => row.daysWorked === 1),
+  'only the saved Worked dates are counted',
+)
+const fourReopened = buildFinanceDayDraft(fourSaved, fourDate)
+assert(rowAttendance(fourReopened.rows.find((row) => row.driverName === 'Ion')) === 'absent', 'reopening restores Did not work')
+assert(
+  fourReopened.rows.filter((row) => row.driverName !== 'Ion').every((row) => rowAttendance(row) === 'worked'),
+  'reopening restores the unticked drivers as Worked',
+)
+const fourLive = applyFinanceDayDraft(fourBlank, fourDate, {
+  ...fourDraft,
+  rows: fourDraft.rows.map((row) => (row.driverName === 'Alex' ? { ...row, income: '15' } : row)),
+})
+assert(summarizeFinance(fourLive, 0).income === 1500, 'entered figures update the total before the day is saved')
+assert(
+  weeklyAttendance(fourLive, weekRangeContaining(fourDate).from, weekRangeContaining(fourDate).to).rows.every((row) => row.daysWorked === 0),
+  'unsaved figures are not counted as a worked day',
+)
+
+const removedDriverDay = {
+  drivers: [
+    { id: 'alex', name: 'Alex', archived: false },
+    { id: 'mia', name: 'Mia', archived: true },
+  ],
+  driverDays: [
+    {
+      id: 'mia-day',
+      activity_date: '2026-10-16',
+      driver_id: 'mia',
+      driver_name: 'Mia',
+      source_name: 'AnyVan',
+      income_gbp: '100.00',
+      another_income_gbp: '20.00',
+      salary_gbp: '30.00',
+      diesel_gbp: '10.00',
+      other_gbp: '5.00',
+      other_description: 'Tolls',
+      attendance: 'worked',
+    },
+  ],
+  incomes: [],
+  expenses: [],
+}
+const removedHistory = buildFinanceDayDraft(removedDriverDay, '2026-10-16')
+const miaHistory = removedHistory.rows.find((row) => row.driverName === 'Mia')
+assert(miaHistory && miaHistory.id === 'mia-day' && miaHistory.anotherIncome === '20.00', 'a removed driver stays on dates that already have a record')
+assert(rowAttendance(miaHistory) === 'worked' && miaHistory.salary === '30.00' && miaHistory.diesel === '10.00' && miaHistory.other === '5.00', 'attendance and costs stay on that record')
+assert(driverDayProfitPence(removedDriverDay.driverDays[0]) === 7500, 'profit still includes another income after the driver is removed from the active list')
+const removedNextDay = buildFinanceDayDraft(removedDriverDay, '2026-10-17')
+assert(removedNextDay.rows.some((row) => row.driverName === 'Alex') && !removedNextDay.rows.some((row) => row.driverName === 'Mia'), 'a removed driver is left out of a new day')
+const removedSummary = summarizeFinance(removedDriverDay, 0)
+assert(removedSummary.income === 12000 && removedSummary.profit === 7500, 'historical income and profit stay in the summary')
+const removedWeek = weeklyAttendance(removedDriverDay, '2026-10-12', '2026-10-18')
+assert(removedWeek.rows.find((row) => row.name === 'Mia').daysWorked === 1, 'days worked stay counted for a removed driver')
+
+const weekReportRecords = {
+  drivers: [
+    { id: 'alex', name: 'Alex', archived: false },
+    { id: 'mia', name: 'Mia', archived: true },
+    { id: 'ion', name: 'Ion', archived: false },
+  ],
+  driverDays: [
+    { activity_date: '2026-10-12', driver_id: 'alex', driver_name: 'Alex', attendance: 'worked', income_gbp: '600.00', another_income_gbp: '0.00', salary_gbp: '120.00', diesel_gbp: '60.00', other_gbp: '20.00' },
+    { activity_date: '2026-10-13', driver_id: 'alex', driver_name: 'Alex', attendance: 'worked', income_gbp: '0.00', another_income_gbp: '0.00', salary_gbp: '0.00', diesel_gbp: '0.00', other_gbp: '0.00' },
+    { activity_date: '2026-10-14', driver_id: 'mia', driver_name: 'Mia', attendance: 'worked', income_gbp: '100.00', another_income_gbp: '20.00', salary_gbp: '30.00', diesel_gbp: '10.00', other_gbp: '5.00' },
+    { activity_date: '2026-10-15', driver_id: 'ion', driver_name: 'Ion', attendance: 'absent', income_gbp: '80.00', salary_gbp: '10.00', diesel_gbp: '5.00', other_gbp: '1.00' },
+    { activity_date: '2026-10-19', driver_id: 'alex', driver_name: 'Alex', attendance: 'worked', income_gbp: '50.00', another_income_gbp: '0.00', salary_gbp: '0.00', diesel_gbp: '0.00', other_gbp: '0.00' },
+  ],
+  incomes: [{ activity_date: '2026-10-12', source_name: 'Direct client', amount_gbp: '100.00', description: 'Extra job' }],
+  expenses: [{ expense_date: '2026-10-12', category_id: 'parking', bucket: 'other', category_name: 'Parking', amount_gbp: '50.00', description: 'Town' }],
+}
+const weekBounds = weekRangeContaining('2026-10-16')
+const weekDrivers = periodDriverReport(weekReportRecords, weekBounds.from, weekBounds.to)
+const alexWeekReport = weekDrivers.find((row) => row.name === 'Alex')
+const miaWeekReport = weekDrivers.find((row) => row.name === 'Mia')
+assert(weekBounds.from === '2026-10-12' && weekBounds.to === '2026-10-18', 'the report week is Monday to Sunday')
+assert(alexWeekReport && alexWeekReport.daysWorked === 2 && alexWeekReport.income === 60000, 'worked days with £0 income still count, and the next week stays out')
+assert(miaWeekReport && miaWeekReport.archived && miaWeekReport.another === 2000 && miaWeekReport.profit === 7500, 'an archived driver keeps another income and profit')
+assert(!weekDrivers.some((row) => row.name === 'Ion'), 'Did not work is left out of the driver report')
+const weekSummary = summarizeFinance(filterFinanceRange(weekReportRecords, weekBounds.from, weekBounds.to), 25)
+assert(weekSummary.income === 82000, 'driver income, another income and additional income are counted once')
+assert(weekSummary.expenses === 29500 && weekSummary.profit === 52500, 'weekly profit is total income minus total expenses')
+assert(weekSummary.deduction === 13125 && weekSummary.finalAmount === 39375, 'the percentage is applied once to the weekly profit')
+assert(weekDrivers.reduce((sum, row) => sum + row.income + row.another, 0) + 10000 === weekSummary.income, 'additional income is separate from the driver rows and still in the week total')
+const removedPdf = renderFinanceMonthPdf({
+  token,
+  year: 2026,
+  month: 10,
+  generatedAt: '2026-10-16T12:00:00Z',
+  ...removedDriverDay,
+})
+const removedDrawn = removedPdf.drawn.join('\n')
+assert(removedDrawn.includes('Mia'), 'the PDF keeps a removed driver who has saved records')
+assert(removedDrawn.includes('£20.00'), 'the PDF keeps that driver’s another income')
 const duplicateNames = validateFinanceDayDraft({
   rows: [
     { driverName: 'Alex', source: '', income: '10', salary: '', diesel: '', other: '', otherDescription: '', worked: false },
@@ -491,6 +629,178 @@ const missingOther = validateFinanceDayDraft({
   expenses: [],
 })
 assert(missingOther.some((error) => error.includes('description for other expenses')), 'other expenses need a description')
+
+const yearWeek = weekRangeContaining('2026-01-01')
+assert(yearWeek.from === '2025-12-29' && yearWeek.to === '2026-01-04', 'the attendance week crosses the year')
+const attendanceRecords = {
+  drivers: [
+    { id: 'alex', name: 'Alex', archived: false },
+    { id: 'mia', name: 'Mia', archived: false },
+  ],
+  driverDays: [
+    { activity_date: '2025-12-29', driver_id: 'alex', driver_name: 'Alex', attendance: 'worked', income_gbp: '0.00', salary_gbp: '0.00', diesel_gbp: '0.00', other_gbp: '0.00' },
+    { activity_date: '2025-12-30', driver_id: 'alex', driver_name: 'Alex', attendance: 'worked', income_gbp: '10.00', salary_gbp: '0.00', diesel_gbp: '0.00', other_gbp: '0.00' },
+    { activity_date: '2025-12-31', driver_id: 'alex', driver_name: 'Alex', attendance: 'not_set', income_gbp: '50.00', salary_gbp: '0.00', diesel_gbp: '0.00', other_gbp: '0.00' },
+    { activity_date: '2026-01-01', driver_id: 'alex', driver_name: 'Alex', attendance: 'worked', income_gbp: '0.00', salary_gbp: '0.00', diesel_gbp: '0.00', other_gbp: '0.00' },
+    { activity_date: '2026-01-02', driver_id: 'alex', driver_name: 'Alex', attendance: 'worked', income_gbp: '0.00', salary_gbp: '0.00', diesel_gbp: '0.00', other_gbp: '0.00' },
+    { activity_date: '2026-01-03', driver_id: 'alex', driver_name: 'Alex', attendance: 'absent', income_gbp: '80.00', salary_gbp: '10.00', diesel_gbp: '5.00', other_gbp: '1.00' },
+    { activity_date: '2026-01-04', driver_id: 'mia', driver_name: 'Mia', attendance: 'not_set', income_gbp: '20.00', salary_gbp: '0.00', diesel_gbp: '0.00', other_gbp: '0.00' },
+  ],
+}
+const weekRows = weeklyAttendance(attendanceRecords, yearWeek.from, yearWeek.to)
+const alexWeek = weekRows.rows.find((row) => row.name === 'Alex')
+const miaWeek = weekRows.rows.find((row) => row.name === 'Mia')
+assert(weekRows.dates.length === 7 && weekRows.dates[0] === '2025-12-29' && weekRows.dates[6] === '2026-01-04', 'the week lists Monday to Sunday')
+assert(alexWeek && alexWeek.daysWorked === 4, 'Monday, Tuesday, Thursday and Friday count as 4 days worked')
+assert(alexWeek.cells[2] === 'not_set' && alexWeek.cells[5] === 'absent', 'income does not turn Not set into Worked, and Did not work stays separate')
+assert(miaWeek && miaWeek.daysWorked === 0, 'Not set is not counted as a worked day')
+const absentSummary = summarizeFinance(
+  {
+    driverDays: [
+      { activity_date: '2026-01-03', driver_name: 'Alex', attendance: 'absent', income_gbp: '80.00', salary_gbp: '10.00', diesel_gbp: '5.00', other_gbp: '1.00' },
+    ],
+  },
+  0,
+)
+assert(absentSummary.income === 0 && absentSummary.expenses === 0 && absentSummary.daily.length === 0, 'Did not work creates no income or costs')
+const zeroWorked = summarizeFinance(
+  {
+    driverDays: [
+      { activity_date: '2026-01-01', driver_name: 'Alex', attendance: 'worked', income_gbp: '0.00', salary_gbp: '0.00', diesel_gbp: '0.00', other_gbp: '0.00' },
+    ],
+  },
+  0,
+)
+assert(zeroWorked.daily.length === 1 && zeroWorked.daily[0].drivers === 1 && zeroWorked.income === 0, 'Worked with £0 income still counts as a worked day')
+const monthAttendance = weeklyAttendance(attendanceRecords, '2026-01-01', '2026-01-31')
+const alexJanuary = monthAttendance.rows.find((row) => row.name === 'Alex')
+assert(alexJanuary.daysWorked === 2, 'a monthly report counts only Worked dates inside that month')
+
+const customSource = 'Facebook Marketplace'
+assert(splitIncomeSource('ShiftMyHome + AnyVan').choice === 'ShiftMyHome + AnyVan', 'the combined source stays a preset')
+assert(splitIncomeSource(customSource).choice === 'other' && splitIncomeSource(customSource).custom === customSource, 'a saved custom name reopens as Other')
+assert(resolveIncomeSource({ sourceChoice: 'other', sourceCustom: customSource }) === customSource, 'Other stores the typed name')
+assert(resolveIncomeSource({ sourceChoice: 'AnyVan', sourceCustom: customSource }) === 'AnyVan', 'a preset is stored as itself')
+const missingCustom = validateFinanceDayDraft({
+  rows: [{ driverName: 'Alex', sourceChoice: 'other', sourceCustom: '  ', income: '10', salary: '', diesel: '', other: '', otherDescription: '', attendance: 'worked' }],
+  incomes: [],
+  expenses: [],
+})
+assert(missingCustom.some((error) => error.includes('Enter an income source for Alex')), 'Other needs a name before saving')
+const sourceDrivers = [
+  { id: 'alex', name: 'Alex', archived: false },
+  { id: 'mia', name: 'Mia', archived: false },
+]
+const savedCustomDay = {
+  drivers: sourceDrivers,
+  driverDays: [
+    {
+      id: 'day-alex',
+      activity_date: '2026-10-16',
+      driver_id: 'alex',
+      driver_name: 'Alex',
+      source_name: customSource,
+      income_gbp: '40.00',
+      salary_gbp: '0.00',
+      diesel_gbp: '0.00',
+      other_gbp: '0.00',
+      attendance: 'worked',
+    },
+  ],
+  incomes: [{ activity_date: '2026-10-16', source_name: customSource, amount_gbp: '10.00', description: 'Extra' }],
+  expenses: [],
+}
+const restoredSourceDay = buildFinanceDayDraft(savedCustomDay, '2026-10-16')
+const alexReopened = restoredSourceDay.rows.find((row) => row.driverName === 'Alex')
+assert(alexReopened.sourceChoice === 'other' && alexReopened.sourceCustom === customSource, 'reopening the date restores the custom source')
+const nextSourceDay = buildFinanceDayDraft(savedCustomDay, '2026-10-17')
+assert(nextSourceDay.rows.every((row) => !row.sourceChoice && !row.sourceCustom), 'another date does not copy the income source')
+const savedFromOther = applyFinanceDayDraft(savedCustomDay, '2026-10-16', {
+  ...restoredSourceDay,
+  rows: restoredSourceDay.rows.map((row) =>
+    row.driverName === 'Mia'
+      ? { ...row, sourceChoice: 'ShiftMyHome + AnyVan', income: '25', attendance: 'worked' }
+      : row,
+  ),
+})
+const customSummary = summarizeFinance(savedFromOther, 0)
+const customBucket = customSummary.sources.find((row) => row.name === customSource)
+assert(customBucket && customBucket.amount === 5000, 'the custom source is totalled once across the driver and the extra income')
+assert(!customSummary.sources.some((row) => row.name === 'Other'), 'summaries do not keep the word Other')
+assert(customSummary.income === 7500, 'preset and custom income are both included once')
+const customPdf = renderFinanceMonthPdf({
+  token,
+  year: 2026,
+  month: 10,
+  generatedAt: '2026-10-16T12:00:00Z',
+  ...savedFromOther,
+})
+const customDrawn = customPdf.drawn.join('\n')
+assert(customDrawn.includes(customSource), 'the PDF prints the custom income source')
+assert(customDrawn.includes('ShiftMyHome + AnyVan'), 'the PDF prints the combined income source')
+
+const anotherDay = {
+  drivers: [{ id: 'alex', name: 'Alex', archived: false }],
+  driverDays: [
+    {
+      id: 'day-another',
+      activity_date: '2026-10-16',
+      driver_id: 'alex',
+      driver_name: 'Alex',
+      source_name: 'AnyVan',
+      income_gbp: '600.00',
+      another_income_gbp: '50.00',
+      salary_gbp: '120.00',
+      diesel_gbp: '60.00',
+      other_gbp: '20.00',
+      other_description: 'Tolls',
+      attendance: 'worked',
+    },
+  ],
+  incomes: [{ id: 'extra', activity_date: '2026-10-16', source_name: 'Direct client', amount_gbp: '100.00', description: 'Extra job' }],
+  expenses: [],
+}
+assert(financeAmountPence('') === 0, 'an empty another income field is zero')
+assert(driverDayProfitPence(anotherDay.driverDays[0]) === 45000, 'profit is income plus another income, minus salary, diesel and other expenses')
+const anotherSummary = summarizeFinance(anotherDay, 0)
+assert(anotherSummary.income === 75000, 'another income is included once in total income')
+assert(anotherSummary.sources.find((row) => row.name === 'AnyVan').amount === 65000, 'another income stays with that driver source')
+assert(anotherSummary.sources.find((row) => row.name === 'Direct client').amount === 10000, 'additional income is a separate entry')
+assert(
+  anotherSummary.sources.reduce((sum, row) => sum + row.amount, 0) === anotherSummary.income,
+  'source totals still equal income once',
+)
+const restoredAnother = buildFinanceDayDraft(anotherDay, '2026-10-16')
+const alexAnother = restoredAnother.rows.find((row) => row.driverName === 'Alex')
+assert(alexAnother.anotherIncome === '50.00', 'reopening the date restores another income')
+assert(buildFinanceDayDraft(anotherDay, '2026-10-17').rows.every((row) => !row.anotherIncome), 'another date does not copy another income')
+const savedAnother = applyFinanceDayDraft(anotherDay, '2026-10-16', {
+  ...restoredAnother,
+  rows: restoredAnother.rows.map((row) => (row.driverName === 'Alex' ? { ...row, anotherIncome: '' } : row)),
+})
+assert(savedAnother.driverDays.find((row) => row.driver_name === 'Alex').another_income_gbp === '0.00', 'a cleared another income field saves as zero')
+assert(savedAnother.incomes.length === 1 && savedAnother.incomes[0].source_name === 'Direct client', 'another income is not copied into additional income')
+const anotherPdf = renderFinanceMonthPdf({
+  token,
+  year: 2026,
+  month: 10,
+  generatedAt: '2026-10-16T12:00:00Z',
+  ...anotherDay,
+})
+const anotherDrawn = anotherPdf.drawn.join('\n')
+assert(anotherDrawn.includes('Another income'), 'the PDF lists another income on the driver record')
+assert(anotherDrawn.includes('£50.00'), 'the PDF shows the another income amount')
+assert(anotherDrawn.includes('Extra job'), 'additional income stays in its own section')
+assert(anotherDrawn.split('£50.00').length === 2, 'the another income amount is printed once')
+
+const migration144 = readFileSync(new URL('../supabase/migrations/144_finance_driver_attendance.sql', import.meta.url), 'utf8')
+assert(migration144.includes("attendance in ('worked', 'absent')"), 'attendance is Worked or Did not work')
+assert(!/references\s+public\.drivers\b/i.test(migration144), 'attendance stays on the finance driver list')
+assert(workedText.includes('Attendance') && workedText.includes('Days worked'), 'the monthly PDF includes attendance totals')
+const migration145 = readFileSync(new URL('../supabase/migrations/145_finance_driver_another_income.sql', import.meta.url), 'utf8')
+assert(migration145.includes('another_income_gbp'), 'another income is stored on the driver day')
+assert(migration145.includes("v_another := public.finance_parse_nonneg(p_payload->>'another_income_gbp')"), 'an empty another income amount is accepted as zero')
+assert(!/references\s+public\.drivers\b/i.test(migration145), 'another income stays on the finance driver day')
 
 if (failed > 0) {
   console.error(`${failed} finance check(s) failed`)

@@ -12,8 +12,10 @@ import {
   isCurrentLondonMonth,
   monthBounds,
   profitTone,
+  rowAttendance,
   summarizeFinance,
   toPence,
+  weeklyAttendance,
 } from './financeProfit'
 
 const PAGE_W = 210
@@ -345,15 +347,16 @@ export function renderFinanceMonthPdf(report) {
     pdf,
     writer,
     [
-      { key: 'date', label: 'Date', width: 20 },
-      { key: 'driver', label: 'Driver', width: 24 },
-      { key: 'source', label: 'Source', width: 24 },
-      { key: 'income', label: 'Income', width: 20, align: 'right' },
-      { key: 'salary', label: 'Salary', width: 18, align: 'right' },
-      { key: 'diesel', label: 'Diesel', width: 18, align: 'right' },
-      { key: 'other', label: 'Other', width: 18, align: 'right' },
-      { key: 'note', label: 'Other detail', width: 24 },
-      { key: 'profit', label: 'Profit', width: 20, align: 'right' },
+      { key: 'date', label: 'Date', width: 18 },
+      { key: 'driver', label: 'Driver', width: 22 },
+      { key: 'source', label: 'Source', width: 22 },
+      { key: 'income', label: 'Income', width: 18, align: 'right' },
+      { key: 'another', label: 'Another income', width: 18, align: 'right' },
+      { key: 'salary', label: 'Salary', width: 16, align: 'right' },
+      { key: 'diesel', label: 'Diesel', width: 16, align: 'right' },
+      { key: 'other', label: 'Other', width: 16, align: 'right' },
+      { key: 'note', label: 'Other detail', width: 22 },
+      { key: 'profit', label: 'Profit', width: 18, align: 'right' },
     ],
     driverRows.map((row) => {
       const profit = driverDayProfitPence(row)
@@ -362,6 +365,7 @@ export function renderFinanceMonthPdf(report) {
         driver: row.driver_name || '—',
         source: row.source_name || '—',
         income: formatGbp(toPence(row.income_gbp)),
+        another: formatGbp(toPence(row.another_income_gbp)),
         salary: formatGbp(toPence(row.salary_gbp)),
         diesel: formatGbp(toPence(row.diesel_gbp)),
         other: formatGbp(toPence(row.other_gbp)),
@@ -371,6 +375,59 @@ export function renderFinanceMonthPdf(report) {
       }
     }),
     { empty: 'No driver records this month.' },
+  )
+
+  const attendance = weeklyAttendance(
+    { drivers: report.drivers || [], driverDays: scoped.driverDays || [] },
+    bounds.from,
+    bounds.to,
+  )
+  const attendanceRows = attendance.rows.filter((row) => row.daysWorked > 0 || row.daysAbsent > 0)
+  writeHeading(pdf, writer, 'Attendance')
+  writeParagraph(
+    pdf,
+    writer,
+    'Days worked counts dates marked Worked in this month. Not set stays unrecorded and is not treated as Did not work. Attendance is kept separately for each driver and date.',
+    9,
+    [71, 85, 105],
+  )
+  drawTable(
+    pdf,
+    writer,
+    [
+      { key: 'driver', label: 'Driver', width: 110 },
+      { key: 'worked', label: 'Days worked', width: 38, align: 'right' },
+      { key: 'absent', label: 'Did not work', width: 38, align: 'right' },
+    ],
+    attendanceRows.map((row) => ({
+      driver: row.archived ? `${row.name} (archived)` : row.name,
+      worked: String(row.daysWorked),
+      absent: String(row.daysAbsent),
+    })),
+    { empty: 'No attendance recorded this month.' },
+  )
+  const attendanceDetail = [...(scoped.driverDays || [])]
+    .map((row) => ({ row, status: rowAttendance(row, { stored: true }) }))
+    .filter((item) => item.status === 'worked' || item.status === 'absent')
+    .sort((left, right) => {
+      const byDate = String(left.row.activity_date).localeCompare(String(right.row.activity_date))
+      if (byDate !== 0) return byDate
+      return String(left.row.driver_name || '').localeCompare(String(right.row.driver_name || ''), 'en-GB')
+    })
+  drawTable(
+    pdf,
+    writer,
+    [
+      { key: 'date', label: 'Date', width: 28 },
+      { key: 'driver', label: 'Driver', width: 90 },
+      { key: 'status', label: 'Attendance', width: 68 },
+    ],
+    attendanceDetail.map((item) => ({
+      date: formatIsoShort(item.row.activity_date),
+      driver: item.row.driver_name || '—',
+      status: item.status === 'absent' ? 'Did not work' : 'Worked',
+    })),
+    { empty: 'No worked or did-not-work days this month.' },
   )
 
   writeHeading(pdf, writer, 'Additional income')

@@ -302,7 +302,11 @@ export function parseGbpAllowZero(raw) {
 
 export function driverDayProfitPence(row) {
   return (
-    toPence(row?.income_gbp) - toPence(row?.salary_gbp) - toPence(row?.diesel_gbp) - toPence(row?.other_gbp)
+    toPence(row?.income_gbp) +
+    toPence(row?.another_income_gbp) -
+    toPence(row?.salary_gbp) -
+    toPence(row?.diesel_gbp) -
+    toPence(row?.other_gbp)
   )
 }
 
@@ -324,43 +328,121 @@ function draftMoney(amount) {
   return text
 }
 
+export const FINANCE_INCOME_SOURCE_PRESETS = ['ShiftMyHome', 'AnyVan', 'ShiftMyHome + AnyVan']
+
+/** A saved custom source reopens as Other plus the typed name. Presets stay selected. */
+export function splitIncomeSource(stored) {
+  const name = String(stored || '').trim().replace(/\s+/g, ' ')
+  if (!name) return { choice: '', custom: '' }
+  if (FINANCE_INCOME_SOURCE_PRESETS.includes(name)) return { choice: name, custom: '' }
+  return { choice: 'other', custom: name }
+}
+
+/** The name stored on the day. Other keeps the typed name, never the word Other. */
+export function resolveIncomeSource(row) {
+  const choice = String(row?.sourceChoice || '')
+  if (choice === 'other') return String(row?.sourceCustom || '').trim().replace(/\s+/g, ' ')
+  if (FINANCE_INCOME_SOURCE_PRESETS.includes(choice)) return choice
+  return String(row?.source || '').trim().replace(/\s+/g, ' ')
+}
+
 export function blankDriverDraftRow(partial = {}) {
+  const attendance = partial.attendance || (partial.worked ? 'worked' : 'not_set')
+  const parsed = splitIncomeSource(partial.source || '')
+  const sourceChoice = partial.sourceChoice ?? parsed.choice
+  const sourceCustom = partial.sourceCustom ?? (sourceChoice === 'other' ? parsed.custom : '')
   return {
     key: partial.key || '',
     id: partial.id || '',
     driverId: partial.driverId || '',
     driverName: partial.driverName || '',
-    source: partial.source || '',
+    sourceChoice,
+    sourceCustom,
+    source: sourceChoice === 'other' ? sourceCustom : sourceChoice || parsed.choice,
     income: partial.income || '',
+    anotherIncome: partial.anotherIncome || '',
     salary: partial.salary || '',
     diesel: partial.diesel || '',
     other: partial.other || '',
     otherDescription: partial.otherDescription || '',
-    worked: Boolean(partial.worked),
+    attendance,
+    worked: attendance === 'worked',
   }
 }
 
-/** A row is stored only after figures are entered or the driver is marked as worked. */
+/** Draft rows use Not set until Worked or Did not work is chosen. A stored row without a status is a legacy worked day. */
+export function rowAttendance(row, { stored = false } = {}) {
+  if (row?.attendance === 'worked' || row?.attendance === 'absent' || row?.attendance === 'not_set') return row.attendance
+  if (row?.worked) return 'worked'
+  return stored ? 'worked' : 'not_set'
+}
+
+export function financeRowHasAmounts(row) {
+  if (!row) return false
+  if (String(row.sourceChoice || '').trim() || String(row.source || '').trim()) return true
+  if (String(row.otherDescription || '').trim()) return true
+  return ['income', 'anotherIncome', 'salary', 'diesel', 'other'].some((key) => financeAmountPence(row[key]) > 0)
+}
+
+/** A stored Worked or Did not work row is an entry. An unticked row is not stored until Save day. */
 export function financeRowHasEntry(row) {
   if (!row) return false
-  if (row.worked) return true
-  if (String(row.source || '').trim()) return true
-  if (String(row.otherDescription || '').trim()) return true
-  return ['income', 'salary', 'diesel', 'other'].some((key) => financeAmountPence(row[key]) > 0)
+  const attendance = rowAttendance(row)
+  if (attendance === 'worked' || attendance === 'absent') return true
+  if (String(row.sourceChoice || '').trim()) return true
+  return financeRowHasAmounts(row)
+}
+
+/**
+ * Save day confirms every named driver still on the day.
+ * Unticked drivers are stored as Worked, including £0. Did not work stays absent.
+ * Opening a date does not use this, so an unsaved day creates no worked records.
+ */
+export function financeRowsConfirmedOnSave(rows, removedDayIds = []) {
+  const removed = new Set((removedDayIds || []).filter(Boolean))
+  return (rows || []).flatMap((row) => {
+    const driverName = String(row?.driverName || '').trim().replace(/\s+/g, ' ')
+    if (!driverName || removed.has(row?.id)) return []
+    const attendance = rowAttendance(row) === 'absent' ? 'absent' : 'worked'
+    return [{ ...row, driverName, attendance, worked: attendance === 'worked' }]
+  })
 }
 
 export function financeDraftProfitPence(row) {
   return (
-    financeAmountPence(row?.income) -
+    financeAmountPence(row?.income) +
+    financeAmountPence(row?.anotherIncome) -
     financeAmountPence(row?.salary) -
     financeAmountPence(row?.diesel) -
     financeAmountPence(row?.other)
   )
 }
 
+function draftFromSavedDay(row, driverId = '') {
+  const attendance = rowAttendance(row, { stored: true })
+  const absent = attendance === 'absent'
+  const sourceParts = splitIncomeSource(absent ? '' : row.source_name)
+  return blankDriverDraftRow({
+    key: row.id || `saved-${driverId || row.driver_name}`,
+    id: row.id || '',
+    driverId: row.driver_id || driverId,
+    driverName: row.driver_name || '',
+    sourceChoice: sourceParts.choice,
+    sourceCustom: sourceParts.custom,
+    source: sourceParts.choice === 'other' ? sourceParts.custom : sourceParts.choice,
+    income: absent ? '' : draftMoney(row.income_gbp),
+    anotherIncome: absent ? '' : draftMoney(row.another_income_gbp),
+    salary: absent ? '' : draftMoney(row.salary_gbp),
+    diesel: absent ? '' : draftMoney(row.diesel_gbp),
+    other: absent ? '' : draftMoney(row.other_gbp),
+    otherDescription: absent ? '' : row.other_description || '',
+    attendance,
+  })
+}
+
 /**
- * Saved days load their own rows. A day with no driver records shows saved names as empty placeholders.
- * Placeholders are not income or expense records.
+ * Every active saved driver is a row on the selected date.
+ * A driver without a record for that date stays empty. Amounts are never copied from another date.
  */
 export function buildFinanceDayDraft(records, date) {
   const savedDays = (records?.driverDays || [])
@@ -370,32 +452,31 @@ export function buildFinanceDayDraft(records, date) {
         String(left.driver_name).localeCompare(String(right.driver_name), 'en-GB') ||
         String(left.id).localeCompare(String(right.id)),
     )
-  const rows = savedDays.length
-    ? savedDays.map((row) =>
-        blankDriverDraftRow({
-          key: row.id,
-          id: row.id,
-          driverId: row.driver_id,
-          driverName: row.driver_name,
-          source: row.source_name || '',
-          income: draftMoney(row.income_gbp),
-          salary: draftMoney(row.salary_gbp),
-          diesel: draftMoney(row.diesel_gbp),
-          other: draftMoney(row.other_gbp),
-          otherDescription: row.other_description || '',
-          worked: true,
-        }),
-      )
-    : (records?.drivers || [])
-        .filter((driver) => !driver.archived)
-        .sort((left, right) => String(left.name).localeCompare(String(right.name), 'en-GB'))
-        .map((driver) =>
-          blankDriverDraftRow({
-            key: `placeholder-${driver.id}`,
-            driverId: driver.id,
-            driverName: driver.name,
-          }),
-        )
+  const unused = [...savedDays]
+  const activeDrivers = (records?.drivers || [])
+    .filter((driver) => !driver.archived)
+    .sort((left, right) => String(left.name).localeCompare(String(right.name), 'en-GB'))
+  const rows = activeDrivers.map((driver) => {
+    const byId = unused.findIndex((row) => row.driver_id && row.driver_id === driver.id)
+    const byName =
+      byId >= 0
+        ? -1
+        : unused.findIndex(
+            (row) => String(row.driver_name || '').trim().toLocaleLowerCase('en-GB') === driver.name.toLocaleLowerCase('en-GB'),
+          )
+    const matchIndex = byId >= 0 ? byId : byName
+    if (matchIndex >= 0) {
+      const [saved] = unused.splice(matchIndex, 1)
+      return draftFromSavedDay(saved, driver.id)
+    }
+    return blankDriverDraftRow({
+      key: `placeholder-${driver.id}`,
+      driverId: driver.id,
+      driverName: driver.name,
+      attendance: 'not_set',
+    })
+  })
+  for (const saved of unused) rows.push(draftFromSavedDay(saved))
 
   return {
     date,
@@ -435,13 +516,16 @@ export function financeDayDraftSignature(draft) {
       id: row.id || '',
       driverId: row.driverId || '',
       driverName: clean(row.driverName),
-      source: clean(row.source),
+      sourceChoice: row.sourceChoice || '',
+      sourceCustom: clean(row.sourceCustom),
+      source: clean(resolveIncomeSource(row)),
       income: clean(row.income),
+      anotherIncome: clean(row.anotherIncome),
       salary: clean(row.salary),
       diesel: clean(row.diesel),
       other: clean(row.other),
       otherDescription: clean(row.otherDescription),
-      worked: Boolean(row.worked),
+      attendance: rowAttendance(row),
     })),
     incomes: (draft?.incomes || []).map((row) => ({
       id: row.id || '',
@@ -470,10 +554,7 @@ export function validateFinanceDayDraft(draft) {
   const seen = new Set()
   for (const row of draft?.rows || []) {
     const name = String(row.driverName || '').trim().replace(/\s+/g, ' ')
-    if (!financeRowHasEntry(row)) {
-      if (name.length > 80) errors.push('Enter a driver name up to 80 characters.')
-      continue
-    }
+    if (!name && !financeRowHasEntry(row)) continue
     if (!name) errors.push('Enter a driver name for each completed row.')
     else if (name.length > 80) errors.push('Enter a driver name up to 80 characters.')
     else {
@@ -481,9 +562,14 @@ export function validateFinanceDayDraft(draft) {
       if (seen.has(key)) errors.push(`${name} is on this day more than once.`)
       seen.add(key)
     }
-    if (String(row.source || '').trim().length > 80) errors.push('Enter an income source up to 80 characters.')
+    if (rowAttendance(row) === 'absent') continue
+    if (row.sourceChoice === 'other' && !String(row.sourceCustom || '').trim()) {
+      errors.push(`Enter an income source${name ? ` for ${name}` : ''}.`)
+    }
+    if (resolveIncomeSource(row).length > 80) errors.push('Enter an income source up to 80 characters.')
     for (const [label, value] of [
       ['Income', row.income],
+      ['Another income', row.anotherIncome],
       ['Salary', row.salary],
       ['Diesel', row.diesel],
       ['Other expenses', row.other],
@@ -526,18 +612,24 @@ export function applyFinanceDayDraft(records, date, draft) {
   const removedDays = new Set(draft.removedDayIds || [])
   const driverDays = [
     ...(source.driverDays || []).filter((row) => row.activity_date !== date),
-    ...(draft.rows || []).filter((row) => financeRowHasEntry(row) && !removedDays.has(row.id)).map((row) => ({
-      id: row.id || row.key,
-      activity_date: date,
-      driver_id: row.driverId || '',
-      driver_name: String(row.driverName || '').trim() || 'Not named',
-      source_name: String(row.source || '').trim(),
-      income_gbp: penceToAmount(financeAmountPence(row.income)),
-      salary_gbp: penceToAmount(financeAmountPence(row.salary)),
-      diesel_gbp: penceToAmount(financeAmountPence(row.diesel)),
-      other_gbp: penceToAmount(financeAmountPence(row.other)),
-      other_description: String(row.otherDescription || '').trim(),
-    })),
+    ...(draft.rows || []).filter((row) => financeRowHasEntry(row) && !removedDays.has(row.id)).map((row) => {
+      const attendance = rowAttendance(row)
+      const absent = attendance === 'absent'
+      return {
+        id: row.id || row.key,
+        activity_date: date,
+        driver_id: row.driverId || '',
+        driver_name: String(row.driverName || '').trim() || 'Not named',
+        source_name: absent ? '' : resolveIncomeSource(row),
+        income_gbp: absent ? '0.00' : penceToAmount(financeAmountPence(row.income)),
+        another_income_gbp: absent ? '0.00' : penceToAmount(financeAmountPence(row.anotherIncome)),
+        salary_gbp: absent ? '0.00' : penceToAmount(financeAmountPence(row.salary)),
+        diesel_gbp: absent ? '0.00' : penceToAmount(financeAmountPence(row.diesel)),
+        other_gbp: absent ? '0.00' : penceToAmount(financeAmountPence(row.other)),
+        other_description: absent ? '' : String(row.otherDescription || '').trim(),
+        attendance,
+      }
+    }),
   ]
   const incomes = [
     ...(source.incomes || []).filter((row) => row.activity_date !== date),
@@ -573,6 +665,132 @@ export function applyFinanceDayDraft(records, date, draft) {
   return { ...source, driverDays, incomes, expenses }
 }
 
+/** Keep edits when the saved-driver list changes, and add any new name as an empty row. */
+export function reconcileFinanceDayDraft(clean, dirty) {
+  if (!dirty || dirty.date !== clean?.date) return clean
+  const cleanByDriver = new Map((clean.rows || []).filter((row) => row.driverId).map((row) => [row.driverId, row]))
+  const seen = new Set()
+  const rows = (dirty.rows || []).map((row) => {
+    if (row.driverId) seen.add(row.driverId)
+    const fresh = row.driverId ? cleanByDriver.get(row.driverId) : null
+    return fresh ? { ...row, driverName: fresh.driverName } : row
+  })
+  for (const row of clean.rows || []) {
+    if (!row.driverId || row.id || seen.has(row.driverId)) continue
+    rows.push(row)
+  }
+  return {
+    ...dirty,
+    rows,
+  }
+}
+
+export function isoDatesInclusive(from, to) {
+  if (!isIsoDate(from) || !isIsoDate(to) || from > to) return []
+  const dates = []
+  let cursor = from
+  while (cursor <= to && dates.length < 400) {
+    dates.push(cursor)
+    cursor = shiftIsoDate(cursor, 1)
+  }
+  return dates
+}
+
+export function formatWeekdayDate(iso) {
+  const [year, month, day] = String(iso).split('-').map(Number)
+  const date = new Date(Date.UTC(year, month - 1, day, 12))
+  const weekday = new Intl.DateTimeFormat('en-GB', { weekday: 'short', timeZone: 'UTC' }).format(date)
+  const rest = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' }).format(date)
+  return `${weekday} ${rest}`
+}
+
+/**
+ * Attendance comes only from a saved Worked or Did not work status.
+ * A driver name, or an income or salary amount, does not count as a worked day.
+ */
+export function weeklyAttendance(records, from, to) {
+  const dates = isoDatesInclusive(from, to)
+  const saved = (records?.driverDays || []).filter((row) => inDateRange(row.activity_date, from, to))
+  const statusByDriverDate = new Map()
+  for (const row of saved) {
+    statusByDriverDate.set(`${row.driver_id}|${row.activity_date}`, rowAttendance(row, { stored: true }))
+  }
+  const active = (records?.drivers || [])
+    .filter((driver) => !driver.archived)
+    .map((driver) => ({ id: driver.id, name: driver.name, archived: false }))
+  const activeIds = new Set(active.map((driver) => driver.id))
+  const historical = []
+  const seenHistorical = new Set()
+  for (const row of saved) {
+    const status = rowAttendance(row, { stored: true })
+    if (status === 'not_set' || !row.driver_id || activeIds.has(row.driver_id) || seenHistorical.has(row.driver_id)) continue
+    seenHistorical.add(row.driver_id)
+    historical.push({ id: row.driver_id, name: row.driver_name || 'Not named', archived: true })
+  }
+  const people = [...active, ...historical].sort((left, right) => String(left.name).localeCompare(String(right.name), 'en-GB'))
+  return {
+    dates,
+    rows: people.map((driver) => {
+      const cells = dates.map((date) => statusByDriverDate.get(`${driver.id}|${date}`) || 'not_set')
+      return {
+        ...driver,
+        cells,
+        daysWorked: cells.filter((status) => status === 'worked').length,
+        daysAbsent: cells.filter((status) => status === 'absent').length,
+      }
+    }),
+  }
+}
+
+/**
+ * Drivers with at least one saved Worked date in the range, including archived drivers.
+ * Days worked counts those dates, including a worked day with £0 income.
+ * Another income stays on the driver. Additional income is not added here.
+ */
+export function periodDriverReport(records, from, to) {
+  const archivedIds = new Set((records?.drivers || []).filter((driver) => driver.archived).map((driver) => driver.id))
+  const byDriver = new Map()
+  for (const row of records?.driverDays || []) {
+    if (!inDateRange(row.activity_date, from, to)) continue
+    if (rowAttendance(row, { stored: true }) !== 'worked') continue
+    const id = String(row.driver_id || row.driver_name || 'unknown')
+    const current = byDriver.get(id) || {
+      id,
+      name: row.driver_name || 'Not named',
+      archived: archivedIds.has(row.driver_id),
+      dates: new Set(),
+      income: 0,
+      another: 0,
+      salary: 0,
+      diesel: 0,
+      other: 0,
+    }
+    current.name = row.driver_name || current.name
+    current.archived = archivedIds.has(row.driver_id)
+    current.dates.add(String(row.activity_date))
+    current.income += toPence(row.income_gbp)
+    current.another += toPence(row.another_income_gbp)
+    current.salary += toPence(row.salary_gbp)
+    current.diesel += toPence(row.diesel_gbp)
+    current.other += toPence(row.other_gbp)
+    byDriver.set(id, current)
+  }
+  return [...byDriver.values()]
+    .map((row) => ({
+      id: row.id,
+      name: row.name,
+      archived: row.archived,
+      daysWorked: row.dates.size,
+      income: row.income,
+      another: row.another,
+      salary: row.salary,
+      diesel: row.diesel,
+      other: row.other,
+      profit: row.income + row.another - row.salary - row.diesel - row.other,
+    }))
+    .sort((left, right) => String(left.name).localeCompare(String(right.name), 'en-GB') || String(left.id).localeCompare(String(right.id)))
+}
+
 export function unionIsoRange(ranges) {
   const valid = (ranges || []).filter(
     (range) => range && isIsoDate(range.from) && isIsoDate(range.to) && range.from <= range.to,
@@ -585,9 +803,9 @@ export function unionIsoRange(ranges) {
 }
 
 /** One request when the dates sit together. Separate requests when a custom range is far from the calendar. */
-export function financeFetchRanges(periodRange, visibleMonth, selectedIso) {
+export function financeFetchRanges(periodRange, visibleMonth, selectedIso, ...extras) {
   const selected = isIsoDate(selectedIso) ? { from: selectedIso, to: selectedIso } : null
-  const parts = [visibleMonth, periodRange, selected].filter(
+  const parts = [visibleMonth, periodRange, selected, ...extras].filter(
     (range) => range && isIsoDate(range.from) && isIsoDate(range.to) && range.from <= range.to,
   )
   const needed = []
@@ -655,7 +873,8 @@ function addGrouped(map, name, pence) {
 }
 
 /**
- * Profit before deduction = income − salaries − diesel − other expenses.
+ * Profit before deduction = income + another income − salaries − diesel − other expenses.
+ * Another income belongs to the driver day. It is not copied into additional income.
  * Driver-day rows and additional entries are each counted once.
  * The percentage is applied once to this profit, never per day and again on the total.
  * Earlier expense rows stay in the same totals: diesel, driver pay and helper pay count as
@@ -681,22 +900,25 @@ export function summarizeFinance(input, percent) {
   }
 
   for (const row of source.driverDays || []) {
+    if (rowAttendance(row, { stored: true }) === 'absent') continue
     const date = String(row.activity_date)
     const day = dayFor(date)
     const incomePence = toPence(row.income_gbp)
+    const anotherPence = toPence(row.another_income_gbp)
+    const earnedPence = incomePence + anotherPence
     const salaryPence = toPence(row.salary_gbp)
     const dieselPence = toPence(row.diesel_gbp)
     const otherPence = toPence(row.other_gbp)
     day.drivers += 1
-    day.income += incomePence
+    day.income += earnedPence
     day.salaries += salaryPence
     day.diesel += dieselPence
     day.other += otherPence
-    income += incomePence
+    income += earnedPence
     salaries += salaryPence
     diesel += dieselPence
     other += otherPence
-    if (incomePence !== 0) addGrouped(sources, row.source_name, incomePence)
+    if (earnedPence !== 0) addGrouped(sources, row.source_name, earnedPence)
     if (salaryPence !== 0) addGrouped(salariesByDriver, row.driver_name, salaryPence)
     if (otherPence !== 0) addGrouped(otherCategories, row.other_description || 'Other expenses', otherPence)
   }
