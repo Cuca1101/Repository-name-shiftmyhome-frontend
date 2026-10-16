@@ -1318,7 +1318,7 @@ export default function FinanceProfitAdmin() {
         </div>
       </div>
 
-      <div className="flex min-w-0 flex-col gap-3 lg:flex-row lg:flex-wrap lg:items-center lg:justify-between">
+      <div className="flex min-w-0 flex-col gap-3 md:flex-row md:flex-wrap md:items-center md:justify-between">
         <div className="flex flex-wrap gap-2" role="tablist" aria-label="Reporting period">
           {[
             ['day', 'Day'],
@@ -1397,7 +1397,7 @@ export default function FinanceProfitAdmin() {
       ) : null}
       {loading ? <p className="text-sm text-slate-500">Loading records…</p> : null}
 
-      <div className="grid min-w-0 gap-3 xl:grid-cols-[14.5rem_minmax(0,1fr)] xl:items-start">
+      <div className="grid min-w-0 gap-3 md:grid-cols-[14.5rem_minmax(0,1fr)] md:items-start">
         <section className="min-w-0 rounded-2xl border border-slate-200 bg-white p-2.5 shadow-sm sm:p-3" data-testid="finance-calendar">
           <div className="mb-2 flex items-center justify-between gap-2">
             <button type="button" className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 text-slate-700" onClick={() => moveCalendar(-1)} aria-label="Previous month">
@@ -1722,7 +1722,7 @@ export default function FinanceProfitAdmin() {
           </button>
           )}
 
-          <div className="mt-4 grid gap-3 lg:grid-cols-2">
+          <div className="mt-4 grid gap-3 md:grid-cols-2">
             <div className="rounded-xl border border-slate-200 p-3">
               <div className="flex items-center justify-between gap-2">
                 <p className="text-sm font-bold text-slate-900">Additional income</p>
@@ -1932,7 +1932,7 @@ export default function FinanceProfitAdmin() {
             <p className="mt-3 text-sm text-slate-600">Totals for the dates you choose. Saved income and expenses are counted once.</p>
           )}
           {scope === 'week' || scope === 'month' ? (
-            <div className="mt-4 grid gap-3 lg:grid-cols-2">
+            <div className="mt-4 grid gap-3 md:grid-cols-2">
               <RecordList
                 title="Additional income"
                 empty="No additional income in this period."
@@ -2078,7 +2078,7 @@ export default function FinanceProfitAdmin() {
         <p className="mt-3 text-sm text-slate-600">
           {formatGbp(summary.income)} − {formatGbp(summary.expenses)} = {formatGbp(summary.profit)}. {formatGbp(summary.profit)} − {formatGbp(summary.deduction)} = {formatGbp(summary.finalAmount)}
         </p>
-        <div className="mt-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <div className="mt-4 flex min-w-0 flex-col gap-3 md:flex-row md:flex-wrap md:items-center md:justify-between">
           <label className="text-sm font-medium text-slate-700" htmlFor="finance-deduction">
             Deduction (%)
             <span className="mt-1 flex flex-wrap items-center gap-2">
@@ -2131,7 +2131,7 @@ export default function FinanceProfitAdmin() {
       )}
 
       {scope === 'custom' ? (
-      <div className="grid gap-3 lg:grid-cols-2">
+      <div className="grid gap-3 md:grid-cols-2">
         <AmountList title="Income by source" rows={summary.sources} empty="No income in this period." />
         <AmountList title="Salaries by driver" rows={summary.salariesByDriver} empty="No salaries in this period." />
         <AmountList title="Other expenses by category" rows={summary.otherCategories} empty="No other expenses in this period." />

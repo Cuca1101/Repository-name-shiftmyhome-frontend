@@ -358,7 +358,7 @@ function AdminNavItem({ item, pathname, onNavigate, badgeCount, collapsed = fals
         onClick={onNavigate}
         title={item.label}
         className={`group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition ${
-          collapsed ? 'lg:justify-center lg:gap-0 lg:px-2' : ''
+          collapsed ? 'md:justify-center md:gap-0 md:px-2' : ''
         } ${
           active
             ? 'bg-white/10 text-white shadow-inner ring-1 ring-white/10'
@@ -368,17 +368,17 @@ function AdminNavItem({ item, pathname, onNavigate, badgeCount, collapsed = fals
         <span className={`relative shrink-0 ${active ? 'text-emerald-400' : 'text-slate-500 group-hover:text-slate-300'}`}>
           <NavIcon name={item.icon} />
           {collapsed && count > 0 ? (
-            <span className="absolute -right-1 -top-1 hidden h-2 w-2 rounded-full bg-red-500 lg:block" aria-hidden />
+            <span className="absolute -right-1 -top-1 hidden h-2 w-2 rounded-full bg-red-500 md:block" aria-hidden />
           ) : null}
         </span>
-        <span className={`min-w-0 flex-1 truncate ${collapsed ? 'lg:sr-only' : ''}`}>{label}</span>
+        <span className={`min-w-0 flex-1 truncate ${collapsed ? 'md:sr-only' : ''}`}>{label}</span>
         {count > 0 && item.badgeKey === 'supportUnread' ? (
-          <span className={`ml-1 inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-red-500 px-1.5 text-[10px] font-bold text-white ${collapsed ? 'lg:hidden' : ''}`}>
+          <span className={`ml-1 inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-red-500 px-1.5 text-[10px] font-bold text-white ${collapsed ? 'md:hidden' : ''}`}>
             {count > 99 ? '99+' : count}
           </span>
         ) : null}
         {active && count === 0 ? (
-          <span className={`ml-auto h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-400 ${collapsed ? 'lg:hidden' : ''}`} aria-hidden />
+          <span className={`ml-auto h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-400 ${collapsed ? 'md:hidden' : ''}`} aria-hidden />
         ) : null}
       </NavLink>
     </li>
@@ -441,7 +441,7 @@ export default function AdminLayout() {
   useEffect(() => watchAdminPresence(), [])
 
   useEffect(() => {
-    const mq = window.matchMedia('(min-width: 1024px)')
+    const mq = window.matchMedia('(min-width: 768px)')
     const onChange = () => {
       if (mq.matches) setSidebarOpen(false)
     }
@@ -564,7 +564,7 @@ export default function AdminLayout() {
       <button
         type="button"
         aria-label="Close menu"
-        className={`fixed inset-0 z-40 bg-slate-900/60 backdrop-blur-sm transition-opacity lg:hidden ${
+        className={`fixed inset-0 z-40 bg-slate-900/60 backdrop-blur-sm transition-opacity md:hidden ${
           sidebarOpen ? 'opacity-100' : 'pointer-events-none opacity-0'
         }`}
         onClick={closeSidebar}
@@ -572,11 +572,11 @@ export default function AdminLayout() {
 
       {/* Sidebar */}
       <aside
-        className={`fixed inset-y-0 left-0 z-50 flex w-[min(100vw-3rem,17.5rem)] flex-col overflow-hidden border-r border-slate-800/80 bg-gradient-to-b from-slate-900 to-slate-950 shadow-2xl transition-[width,transform] duration-200 ease-out lg:translate-x-0 ${
-          sidebarCollapsed ? 'lg:w-[4.5rem]' : 'lg:w-64'
-        } ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}
+        className={`fixed inset-y-0 left-0 z-50 flex w-[min(100vw-3rem,17.5rem)] flex-col overflow-hidden border-r border-slate-800/80 bg-gradient-to-b from-slate-900 to-slate-950 shadow-2xl transition-[width,transform] duration-200 ease-out md:translate-x-0 ${
+          sidebarCollapsed ? 'md:w-[4.5rem]' : 'md:w-64'
+        } ${sidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}
       >
-        <div className={`flex h-16 shrink-0 items-center gap-3 border-b border-white/10 px-4 lg:h-[4.25rem] ${sidebarCollapsed ? 'lg:justify-center lg:px-2' : ''}`}>
+        <div className={`flex h-16 shrink-0 items-center gap-3 border-b border-white/10 px-4 md:h-[4.25rem] ${sidebarCollapsed ? 'md:justify-center md:px-2' : ''}`}>
           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-500/20 ring-1 ring-emerald-400/30">
             <svg className="h-6 w-6 text-emerald-400" viewBox="0 0 24 24" fill="none" aria-hidden>
               <path
@@ -588,13 +588,13 @@ export default function AdminLayout() {
               />
             </svg>
           </div>
-          <div className={`min-w-0 flex-1 ${sidebarCollapsed ? 'lg:hidden' : ''}`}>
+          <div className={`min-w-0 flex-1 ${sidebarCollapsed ? 'md:hidden' : ''}`}>
             <p className="truncate text-sm font-bold tracking-tight text-white">ShiftMyHome</p>
             <p className="truncate text-xs text-slate-400">Operations</p>
           </div>
           <button
             type="button"
-            className="rounded-lg p-2 text-slate-400 hover:bg-white/10 hover:text-white lg:hidden"
+            className="rounded-lg p-2 text-slate-400 hover:bg-white/10 hover:text-white md:hidden"
             onClick={closeSidebar}
             aria-label="Close sidebar"
           >
@@ -604,13 +604,13 @@ export default function AdminLayout() {
           </button>
         </div>
 
-        <nav className={`min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-3 py-4 ${sidebarCollapsed ? 'lg:px-2' : ''}`} aria-label="Admin navigation">
+        <nav className={`min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-3 py-4 ${sidebarCollapsed ? 'md:px-2' : ''}`} aria-label="Admin navigation">
           {mainSections.map((section) => (
             <div key={section.title} className="mb-7 last:mb-0">
-              <p className={`mb-2.5 px-3 text-[10px] font-semibold uppercase tracking-wider text-slate-500 ${sidebarCollapsed ? 'lg:sr-only' : ''}`}>
+              <p className={`mb-2.5 px-3 text-[10px] font-semibold uppercase tracking-wider text-slate-500 ${sidebarCollapsed ? 'md:sr-only' : ''}`}>
                 {section.title}
               </p>
-              {sidebarCollapsed ? <div className="mb-2 hidden h-px bg-white/10 lg:block" aria-hidden /> : null}
+              {sidebarCollapsed ? <div className="mb-2 hidden h-px bg-white/10 md:block" aria-hidden /> : null}
               <ul className="space-y-0.5">
                 {section.items.map((item) => (
                   <AdminNavItem
@@ -635,7 +635,7 @@ export default function AdminLayout() {
               aria-expanded={legacyOpen}
               aria-controls="admin-legacy-support-nav"
             >
-              <p className={`min-w-0 flex-1 text-[10px] font-semibold uppercase tracking-wider text-slate-500 ${sidebarCollapsed ? 'lg:sr-only' : ''}`}>
+              <p className={`min-w-0 flex-1 text-[10px] font-semibold uppercase tracking-wider text-slate-500 ${sidebarCollapsed ? 'md:sr-only' : ''}`}>
                 {legacySupportSection.title}
               </p>
               <svg
@@ -651,7 +651,7 @@ export default function AdminLayout() {
             </button>
             {legacyOpen ? (
               <div id="admin-legacy-support-nav">
-                <p className={`mb-3 px-3 text-[11px] leading-relaxed text-slate-500 ${sidebarCollapsed ? 'lg:hidden' : ''}`}>{legacySupportSection.helperText}</p>
+                <p className={`mb-3 px-3 text-[11px] leading-relaxed text-slate-500 ${sidebarCollapsed ? 'md:hidden' : ''}`}>{legacySupportSection.helperText}</p>
                 <ul className="space-y-0.5">
                   {legacySupportSection.items.map((item) => (
                     <AdminNavItem key={item.to} item={item} pathname={pathname} onNavigate={closeSidebar} collapsed={sidebarCollapsed} />
@@ -663,10 +663,10 @@ export default function AdminLayout() {
           ) : null}
 
           <div className="border-t border-white/10 pt-5">
-            <p className={`mb-2.5 px-3 text-[10px] font-semibold uppercase tracking-wider text-slate-500 ${sidebarCollapsed ? 'lg:sr-only' : ''}`}>
+            <p className={`mb-2.5 px-3 text-[10px] font-semibold uppercase tracking-wider text-slate-500 ${sidebarCollapsed ? 'md:sr-only' : ''}`}>
               Finance
             </p>
-            {sidebarCollapsed ? <div className="mb-2 hidden h-px bg-white/10 lg:block" aria-hidden /> : null}
+            {sidebarCollapsed ? <div className="mb-2 hidden h-px bg-white/10 md:block" aria-hidden /> : null}
             <ul className="space-y-0.5">
               <AdminNavItem
                 item={financeNavItem}
@@ -684,12 +684,12 @@ export default function AdminLayout() {
                   to="/"
                   onClick={closeSidebar}
                   title="View site"
-                  className={`group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-slate-400 transition hover:bg-white/5 hover:text-white ${sidebarCollapsed ? 'lg:justify-center lg:px-2' : ''}`}
+                  className={`group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-slate-400 transition hover:bg-white/5 hover:text-white ${sidebarCollapsed ? 'md:justify-center md:px-2' : ''}`}
                 >
                   <span className="text-slate-500 group-hover:text-slate-300">
                     <NavIcon name="external" />
                   </span>
-                  <span className={`min-w-0 flex-1 truncate ${sidebarCollapsed ? 'lg:sr-only' : ''}`}>View site</span>
+                  <span className={`min-w-0 flex-1 truncate ${sidebarCollapsed ? 'md:sr-only' : ''}`}>View site</span>
                 </Link>
               </li>
               <li>
@@ -697,12 +697,12 @@ export default function AdminLayout() {
                   type="button"
                   onClick={handleLogout}
                   title="Log out"
-                  className={`group flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-medium text-slate-400 transition hover:bg-red-500/10 hover:text-red-300 ${sidebarCollapsed ? 'lg:justify-center lg:px-2' : ''}`}
+                  className={`group flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-medium text-slate-400 transition hover:bg-red-500/10 hover:text-red-300 ${sidebarCollapsed ? 'md:justify-center md:px-2' : ''}`}
                 >
                   <span className="text-slate-500 group-hover:text-red-300">
                     <NavIcon name="logout" />
                   </span>
-                  <span className={`min-w-0 flex-1 truncate ${sidebarCollapsed ? 'lg:sr-only' : ''}`}>Log out</span>
+                  <span className={`min-w-0 flex-1 truncate ${sidebarCollapsed ? 'md:sr-only' : ''}`}>Log out</span>
                 </button>
               </li>
             </ul>
@@ -711,12 +711,12 @@ export default function AdminLayout() {
       </aside>
 
       {/* Main column sits beside the fixed sidebar. Padding matches the sidebar width; do not use 100vw. */}
-      <div className={`flex min-h-screen w-full min-w-0 max-w-full flex-col transition-[padding] duration-200 ${sidebarCollapsed ? 'lg:pl-[4.5rem]' : 'lg:pl-64'}`}>
+      <div className={`flex min-h-screen w-full min-w-0 max-w-full flex-col transition-[padding] duration-200 ${sidebarCollapsed ? 'md:pl-[4.5rem]' : 'md:pl-64'}`}>
         {/* Top bar (mobile + desktop) */}
-        <header className="sticky top-0 z-30 flex h-14 shrink-0 items-center gap-2 border-b border-slate-200/80 bg-white/90 px-3 shadow-sm backdrop-blur-md sm:h-16 sm:gap-3 sm:px-4 lg:px-5">
+        <header className="sticky top-0 z-30 flex h-14 shrink-0 items-center gap-2 border-b border-slate-200/80 bg-white/90 px-3 shadow-sm backdrop-blur-md sm:h-16 sm:gap-3 sm:px-4 md:px-5">
           <button
             type="button"
-            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 shadow-sm lg:hidden"
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 shadow-sm md:hidden"
             onClick={() => setSidebarOpen(true)}
             aria-label="Open menu"
           >
@@ -726,7 +726,7 @@ export default function AdminLayout() {
           </button>
           <button
             type="button"
-            className="hidden h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 shadow-sm lg:inline-flex"
+            className="hidden h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 shadow-sm md:inline-flex"
             onClick={toggleSidebarCollapsed}
             aria-pressed={sidebarCollapsed}
             aria-label={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
@@ -744,7 +744,7 @@ export default function AdminLayout() {
             <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">ShiftMyHome Admin</p>
             <h1 className="truncate text-lg font-bold leading-tight text-slate-900 sm:text-xl">{currentTitle}</h1>
           </div>
-          <div className="flex shrink-0 items-center gap-1.5 lg:hidden">
+          <div className="flex shrink-0 items-center gap-1.5 md:hidden">
             <Link
               to="/"
               className="inline-flex min-h-[40px] items-center whitespace-nowrap rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-medium text-slate-700 shadow-sm hover:bg-slate-50 sm:px-3 sm:text-sm"
@@ -764,10 +764,10 @@ export default function AdminLayout() {
         <main
           className={
             financePage
-              ? 'admin-main-compact w-full min-w-0 max-w-full flex-1 px-3 py-3 sm:px-3 sm:py-4 lg:px-4'
+              ? 'admin-main-compact w-full min-w-0 max-w-full flex-1 px-3 py-3 sm:px-3 sm:py-4 md:px-4'
               : customerLeadsWide
                 ? 'admin-main-compact w-full min-w-0 flex-1 px-4 py-4 sm:px-6 sm:py-6'
-                : 'admin-main-compact flex-1 px-2.5 py-4 xxs:px-3 xs:px-4 sm:px-6 sm:py-8 lg:px-8'
+                : 'admin-main-compact flex-1 px-2.5 py-4 xxs:px-3 xs:px-4 sm:px-6 sm:py-8 md:px-8'
           }
         >
           <div

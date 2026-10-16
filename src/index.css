@@ -1670,6 +1670,15 @@
   overflow-wrap: anywhere;
 }
 
+/* Tablet uses the same calendar-beside-table layout. Keep laptop column widths and scroll inside the table when the pane is narrower. */
+@media (max-width: 1279px) {
+  .finance-day-table,
+  .finance-period-table,
+  .finance-attendance-table {
+    min-width: 44rem;
+  }
+}
+
 /* Admin: scale down cards/grids on narrow viewports without changing structure. */
 @media (max-width: 512px) {
   .admin-main-compact :is(h2) {
