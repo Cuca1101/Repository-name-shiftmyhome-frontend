@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { isSupabaseConfigured, supabase } from '../lib/supabase'
 import { endAdminPresence, watchAdminPresence } from '../lib/adminPresence'
+import { lockFinanceAccess } from '../lib/financeSession'
 import { showDemoAdminUi } from '../lib/adminProductionMode'
 import { CallContactsProvider } from '../lib/callContactsContext'
 import {
@@ -72,6 +73,13 @@ const mainSections = [
     ],
   },
 ]
+
+const financeNavItem = {
+  to: '/admin/finance',
+  label: 'Finance & Profit',
+  end: false,
+  icon: 'wallet',
+}
 
 const legacySupportSection = {
   title: 'Legacy / Support Tools',
@@ -459,17 +467,25 @@ export default function AdminLayout() {
   }, [supportToast])
 
   async function handleLogout() {
+    await lockFinanceAccess()
     await endAdminPresence()
     if (supabase) await supabase.auth.signOut()
     navigate('/admin/login', { replace: true })
   }
 
-  const allNavItems = [...mainSections.flatMap((s) => s.items), ...legacySupportSection.items]
+  const allNavItems = [
+    ...mainSections.flatMap((s) => s.items),
+    ...legacySupportSection.items,
+    financeNavItem,
+  ]
 
   const currentTitle = allNavItems.find((item) => pathActive(pathname, item))?.label ?? 'Admin'
   const badgeCounts = { supportUnread: supportUnreadCount }
   const customerLeadsWide =
-    pathname === '/admin/customer-leads' || pathname.startsWith('/admin/customer-leads/')
+    pathname === '/admin/customer-leads' ||
+    pathname.startsWith('/admin/customer-leads/') ||
+    pathname === '/admin/finance' ||
+    pathname.startsWith('/admin/finance/')
 
   return (
     <div className="min-h-screen min-w-0 bg-slate-100/90">
@@ -572,6 +588,19 @@ export default function AdminLayout() {
             ) : null}
           </div>
           ) : null}
+
+          <div className="border-t border-white/10 pt-5">
+            <p className="mb-2.5 px-3 text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+              Finance
+            </p>
+            <ul className="space-y-0.5">
+              <AdminNavItem
+                item={financeNavItem}
+                pathname={pathname}
+                onNavigate={closeSidebar}
+              />
+            </ul>
+          </div>
         </nav>
 
         <div className="shrink-0 border-t border-white/10 p-3">

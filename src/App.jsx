@@ -80,6 +80,7 @@ import SeoLandingPage from './pages/SeoLandingPage'
 import NotFoundPage from './pages/NotFoundPage'
 
 const AdminCallCentrePage = lazy(() => import('./pages/AdminCallCentrePage'))
+const FinanceProfitAdmin = lazy(() => import('./pages/FinanceProfitAdmin'))
 import { SEO_PAGE_PATHS } from './data/seoPages'
 import { withTrailingSlashVariants } from './lib/normalizePublicPath'
 
@@ -332,6 +333,20 @@ export default function App() {
         <Route path="customer-tips" element={<CustomerTipsAdmin />} />
         <Route path="driver-messages" element={<DriverMessagesAdmin />} />
         <Route path="support-requests" element={<Navigate to="/admin/driver-messages" replace />} />
+        <Route
+          path="finance"
+          element={
+            <Suspense
+              fallback={
+                <div className="rounded-2xl border border-slate-200 bg-white p-8 text-sm text-slate-500 shadow-sm">
+                  Loading Finance & Profit…
+                </div>
+              }
+            >
+              <FinanceProfitAdmin />
+            </Suspense>
+          }
+        />
       </Route>
       <Route
         path="*"
