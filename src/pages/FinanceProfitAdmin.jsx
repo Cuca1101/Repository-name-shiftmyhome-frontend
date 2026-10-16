@@ -106,8 +106,13 @@ const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 const fieldClass =
   'mt-1 w-full rounded-xl border border-slate-200 px-3 py-3 text-base text-slate-900 shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/25 sm:text-sm'
 const cellInput =
-  'h-9 w-full rounded-md border border-slate-200 bg-white px-2 text-sm text-slate-900 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/25'
+  'h-9 w-full min-w-0 rounded-md border border-slate-200 bg-white px-2 text-sm text-slate-900 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/25'
 const moneyInput = `${cellInput} text-right tabular-nums`
+const dayCellInput =
+  'h-8 w-full min-w-0 max-w-full rounded-md border border-slate-200 bg-white px-1 text-[11px] leading-tight text-slate-900 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500/25'
+const dayMoneyInput = `${dayCellInput} text-right tabular-nums`
+const dayHead =
+  'px-1 py-1.5 align-bottom text-[10px] font-bold uppercase leading-tight tracking-tight text-slate-500 sm:text-[11px]'
 
 function financeClientKey(key) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(key || ''))
@@ -198,7 +203,7 @@ function DialogShell({ title, children, onClose, busy = false, stacked = false }
 function FormulaCard({ label, pence, emphasize = false }) {
   return (
     <div
-      className={`min-w-[7.5rem] flex-1 rounded-2xl border px-3 py-3 ${
+      className={`min-w-[6.75rem] max-w-full flex-1 basis-[8.5rem] rounded-2xl border px-2.5 py-2.5 sm:px-3 sm:py-3 ${
         emphasize ? 'border-emerald-200 bg-emerald-50' : 'border-slate-200 bg-slate-50'
       }`}
     >
@@ -212,41 +217,51 @@ function FormulaCard({ label, pence, emphasize = false }) {
 
 function PeriodDriverTable({ rows }) {
   return (
-    <div className="mt-3 overflow-x-auto">
-      <table className="w-full min-w-[64rem] border-collapse text-left text-sm" data-testid="finance-driver-report">
+    <div className="finance-table-scroll mt-3">
+      <table className="finance-fit-table finance-period-table text-left text-xs" data-testid="finance-driver-report">
+        <colgroup>
+          <col className="w-[18%]" />
+          <col className="w-[10%]" />
+          <col className="w-[12%]" />
+          <col className="w-[12%]" />
+          <col className="w-[11%]" />
+          <col className="w-[11%]" />
+          <col className="w-[13%]" />
+          <col className="w-[13%]" />
+        </colgroup>
         <thead>
-          <tr className="border-b border-slate-200 text-[11px] font-bold uppercase tracking-wide text-slate-500">
-            <th className="px-2 py-2">Driver name</th>
-            <th className="px-2 py-2 text-right">Days worked</th>
-            <th className="px-2 py-2 text-right">Income (£)</th>
-            <th className="px-2 py-2 text-right">Another income (£)</th>
-            <th className="px-2 py-2 text-right">Salary (£)</th>
-            <th className="px-2 py-2 text-right">Diesel (£)</th>
-            <th className="px-2 py-2 text-right">Other expenses (£)</th>
-            <th className="px-2 py-2 text-right">Profit before deduction</th>
+          <tr className="border-b border-slate-200">
+            <th className={`${dayHead} text-left`}>Driver name</th>
+            <th className={`${dayHead} text-right`}>Days worked</th>
+            <th className={`${dayHead} text-right`}>Income (£)</th>
+            <th className={`${dayHead} text-right`}>Another income (£)</th>
+            <th className={`${dayHead} text-right`}>Salary (£)</th>
+            <th className={`${dayHead} text-right`}>Diesel (£)</th>
+            <th className={`${dayHead} text-right`}>Other expenses (£)</th>
+            <th className={`${dayHead} text-right`}>Profit before deduction</th>
           </tr>
         </thead>
         <tbody>
           {rows.length === 0 ? (
             <tr>
-              <td colSpan={8} className="px-2 py-4 text-sm text-slate-500">
+              <td colSpan={8} className="px-1 py-4 text-sm text-slate-500">
                 No drivers worked in this period.
               </td>
             </tr>
           ) : null}
           {rows.map((row) => (
             <tr key={row.id} className="border-b border-slate-100">
-              <td className="px-2 py-2 font-semibold text-slate-900">
-                {row.name}
-                {row.archived ? <span className="ml-1 text-xs font-medium text-slate-500">Archived</span> : null}
+              <td className="px-1 py-1.5 font-semibold text-slate-900">
+                <span className="block truncate" title={row.name}>{row.name}</span>
+                {row.archived ? <span className="text-[11px] font-medium text-slate-500">Archived</span> : null}
               </td>
-              <td className="px-2 py-2 text-right tabular-nums">{row.daysWorked}</td>
-              <td className="px-2 py-2 text-right tabular-nums">{formatGbp(row.income)}</td>
-              <td className="px-2 py-2 text-right tabular-nums">{formatGbp(row.another)}</td>
-              <td className="px-2 py-2 text-right tabular-nums">{formatGbp(row.salary)}</td>
-              <td className="px-2 py-2 text-right tabular-nums">{formatGbp(row.diesel)}</td>
-              <td className="px-2 py-2 text-right tabular-nums">{formatGbp(row.other)}</td>
-              <td className={`px-2 py-2 text-right font-semibold tabular-nums ${profitTextClass(row.profit)}`}>{formatGbp(row.profit)}</td>
+              <td className="px-1 py-1.5 text-right tabular-nums">{row.daysWorked}</td>
+              <td className="px-1 py-1.5 text-right text-[11px] tabular-nums sm:text-xs">{formatGbp(row.income)}</td>
+              <td className="px-1 py-1.5 text-right text-[11px] tabular-nums sm:text-xs">{formatGbp(row.another)}</td>
+              <td className="px-1 py-1.5 text-right text-[11px] tabular-nums sm:text-xs">{formatGbp(row.salary)}</td>
+              <td className="px-1 py-1.5 text-right text-[11px] tabular-nums sm:text-xs">{formatGbp(row.diesel)}</td>
+              <td className="px-1 py-1.5 text-right text-[11px] tabular-nums sm:text-xs">{formatGbp(row.other)}</td>
+              <td className={`px-1 py-1.5 text-right text-[11px] font-semibold tabular-nums sm:text-xs ${profitTextClass(row.profit)}`}>{formatGbp(row.profit)}</td>
             </tr>
           ))}
         </tbody>
@@ -1292,7 +1307,7 @@ export default function FinanceProfitAdmin() {
   const finalTone = summary.finalAmount < 0 ? 'bg-red-700' : 'bg-emerald-600'
 
   return (
-    <div className="space-y-4">
+    <div className="min-w-0 max-w-full space-y-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <p className="text-sm text-slate-500">Manual records</p>
         <div className="flex flex-wrap gap-2">
@@ -1303,7 +1318,7 @@ export default function FinanceProfitAdmin() {
         </div>
       </div>
 
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+      <div className="flex min-w-0 flex-col gap-3 lg:flex-row lg:flex-wrap lg:items-center lg:justify-between">
         <div className="flex flex-wrap gap-2" role="tablist" aria-label="Reporting period">
           {[
             ['day', 'Day'],
@@ -1327,7 +1342,7 @@ export default function FinanceProfitAdmin() {
           ))}
         </div>
         {scope === 'week' ? (
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <button type="button" className={`${quietButton} px-3`} onClick={() => moveWeek(-1)}>
               <ChevronLeft className="h-4 w-4" aria-hidden />
               Previous week
@@ -1339,7 +1354,7 @@ export default function FinanceProfitAdmin() {
           </div>
         ) : null}
         {scope === 'month' ? (
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <button type="button" className={`${quietButton} px-3`} onClick={() => moveCalendar(-1)}>
               <ChevronLeft className="h-4 w-4" aria-hidden />
               Previous month
@@ -1382,8 +1397,8 @@ export default function FinanceProfitAdmin() {
       ) : null}
       {loading ? <p className="text-sm text-slate-500">Loading records…</p> : null}
 
-      <div className="grid gap-4 xl:grid-cols-[17.5rem_minmax(0,1fr)] xl:items-start">
-        <section className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm" data-testid="finance-calendar">
+      <div className="grid min-w-0 gap-3 xl:grid-cols-[14.5rem_minmax(0,1fr)] xl:items-start">
+        <section className="min-w-0 rounded-2xl border border-slate-200 bg-white p-2.5 shadow-sm sm:p-3" data-testid="finance-calendar">
           <div className="mb-2 flex items-center justify-between gap-2">
             <button type="button" className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 text-slate-700" onClick={() => moveCalendar(-1)} aria-label="Previous month">
               <ChevronLeft className="h-4 w-4" aria-hidden />
@@ -1447,7 +1462,7 @@ export default function FinanceProfitAdmin() {
         </section>
 
         {scope === 'day' ? (
-        <section className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4" data-testid="finance-day-panel">
+        <section className="min-w-0 rounded-2xl border border-slate-200 bg-white p-2.5 shadow-sm sm:p-3" data-testid="finance-day-panel">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div>
               <h2 className="text-lg font-bold text-slate-900">{formatIsoHeading(selectedDate)}</h2>
@@ -1492,20 +1507,32 @@ export default function FinanceProfitAdmin() {
           </datalist>
 
           <fieldset disabled={historyMode || savingDay || loading} className={`mt-3 min-w-0 border-0 p-0 ${historyMode ? 'disabled:opacity-100' : 'disabled:opacity-70'}`}>
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[84.5rem] border-collapse text-left text-sm" data-testid="finance-day-table">
+          <div className="finance-table-scroll">
+            <table className="finance-fit-table finance-day-table text-left text-xs" data-testid="finance-day-table">
+              <colgroup>
+                <col className="w-[9%]" />
+                <col className="w-[16%]" />
+                <col className="w-[10%]" />
+                <col className="w-[9%]" />
+                <col className="w-[8.5%]" />
+                <col className="w-[8.5%]" />
+                <col className="w-[9%]" />
+                <col className="w-[11%]" />
+                <col className="w-[12%]" />
+                <col className="w-[7%]" />
+              </colgroup>
               <thead>
-                <tr className="border-b border-slate-200 text-[11px] font-bold uppercase tracking-wide text-slate-500">
-                  <th className="min-w-[10rem] px-1.5 py-2">Driver name</th>
-                  <th className="min-w-[13rem] px-1.5 py-2">Income source</th>
-                  <th className="min-w-[6.5rem] px-1.5 py-2 text-right">Income (£)</th>
-                  <th className="min-w-[6.5rem] px-1.5 py-2 text-right">Another income (£)</th>
-                  <th className="min-w-[6.5rem] px-1.5 py-2 text-right">Salary (£)</th>
-                  <th className="min-w-[6.5rem] px-1.5 py-2 text-right">Diesel (£)</th>
-                  <th className="min-w-[9rem] px-1.5 py-2 text-right">Other expenses (£)</th>
-                  <th className="min-w-[6.5rem] px-1.5 py-2 text-right">Profit (£)</th>
-                  <th className="min-w-[16rem] px-1.5 py-2">Attendance</th>
-                  <th className="min-w-[4rem] px-1.5 py-2">Actions</th>
+                <tr className="border-b border-slate-200">
+                  <th className={dayHead}>Driver name</th>
+                  <th className={dayHead}>Income source</th>
+                  <th className={`${dayHead} text-right`}>Income (£)</th>
+                  <th className={`${dayHead} text-right`}>Another income (£)</th>
+                  <th className={`${dayHead} text-right`}>Salary (£)</th>
+                  <th className={`${dayHead} text-right`}>Diesel (£)</th>
+                  <th className={`${dayHead} text-right`}>Other expenses (£)</th>
+                  <th className={`${dayHead} text-right`}>Profit (£)</th>
+                  <th className={dayHead}>Attendance</th>
+                  <th className={`${dayHead} normal-case tracking-normal text-center`}>Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -1524,11 +1551,11 @@ export default function FinanceProfitAdmin() {
                   const savedName = listedDriver(row)
                   return (
                     <tr key={row.key} className={`border-b border-slate-100 ${absent ? 'bg-slate-100/90 text-slate-500' : counted ? 'bg-white' : 'bg-slate-50/60'}`}>
-                      <td className="px-1.5 py-1.5">
+                      <td className="px-1 py-1">
                         {savedName ? (
-                          <div className="px-1">
-                            <p className="text-sm font-semibold text-slate-900">{row.driverName}</p>
-                            {absent ? <p className="text-xs font-semibold text-slate-500">Did not work</p> : null}
+                          <div className="min-w-0 px-0.5">
+                            <p className="truncate text-xs font-semibold text-slate-900" title={row.driverName}>{row.driverName}</p>
+                            {absent ? <p className="text-[11px] font-semibold text-slate-500">Did not work</p> : null}
                           </div>
                         ) : (
                           <input
@@ -1537,12 +1564,14 @@ export default function FinanceProfitAdmin() {
                             value={row.driverName}
                             maxLength={80}
                             onChange={(event) => onDriverName(row, event.target.value)}
-                            className={cellInput}
-                            placeholder="Select or type a name"
+                            className={dayCellInput}
+                            placeholder="Name"
+                            title={row.driverName || 'Select or type a name'}
                           />
                         )}
                       </td>
-                      <td className="px-1.5 py-1.5">
+                      <td className="px-1 py-1">
+                        <div className="min-w-0">
                         <select
                           aria-label={`Income source for ${row.driverName || 'this driver'}`}
                           value={row.sourceChoice || ''}
@@ -1555,8 +1584,9 @@ export default function FinanceProfitAdmin() {
                               source: choice === 'other' ? custom : choice,
                             })
                           }}
-                          className={cellInput}
+                          className={dayCellInput}
                           disabled={absent}
+                          title={row.sourceChoice === 'other' ? row.sourceCustom || 'Other' : row.sourceChoice || 'Income source'}
                         >
                           <option value="">Income source</option>
                           {FINANCE_INCOME_SOURCE_PRESETS.map((name) => (
@@ -1580,59 +1610,60 @@ export default function FinanceProfitAdmin() {
                                   source: event.target.value,
                                 })
                               }
-                              className={`${cellInput} mt-1`}
+                              className={`${dayCellInput} mt-1`}
                               disabled={absent}
                             />
                           </label>
                         ) : null}
+                        </div>
                       </td>
-                      <td className="px-1.5 py-1.5">
+                      <td className="px-1 py-1">
                         <input
                           aria-label={`Income for ${row.driverName || 'this driver'}`}
                           inputMode="decimal"
                           value={row.income}
                           onChange={(event) => updateDriverRow(row.key, { income: event.target.value })}
-                          className={moneyInput}
+                          className={dayMoneyInput}
                           disabled={absent}
                         />
                       </td>
-                      <td className="px-1.5 py-1.5">
+                      <td className="px-1 py-1">
                         <input
                           aria-label={`Another income for ${row.driverName || 'this driver'}`}
                           inputMode="decimal"
                           value={row.anotherIncome || ''}
                           onChange={(event) => updateDriverRow(row.key, { anotherIncome: event.target.value })}
-                          className={moneyInput}
+                          className={dayMoneyInput}
                           disabled={absent}
                         />
                       </td>
-                      <td className="px-1.5 py-1.5">
+                      <td className="px-1 py-1">
                         <input
                           aria-label={`Salary for ${row.driverName || 'this driver'}`}
                           inputMode="decimal"
                           value={row.salary}
                           onChange={(event) => updateDriverRow(row.key, { salary: event.target.value })}
-                          className={moneyInput}
+                          className={dayMoneyInput}
                           disabled={absent}
                         />
                       </td>
-                      <td className="px-1.5 py-1.5">
+                      <td className="px-1 py-1">
                         <input
                           aria-label={`Diesel for ${row.driverName || 'this driver'}`}
                           inputMode="decimal"
                           value={row.diesel}
                           onChange={(event) => updateDriverRow(row.key, { diesel: event.target.value })}
-                          className={moneyInput}
+                          className={dayMoneyInput}
                           disabled={absent}
                         />
                       </td>
-                      <td className="px-1.5 py-1.5">
+                      <td className="px-1 py-1">
                         <input
                           aria-label={`Other expenses for ${row.driverName || 'this driver'}`}
                           inputMode="decimal"
                           value={row.other}
                           onChange={(event) => updateDriverRow(row.key, { other: event.target.value })}
-                          className={moneyInput}
+                          className={dayMoneyInput}
                           disabled={absent}
                         />
                         {String(row.other || '').trim() || String(row.otherDescription || '').trim() ? (
@@ -1641,22 +1672,22 @@ export default function FinanceProfitAdmin() {
                             value={row.otherDescription}
                             maxLength={240}
                             onChange={(event) => updateDriverRow(row.key, { otherDescription: event.target.value })}
-                            className={`${cellInput} mt-1 text-xs`}
+                            className={`${dayCellInput} mt-1`}
                             placeholder="Description"
                           />
                         ) : null}
                       </td>
-                      <td className={`px-1.5 py-1.5 text-right font-semibold tabular-nums ${absent ? 'text-slate-500' : counted ? profitTextClass(profit) : 'text-slate-400'}`}>
+                      <td className={`px-0.5 py-1 text-right text-[11px] font-semibold tabular-nums ${absent ? 'text-slate-500' : counted ? profitTextClass(profit) : 'text-slate-400'}`} title={absent ? formatGbp(0) : counted ? formatGbp(profit) : '—'}>
                         {absent ? formatGbp(0) : counted ? formatGbp(profit) : '—'}
                       </td>
-                      <td className="px-1.5 py-1.5">
+                      <td className="px-1 py-1">
                         <AttendanceControl value={attendance} driverName={row.driverName} onChange={(next) => chooseAttendance(row, next)} />
                       </td>
-                      <td className="px-1.5 py-1.5">
+                      <td className="px-0.5 py-1 text-center">
                         {!savedName || row.id || financeRowHasEntry(row) ? (
                           <button
                             type="button"
-                            className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-red-700 hover:bg-red-50"
+                            className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-red-700 hover:bg-red-50"
                             aria-label={`Remove ${row.driverName || 'this driver'} from this day`}
                             onClick={() => askRemove('driver', row)}
                           >
@@ -1669,16 +1700,16 @@ export default function FinanceProfitAdmin() {
                 })}
               </tbody>
               <tfoot>
-                <tr className="border-t border-slate-300 bg-slate-50 text-sm font-semibold text-slate-900">
-                  <td className="px-1.5 py-2" colSpan={2}>
+                <tr className="border-t border-slate-300 bg-slate-50 text-xs font-semibold text-slate-900">
+                  <td className="px-1 py-1.5" colSpan={2}>
                     Totals
                   </td>
-                  <td className="px-1.5 py-2 text-right tabular-nums">{formatGbp(tableTotals.income)}</td>
-                  <td className="px-1.5 py-2 text-right tabular-nums">{formatGbp(tableTotals.anotherIncome)}</td>
-                  <td className="px-1.5 py-2 text-right tabular-nums">{formatGbp(tableTotals.salary)}</td>
-                  <td className="px-1.5 py-2 text-right tabular-nums">{formatGbp(tableTotals.diesel)}</td>
-                  <td className="px-1.5 py-2 text-right tabular-nums">{formatGbp(tableTotals.other)}</td>
-                  <td className={`px-1.5 py-2 text-right tabular-nums ${profitTextClass(tableTotals.profit)}`}>{formatGbp(tableTotals.profit)}</td>
+                  <td className="px-0.5 py-1.5 text-right text-[11px] tabular-nums">{formatGbp(tableTotals.income)}</td>
+                  <td className="px-0.5 py-1.5 text-right text-[11px] tabular-nums">{formatGbp(tableTotals.anotherIncome)}</td>
+                  <td className="px-0.5 py-1.5 text-right text-[11px] tabular-nums">{formatGbp(tableTotals.salary)}</td>
+                  <td className="px-0.5 py-1.5 text-right text-[11px] tabular-nums">{formatGbp(tableTotals.diesel)}</td>
+                  <td className="px-0.5 py-1.5 text-right text-[11px] tabular-nums">{formatGbp(tableTotals.other)}</td>
+                  <td className={`px-0.5 py-1.5 text-right text-[11px] tabular-nums ${profitTextClass(tableTotals.profit)}`}>{formatGbp(tableTotals.profit)}</td>
                   <td />
                   <td />
                 </tr>
@@ -1845,7 +1876,7 @@ export default function FinanceProfitAdmin() {
           </p>
           <label className="mt-3 block text-sm font-medium text-slate-700" htmlFor="finance-deduction">
             Deduction (%)
-            <span className="mt-1 flex items-center gap-2">
+            <span className="mt-1 flex flex-wrap items-center gap-2">
               <input
                 id="finance-deduction"
                 data-testid="finance-deduction"
@@ -1882,7 +1913,7 @@ export default function FinanceProfitAdmin() {
           </p>
         </section>
         ) : (
-        <section className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4" data-testid="finance-period-panel">
+        <section className="min-w-0 rounded-2xl border border-slate-200 bg-white p-2.5 shadow-sm sm:p-3" data-testid="finance-period-panel">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div>
               <h2 className="text-lg font-bold text-slate-900">{periodTitle}</h2>
@@ -1919,9 +1950,9 @@ export default function FinanceProfitAdmin() {
             </div>
           ) : null}
           {scope === 'month' ? (
-            <div className="mt-4 overflow-x-auto">
+            <div className="finance-table-scroll mt-4">
               <h3 className="text-sm font-bold text-slate-900">Daily breakdown</h3>
-              <table className="mt-2 w-full min-w-[40rem] border-collapse text-left text-sm">
+              <table className="finance-fit-table mt-2 text-left text-xs sm:text-sm">
                 <thead>
                   <tr className="border-b border-slate-200 text-[11px] font-bold uppercase tracking-wide text-slate-500">
                     <th className="px-2 py-2">Date</th>
@@ -1959,7 +1990,7 @@ export default function FinanceProfitAdmin() {
       </div>
 
       {scope === 'week' ? (
-      <section className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4" data-testid="finance-weekly-attendance">
+      <section className="min-w-0 rounded-2xl border border-slate-200 bg-white p-2.5 shadow-sm sm:p-3" data-testid="finance-weekly-attendance">
         <div>
           <h2 className="text-lg font-bold text-slate-900">Weekly attendance</h2>
           <p className="mt-1 text-sm text-slate-600">
@@ -1969,8 +2000,8 @@ export default function FinanceProfitAdmin() {
         <p className="mt-2 text-xs text-slate-500">
           Days worked counts saved Worked dates. Not set is unrecorded and is not treated as Did not work.
         </p>
-        <div className="mt-3 overflow-x-auto">
-          <table className="w-full min-w-[52rem] border-collapse text-left text-sm">
+        <div className="finance-table-scroll mt-3">
+          <table className="finance-fit-table finance-attendance-table text-left text-xs">
             <thead>
               <tr className="border-b border-slate-200 text-[11px] font-bold uppercase tracking-wide text-slate-500">
                 <th className="px-2 py-2">Driver</th>
@@ -2009,7 +2040,7 @@ export default function FinanceProfitAdmin() {
                       <td key={iso} className="px-1 py-1.5 text-center">
                         <button
                           type="button"
-                          className={`min-h-9 w-full rounded-md border px-1 py-1 text-[11px] font-semibold leading-tight ${tone}`}
+                          className={`min-h-9 w-full whitespace-normal rounded-md border px-0.5 py-1 text-[10px] font-semibold leading-tight sm:text-[11px] ${tone}`}
                           aria-label={`${driver.name}, ${formatIsoHeading(iso)}, ${label}. Open this day.`}
                           onClick={() => selectDay(iso, { openDay: true })}
                         >
@@ -2033,15 +2064,15 @@ export default function FinanceProfitAdmin() {
           <h2 className="text-lg font-bold text-slate-900">{periodTitle}</h2>
           <p className="text-sm font-medium text-slate-600">{periodLabel}</p>
         </div>
-        <div className="mt-4 flex flex-col gap-2 xl:flex-row xl:items-center">
+        <div className="mt-4 flex min-w-0 flex-wrap items-stretch gap-2">
           <FormulaCard label="Total income" pence={summary.income} />
-          <span className="hidden text-xl text-slate-300 xl:block" aria-hidden>−</span>
+          <span className="hidden text-xl text-slate-300 min-[1500px]:block" aria-hidden>−</span>
           <FormulaCard label="Total salaries" pence={summary.salaries} />
-          <span className="hidden text-xl text-slate-300 xl:block" aria-hidden>−</span>
+          <span className="hidden text-xl text-slate-300 min-[1500px]:block" aria-hidden>−</span>
           <FormulaCard label="Total diesel" pence={summary.diesel} />
-          <span className="hidden text-xl text-slate-300 xl:block" aria-hidden>−</span>
+          <span className="hidden text-xl text-slate-300 min-[1500px]:block" aria-hidden>−</span>
           <FormulaCard label="Total other expenses" pence={summary.other} />
-          <span className="hidden text-xl text-slate-300 xl:block" aria-hidden>=</span>
+          <span className="hidden text-xl text-slate-300 min-[1500px]:block" aria-hidden>=</span>
           <FormulaCard label={scope === 'week' ? 'Weekly profit' : scope === 'month' ? 'Monthly profit' : 'Profit before deduction'} pence={summary.profit} emphasize />
         </div>
         <p className="mt-3 text-sm text-slate-600">
@@ -2050,7 +2081,7 @@ export default function FinanceProfitAdmin() {
         <div className="mt-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <label className="text-sm font-medium text-slate-700" htmlFor="finance-deduction">
             Deduction (%)
-            <span className="mt-1 flex items-center gap-2">
+            <span className="mt-1 flex flex-wrap items-center gap-2">
               <input
                 id="finance-deduction"
                 data-testid="finance-deduction"
@@ -2247,15 +2278,15 @@ export default function FinanceProfitAdmin() {
 function AttendanceControl({ value, driverName, onChange }) {
   const absent = value === 'absent'
   return (
-    <label className="inline-flex h-9 items-center gap-2 text-sm font-medium text-slate-700">
+    <label className="flex min-w-0 items-start gap-1 text-[11px] font-medium leading-tight text-slate-700 sm:text-xs">
       <input
         type="checkbox"
-        className="h-4 w-4 rounded border-slate-300"
+        className="mt-0.5 h-3.5 w-3.5 shrink-0 rounded border-slate-300"
         checked={absent}
         aria-label={`Did not work for ${driverName || 'this driver'}`}
         onChange={(event) => onChange(event.target.checked ? 'absent' : 'not_set')}
       />
-      Did not work
+      <span>Did not work</span>
     </label>
   )
 }

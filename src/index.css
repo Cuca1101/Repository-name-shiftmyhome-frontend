@@ -1648,6 +1648,28 @@
   width: 0;
 }
 
+/* Finance & Profit: columns share the panel width. Portrait tablets may scroll inside the table only. */
+.finance-table-scroll {
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+}
+
+.finance-fit-table {
+  width: 100%;
+  table-layout: fixed;
+  border-collapse: collapse;
+}
+
+.finance-fit-table :is(th, td) {
+  overflow: hidden;
+}
+
+.finance-fit-table th {
+  overflow-wrap: anywhere;
+}
+
 /* Admin: scale down cards/grids on narrow viewports without changing structure. */
 @media (max-width: 512px) {
   .admin-main-compact :is(h2) {
