@@ -3,7 +3,7 @@ import { Link, useParams, useSearchParams } from 'react-router-dom'
 import PortalShell, { usePortalAccess } from '../components/customer-portal/PortalShell'
 import PortalTrackPanel from '../components/customer-portal/PortalTrackPanel'
 import MoveTimeline from '../components/tracking/MoveTimeline'
-import { abandonPortalAmendment, confirmPortalPayment, getPortalBooking, payPortalAmendment } from '../lib/customerPortalApi'
+import { abandonPortalAmendment, confirmPortalPayment, downloadPortalInvoice, getPortalBooking, payPortalAmendment } from '../lib/customerPortalApi'
 import {
   existingBalanceGbp,
   formatGbp,
@@ -47,6 +47,8 @@ export default function CustomerPortalBookingPage() {
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
   const [paying, setPaying] = useState(false)
+  const [invoiceBusy, setInvoiceBusy] = useState(false)
+  const [invoiceError, setInvoiceError] = useState('')
 
   useEffect(() => {
     let cancelled = false
@@ -105,6 +107,28 @@ export default function CustomerPortalBookingPage() {
   const openChange = (payload?.amendments || []).find((row) =>
     ['pending_approval', 'pending_payment', 'paid_needs_review'].includes(row.status),
   )
+
+  const paymentStatus = String(booking?.payment_status || '').toLowerCase()
+  const showInvoice = paid > 0 || paymentStatus === 'paid' || paymentStatus === 'deposit_paid'
+
+  async function downloadInvoice() {
+    if (!booking?.id) return
+    setInvoiceBusy(true)
+    setInvoiceError('')
+    try {
+      const file = await downloadPortalInvoice(booking.id, access)
+      const url = URL.createObjectURL(file.blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = file.filename
+      link.click()
+      URL.revokeObjectURL(url)
+    } catch (err) {
+      setInvoiceError(err?.message || 'Invoice PDF is not saved for this booking yet.')
+    } finally {
+      setInvoiceBusy(false)
+    }
+  }
 
   async function payOpen() {
     if (!openChange) return
@@ -171,6 +195,22 @@ export default function CustomerPortalBookingPage() {
               {inventoryTextFromLines(wizard?.inventoryLines) || booking.inventory_text || 'Items will show here once they are on the booking.'}
             </p>
           </section>
+
+          {showInvoice ? (
+            <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+              <h2 className="text-sm font-bold">Invoice</h2>
+              <p className="mt-1 text-sm text-slate-600">The same PDF that was attached to your payment email.</p>
+              <button
+                type="button"
+                disabled={invoiceBusy}
+                onClick={() => void downloadInvoice()}
+                className="mt-3 inline-flex min-h-11 items-center rounded-xl bg-slate-900 px-4 text-sm font-bold text-white disabled:opacity-60"
+              >
+                {invoiceBusy ? 'Preparing PDF…' : 'Download invoice PDF'}
+              </button>
+              {invoiceError ? <p className="mt-2 text-sm text-red-700">{invoiceError}</p> : null}
+            </section>
+          ) : null}
 
           {openChange ? (
             <section className="rounded-2xl border border-amber-300 bg-amber-50 p-4 text-sm">

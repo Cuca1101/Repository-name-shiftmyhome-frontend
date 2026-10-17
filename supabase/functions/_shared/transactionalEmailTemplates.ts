@@ -32,6 +32,8 @@ type EmailTemplateData = {
   paymentSectionBody?: string
   invoiceSectionTitle?: string
   invoiceSectionBody?: string
+  portalSectionTitle?: string
+  portalSectionBody?: string
   actionLabel?: string
   actionUrl?: string
   secondaryActionLabel?: string
@@ -195,6 +197,7 @@ function baseLayout(params: { subject: string; data: EmailTemplateData; brand: B
               <td class="smh-pad" style="padding:0 24px 0 24px;">
                 ${data.paymentSectionTitle && data.paymentSectionBody ? cardBlock(data.paymentSectionTitle, data.paymentSectionBody) : ''}
                 ${data.invoiceSectionTitle && data.invoiceSectionBody ? cardBlock(data.invoiceSectionTitle, data.invoiceSectionBody) : ''}
+                ${data.portalSectionTitle && data.portalSectionBody ? cardBlock(data.portalSectionTitle, data.portalSectionBody) : ''}
               </td>
             </tr>
 
@@ -289,9 +292,7 @@ function paymentReceivedTemplate(payload: {
     paymentStatus: payload.paymentStatus,
     collectionSummary: payload.collectionSummary,
     deliverySummary: payload.deliverySummary,
-    invoiceAttachedMessage: payload.invoiceDownloadUrl
-      ? 'Your invoice/receipt PDF is attached to this email. If your mail app hides attachments, use the Download Invoice PDF button below.'
-      : 'Your invoice/receipt PDF is attached to this email.',
+    invoiceAttachedMessage: 'Your invoice/receipt PDF is attached to this email.',
     supportMessage: `For any questions, contact ${payload.supportEmail}.`,
     paymentSectionTitle: 'Payment confirmation',
     paymentSectionBody: payload.packageSummary
@@ -299,17 +300,13 @@ function paymentReceivedTemplate(payload: {
       : 'Your payment has been processed successfully. We will confirm your move details shortly.',
     invoiceSectionTitle: 'Invoice / receipt',
     invoiceSectionBody:
-      payload.invoiceDownloadUrl
-        ? 'Your official invoice/receipt PDF is attached. You can also use the secure download link below as backup.'
-        : 'This email includes your official invoice/receipt PDF attachment for your records.',
-    actionLabel: payload.portalUrl
-      ? 'View my booking'
-      : payload.invoiceDownloadUrl
-        ? 'Download Invoice PDF'
-        : undefined,
-    actionUrl: payload.portalUrl || payload.invoiceDownloadUrl || undefined,
-    secondaryActionLabel: payload.portalUrl && payload.invoiceDownloadUrl ? 'Download Invoice PDF' : undefined,
-    secondaryActionUrl: payload.portalUrl && payload.invoiceDownloadUrl ? payload.invoiceDownloadUrl : undefined,
+      'This email includes your official invoice/receipt PDF attachment. After you sign in, you can download the same PDF again from your booking.',
+    portalSectionTitle: payload.portalUrl ? 'Sign in from this email' : undefined,
+    portalSectionBody: payload.portalUrl
+      ? 'The button below is your sign-in link for this email address. After you open it you can change the booking (date, items and addresses), see your bookings, and track your driver.'
+      : undefined,
+    actionLabel: payload.portalUrl ? 'Sign in to my booking' : undefined,
+    actionUrl: payload.portalUrl || undefined,
   }
   return {
     /** ASCII-only subject (matches isolated Resend test; avoids MIME edge cases). */
@@ -326,10 +323,11 @@ function paymentReceivedTemplate(payload: {
       `Collection: ${payload.collectionSummary}`,
       `Delivery: ${payload.deliverySummary}`,
       '',
-      payload.portalUrl ? `View my booking: ${payload.portalUrl}` : '',
-      payload.invoiceDownloadUrl
-        ? `Download invoice PDF: ${payload.invoiceDownloadUrl}`
-        : 'Your invoice/receipt is attached to this email.',
+      payload.portalUrl
+        ? 'The button in this email signs you in with this email address. You can change the booking (date, items and addresses), see your bookings, and track your driver.'
+        : '',
+      payload.portalUrl ? `Sign in to my booking: ${payload.portalUrl}` : '',
+      'Your invoice/receipt PDF is attached to this email. After you sign in, you can download the same PDF again from your booking.',
       '',
       'We will confirm your move details shortly.',
       '',

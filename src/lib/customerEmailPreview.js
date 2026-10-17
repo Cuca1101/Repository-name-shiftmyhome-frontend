@@ -73,14 +73,15 @@ export function buildCustomerSentEmailPreview({ quote = {}, eventKey = '', track
     return shell({
       title: 'Payment received successfully',
       intro:
-        'Thank you for choosing ShiftMyHome. Your payment has been received successfully and your move is now being prepared by our team.',
+        'Thank you for choosing ShiftMyHome. Your payment has been received successfully and your move is now being prepared by our team. The sign-in button in this email logs you in with this email address, so you can change the booking, see your bookings, and track your driver.',
       rows: [
         { label: 'Booking reference', value: quoteRef },
         { label: 'Payment status', value: 'Paid' },
         { label: 'Collection', value: String(quote.pickup_address || '').trim() },
         { label: 'Delivery', value: String(quote.delivery_address || '').trim() },
       ],
-      footerNote: 'Your invoice/receipt PDF is attached to this email.',
+      footerNote: 'Your invoice/receipt PDF is attached to this email. After sign-in, the same PDF can be downloaded from the booking.',
+      primary: { label: 'Sign in to my booking', url: 'https://www.shiftmyhome.co.uk/portal/bookings' },
     })
   }
 

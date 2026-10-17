@@ -147,6 +147,27 @@ export async function listPortalBookings(access) {
   return Array.isArray(data.bookings) ? data.bookings : []
 }
 
+function base64ToPdfBlob(contentBase64) {
+  const binary = atob(contentBase64)
+  const bytes = new Uint8Array(binary.length)
+  for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i)
+  return new Blob([bytes], { type: 'application/pdf' })
+}
+
+/** The PDF that was attached to the payment email. Does not build a new invoice. */
+export async function downloadPortalInvoice(quoteId, access) {
+  const view = portalAccess(access)
+  const data = await invoke('customer-booking-invoice', {
+    quote_id: quoteId,
+    ...(view.mode === 'admin' ? { admin_customer_id: view.customerId } : {}),
+  }, view.mode === 'admin' ? supabase : customerPortalClient)
+  if (!data?.contentBase64) throw new Error('Invoice PDF is not saved for this booking yet.')
+  return {
+    blob: base64ToPdfBlob(data.contentBase64),
+    filename: data.filename || 'invoice.pdf',
+  }
+}
+
 export async function getPortalBooking(quoteId, access) {
   const view = portalAccess(access)
   if (view.mode === 'admin') {

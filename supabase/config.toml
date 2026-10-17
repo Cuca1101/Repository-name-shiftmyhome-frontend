@@ -63,6 +63,9 @@ verify_jwt = false
 [functions.customer-booking-amend]
 verify_jwt = true
 
+[functions.customer-booking-invoice]
+verify_jwt = true
+
 [functions.send-auth-email]
 verify_jwt = false
 
