@@ -61,7 +61,6 @@ import PartnersAdmin from './components/PartnersAdmin'
 import HomePageQuoteRequestsAdmin from './components/HomePageQuoteRequestsAdmin'
 import AllQuotesAdmin from './components/AllQuotesAdmin'
 import QuoteRequestLeadDetails from './components/QuoteRequestLeadDetails'
-import WebsiteLeadsAdmin from './components/WebsiteLeadsAdmin'
 import CustomerLeadsAdmin from './components/CustomerLeadsAdmin'
 import CustomersAdmin from './components/CustomersAdmin'
 import CustomerLeadDetailAdmin from './components/CustomerLeadDetailAdmin'
@@ -79,7 +78,6 @@ import PaymentCancelledPage from './pages/PaymentCancelledPage'
 import SeoLandingPage from './pages/SeoLandingPage'
 import NotFoundPage from './pages/NotFoundPage'
 
-const AdminCallCentrePage = lazy(() => import('./pages/AdminCallCentrePage'))
 const FinanceProfitAdmin = lazy(() => import('./pages/FinanceProfitAdmin'))
 import { SEO_PAGE_PATHS } from './data/seoPages'
 import { withTrailingSlashVariants } from './lib/normalizePublicPath'
@@ -273,24 +271,6 @@ export default function App() {
         <Route index element={<AdminHome />} />
         <Route path="analytics" element={<AdminAnalyticsPage />} />
         <Route path="sessions" element={<AdminSessionsPage />} />
-        <Route
-          path="calls"
-          element={
-            <Suspense
-              fallback={
-                <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white p-8 text-slate-500 shadow-sm">
-                  <span
-                    className="h-5 w-5 animate-spin rounded-full border-2 border-slate-200 border-t-brand-600"
-                    aria-hidden
-                  />
-                  Loading Call Centre…
-                </div>
-              }
-            >
-              <AdminCallCentrePage />
-            </Suspense>
-          }
-        />
         <Route path="operations-map" element={<OperationsMapPage />} />
         <Route path="available-jobs/:id/edit" element={<EditBookingAdmin />} />
         <Route path="available-jobs/:id" element={<AvailableJobDetails />} />
@@ -311,7 +291,6 @@ export default function App() {
         <Route path="all-quotes" element={<AllQuotesAdmin />} />
         <Route path="quote-requests" element={<HomePageQuoteRequestsAdmin />} />
         <Route path="quote-requests/:id" element={<QuoteRequestLeadDetails />} />
-        <Route path="website-leads" element={<WebsiteLeadsAdmin />} />
         <Route path="customers" element={<CustomersAdmin />} />
         <Route path="customers/:id/portal/:bookingId" element={<AdminCustomerPortalRedirect />} />
         <Route path="customers/:id/portal" element={<AdminCustomerPortalRedirect />} />

@@ -4,7 +4,6 @@ import { isSupabaseConfigured, supabase } from '../lib/supabase'
 import { endAdminPresence, watchAdminPresence } from '../lib/adminPresence'
 import { lockFinanceAccess } from '../lib/financeSession'
 import { showDemoAdminUi } from '../lib/adminProductionMode'
-import { CallContactsProvider } from '../lib/callContactsContext'
 import {
   ensureSupportRequestNotificationPermission,
   playSupportRequestAlertSound,
@@ -32,7 +31,6 @@ const mainSections = [
       { to: '/admin/cancelled-jobs', label: 'Cancelled Jobs', end: false, icon: 'ban' },
       { to: '/admin/operations-map', label: 'Operations Map', end: false, icon: 'crosshair' },
       { to: '/admin/journey-planner', label: 'Journey Planner', end: false, icon: 'map' },
-      { to: '/admin/calls', label: 'Call Centre', end: false, icon: 'phone' },
       { to: '/admin/driver-messages', label: 'Driver Messages', end: false, icon: 'inbox', badgeKey: 'supportUnread' },
     ],
   },
@@ -42,7 +40,6 @@ const mainSections = [
       { to: '/admin/new-phone-booking', label: 'New phone booking', end: false, icon: 'document' },
       { to: '/admin/customers', label: 'Customers', end: false, icon: 'users' },
       { to: '/admin/quote-requests', label: 'Quote Requests', end: false, icon: 'inbox' },
-      { to: '/admin/website-leads', label: 'Website Leads / Quote Funnel', end: false, icon: 'inbox' },
       { to: '/admin/customer-leads', label: 'Customer Leads', end: false, icon: 'inbox' },
       { to: '/admin/extra-charges', label: 'Extra Charges', end: false, icon: 'wallet' },
       { to: '/admin/customer-tips', label: 'Customer Tips', end: false, icon: 'wallet' },
@@ -280,16 +277,6 @@ function NavIcon({ name, className }) {
             strokeLinecap="round"
             strokeLinejoin="round"
             d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"
-          />
-        </svg>
-      )
-    case 'phone':
-      return (
-        <svg className={cn} fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" aria-hidden>
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            d="M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 0 0 2.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106c-.44-.11-.902.055-1.173.417l-.97 1.293c-.282.376-.769.542-1.21.38a12.035 12.035 0 0 1-7.143-7.143c-.162-.441.004-.928.38-1.21l1.293-.97c.363-.271.527-.734.417-1.173L6.963 3.102a1.125 1.125 0 0 0-1.091-.852H4.5A2.25 2.25 0 0 0 2.25 4.5v2.25Z"
           />
         </svg>
       )
@@ -778,9 +765,7 @@ export default function AdminLayout() {
             }
           >
             <StripeModeBanner />
-            <CallContactsProvider>
-              <Outlet />
-            </CallContactsProvider>
+            <Outlet />
           </div>
         </main>
       </div>

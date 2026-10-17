@@ -24,6 +24,7 @@ import {
 } from '../lib/customerPortalQuote'
 import { previousChargeableTotal, pricePortalBooking } from '../lib/customerPortalPricing'
 import { COMPANY_EMAIL, COMPANY_PHONE_DISPLAY, COMPANY_PHONE_TEL } from '../constants/companyContact'
+import { filterAndSortInventorySearchResults } from '../components/quote-wizard/inventorySearchUtils'
 
 export default function CustomerPortalEditPage() {
   const access = usePortalAccess()
@@ -294,7 +295,11 @@ export default function CustomerPortalEditPage() {
   }
 
   const matches = query.trim().length > 1
-    ? catalogItems().filter((item) => String(item.name).toLowerCase().includes(query.trim().toLowerCase())).slice(0, 8)
+    ? filterAndSortInventorySearchResults(
+      catalogItems().map((item) => ({ item, categoryLabel: item.categoryLabel })),
+      query,
+      20,
+    ).map((entry) => entry.item)
     : []
 
   return (

@@ -494,7 +494,7 @@ export default function AvailableJobsAdmin() {
           <h2 className="text-2xl font-bold text-slate-900">Available Jobs</h2>
           <p className="mt-1 max-w-2xl text-sm text-slate-600">
             Only card-paid bookings waiting for assignment appear here. Open a job for marketplace controls,
-            assignment, and payment history. Unpaid leads stay in Website Leads / Quote Funnel.
+            assignment, and payment history.
             <span className="mt-1 block text-xs text-slate-500">
               Updates when a booking changes. Manual refresh stays available.
               {isRefreshing ? ' · Updating…' : null}
