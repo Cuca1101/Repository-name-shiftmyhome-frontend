@@ -80,6 +80,7 @@ export default function CustomersAdmin() {
   const [sort, setSort] = useState('name')
   const [page, setPage] = useState(1)
   const [customers, setCustomers] = useState(null)
+  const [totalCount, setTotalCount] = useState(null)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(true)
 
@@ -89,7 +90,10 @@ export default function CustomersAdmin() {
     setError('')
     loadCustomers(query)
       .then((rows) => {
-        if (!cancelled) setCustomers(rows)
+        if (!cancelled) {
+          setCustomers(rows)
+          if (!query.trim()) setTotalCount(rows.length)
+        }
       })
       .catch((err) => {
         if (!cancelled) {
@@ -104,6 +108,19 @@ export default function CustomersAdmin() {
       cancelled = true
     }
   }, [query])
+
+  useEffect(() => {
+    if (!query.trim() || totalCount != null) return undefined
+    let cancelled = false
+    loadCustomers('')
+      .then((rows) => {
+        if (!cancelled) setTotalCount(rows.length)
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [query, totalCount])
 
   useEffect(() => {
     setPage(1)
@@ -124,21 +141,29 @@ export default function CustomersAdmin() {
 
   return (
     <div className="min-w-0">
-      <div>
-        <h1 className="text-2xl font-bold text-slate-900">Customers</h1>
-        <p className="mt-1 max-w-2xl text-sm text-slate-500">
-          One file for each booking email, including customers who have not signed in to the portal. Leads and quote requests stay in their own lists.
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900">Customers</h1>
+          <p className="mt-1 max-w-2xl text-sm text-slate-500">
+            One file for each booking email, including customers who have not signed in to the portal. Leads and quote requests stay in their own lists.
+          </p>
+        </div>
+        <div className="w-[7.25rem] shrink-0 self-start rounded-xl border border-slate-200 bg-white px-2.5 py-2 shadow-sm">
+          <p className="text-[10px] font-semibold uppercase leading-tight tracking-wide text-slate-500">Total customers</p>
+          <p className="mt-1 text-xl font-bold tabular-nums leading-none text-slate-900" aria-live="polite">
+            {totalCount == null ? '—' : totalCount.toLocaleString('en-GB')}
+          </p>
+        </div>
       </div>
 
-      <div className="mt-5 flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+      <div className="mt-5 flex flex-row items-end justify-between gap-3">
         <AdminRecordsSearchRow
           searchInput={input}
           onSearchInputChange={(event) => setInput(event.target.value)}
           onSearchSubmit={() => setQuery(input.trim())}
           placeholder="Name, email, or phone"
         />
-        <label className="min-w-0 sm:w-56">
+        <label className="w-40 shrink-0">
           <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">Sort</span>
           <select
             value={sort}
@@ -170,74 +195,8 @@ export default function CustomersAdmin() {
 
       {visible.length ? (
         <>
-          <ul className="mt-4 space-y-3 lg:hidden">
-            {visible.map((customer) => {
-              const latest = latestBooking(customer)
-              const totals = moneyTotals(customer)
-              const label = latest ? statusLabel(latest) : ''
-              return (
-                <li key={customer.id}>
-                  <article
-                    className="cursor-pointer rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
-                    onClick={() => openCustomer(customer.id)}
-                  >
-                    <button type="button" onClick={() => openCustomer(customer.id)} className="block text-left">
-                      <span className="block text-base font-bold text-slate-900">{customer.full_name || 'Unnamed customer'}</span>
-                      <span className="mt-0.5 block break-all text-sm text-slate-500">{customer.email}</span>
-                      <span className="mt-2 block"><CustomerKindBadge kind={profileKind(customer)} /></span>
-                    </button>
-                    <dl className="mt-3 grid grid-cols-2 gap-3 text-sm">
-                      <div>
-                        <dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">Phone</dt>
-                        <dd className="mt-1 break-words font-medium text-slate-800">{customer.phone || '—'}</dd>
-                      </div>
-                      <div>
-                        <dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">Bookings</dt>
-                        <dd className="mt-1 font-medium text-slate-800">
-                          {customer.booking_count || 0}
-                          {firstBookingAt(customer) ? (
-                            <span className="mt-0.5 block text-xs font-normal text-slate-500">First {formatDateUK(firstBookingAt(customer))}</span>
-                          ) : null}
-                        </dd>
-                      </div>
-                      <div>
-                        <dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">Latest booking</dt>
-                        <dd className="mt-1 font-medium text-slate-800">
-                          {latest ? formatDateUK(latest.move_date) : '—'}
-                          {label ? (
-                            <span className={`ml-2 inline-flex rounded-md px-2 py-0.5 text-[11px] font-semibold ring-1 ring-inset ${statusTone(label)}`}>{label}</span>
-                          ) : null}
-                          {latest?.customer_kind ? (
-                            <span className="mt-1 flex flex-wrap items-center gap-1 text-xs text-slate-500">
-                              Booked as <CustomerKindBadge kind={latest.customer_kind} />
-                            </span>
-                          ) : null}
-                        </dd>
-                      </div>
-                      <div>
-                        <dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">Total paid</dt>
-                        <dd className="mt-1 font-medium text-slate-800">{formatGbp(totals.paid)}</dd>
-                      </div>
-                      <div>
-                        <dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">Outstanding</dt>
-                        <dd className="mt-1 font-medium text-slate-800">{formatGbp(totals.balance)}</dd>
-                      </div>
-                    </dl>
-                    <Link
-                      to={`/portal/bookings?customer=${customer.id}`}
-                      onClick={(event) => event.stopPropagation()}
-                      className="mt-4 inline-flex min-h-11 w-full items-center justify-center rounded-xl bg-brand-600 px-4 text-sm font-bold text-white hover:bg-brand-700"
-                    >
-                      View customer portal
-                    </Link>
-                  </article>
-                </li>
-              )
-            })}
-          </ul>
-
-          <div className="mt-4 hidden overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm lg:block">
-            <table className="w-full table-fixed text-left text-sm">
+          <div className="mt-4 overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm">
+            <table className="w-full min-w-[760px] table-fixed text-left text-sm">
               <thead className="bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-500">
                 <tr>
                   <th className="w-[24%] px-4 py-3">Customer name</th>
