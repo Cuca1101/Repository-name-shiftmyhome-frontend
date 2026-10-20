@@ -248,7 +248,7 @@ async function attachCustomerOffers(rows) {
   }
   const { data, error } = await supabase
     .from('customer_offers')
-    .select('id, lead_id, quote_ref, customer_email, status, proposed_amount, original_total, expires_at, created_at')
+    .select('id, lead_id, quote_ref, customer_email, status, proposed_amount, agreed_amount, original_total, expires_at, created_at')
     .order('created_at', { ascending: false })
     .limit(500)
   if (error) return rows.map((row) => ({ ...row, customer_offer: null }))

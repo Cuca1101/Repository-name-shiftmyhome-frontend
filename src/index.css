@@ -1785,14 +1785,14 @@ body.quote-step3-review a[aria-label='Chat on WhatsApp'] {
   .leads-screen-fit .leads-col-name { width: 8%; }
   .leads-screen-fit .leads-col-phone { width: 9%; }
   .leads-screen-fit .leads-col-email { width: 10%; }
-  .leads-screen-fit .leads-col-service { width: 7%; }
+  .leads-screen-fit .leads-col-service { width: 5.5%; }
   .leads-screen-fit .leads-col-postcode { width: 6.5%; }
   .leads-screen-fit .leads-col-price { width: 5.8%; }
   .leads-screen-fit .leads-col-agreed { width: 5.5%; }
-  .leads-screen-fit .leads-col-offer { width: 6.3%; }
+  .leads-screen-fit .leads-col-offer { width: 10.2%; }
   .leads-screen-fit .leads-col-status { width: 7.2%; }
-  .leads-screen-fit .leads-col-activity { width: 7%; }
-  .leads-screen-fit .leads-col-created { width: 7%; }
+  .leads-screen-fit .leads-col-activity { width: 5.8%; }
+  .leads-screen-fit .leads-col-created { width: 5.8%; }
   .leads-screen-fit .leads-col-actions { width: 8.8%; }
 }
 

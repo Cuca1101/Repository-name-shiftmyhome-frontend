@@ -161,6 +161,14 @@ function money(n) {
   return `£${v.toFixed(2)}`
 }
 
+function customerOfferView(offer, pendingFlag) {
+  const status = String(offer?.status || '')
+  const accepted = status === 'accepted' || status === 'counter_accepted'
+  const pending = status === 'pending' || status === 'countered' || (!offer && Boolean(pendingFlag))
+  const amount = accepted ? offer?.agreed_amount ?? offer?.proposed_amount : offer?.proposed_amount
+  return { accepted, pending, amount, status }
+}
+
 function mailHref(email) {
   const e = String(email || '').trim()
   return e ? `mailto:${e}` : null
@@ -1107,14 +1115,14 @@ export default function CustomerLeadsAdmin() {
                   <th className="w-36 whitespace-nowrap px-3 py-2.5">Name</th>
                   <th className="w-px whitespace-nowrap px-3 py-2.5">Phone</th>
                   <th className="w-full px-3 py-2.5">Email</th>
-                  <th className="w-px whitespace-nowrap px-3 py-2.5">Service</th>
+                  <th className="w-px whitespace-nowrap px-3 py-2.5 text-[10px]">Service</th>
                   <th className="w-px whitespace-nowrap px-3 py-2.5">Postcode</th>
                   <th className="w-px whitespace-nowrap px-3 py-2.5">Quote price</th>
                   <th className="w-px whitespace-nowrap px-3 py-2.5">Agreed</th>
                   <th className="w-px whitespace-nowrap px-3 py-2.5">Customer offer</th>
                   <th className="w-px whitespace-nowrap px-3 py-2.5">Status</th>
-                  <th className="w-px whitespace-nowrap px-3 py-2.5">Last activity</th>
-                  <th className="w-px whitespace-nowrap px-3 py-2.5">Created</th>
+                  <th className="w-px whitespace-nowrap px-3 py-2.5 text-[10px]">Last activity</th>
+                  <th className="w-px whitespace-nowrap px-3 py-2.5 text-[10px]">Created</th>
                   <th className="w-px whitespace-nowrap px-3 py-2.5 text-right">Actions</th>
                 </tr>
               </thead>
@@ -1168,13 +1176,8 @@ export default function CustomerLeadsAdmin() {
                         {row.move_date ? (
                           <p className="mt-1 text-[11px] font-semibold text-slate-600">{formatDateUK(row.move_date)}</p>
                         ) : null}
-                        {countdown || customerLeadCallbackDue(row, listNow) || customerLeadNeedsFirstCall(row, listNow) || row.called_at || row.callback_at || row.pending_offer ? (
+                        {countdown || customerLeadCallbackDue(row, listNow) || customerLeadNeedsFirstCall(row, listNow) || row.called_at || row.callback_at ? (
                           <div className="mt-1 flex flex-col items-start gap-1">
-                            {row.pending_offer ? (
-                              <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-900">
-                                Pending offer
-                              </span>
-                            ) : null}
                             {countdown ? <MoveCountdownBadge moveDate={row.move_date} /> : null}
                             <CallBadge row={row} now={listNow} />
                           </div>
@@ -1194,31 +1197,53 @@ export default function CustomerLeadsAdmin() {
                       <td className="min-w-0 max-w-0 truncate px-3 py-2 lg:max-w-none" title={email || undefined}>
                         {email || '—'}
                       </td>
-                      <td className="w-px whitespace-nowrap px-3 py-2">{row.service_type || '—'}</td>
+                      <td className="w-px px-2 py-2 text-[11px] leading-tight text-slate-700">{row.service_type || '—'}</td>
                       <td className="w-px px-3 py-2 align-top">
                         <LeadRoute row={row} />
                       </td>
                       <td className="w-px whitespace-nowrap px-3 py-2 tabular-nums">{money(row.estimated_total)}</td>
                       <td className="w-px whitespace-nowrap px-3 py-2 tabular-nums">
                         {row.agreed_price != null ? (
-                          <span className="font-semibold text-brand-800">{money(row.agreed_price)}</span>
-                        ) : (
-                          '—'
-                        )}
-                      </td>
-                      <td className="w-px whitespace-nowrap px-3 py-2">
-                        {row.customer_offer ? (
-                          <span className="inline-flex flex-col items-start">
-                            <span className="font-semibold tabular-nums text-amber-950">
-                              {money(row.customer_offer.proposed_amount)}
-                            </span>
-                            <span className="text-[11px] capitalize text-slate-500">
-                              {String(row.customer_offer.status || '').replaceAll('_', ' ')}
-                            </span>
+                          <span className={`font-semibold ${customerOfferView(row.customer_offer, row.pending_offer).accepted ? 'text-emerald-700' : 'text-brand-800'}`}>
+                            {money(row.agreed_price)}
                           </span>
                         ) : (
                           '—'
                         )}
+                      </td>
+                      <td className="w-px px-2 py-2">
+                        {(() => {
+                          const offer = customerOfferView(row.customer_offer, row.pending_offer)
+                          if (!row.customer_offer && !offer.pending) return '—'
+                          return (
+                            <span className="inline-flex flex-col items-start gap-1">
+                              {offer.amount != null ? (
+                                <span
+                                  className={`font-semibold tabular-nums ${
+                                    offer.accepted ? 'text-emerald-700' : offer.pending ? 'text-amber-950' : 'text-slate-800'
+                                  }`}
+                                >
+                                  {money(offer.amount)}
+                                </span>
+                              ) : null}
+                              {offer.pending ? (
+                                <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-900">
+                                  Pending offer
+                                </span>
+                              ) : null}
+                              {offer.accepted ? (
+                                <span className="rounded-full bg-emerald-100 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-emerald-900">
+                                  Offer accepted
+                                </span>
+                              ) : null}
+                              {!offer.pending && !offer.accepted && offer.status ? (
+                                <span className="text-[11px] capitalize text-slate-500">
+                                  {offer.status.replaceAll('_', ' ')}
+                                </span>
+                              ) : null}
+                            </span>
+                          )
+                        })()}
                       </td>
                       <td className="w-px whitespace-nowrap px-3 py-2">
                         <StatusBadge status={eff} />
@@ -1228,10 +1253,10 @@ export default function CustomerLeadsAdmin() {
                           </p>
                         ) : null}
                       </td>
-                      <td className="w-px whitespace-nowrap px-3 py-2 text-slate-600">
+                      <td className="w-px px-1.5 py-2 text-[10px] leading-tight text-slate-600" title={formatDateTimeUK(row.last_activity_at)}>
                         {formatDateTimeUK(row.last_activity_at)}
                       </td>
-                      <td className="w-px whitespace-nowrap px-3 py-2 text-slate-500">
+                      <td className="w-px px-1.5 py-2 text-[10px] leading-tight text-slate-500" title={formatDateTimeUK(row.created_at)}>
                         {formatDateTimeUK(row.created_at)}
                       </td>
                       <td className="w-px whitespace-nowrap px-3 py-2 text-right">
