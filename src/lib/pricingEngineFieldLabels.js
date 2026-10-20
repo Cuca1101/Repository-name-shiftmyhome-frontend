@@ -44,6 +44,7 @@ export const PRICING_SETTING_FIELD_LABELS = {
   packingMaterialsFee: 'Packing materials fee',
   exactArrivalPremiumGbp: 'Exact arrival premium',
   depositAmount: 'Reservation fee',
+  offerExpiryHours: 'Customer offer expiry (hours)',
   fallbackSpeedMph: 'Fallback speed (mph)',
   firstManBaseFee: 'First man base fee',
   firstManHourlyRate: 'First man hourly rate',

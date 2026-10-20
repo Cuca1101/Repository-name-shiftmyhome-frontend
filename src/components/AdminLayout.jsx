@@ -11,6 +11,7 @@ import {
   unlockSupportRequestSound,
 } from '../lib/supportRequestAlerts'
 import StripeModeBanner from './admin/StripeModeBanner'
+import { countUnreadCustomerLeads } from '../lib/data/customerLeadsRepository'
 
 const mainSections = [
   {
@@ -40,7 +41,7 @@ const mainSections = [
       { to: '/admin/new-phone-booking', label: 'New phone booking', end: false, icon: 'document' },
       { to: '/admin/customers', label: 'Customers', end: false, icon: 'users' },
       { to: '/admin/quote-requests', label: 'Quote Requests', end: false, icon: 'inbox' },
-      { to: '/admin/customer-leads', label: 'Customer Leads', end: false, icon: 'inbox' },
+      { to: '/admin/customer-leads', label: 'Customer Leads', end: false, icon: 'inbox', badgeKey: 'newLeads' },
       { to: '/admin/extra-charges', label: 'Extra Charges', end: false, icon: 'wallet' },
       { to: '/admin/customer-tips', label: 'Customer Tips', end: false, icon: 'wallet' },
     ],
@@ -333,10 +334,7 @@ function pathActive(pathname, item) {
 function AdminNavItem({ item, pathname, onNavigate, badgeCount, collapsed = false }) {
   const active = pathActive(pathname, item)
   const count = Number(badgeCount) > 0 ? Number(badgeCount) : 0
-  const label =
-    count > 0 && item.badgeKey === 'supportUnread'
-      ? `${item.label} (${count})`
-      : item.label
+  const label = count > 0 ? `${item.label} (${count})` : item.label
   return (
     <li>
       <NavLink
@@ -359,7 +357,7 @@ function AdminNavItem({ item, pathname, onNavigate, badgeCount, collapsed = fals
           ) : null}
         </span>
         <span className={`min-w-0 flex-1 truncate ${collapsed ? 'md:sr-only' : ''}`}>{label}</span>
-        {count > 0 && item.badgeKey === 'supportUnread' ? (
+        {count > 0 ? (
           <span className={`ml-1 inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-red-500 px-1.5 text-[10px] font-bold text-white ${collapsed ? 'md:hidden' : ''}`}>
             {count > 99 ? '99+' : count}
           </span>
@@ -385,6 +383,7 @@ export default function AdminLayout() {
   })
   const [legacyOpen, setLegacyOpen] = useState(() => isLegacySupportPath(pathname))
   const [supportUnreadCount, setSupportUnreadCount] = useState(0)
+  const [newLeadsCount, setNewLeadsCount] = useState(0)
   const [supportToast, setSupportToast] = useState(null)
   const knownSupportIdsRef = useRef(new Set())
   const supportHydratedRef = useRef(false)
@@ -446,11 +445,34 @@ export default function AdminLayout() {
     return () => mq.removeEventListener('change', onChange)
   }, [])
 
+  const refreshNewLeadsCount = useCallback(async () => {
+    try {
+      setNewLeadsCount(await countUnreadCustomerLeads())
+    } catch {
+      setNewLeadsCount(0)
+    }
+  }, [])
+
   useEffect(() => {
     ensureSupportRequestNotificationPermission()
     void unlockSupportRequestSound()
     void refreshSupportUnreadCount()
-  }, [refreshSupportUnreadCount])
+    void refreshNewLeadsCount()
+  }, [refreshSupportUnreadCount, refreshNewLeadsCount])
+
+  useEffect(() => {
+    const onRead = () => {
+      void refreshNewLeadsCount()
+    }
+    window.addEventListener('customer-leads-read', onRead)
+    const timer = window.setInterval(() => {
+      void refreshNewLeadsCount()
+    }, 30000)
+    return () => {
+      window.removeEventListener('customer-leads-read', onRead)
+      window.clearInterval(timer)
+    }
+  }, [refreshNewLeadsCount])
 
   useEffect(() => {
     if (!isSupabaseConfigured || !supabase) return undefined
@@ -538,7 +560,7 @@ export default function AdminLayout() {
   ]
 
   const currentTitle = allNavItems.find((item) => pathActive(pathname, item))?.label ?? 'Admin'
-  const badgeCounts = { supportUnread: supportUnreadCount }
+  const badgeCounts = { supportUnread: supportUnreadCount, newLeads: newLeadsCount }
   const financePage = pathname === '/admin/finance' || pathname.startsWith('/admin/finance/')
   const customerLeadsWide =
     pathname === '/admin/customer-leads' ||

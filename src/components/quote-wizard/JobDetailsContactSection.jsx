@@ -1,13 +1,12 @@
 import { useLocation, useSearchParams } from 'react-router-dom'
 import { useAuthenticatedCustomerEmail } from '../../lib/useAuthenticatedCustomerEmail'
 import { applyWizardPatch } from '../../lib/wizardStateUpdate'
-import { quoteMobileInput, quoteMobileLabel } from '../../lib/quoteMobileUiClasses'
+import { quoteMobileInput } from '../../lib/quoteMobileUiClasses'
 import { PhoneBookingCustomerStatus } from '../admin/CustomerKindBadge'
 import QuotePromoCodeField from './QuotePromoCodeField'
 
 const desktopInput =
   'w-full max-w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-base text-slate-900 shadow-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/25 sm:px-4 sm:py-3'
-const desktopLabel = 'mb-1.5 block text-sm font-medium text-slate-700'
 const mobileCard =
   'box-border min-w-0 w-full rounded-lg border border-slate-200 bg-white shadow-sm md:rounded-xl'
 
@@ -35,6 +34,8 @@ export default function JobDetailsContactSection({
   flexibleContact = false,
   lockSignedInEmail = true,
   showCustomerIdentity = false,
+  embedded = false,
+  lockMobile = false,
 }) {
   const location = useLocation()
   const [searchParams] = useSearchParams()
@@ -52,14 +53,16 @@ export default function JobDetailsContactSection({
   const contactHint = flexibleContact
     ? 'Name plus phone or email (at least one contact method).'
     : "We'll only use your details for this quote."
+  const fieldLabel = 'w-[5.5rem] shrink-0 text-sm font-medium text-slate-600'
+  const fieldRow = 'flex items-center gap-2'
 
   return (
     <>
-      <div className="mt-3 min-w-0 max-w-full">
-        <h2 className="text-base font-bold text-slate-900 md:text-lg">
-          Job details &amp; contact
-        </h2>
-        <p className="mt-1 text-[10px] leading-snug text-slate-600 md:text-sm">{contactHint}</p>
+      <div className={embedded ? 'mt-1 min-w-0 max-w-full' : 'mt-3 min-w-0 max-w-full'}>
+        {embedded ? null : (
+          <h2 className="text-base font-bold text-slate-900 md:text-lg">Your contact details</h2>
+        )}
+        <p className={`text-[11px] leading-snug text-slate-500 md:text-sm ${embedded ? '' : 'mt-1'}`}>{contactHint}</p>
         {showCustomerIdentity ? (
           <PhoneBookingCustomerStatus email={String(data.email ?? '')} phone={String(data.phone ?? '')} />
         ) : null}
@@ -77,24 +80,23 @@ export default function JobDetailsContactSection({
       <div
         id="quote-wizard-contact-details-mobile"
         data-quote-field="contact-details"
-        className={`${mobileCard} scroll-mt-24 p-2.5 lg:hidden md:p-3`}
+        className={`${embedded ? '' : `${mobileCard} p-2.5 md:p-3`} scroll-mt-24 ${lockMobile ? '' : 'lg:hidden'}`}
       >
-        <h3 className="text-xs font-bold text-slate-900">Your details</h3>
-        <div className="mt-2 space-y-2">
-          <label className="block">
-            <span className={quoteMobileLabel}>Full name</span>
+        <div className={`${embedded ? 'mt-3' : 'mt-2'} space-y-2`}>
+          <label className={fieldRow}>
+            <span className={fieldLabel}>Full name</span>
             <input
               id="quote-wizard-fullName-mobile"
               required
               autoComplete="name"
               value={String(data.fullName ?? '')}
               onChange={(e) => set('fullName', e.target.value)}
-              className={quoteMobileInput}
+              className={`${quoteMobileInput} min-w-0 flex-1`}
             />
           </label>
-          <label className="block">
-            <span className={quoteMobileLabel}>
-              Phone{flexibleContact ? ' (optional if email set)' : ''}
+          <label className={fieldRow}>
+            <span className={fieldLabel}>
+              Phone
             </span>
             <input
               id="quote-wizard-phone-mobile"
@@ -103,12 +105,12 @@ export default function JobDetailsContactSection({
               autoComplete="tel"
               value={String(data.phone ?? '')}
               onChange={(e) => set('phone', e.target.value)}
-              className={quoteMobileInput}
+              className={`${quoteMobileInput} min-w-0 flex-1`}
             />
           </label>
-          <label className="block">
-            <span className={quoteMobileLabel}>
-              Email{flexibleContact ? ' (optional if phone set)' : ''}
+          <label className={fieldRow}>
+            <span className={fieldLabel}>
+              Email
             </span>
             <input
               id="quote-wizard-email-mobile"
@@ -120,7 +122,7 @@ export default function JobDetailsContactSection({
               onChange={(e) => {
                 if (!accountEmail) set('email', e.target.value)
               }}
-              className={quoteMobileInput}
+              className={`${quoteMobileInput} min-w-0 flex-1`}
             />
           </label>
           <QuotePromoCodeField
@@ -138,24 +140,23 @@ export default function JobDetailsContactSection({
       <div
         id="quote-wizard-contact-details-desktop"
         data-quote-field="contact-details"
-        className="quote-contact-card scroll-mt-24 hidden rounded-2xl border border-brand-100 bg-gradient-to-br from-brand-50/40 to-white p-5 sm:p-6 lg:block"
+        className={`${embedded ? '' : 'rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6'} quote-contact-card scroll-mt-24 ${lockMobile ? 'hidden' : 'hidden lg:block'}`}
       >
-        <h3 className="text-sm font-bold text-slate-900">Your details</h3>
-        <div className="quote-contact-grid mt-4">
-          <label className="quote-contact-span block">
-            <span className={desktopLabel}>Full name</span>
+        <div className={`${embedded ? 'mt-3' : 'mt-4'} space-y-3`}>
+          <label className={fieldRow}>
+            <span className={fieldLabel}>Full name</span>
             <input
               id="quote-wizard-fullName-desktop"
               required
               autoComplete="name"
               value={String(data.fullName ?? '')}
               onChange={(e) => set('fullName', e.target.value)}
-              className={desktopInput}
+              className={`${desktopInput} min-w-0 flex-1`}
             />
           </label>
-          <label className="block">
-            <span className={desktopLabel}>
-              Phone{flexibleContact ? ' (optional if email set)' : ''}
+          <label className={fieldRow}>
+            <span className={fieldLabel}>
+              Phone
             </span>
             <input
               id="quote-wizard-phone-desktop"
@@ -164,12 +165,12 @@ export default function JobDetailsContactSection({
               autoComplete="tel"
               value={String(data.phone ?? '')}
               onChange={(e) => set('phone', e.target.value)}
-              className={desktopInput}
+              className={`${desktopInput} min-w-0 flex-1`}
             />
           </label>
-          <label className="quote-contact-span block">
-            <span className={desktopLabel}>
-              Email{flexibleContact ? ' (optional if phone set)' : ''}
+          <label className={fieldRow}>
+            <span className={fieldLabel}>
+              Email
             </span>
             <input
               id="quote-wizard-email-desktop"
@@ -181,10 +182,10 @@ export default function JobDetailsContactSection({
               onChange={(e) => {
                 if (!accountEmail) set('email', e.target.value)
               }}
-              className={desktopInput}
+              className={`${desktopInput} min-w-0 flex-1`}
             />
           </label>
-          <div className="quote-contact-span">
+          <div>
             <QuotePromoCodeField
               data={data}
               onChange={onChange}

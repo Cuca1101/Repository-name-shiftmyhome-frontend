@@ -77,6 +77,9 @@ export default function AddressConfirmationSection({
         onConfirm={() => confirmSide('pickup')}
       />
 
+      <p className="text-xs font-medium leading-snug text-blue-700">
+        If the person at drop-off is not the one making this booking, select Different person and enter their name.
+      </p>
       <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4">
         <p className="text-sm font-bold text-slate-900">Who will be at drop-off?</p>
         <div className="mt-2 grid grid-cols-2 gap-2">
@@ -123,6 +126,89 @@ export default function AddressConfirmationSection({
 /** @param {Record<string, unknown>} data */
 export function structuredAddressesConfirmed(data) {
   return reviewAddressesConfirmed(data)
+}
+
+const personInput =
+  'box-border min-h-[44px] w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20'
+
+/** Who meets the crew at pickup. Shown from Contact details. */
+export function PickupPersonFields({ data, onChange }) {
+  const samePerson = data.pickupContactSameAsCustomer !== false
+  const pickup = resolvePickupContact(data)
+
+  function patch(next) {
+    applyWizardPatch(onChange, next)
+  }
+
+  return (
+    <div className="space-y-2">
+      <p className="text-xs font-medium leading-snug text-blue-700">
+        If the person at pickup is not the one making this booking, select Different person and enter their name.
+      </p>
+    <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4">
+      <p className="text-sm font-bold text-slate-900">Who will be at pickup?</p>
+      <div className="mt-2 grid grid-cols-2 gap-2">
+        <ChoiceButton
+          selected={samePerson}
+          label="Same person as booking"
+          onClick={() =>
+            patch({
+              pickupContactSameAsCustomer: true,
+              pickupContactName: String(data.fullName || pickup.name || ''),
+              pickupContactPhone: String(data.phone || pickup.phone || ''),
+            })
+          }
+        />
+        <ChoiceButton
+          selected={!samePerson}
+          label="Different person"
+          onClick={() => patch({ pickupContactSameAsCustomer: false })}
+        />
+      </div>
+      {samePerson ? (
+        <label className="mt-3 block">
+          <span className="mb-1 block text-xs font-medium text-slate-600">Phone</span>
+          <input
+            type="tel"
+            autoComplete="tel"
+            value={data.phone || pickup.phone || ''}
+            onChange={(e) => patch({ phone: e.target.value, pickupContactPhone: e.target.value })}
+            className={personInput}
+            placeholder="Phone number"
+          />
+        </label>
+      ) : (
+        <div className="mt-3 grid gap-2 sm:grid-cols-2">
+          <label className="block">
+            <span className="mb-1 block text-xs font-medium text-slate-600">Name</span>
+            <input
+              value={data.pickupContactName || ''}
+              onChange={(e) =>
+                patch({ pickupContactName: e.target.value, pickupContactSameAsCustomer: false })
+              }
+              className={personInput}
+              autoComplete="name"
+              placeholder="Name at pickup"
+            />
+          </label>
+          <label className="block">
+            <span className="mb-1 block text-xs font-medium text-slate-600">Phone</span>
+            <input
+              type="tel"
+              autoComplete="tel"
+              value={data.pickupContactPhone || ''}
+              onChange={(e) =>
+                patch({ pickupContactPhone: e.target.value, pickupContactSameAsCustomer: false })
+              }
+              className={personInput}
+              placeholder="Phone at pickup"
+            />
+          </label>
+        </div>
+      )}
+    </div>
+    </div>
+  )
 }
 
 function ChoiceButton({ selected, label, onClick }) {

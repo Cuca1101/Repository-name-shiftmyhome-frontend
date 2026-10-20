@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Check, Crown, Shield, Sparkles } from 'lucide-react'
+import { Box, Check, Crown, Sparkles } from 'lucide-react'
 import { JOURNEY_VAN_CAPACITY_M3 } from '../../lib/journeySummary'
 import {
   packageCapacityBlock,
@@ -12,16 +12,44 @@ function moneyLabel(n) {
   return `£${Number(n).toFixed(2)}`
 }
 
+function packagePreview(pkg) {
+  if (pkg.id === 'standard') return 'Loading, transport & unloading'
+  const bits = []
+  if (Number(pkg.wrappingItems) > 0) bits.push('Extra wrapping')
+  if (Number(pkg.waitingMinutes) > 0) bits.push(`${pkg.waitingMinutes} min waiting`)
+  if (bits.length) return bits.join(' · ')
+  return packageFeatureLines(pkg)[0] || pkg.description
+}
+
 function PackageCard({ pkg, selected, fee, blockedReason, onSelect }) {
+  const [open, setOpen] = useState(false)
   const isStandard = pkg.id === 'standard'
   const isPlatinum = pkg.id === 'platinum'
   const isPremium = pkg.id === 'premium'
-  const Icon = isPlatinum ? Sparkles : isPremium ? Crown : Shield
+  const Icon = isPlatinum ? Crown : isPremium ? Sparkles : Box
   const features = packageFeatureLines(pkg)
+  const preview = packagePreview(pkg)
   const exclusions = String(pkg.exclusionsText || '')
     .split('\n')
     .map((line) => line.trim())
     .filter(Boolean)
+  const priceClass = selected ? (isPlatinum ? 'text-amber-300' : 'text-white') : 'text-slate-900'
+  const mutedClass = selected
+    ? isPlatinum
+      ? 'text-slate-300'
+      : isStandard
+        ? 'text-slate-200'
+        : 'text-blue-100'
+    : 'text-slate-500'
+  const linkClass = selected
+    ? isPlatinum
+      ? 'text-amber-200'
+      : isStandard
+        ? 'text-slate-100'
+        : 'text-white'
+    : isStandard
+      ? 'text-slate-600'
+      : 'text-blue-700'
 
   return (
     <div
@@ -39,119 +67,102 @@ function PackageCard({ pkg, selected, fee, blockedReason, onSelect }) {
           onSelect(pkg.id)
         }
       }}
-      className={`quote-package-card relative flex h-full min-w-0 flex-col overflow-hidden rounded-2xl border-2 p-3 text-left transition sm:p-4 ${
+      className={`quote-package-card relative min-w-0 rounded-2xl border px-3 py-3 text-left transition ${
         blockedReason
           ? 'cursor-not-allowed border-slate-200 bg-slate-50 opacity-70'
           : selected && isPlatinum
-            ? 'border-amber-300 bg-slate-950 text-white shadow-[0_14px_30px_-18px_rgba(251,191,36,0.85),inset_0_0_0_1px_rgba(251,191,36,0.35)]'
-            : selected && isPremium
-              ? 'border-blue-600 bg-gradient-to-b from-blue-50 to-white shadow-[0_14px_30px_-18px_rgba(37,99,235,0.55),inset_0_0_0_1px_rgba(37,99,235,0.14)]'
+            ? 'border-amber-300 bg-[#071833] text-white shadow-[0_8px_24px_-18px_rgba(15,23,42,0.8)]'
+            : selected && isStandard
+              ? 'border-slate-400 bg-slate-600 text-white shadow-[0_8px_24px_-18px_rgba(71,85,105,0.8)]'
               : selected
-                ? 'border-slate-900 bg-gradient-to-b from-slate-50 to-white shadow-[0_14px_30px_-18px_rgba(15,23,42,0.45)]'
-                : isPlatinum
-                  ? 'border-slate-800 bg-slate-950 text-white hover:border-amber-300/80'
-                  : 'border-slate-200 bg-white hover:border-slate-300'
+                ? 'border-blue-600 bg-blue-600 text-white shadow-[0_8px_24px_-18px_rgba(37,99,235,0.75)]'
+                : 'border-slate-200 bg-white hover:border-slate-300'
       }`}
     >
-      {selected ? (
+      <span className="flex items-start gap-3">
         <span
-          className={`pointer-events-none absolute inset-x-0 top-0 h-1 ${
+          className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${
             isPlatinum
-              ? 'bg-gradient-to-r from-amber-200 via-amber-400 to-amber-200'
-              : isPremium
-                ? 'bg-gradient-to-r from-blue-500 via-blue-600 to-indigo-500'
-                : 'bg-slate-900'
+              ? 'bg-amber-300/15 text-amber-300'
+              : selected
+                ? 'bg-white/15 text-white'
+                : isStandard
+                  ? 'bg-slate-100 text-slate-600'
+                  : 'bg-blue-50 text-blue-600'
           }`}
-          aria-hidden
-        />
-      ) : null}
-      <span className="flex items-start justify-between gap-2">
-        <span className="flex items-center gap-2">
-          <span
-            className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${
-              isPlatinum
-                ? 'bg-amber-300/15 text-amber-300'
-                : selected && isPremium
-                  ? 'bg-blue-600 text-white'
-                  : selected
-                    ? 'bg-slate-900 text-white'
-                    : isPremium
-                      ? 'bg-blue-50 text-blue-600'
-                      : 'bg-slate-100 text-slate-600'
-            }`}
-          >
-            <Icon className="h-4 w-4" aria-hidden />
-          </span>
-          <span className={`text-sm font-bold ${isPlatinum ? 'text-white' : 'text-slate-900'}`}>{pkg.displayName}</span>
+        >
+          <Icon className="h-5 w-5" aria-hidden />
         </span>
-        <span className="flex shrink-0 flex-col items-end gap-1">
-          <span className={`text-sm font-bold tabular-nums ${isPlatinum ? 'text-amber-200' : 'text-emerald-700'}`}>
-            {isStandard || fee <= 0 ? 'Included' : `+${moneyLabel(fee)}`}
-          </span>
-          {selected ? (
-            <span
-              className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${
-                isPlatinum ? 'bg-amber-300 text-slate-950' : isPremium ? 'bg-blue-600 text-white' : 'bg-slate-900 text-white'
-              }`}
-            >
-              <Check className="h-3 w-3" aria-hidden />
-              Selected
+        <span className="min-w-0 flex-1">
+          <span className="flex items-start justify-between gap-2">
+            <span className="min-w-0">
+              <span className={`block text-sm font-bold ${selected ? 'text-white' : 'text-slate-900'}`}>{pkg.displayName}</span>
+              <span className={`mt-0.5 block text-xs leading-snug ${mutedClass}`}>{preview}</span>
             </span>
+            <span className="flex shrink-0 items-center gap-2">
+              <span className={`text-sm font-bold tabular-nums ${priceClass}`}>
+                {isStandard || fee <= 0 ? 'Included' : `+${moneyLabel(fee)}`}
+              </span>
+              <span
+                className={`flex h-5 w-5 items-center justify-center rounded-full border-2 ${
+                  selected
+                    ? isPlatinum
+                      ? 'border-amber-300 bg-amber-300'
+                      : 'border-white bg-white'
+                    : 'border-slate-300 bg-white'
+                }`}
+                aria-hidden
+              >
+                {selected ? (
+                  <span
+                    className={`h-2 w-2 rounded-full ${
+                      isPlatinum ? 'bg-[#071833]' : isStandard ? 'bg-slate-600' : 'bg-blue-600'
+                    }`}
+                  />
+                ) : null}
+              </span>
+            </span>
+          </span>
+          <span className="mt-1 flex items-center justify-end gap-2" onClick={(e) => e.stopPropagation()}>
+            <button
+              type="button"
+              className={`text-xs font-semibold ${linkClass}`}
+              aria-expanded={open}
+              onClick={() => setOpen((value) => !value)}
+            >
+              {open ? 'Hide benefits' : 'View benefits'} <span aria-hidden>›</span>
+            </button>
+            {selected ? (
+              <span className={`text-xs font-semibold ${isPlatinum ? 'text-amber-300' : isStandard ? 'text-slate-100' : 'text-white'}`}>Selected</span>
+            ) : null}
+          </span>
+          {open ? (
+            <div className={`mt-2 space-y-2 text-xs leading-snug ${selected ? (isPlatinum || isStandard ? 'text-slate-200' : 'text-blue-50') : 'text-slate-600'}`} onClick={(e) => e.stopPropagation()}>
+              <ul className="space-y-1">
+                {features.map((line) => (
+                  <li key={line} className="flex gap-1.5">
+                    <Check className={`mt-0.5 h-3.5 w-3.5 shrink-0 ${selected ? (isPlatinum ? 'text-amber-300' : 'text-white') : 'text-emerald-600'}`} aria-hidden />
+                    <span>{line}</span>
+                  </li>
+                ))}
+              </ul>
+              {pkg.customerTerms ? <p>{pkg.customerTerms}</p> : null}
+              {exclusions.length ? (
+                <div>
+                  <p className="font-semibold">Not included</p>
+                  <ul className="mt-1 list-disc space-y-0.5 pl-4">
+                    {exclusions.map((line) => (
+                      <li key={line}>{line}</li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+            </div>
           ) : null}
         </span>
       </span>
-      {pkg.badge ? (
-        <span
-          className={`mt-2 inline-flex w-fit rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${
-            isPlatinum
-              ? 'bg-amber-300 text-slate-950'
-              : isPremium
-                ? 'bg-blue-600 text-white'
-                : 'bg-emerald-50 text-emerald-800'
-          }`}
-        >
-          {pkg.badge}
-        </span>
-      ) : null}
-      <ul className={`mt-3 space-y-1.5 text-xs leading-snug ${isPlatinum ? 'text-slate-200' : 'text-slate-600'}`}>
-        {features.map((line) => (
-          <li key={line} className="flex gap-1.5">
-            <Check className={`mt-0.5 h-3.5 w-3.5 shrink-0 ${isPlatinum ? 'text-amber-300' : 'text-emerald-600'}`} aria-hidden />
-            <span>{line}</span>
-          </li>
-        ))}
-      </ul>
-      {!isStandard && pkg.customerTerms ? (
-        <p className={`mt-3 text-[11px] leading-relaxed ${isPlatinum ? 'text-slate-300' : 'text-slate-500'}`}>
-          {pkg.customerTerms}
-        </p>
-      ) : null}
-      {!isStandard && exclusions.length ? <Exclusions lines={exclusions} light={isPlatinum} /> : null}
-      {blockedReason ? <p className="mt-3 text-[11px] font-semibold leading-snug text-red-700">{blockedReason}</p> : null}
+      {blockedReason ? <p className="mt-2 text-[11px] font-semibold leading-snug text-red-700">{blockedReason}</p> : null}
     </div>
-  )
-}
-
-function Exclusions({ lines, light }) {
-  const [open, setOpen] = useState(false)
-  return (
-    <span className="mt-2 block" onClick={(e) => e.stopPropagation()}>
-      <button
-        type="button"
-        className={`text-[11px] font-semibold underline-offset-2 hover:underline ${light ? 'text-amber-200' : 'text-blue-700'}`}
-        aria-expanded={open}
-        onClick={() => setOpen((v) => !v)}
-      >
-        {open ? 'Hide exclusions' : 'View exclusions'}
-      </button>
-      {open ? (
-        <ul className={`mt-1.5 list-disc space-y-0.5 pl-4 text-[11px] ${light ? 'text-slate-300' : 'text-slate-500'}`}>
-          {lines.map((line) => (
-            <li key={line}>{line}</li>
-          ))}
-        </ul>
-      ) : null}
-    </span>
   )
 }
 
@@ -173,11 +184,10 @@ export default function QuoteServicePackagePicker({
 
   return (
     <section className="mt-5 min-w-0" aria-labelledby="quote-service-package-heading">
-      <h3 id="quote-service-package-heading" className="text-lg font-bold text-slate-900">
+      <h3 id="quote-service-package-heading" className="text-base font-bold text-slate-900">
         Choose your service
       </h3>
-      <p className="mt-1 text-sm text-slate-600">Select the level of service that suits your move.</p>
-      <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-3">
+      <div className="mt-3 grid grid-cols-1 gap-2 min-[1200px]:grid-cols-3 min-[1200px]:gap-3">
         {cards.map((pkg) => {
           const block = packageCapacityBlock({
             packageId: pkg.id,

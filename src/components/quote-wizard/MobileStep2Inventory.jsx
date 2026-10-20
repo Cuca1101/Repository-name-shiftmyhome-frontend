@@ -1,5 +1,5 @@
 import { useRef } from 'react'
-import { ChevronDown, PackagePlus } from 'lucide-react'
+import { ChevronRight, PackagePlus } from 'lucide-react'
 import CrewSizeField from './CrewSizeField'
 import MobileStepRefBadge from './MobileStepRefBadge'
 import MobileStepTitleWithRef from './MobileStepTitleWithRef'
@@ -52,14 +52,18 @@ export default function MobileStep2Inventory({
   catalogItemsListClassName = 'mt-1.5 space-y-1',
   categoryHeadingClassName = 'text-xs font-bold uppercase tracking-wide text-slate-500',
   searchResultsCompact = true,
+  customFormOpen = false,
+  setCustomFormOpen,
   resultsPanelRef,
   categoriesRef,
   inputClass,
+  matchTablet = false,
 }) {
   const catalogSectionRef = categoriesRef || useRef(null)
 
   return (
-    <div data-quote-step="2" className="box-border min-w-0 w-full max-w-full space-y-1.5 lg:hidden">
+    <div data-quote-step="2" className={`box-border min-w-0 w-full max-w-full space-y-1.5 ${matchTablet ? '' : 'lg:hidden'}`}>
+      {quotePage ? null : (
       <div className="px-0.5">
         <MobileStepTitleWithRef title="Items" quoteRef={quoteRef} titleClassName="md:text-lg" />
         <p className={`mt-0.5 ${quoteMobileHelper}`}>
@@ -71,12 +75,13 @@ export default function MobileStep2Inventory({
           <p className="mt-1 text-[11px] text-slate-500">Using your Items Library catalogue.</p>
         ) : null}
       </div>
+      )}
 
-      {quotePage ? (
+      {quotePage ? null : (
         <div className="px-0.5">
           <MobileStepRefBadge quoteRef={quoteRef} />
         </div>
-      ) : null}
+      )}
 
       <CrewSizeField
         id={crewFieldId}
@@ -84,6 +89,7 @@ export default function MobileStep2Inventory({
         onChange={onCrewSizeChange}
         crewSettings={crewSettings}
         invalid={Boolean(validationMessage && /crew size/i.test(validationMessage))}
+        lockMobile={matchTablet}
       />
 
       {validationMessage ? (
@@ -96,7 +102,24 @@ export default function MobileStep2Inventory({
         </p>
       ) : null}
 
-      <div ref={catalogSectionRef} data-quote-field="inventory" className={`${card} p-2.5 md:p-3`}>
+      <div ref={catalogSectionRef} data-quote-field="inventory" className={quotePage ? 'min-w-0' : `${card} p-2.5 md:p-3`}>
+        <InventorySearchDropdown
+          id={searchId}
+          value={searchQuery}
+          onChange={setSearchQuery}
+          catalogLoading={catalogLoading}
+          open={searchDropdownOpen}
+          className="relative z-30"
+        >
+          {searchResults.length === 0 ? (
+            <InventorySearchDropdownEmpty />
+          ) : (
+            <ul className="min-w-0 py-0.5">
+              {searchResults.map((e) => renderSearchResultRow(e, searchResultsCompact))}
+            </ul>
+          )}
+        </InventorySearchDropdown>
+        <h3 className="mb-2 mt-4 text-sm font-bold text-slate-900">Browse categories</h3>
         <div className="grid grid-cols-2 items-stretch gap-2">
           {categoryOrder.map((key) => {
             const c = inventoryByCategory[key]
@@ -118,34 +141,17 @@ export default function MobileStep2Inventory({
               >
                 <CategoryLucideIcon
                   categoryKey={key}
-                  className={`h-[1.125rem] w-[1.125rem] shrink-0 ${isOpen ? 'text-blue-700' : 'text-slate-600'}`}
+                  className="h-[1.125rem] w-[1.125rem] shrink-0 text-blue-600"
                 />
                 <span className="quote-inventory-item-name min-w-0 flex-1 leading-snug">{c.label}</span>
-                <ChevronDown
-                  className={`h-4 w-4 shrink-0 text-slate-500 transition-transform ${isOpen ? 'rotate-180 text-blue-600' : ''}`}
+                <ChevronRight
+                  className={`h-4 w-4 shrink-0 text-slate-400 transition-transform ${isOpen ? 'rotate-90 text-blue-600' : ''}`}
                   aria-hidden
                 />
               </button>
             )
           })}
         </div>
-
-        <InventorySearchDropdown
-          id={searchId}
-          value={searchQuery}
-          onChange={setSearchQuery}
-          catalogLoading={catalogLoading}
-          open={searchDropdownOpen}
-          className="relative z-30 mt-2"
-        >
-          {searchResults.length === 0 ? (
-            <InventorySearchDropdownEmpty />
-          ) : (
-            <ul className="min-w-0 py-0.5">
-              {searchResults.map((e) => renderSearchResultRow(e, searchResultsCompact))}
-            </ul>
-          )}
-        </InventorySearchDropdown>
 
         {activeCategory ? (
           <div ref={resultsPanelRef} className="relative z-0 mt-3 min-w-0">
@@ -165,11 +171,23 @@ export default function MobileStep2Inventory({
         ) : null}
       </div>
 
+      <div className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white p-3">
+        <div className="min-w-0">
+          <p className="text-sm font-bold text-slate-900">Can&apos;t find your item?</p>
+          <p className="text-xs text-slate-500">Add a custom item with your own details.</p>
+        </div>
+        <button
+          type="button"
+          onClick={() => setCustomFormOpen?.((open) => !open)}
+          className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-xl border border-blue-200 bg-white px-3 text-sm font-semibold text-blue-700"
+          aria-expanded={customFormOpen}
+        >
+          + Add custom item
+        </button>
+      </div>
+      {customFormOpen ? (
       <div className={`${card} p-3`}>
-        <p className="text-sm font-bold text-blue-700">
-          If you can&apos;t find your item in the inventory, add it manually.
-        </p>
-        <div className="mt-3 space-y-2">
+        <div className="space-y-2">
           <label className="block">
             <span className="sr-only">Item name</span>
             <input
@@ -201,8 +219,10 @@ export default function MobileStep2Inventory({
             </button>
           </div>
         </div>
+      </div>
+      ) : null}
         {customLines.length > 0 ? (
-          <ul className="mt-3 space-y-2 border-t border-slate-200 pt-3">
+          <ul className="space-y-2">
             {customLines.map((row) => (
               <li
                 key={row.lineId}
@@ -226,7 +246,6 @@ export default function MobileStep2Inventory({
             ))}
           </ul>
         ) : null}
-      </div>
     </div>
   )
 }

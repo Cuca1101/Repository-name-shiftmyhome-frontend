@@ -63,6 +63,7 @@ export default function ItemsLibraryAdmin() {
   const [error, setError] = useState('')
   const [editingId, setEditingId] = useState(null)
   const [sessionCategory, setSessionCategory] = useState(DEFAULT_LIBRARY_CATEGORY)
+  const [activeCategory, setActiveCategory] = useState('all')
   const [form, setForm] = useState({
     name: '',
     category: DEFAULT_LIBRARY_CATEGORY,
@@ -154,6 +155,22 @@ export default function ItemsLibraryAdmin() {
       return a.localeCompare(b)
     })
   }, [validItems])
+
+  const categoryCounts = useMemo(() => {
+    const counts = new Map(LIBRARY_CATEGORY_OPTIONS.map((cat) => [cat, 0]))
+    for (const row of validItems) {
+      const label = String(row.category ?? '').trim()
+      if (!label) continue
+      counts.set(label, (counts.get(label) || 0) + 1)
+    }
+    return counts
+  }, [validItems])
+
+  const extraCategories = [...categoryCounts.keys()].filter(
+    (label) => !LIBRARY_CATEGORY_OPTIONS.includes(label),
+  )
+  const visibleGroups =
+    activeCategory === 'all' ? grouped : grouped.filter(([category]) => category === activeCategory)
 
   function setFormCategory(category) {
     const normalized = normalizeFormCategory(category)
@@ -404,6 +421,7 @@ export default function ItemsLibraryAdmin() {
                   }`}
                 >
                   {cat}
+                  <span className="ml-1.5 tabular-nums opacity-80">{categoryCounts.get(cat) || 0}</span>
                 </button>
               ))}
             </div>
@@ -427,7 +445,7 @@ export default function ItemsLibraryAdmin() {
               >
                 {LIBRARY_CATEGORY_OPTIONS.map((cat) => (
                   <option key={cat} value={cat}>
-                    {cat}
+                    {cat} ({categoryCounts.get(cat) || 0})
                   </option>
                 ))}
               </select>
@@ -494,14 +512,47 @@ export default function ItemsLibraryAdmin() {
         </form>
       )}
 
+      <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-card sm:p-5">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h3 className="text-sm font-semibold text-slate-900">Category</h3>
+          <p className="text-sm font-semibold text-slate-700">
+            Total <span className="tabular-nums text-slate-900">{validItems.length}</span>
+          </p>
+        </div>
+        <div className="mt-3 flex flex-wrap gap-1.5" role="group" aria-label="Filter by category">
+          <button
+            type="button"
+            onClick={() => setActiveCategory('all')}
+            aria-pressed={activeCategory === 'all'}
+            className={`${categoryBtnBase} ${activeCategory === 'all' ? categoryBtnActive : categoryBtnInactive}`}
+          >
+            All
+            <span className="ml-1.5 tabular-nums opacity-80">{validItems.length}</span>
+          </button>
+          {[...LIBRARY_CATEGORY_OPTIONS, ...extraCategories].map((cat) => (
+            <button
+              key={cat}
+              type="button"
+              onClick={() => setActiveCategory(cat)}
+              aria-pressed={activeCategory === cat}
+              className={`${categoryBtnBase} ${activeCategory === cat ? categoryBtnActive : categoryBtnInactive}`}
+            >
+              {cat}
+              <span className="ml-1.5 tabular-nums opacity-80">{categoryCounts.get(cat) || 0}</span>
+            </button>
+          ))}
+        </div>
+      </section>
+
       {loading ? (
         <p className="text-slate-500">Loading items…</p>
       ) : (
         <div className="space-y-8">
-          {grouped.map(([category, rows]) => (
+          {visibleGroups.map(([category, rows]) => (
             <div key={category} className="rounded-2xl border border-slate-200 bg-white shadow-card">
-              <div className="border-b border-slate-100 bg-slate-50 px-4 py-3">
+              <div className="flex items-center justify-between gap-3 border-b border-slate-100 bg-slate-50 px-4 py-3">
                 <h3 className="font-semibold text-slate-900">{category}</h3>
+                <p className="text-sm font-semibold tabular-nums text-slate-600">{rows.length}</p>
               </div>
               <ul className="divide-y divide-slate-100 lg:hidden">
                 {rows.map((row) => (
@@ -572,6 +623,11 @@ export default function ItemsLibraryAdmin() {
               </div>
             </div>
           ))}
+          {activeCategory !== 'all' && visibleGroups.length === 0 ? (
+            <p className="rounded-2xl border border-dashed border-slate-200 bg-white p-8 text-center text-slate-600">
+              No items in {activeCategory}.
+            </p>
+          ) : null}
           {validItems.length === 0 && (
             <p className="rounded-2xl border border-dashed border-slate-200 bg-white p-8 text-center text-slate-600">
               No items yet. Add your catalogue or seed defaults by clearing local storage key{' '}

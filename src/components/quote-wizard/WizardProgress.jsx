@@ -2,17 +2,17 @@ const STEPS = [
   { n: 1, label: 'Address & access' },
   { n: 2, label: 'Items & contact' },
   { n: 3, label: 'Review' },
-  { n: 4, label: 'Pay' },
+  { n: 4, label: 'Payment' },
 ]
 
 const SHORT_LABELS = {
   1: 'Address',
   2: 'Items',
   3: 'Review',
-  4: 'Pay',
+  4: 'Payment',
 }
 
-export default function WizardProgress({ step, variant = 'default', step4ShortLabel }) {
+export default function WizardProgress({ step, variant = 'default', step4ShortLabel, capAtTablet = false }) {
   const shortLabels = step4ShortLabel ? { ...SHORT_LABELS, 4: step4ShortLabel } : SHORT_LABELS
   const steps = step4ShortLabel
     ? STEPS.map((item) => (item.n === 4 ? { ...item, label: step4ShortLabel } : item))
@@ -20,30 +20,30 @@ export default function WizardProgress({ step, variant = 'default', step4ShortLa
 
   if (variant === 'page') {
     return (
-      <ol className="quote-page-steps mb-2 flex w-full items-center">
+      <ol className="quote-page-steps mb-1 flex w-full items-start justify-between gap-0.5 min-[420px]:items-center min-[420px]:justify-center min-[420px]:gap-0">
         {steps.map((s, index) => {
           const current = step === s.n
           const done = step > s.n
           return (
-            <li key={s.n} className="contents">
-              <span className="flex shrink-0 items-center">
+            <li key={s.n} className="flex min-w-0 flex-1 flex-col items-center min-[420px]:contents">
+              <span className="flex min-w-0 flex-col items-center gap-0.5 min-[420px]:flex-row min-[420px]:gap-0">
                 <span
-                  className={`quote-page-step-dot flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold tabular-nums ${
-                    current || done ? 'bg-blue-600 text-white' : 'bg-slate-200 text-slate-500'
+                  className={`quote-page-step-dot flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-bold tabular-nums min-[420px]:h-6 min-[420px]:w-6 min-[420px]:text-[11px] md:h-8 md:w-8 md:text-sm ${capAtTablet ? '' : 'lg:h-9 lg:w-9 lg:text-base xl:h-10 xl:w-10 '}${
+                    done ? 'bg-emerald-500 text-white' : current ? 'bg-blue-600 text-white' : 'bg-slate-200 text-slate-500'
                   }`}
                 >
                   {done ? '✓' : s.n}
                 </span>
                 <span
-                  className={`quote-page-step-label ml-1.5 whitespace-nowrap text-xs font-semibold sm:text-sm ${
-                    current ? 'text-slate-900' : done ? 'text-blue-700' : 'text-slate-400'
+                  className={`quote-page-step-label max-w-full px-0.5 text-center text-[10px] font-semibold leading-tight min-[420px]:ml-1 min-[420px]:whitespace-nowrap min-[420px]:px-0 min-[420px]:text-[11px] md:ml-1.5 md:text-sm ${capAtTablet ? '' : 'lg:ml-2 lg:text-base xl:text-lg '}${
+                    current ? 'text-slate-900' : done ? 'text-emerald-600' : 'text-slate-400'
                   }`}
                 >
                   {shortLabels[s.n]}
                 </span>
               </span>
               {index < STEPS.length - 1 ? (
-                <span className="mx-1.5 h-px min-w-2 flex-1 bg-slate-200 sm:mx-2" aria-hidden />
+                <span className={`mx-1 hidden h-px w-2 shrink-0 bg-slate-300 min-[420px]:mx-1.5 min-[420px]:block min-[420px]:w-3 md:mx-3 md:w-6 ${capAtTablet ? '' : 'lg:mx-4 lg:w-8 xl:w-10'}`} aria-hidden />
               ) : null}
             </li>
           )

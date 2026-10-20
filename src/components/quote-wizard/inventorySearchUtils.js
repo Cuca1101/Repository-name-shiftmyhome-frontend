@@ -1,7 +1,7 @@
 import { canonicalItemKey, canonicalItemName, synonymsForItemName } from './inventoryItemSynonyms.js'
 
 /** Shared copy for every inventory search field */
-export const INVENTORY_SEARCH_PLACEHOLDER = 'Search items (e.g. sofa, TV, table)'
+export const INVENTORY_SEARCH_PLACEHOLDER = 'Search items, e.g. sofa, TV, table'
 
 export const INVENTORY_SEARCH_EMPTY_MESSAGE =
   'Item not found? Add it as a custom item below'

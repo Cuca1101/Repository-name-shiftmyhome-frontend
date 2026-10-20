@@ -117,10 +117,10 @@ export const INVENTORY_BY_CATEGORY = {
   boxes: {
     label: 'Boxes & storage',
     items: [
-      { id: 'box-small', name: 'Moving box (small)', m3: 0.05, weightType: 'small', mult: 1 },
-      { id: 'box-medium', name: 'Moving box (medium)', m3: 0.1, weightType: 'small', mult: 1 },
-      { id: 'box-large', name: 'Large box / crate', m3: 0.2, weightType: 'medium', mult: 1 },
-      { id: 'box-xl', name: 'Extra-large moving box (XL)', m3: 0.3, weightType: 'medium', mult: 1 },
+      { id: 'box-small', name: 'Small box', m3: 0.05, weightType: 'small', mult: 1 },
+      { id: 'box-medium', name: 'Medium box', m3: 0.1, weightType: 'small', mult: 1 },
+      { id: 'box-large', name: 'Large box', m3: 0.2, weightType: 'medium', mult: 1 },
+      { id: 'box-xl', name: 'Extra large box', m3: 0.3, weightType: 'medium', mult: 1 },
       { id: 'crate', name: 'Crate', m3: 0.25, weightType: 'medium', mult: 1 },
       { id: 'plastic-box', name: 'Plastic storage box', m3: 0.12, weightType: 'small', mult: 1 },
       { id: 'suitcase', name: 'Suitcase / bag', m3: 0.15, weightType: 'small', mult: 1 },

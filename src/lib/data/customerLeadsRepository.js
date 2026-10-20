@@ -116,6 +116,7 @@ export async function fetchCustomerLeadsForAdmin(opts = {}) {
   }))
 
   rows = await attachCustomerPaid(rows)
+  rows = await attachCustomerOffers(rows)
 
   const filter = (opts.filter || 'all').toLowerCase()
   if (filter !== 'all') {
@@ -166,6 +167,35 @@ export async function fetchCustomerLeadsForAdmin(opts = {}) {
 }
 
 /**
+ * Leads an admin has not opened yet. Trashed leads are not counted.
+ */
+export async function countUnreadCustomerLeads() {
+  if (!isSupabaseConfigured || !supabase) return 0
+  const { count, error } = await supabase
+    .from(TABLE)
+    .select('id', { count: 'exact', head: true })
+    .is('admin_read_at', null)
+    .is('deleted_at', null)
+  if (error) return 0
+  return Number(count) || 0
+}
+
+/**
+ * Opening a lead clears it from the unread nav count.
+ * @param {string} id
+ */
+export async function markCustomerLeadRead(id) {
+  if (!isSupabaseConfigured || !supabase || !id) return
+  const { error } = await supabase
+    .from(TABLE)
+    .update({ admin_read_at: new Date().toISOString() })
+    .eq('id', id)
+    .is('admin_read_at', null)
+  if (error) return
+  window.dispatchEvent(new Event('customer-leads-read'))
+}
+
+/**
  * @param {string} id
  */
 export async function fetchCustomerLeadById(id) {
@@ -206,6 +236,39 @@ async function attachCustomerPaid(rows) {
     ...row,
     customer_paid: paid.has(String(row.quote_id || '')),
   }))
+}
+
+/**
+ * Latest customer offer for each lead, matched by lead, quote reference, or email.
+ * @param {Record<string, unknown>[]} rows
+ */
+async function attachCustomerOffers(rows) {
+  if (!rows.length || !supabase) {
+    return rows.map((row) => ({ ...row, customer_offer: null }))
+  }
+  const { data, error } = await supabase
+    .from('customer_offers')
+    .select('id, lead_id, quote_ref, customer_email, status, proposed_amount, original_total, expires_at, created_at')
+    .order('created_at', { ascending: false })
+    .limit(500)
+  if (error) return rows.map((row) => ({ ...row, customer_offer: null }))
+
+  const byLead = new Map()
+  const byRef = new Map()
+  for (const offer of data || []) {
+    const leadId = String(offer.lead_id || '')
+    const ref = String(offer.quote_ref || '').trim().toLowerCase()
+    if (leadId && !byLead.has(leadId)) byLead.set(leadId, offer)
+    if (ref && !byRef.has(ref)) byRef.set(ref, offer)
+  }
+
+  return rows.map((row) => {
+    const offer =
+      byLead.get(String(row.id || '')) ||
+      byRef.get(String(row.quote_ref || '').trim().toLowerCase()) ||
+      null
+    return { ...row, customer_offer: offer }
+  })
 }
 
 /**

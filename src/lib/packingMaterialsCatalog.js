@@ -118,13 +118,15 @@ export function normalizePackingMaterialQuantities(raw) {
   const q = emptyPackingMaterialQuantities()
   if (!raw || typeof raw !== 'object') return q
 
+  const src = /** @type {Record<string, unknown>} */ (raw)
+  const explicitBoxCount = BOX_IDS.some((id) => Object.prototype.hasOwnProperty.call(src, id))
   for (const item of PACKING_MATERIALS_CATALOG) {
-    const v = Number(/** @type {Record<string, unknown>} */ (raw)[item.id])
+    const v = Number(src[item.id])
     if (Number.isFinite(v) && v > 0) q[item.id] = Math.round(v)
   }
 
-  const legacyBoxes = Math.max(0, Number(/** @type {Record<string, unknown>} */ (raw).boxes) || 0)
-  if (legacyBoxes > 0 && sumBoxQuantities(q) === 0) {
+  const legacyBoxes = Math.max(0, Number(src.boxes) || 0)
+  if (!explicitBoxCount && legacyBoxes > 0 && sumBoxQuantities(q) === 0) {
     q.mediumBoxes = legacyBoxes
   }
 
@@ -232,10 +234,15 @@ export function resolvePackingMaterialUnitPrices(settings) {
 /**
  * @param {PricingSettings | null | undefined} settings
  */
-export function isPackingMaterialPerItemPricingActive(settings) {
-  if (!settings || !settings.packingMaterialPerItemEnabled) return false
+export function hasPackingMaterialUnitPrices(settings) {
+  if (!settings) return false
   const prices = resolvePackingMaterialUnitPrices(settings)
-  return Object.values(prices).some((v) => v > 0)
+  return PACKING_MATERIALS_CATALOG.some((item) => (prices[item.id] || 0) > 0)
+}
+
+/** Quote shows the per-item price only after admin turns Enable on. */
+export function isPackingMaterialPerItemPricingActive(settings) {
+  return Boolean(settings?.packingMaterialPerItemEnabled) && hasPackingMaterialUnitPrices(settings)
 }
 
 /**

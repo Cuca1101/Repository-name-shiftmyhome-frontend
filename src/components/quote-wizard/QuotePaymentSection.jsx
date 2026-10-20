@@ -7,6 +7,8 @@ import { trackWebsiteLeadEvent } from '../../lib/websiteLeadTracker'
 import QuoteStripePayment from './QuoteStripePayment'
 import QuotePromoPriceReduction from './QuotePromoPriceReduction'
 import { shouldShowStripeTestModeWarning, stripeTestModeWarningMessage } from '../../lib/stripeConfig'
+import { payableOfferAmount } from '../../lib/customerOfferApi'
+import { useQuoteWizard } from './QuoteWizardContext'
 
 /** Step 4 mounts twice (mobile + desktop columns); detect visibility without document-wide MutationObserver. */
 function usePanelVisible(rootRef) {
@@ -81,6 +83,8 @@ export default function QuotePaymentSection({
   const autoFullPayRequestedRef = useRef(false)
   const panelVisible = usePanelVisible(rootRef)
 
+  const { matchedOffer } = useQuoteWizard()
+  const agreedTotal = payableOfferAmount(matchedOffer)
   const moveDatePayReady = isMoveDateOnOrAfterToday(wizard?.moveDate)
   const reservationGbp =
     Number.isFinite(Number(reservationFeeGbp)) && Number(reservationFeeGbp) > 0
@@ -94,7 +98,8 @@ export default function QuotePaymentSection({
   const clientSecret =
     typeof cardPayment?.clientSecret === 'string' ? cardPayment.clientSecret : ''
   const cardFormOpen = clientSecret.length > 0
-  const estimatedTotal = breakdown?.estimatedTotal
+  const estimatedTotal = agreedTotal ?? breakdown?.estimatedTotal
+  const depositAllowed = agreedTotal == null || agreedTotal > reservationGbp + 0.009
   const totalFormatted =
     estimatedTotal != null && Number.isFinite(estimatedTotal)
       ? `£${estimatedTotal.toFixed(2)}`
@@ -109,6 +114,10 @@ export default function QuotePaymentSection({
     remainingBalanceGbp != null ? `£${remainingBalanceGbp.toFixed(2)}` : null
 
   const termsReady = confirmed && agreedToTerms
+
+  useEffect(() => {
+    if (!depositAllowed && paymentChoice === 'reservation') setPaymentChoice('full')
+  }, [depositAllowed, paymentChoice])
 
   const submitLabel =
     paymentChoice === 'reservation'
@@ -295,9 +304,14 @@ export default function QuotePaymentSection({
                 </div>
               ) : null}
               <div className="flex items-baseline justify-between gap-3">
-                <dt className="font-medium text-slate-800">Total</dt>
+                <dt className="font-medium text-slate-800">{agreedTotal != null ? 'Agreed total' : 'Total'}</dt>
                 <dd className="text-lg font-bold tabular-nums text-slate-900">{totalFormatted}</dd>
               </div>
+              {agreedTotal != null ? (
+                <p className="text-xs leading-snug text-slate-600">
+                  Amount due now follows the option below. The server charges the agreed total, not a price typed in the browser.
+                </p>
+              ) : null}
             </dl>
             <QuotePromoPriceReduction
               promoCode={wizard?.promoCode}
@@ -339,7 +353,7 @@ export default function QuotePaymentSection({
             </p>
           </button>
 
-          <button
+          {depositAllowed ? <button
             type="button"
             onClick={() => selectChoice('reservation')}
             disabled={!termsReady || !moveDatePayReady}
@@ -371,7 +385,7 @@ export default function QuotePaymentSection({
                 Pay today: {reservationFormatted} · Remaining: {remainingBalanceFormatted}
               </p>
             ) : null}
-          </button>
+          </button> : null}
         </div>
 
         {!termsReady ? (

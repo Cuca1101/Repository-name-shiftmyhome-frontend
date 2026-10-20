@@ -14,6 +14,7 @@ import QuotePage from './pages/QuotePage'
 import QuoteResumePage from './pages/QuoteResumePage'
 import QuotePayRecoveryPage from './pages/QuotePayRecoveryPage'
 import PhoneQuoteViewPage from './pages/PhoneQuoteViewPage'
+import CustomerOfferPage from './pages/CustomerOfferPage'
 import JobTrackingPortalPage from './pages/JobTrackingPortalPage'
 import { PortalSessionProvider } from './components/customer-portal/PortalShell'
 import CustomerPortalLoginPage from './pages/CustomerPortalLoginPage'
@@ -140,6 +141,14 @@ export default function App() {
         element={
           <PublicLayout>
             <PhoneQuoteViewPage />
+          </PublicLayout>
+        }
+      />
+      <Route
+        path="/offer/:token"
+        element={
+          <PublicLayout>
+            <CustomerOfferPage />
           </PublicLayout>
         }
       />

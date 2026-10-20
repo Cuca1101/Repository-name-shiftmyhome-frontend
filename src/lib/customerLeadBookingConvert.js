@@ -271,9 +271,47 @@ function buildAdminPhoneBookingFormFromLead(lead, { createdBy, convert = true, f
 }
 
 /**
+ * Keep a real card or deposit receipt. An unpaid lead stays unpaid.
+ * @param {Record<string, unknown> | null | undefined} existing
+ * @param {number} chargeable
+ */
+function preservedPaymentFields(existing, chargeable) {
+  const status = String(existing?.payment_status || '').trim().toLowerCase()
+  const amountPaid = Math.max(0, Number(existing?.amount_paid) || 0)
+  const hasStripe = Boolean(String(existing?.stripe_payment_intent_id || '').trim())
+  const recordedPaid =
+    status === 'paid' ||
+    status === 'deposit_paid' ||
+    (amountPaid > 0 && (hasStripe || Boolean(existing?.paid_at)))
+  if (!recordedPaid) {
+    return {
+      payment_status: status === 'failed' ? 'failed' : 'unpaid',
+      payment_type: existing?.payment_type ?? null,
+      amount_paid: amountPaid,
+      paid_at: existing?.paid_at || null,
+      remaining_balance: Math.max(0, Math.round((chargeable - amountPaid) * 100) / 100),
+      stripe_session_id: existing?.stripe_session_id ?? null,
+      stripe_payment_intent_id: existing?.stripe_payment_intent_id ?? null,
+    }
+  }
+  const remainingRaw = Number(existing?.remaining_balance)
+  const remaining = Number.isFinite(remainingRaw)
+    ? Math.max(0, remainingRaw)
+    : Math.max(0, Math.round((chargeable - amountPaid) * 100) / 100)
+  return {
+    payment_status: status === 'deposit_paid' ? 'deposit_paid' : 'paid',
+    payment_type: existing?.payment_type ?? (status === 'deposit_paid' ? 'deposit' : 'full'),
+    amount_paid: amountPaid,
+    paid_at: existing?.paid_at || null,
+    remaining_balance: remaining,
+    stripe_session_id: existing?.stripe_session_id ?? null,
+    stripe_payment_intent_id: existing?.stripe_payment_intent_id ?? null,
+  }
+}
+
+/**
  * Fields for a Customer Lead → Available Jobs conversion.
- * Marked paid (offline / admin convert) so the job shows like card-paid bookings
- * and cannot be deleted or undone like unpaid phone staging rows.
+ * Releases the booking into Available Jobs without inventing a payment.
  * Clears archive/test/cancel flags that hide rows from production admin inboxes.
  * @param {{
  *   summary: ReturnType<typeof getCustomerLeadBookingSummary>,
@@ -286,9 +324,8 @@ function buildAdminPhoneBookingFormFromLead(lead, { createdBy, convert = true, f
  */
 function buildLeadConvertedJobPatch({ summary, chargeable, calculated, lead, createdBy, existing = null }) {
   const calc = calculated ?? chargeable
-  const paidAmount = Math.max(0, Number(chargeable) || 0)
   const now = new Date().toISOString()
-  const staffNote = `Converted from customer lead by admin (${createdBy || 'admin'}) — marked paid (offline / no card).`
+  const staffNote = `Converted from customer lead by admin (${createdBy || 'admin'}). Payment status was left as recorded.`
   const priorDetails = String(existing?.details || '').trim()
   const details =
     priorDetails && !priorDetails.includes('Converted from customer lead')
@@ -304,15 +341,7 @@ function buildLeadConvertedJobPatch({ summary, chargeable, calculated, lead, cre
     move_date: summary.moveDate || existing?.move_date || new Date().toISOString().slice(0, 10),
     source: ADMIN_PHONE_BOOKING_SOURCE,
     status: 'Booked',
-    // Appear as paid in Available Jobs (same as card-paid) — not deletable / not undoable.
-    payment_status: 'paid',
-    payment_type: 'full',
-    amount_paid: paidAmount,
-    paid_at: existing?.paid_at || now,
-    remaining_balance: 0,
-    // Clear abandoned checkout refs so this is offline paid, not Stripe-pending.
-    stripe_session_id: null,
-    stripe_payment_intent_id: null,
+    ...preservedPaymentFields(existing, Math.max(0, Number(chargeable) || 0)),
     // Released to Available Jobs (not phone_booking_pending).
     operational_status: null,
     marketplace_visibility: 'hidden_from_partners',
@@ -551,14 +580,7 @@ export async function convertCustomerLeadToBooking({ lead, createdBy }) {
   /** @type {Record<string, unknown>} */
   let workingLead = lead
 
-  let existing = await findExistingQuoteForLead(lead)
-  if (existing && (quoteIsCardPaid(existing) || existing.paid_at)) {
-    // Never mutate an already-paid booking — create a fresh paid convert job.
-    existing = null
-    quoteId = null
-    quoteCreatedByConvert = true
-    quoteBefore = null
-  }
+  const existing = await findExistingQuoteForLead(lead)
 
   if (existing) {
     quoteId = String(existing.id)
@@ -736,9 +758,9 @@ async function markLeadConvertedAfterJobReady(p) {
 }
 
 /**
- * Convert lead → paid Available Jobs booking using saved lead details.
+ * Convert lead → Available Jobs booking using saved lead details.
  * Atomic: lead is marked converted only after the job passes Available Jobs checks.
- * Offline-marked Paid; Undo convert stays available while unassigned (card Stripe charges stay protected).
+ * Does not record a payment. Undo convert stays available while unassigned (card Stripe charges stay protected).
  * @param {{
  *   lead: Record<string, unknown>,
  *   createdBy: string,

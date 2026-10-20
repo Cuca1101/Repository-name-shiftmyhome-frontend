@@ -86,6 +86,7 @@ import {
 } from '../../lib/customerLeadTracker'
 import { rotateWebsiteLeadSessionId } from '../../lib/websiteLeadSession'
 import { applyServicePackageToQuote } from '../../lib/servicePackages'
+import { matchRememberedCustomerOffer, payableOfferAmount } from '../../lib/customerOfferApi'
 import { JOURNEY_VAN_CAPACITY_M3 } from '../../lib/journeySummary'
 import { trackMarketingQuoteSubmit } from '../../lib/marketingPixels'
 import { useLocation } from 'react-router-dom'
@@ -554,6 +555,43 @@ export function QuoteWizardProvider({
     lockedFingerprintRef.current = null
     return withPackage(live, live.estimatedTotal)
   }, [step, settings, serviceType, wizard, lineItems, heavyItemCount, totalM3])
+
+  const [matchedOffer, setMatchedOffer] = useState(null)
+  useEffect(() => {
+    if (mode === 'admin' || step < 3 || !breakdown) {
+      setMatchedOffer(null)
+      return undefined
+    }
+    let cancelled = false
+    const timer = window.setTimeout(() => {
+      matchRememberedCustomerOffer({ wizard, breakdown, totalM3 })
+        .then((offer) => {
+          if (!cancelled) setMatchedOffer(offer)
+        })
+        .catch(() => {
+          if (!cancelled) setMatchedOffer(null)
+        })
+    }, 300)
+    return () => {
+      cancelled = true
+      window.clearTimeout(timer)
+    }
+  }, [
+    mode,
+    step,
+    breakdown,
+    totalM3,
+    wizard.moveDate,
+    wizard.packageTier,
+    wizard.pickupAddress,
+    wizard.deliveryAddress,
+    wizard.arrivalWindow,
+    wizard.exactArrivalTime,
+    wizard.inventoryLines,
+    wizard.specialInstructions,
+    wizard.promoCode,
+    wizard.crewSize,
+  ])
 
   // Keep React state in sync when lock clears inside breakdown useMemo.
   useEffect(() => {
@@ -1099,9 +1137,18 @@ export function QuoteWizardProvider({
         quote_lead.estimated_total = breakdown.estimatedTotal
         const isReservation = paymentType === 'reservation'
         const reservationGbp = resolveDepositAmountGbp(settings)
-        const chargeGbp = isReservation ? reservationGbp : breakdown.estimatedTotal
+        const agreedOfferTotal = payableOfferAmount(matchedOffer)
+        const offerToken = agreedOfferTotal ? matchedOffer.token : ''
+        const chargeGbp = offerToken
+          ? isReservation
+            ? reservationGbp
+            : agreedOfferTotal
+          : isReservation
+            ? reservationGbp
+            : breakdown.estimatedTotal
         const { clientSecret, paymentIntentId } = await createPaymentIntent({
           quote_ref: quoteRef,
+          offer_token: offerToken || undefined,
           customer_email: bookingEmail,
           portal_access_token: portalAccessToken || undefined,
           customer_name: wizard.fullName.trim(),
@@ -1115,9 +1162,13 @@ export function QuoteWizardProvider({
           payment_type: isReservation ? 'deposit' : 'full',
           quote_lead,
         })
-        const amountLabel = isReservation
-          ? `${formatReservationFeeGbp(reservationGbp)} reservation fee`
-          : `£${breakdown.estimatedTotal.toFixed(2)} (estimated total)`
+        const amountLabel = offerToken
+          ? isReservation
+            ? `${formatReservationFeeGbp(reservationGbp)} deposit, agreed total £${agreedOfferTotal.toFixed(2)}`
+            : `£${agreedOfferTotal.toFixed(2)} agreed total`
+          : isReservation
+            ? `${formatReservationFeeGbp(reservationGbp)} reservation fee`
+            : `£${breakdown.estimatedTotal.toFixed(2)} (estimated total)`
         setCardPayment({
           clientSecret,
           paymentIntentId,
@@ -1153,6 +1204,7 @@ export function QuoteWizardProvider({
     },
     [
       breakdown,
+      matchedOffer,
       buildQuotePayloadForSave,
       quoteRef,
       wizard.email,
@@ -1391,6 +1443,7 @@ export function QuoteWizardProvider({
     totalM3,
     crewRestrictions,
     breakdown,
+    matchedOffer,
     resumeLockedTotal,
     priceWithoutPromo,
     depositAmountGbp: settings ? resolveDepositAmountGbp(settings) : 50,

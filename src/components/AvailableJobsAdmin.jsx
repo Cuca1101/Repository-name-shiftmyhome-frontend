@@ -709,8 +709,8 @@ export default function AvailableJobsAdmin() {
               />
             ) : (
               <p className="rounded-xl border border-dashed border-amber-200 bg-amber-50/50 px-4 py-5 text-sm text-amber-950">
-                No offline / unpaid phone bookings here. Customer Lead Create job now creates Paid
-                bookings (shown with other paid jobs above).
+                No offline / unpaid phone bookings here. A customer-lead conversion keeps the
+                recorded payment status, so an unpaid booking appears in this list.
               </p>
             )}
           </section>

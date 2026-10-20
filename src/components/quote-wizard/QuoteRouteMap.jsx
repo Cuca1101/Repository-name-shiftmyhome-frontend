@@ -17,7 +17,7 @@ const DEFAULT_MAP_SHELL =
 const COMPACT_MAP_SHELL = 'relative h-32 min-h-[8rem] w-full min-w-0 overflow-hidden rounded-lg md:rounded-2xl'
 /** Step 3 review — compact route preview (logic unchanged). */
 const REVIEW_MAP_SHELL =
-  'relative h-[168px] min-h-[168px] sm:h-[180px] sm:min-h-[180px] md:h-[200px] md:min-h-[200px] w-full min-w-0 overflow-hidden rounded-xl'
+  'relative h-[220px] min-h-[220px] w-full min-w-0 overflow-hidden md:h-[260px] md:min-h-[260px] lg:h-[300px] lg:min-h-[300px]'
 /** Admin dispatch board — tall route visibility (Available / Job Accepted detail). */
 const DISPATCH_MAP_SHELL =
   'relative h-[220px] min-h-[220px] sm:h-[260px] sm:min-h-[260px] md:h-[280px] md:min-h-[280px] lg:h-[300px] lg:min-h-[300px] xl:h-[320px] xl:min-h-[320px] w-full min-w-0 overflow-hidden'
@@ -27,6 +27,8 @@ const LEAD_MAP_SHELL =
 
 const OUTER_DEFAULT =
   'quote-route-map w-full min-w-0 overflow-hidden rounded-lg border border-slate-200 bg-slate-100 shadow-card ring-1 ring-slate-100 sm:rounded-2xl'
+const OUTER_REVIEW =
+  'quote-route-map quote-route-map--review w-full min-w-0 overflow-hidden rounded-2xl border border-slate-200 bg-slate-100 shadow-sm'
 const OUTER_DISPATCH = 'quote-route-map quote-route-map--dispatch w-full min-w-0 overflow-hidden bg-slate-100'
 
 function resolveMapVariant({ compact, variant }) {
@@ -46,7 +48,7 @@ function mapVariantShellClass(variant) {
 }
 
 function mapVariantBoundsPadding(variant) {
-  if (variant === 'review') return 32
+  if (variant === 'review') return { top: 56, bottom: 40, left: 40, right: 40 }
   if (variant === 'lead') return 28
   if (variant === 'compact') return 28
   if (variant === 'dispatch') return 36
@@ -213,6 +215,7 @@ function QuoteRouteMapInner({
   compact = false,
   variant: variantProp,
   onDistanceFromRoute,
+  shellClass = '',
 }) {
   const mapVariant = resolveMapVariant({ compact, variant: variantProp })
   const isMobileLayout = useMobileQuoteLayout()
@@ -498,13 +501,15 @@ function QuoteRouteMapInner({
   }, [debounced, token, mapReadyTick, mapVariant])
 
   const showMap = Boolean(token)
-  const mapShellClass = mapVariantShellClass(mapVariant)
+  const mapShellClass = shellClass || mapVariantShellClass(mapVariant)
   const outerClass =
     mapVariant === 'lead'
       ? `${OUTER_DISPATCH} flex h-full min-h-0 flex-1 flex-col`
       : mapVariant === 'dispatch'
         ? OUTER_DISPATCH
-        : OUTER_DEFAULT
+        : mapVariant === 'review'
+          ? OUTER_REVIEW
+          : OUTER_DEFAULT
   const overlayMessage =
     overlay === 'route-error' ? MSG_ROUTE_FAIL : overlay === 'route-timeout' ? MSG_ROUTE_TIMEOUT : null
 
@@ -516,7 +521,7 @@ function QuoteRouteMapInner({
         </div>
       ) : (
         <div ref={shellRef} className={mapShellClass}>
-          <div ref={containerRef} className="h-full w-full min-w-0" aria-label="Route map" />
+          <div ref={containerRef} className="absolute inset-0 h-full w-full min-w-0" aria-label="Route map" />
 
           {overlay === 'calculating' && (
             <div className="pointer-events-none absolute inset-0 z-10 flex flex-col items-center justify-center bg-white/80">

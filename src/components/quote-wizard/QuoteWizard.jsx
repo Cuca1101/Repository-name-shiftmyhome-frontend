@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { CreditCard, Lock, ShieldCheck } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { QuoteWizardProvider, useQuoteWizard, initialWizardState, makeQuoteRef } from './QuoteWizardContext'
 import AdminPhoneBookingFinish from '../admin/AdminPhoneBookingFinish'
@@ -13,21 +14,35 @@ import { generateQuotePdf } from '../../utils/generateQuotePdf'
 import WizardProgress from './WizardProgress'
 import MoveSummary from './MoveSummary'
 import QuoteReviewYourMoveCard from './QuoteReviewYourMoveCard'
+import QuoteReviewMapInventory from './QuoteReviewMapInventory'
+import { QuoteReviewSelectedSlot } from './QuoteReviewStickyPanel'
+import QuoteEstimatedTotalStrip from './QuoteEstimatedTotalStrip'
 import Step1Address from './steps/Step1Address'
 import Step2Inventory from './steps/Step2Inventory'
+import Step2Continuation, { Step2ContactCard, Step2Extras } from './Step2Continuation'
 import Step3ReviewLayout from './Step3ReviewLayout'
 import Step4Review from './steps/Step4Review'
 import MobileQuoteStickyActions from '../mobile/MobileQuoteStickyActions'
 import QuoteStep2TransitionLoading from './QuoteStep2TransitionLoading'
-import useMobileQuoteLayout, { QUOTE_MOBILE_LAYOUT_MQ } from '../../hooks/useMobileQuoteLayout'
+import useMobileQuoteLayout, { QUOTE_MOBILE_LAYOUT_MQ, useFromTabletQuoteLayout, useTabletQuoteLayout } from '../../hooks/useMobileQuoteLayout'
 import { reviewDetailsReady } from '../../lib/quoteWizardContactFields'
 import { QuoteFlowHelp } from '../WhatsAppButton'
+
+function QuoteStep2TrustRow() {
+  return (
+    <ul className="mt-3 flex items-center justify-between gap-2 px-1 text-[11px] font-semibold leading-tight text-slate-600">
+      <li className="inline-flex min-w-0 items-center gap-1.5"><ShieldCheck className="h-4 w-4 shrink-0 text-slate-500" aria-hidden />Insured</li>
+      <li className="inline-flex min-w-0 items-center gap-1.5"><Lock className="h-4 w-4 shrink-0 text-slate-500" aria-hidden />Secure payment</li>
+      <li className="inline-flex min-w-0 items-center gap-1.5"><CreditCard className="h-4 w-4 shrink-0 text-slate-500" aria-hidden />No hidden fees</li>
+    </ul>
+  )
+}
 
 const PAGE_STEP_LINE = {
   1: 'Step 1 of 4 · Address & access',
   2: 'Step 2 of 4 · Items & contact',
   3: 'Step 3 of 4 · Review',
-  4: 'Step 4 of 4 · Pay',
+  4: 'Step 4 of 4 · Payment',
 }
 
 function step1ArrivalErrorMessage(feedback) {
@@ -105,6 +120,10 @@ function QuoteWizardInner({
   })
 
   const isMobileLayout = useMobileQuoteLayout()
+  const isTabletLayout = useTabletQuoteLayout()
+  const fromTablet = useFromTabletQuoteLayout()
+  const step2MatchTablet = step === 2 && pageChrome && !isAdmin
+  const step2Columns = step === 2 && fromTablet && (isTabletLayout || step2MatchTablet)
   const navigate = useNavigate()
   const serviceTypeOptions = allowServiceChange ? [...SERVICE_TYPES] : undefined
 
@@ -175,7 +194,7 @@ function QuoteWizardInner({
 
   useLayoutEffect(() => {
     const side = sidebarAlignRef.current
-    if (!pageChrome || (step !== 1 && step !== 2) || !side) {
+    if (!pageChrome || step !== 1 || !side) {
       if (side) side.style.paddingTop = ''
       return undefined
     }
@@ -274,7 +293,7 @@ function QuoteWizardInner({
     ) : null
 
   const stepNavButtons =
-    pageChrome && step < 4 ? (
+    pageChrome && step === 3 ? null : pageChrome && step < 4 ? (
       <div className="mt-4">
         <div className="flex items-stretch gap-6 sm:gap-8">
           {step > 1 ? (
@@ -300,10 +319,11 @@ function QuoteWizardInner({
                   ? 'Continue to send quote →'
                   : 'Continue to payment →'
                 : step === 2
-                  ? 'Get a quote'
+                  ? 'Get a quote ›'
                   : 'Continue →'}
           </button>
         </div>
+        {step === 2 ? <QuoteStep2TrustRow /> : null}
         {isAdmin ? null : <QuoteFlowHelp className="mt-4" />}
       </div>
     ) : pageChrome && step === 4 ? (
@@ -319,7 +339,7 @@ function QuoteWizardInner({
         {isAdmin ? null : <QuoteFlowHelp className="mt-4" />}
       </div>
     ) : step === 4 ? (
-      <div className="mt-6 hidden border-t border-slate-200 pt-6 lg:flex lg:justify-start">
+      <div className="mt-6 flex border-t border-slate-200 pt-6 lg:justify-start">
         <button
           type="button"
           onClick={back}
@@ -393,12 +413,14 @@ function QuoteWizardInner({
             crewRestrictions={crewRestrictions}
             quoteRef={quoteRef}
             quotePage={pageChrome}
+            matchTablet={step2MatchTablet}
             data={wizard}
             onChange={setWizard}
             pricingSettings={settings}
             breakdown={breakdown}
             priceWithoutPromo={priceWithoutPromo}
             showCustomerIdentity={isAdmin}
+            showContact={false}
             contactValidationMessage={
               step === 2 &&
               feedback.type === 'error' &&
@@ -416,6 +438,11 @@ function QuoteWizardInner({
                 : ''
             }
           />
+          {fromTablet ? (
+            <div className="mt-4">
+              <Step2Extras />
+            </div>
+          ) : null}
         </>
       )}
       {step === 3 && (
@@ -432,7 +459,12 @@ function QuoteWizardInner({
           onGoToStep={goToStep}
           totalM3={totalM3}
           onContinueToPayment={next}
+          onBack={back}
           embedSummary={pageChrome}
+          showOffer={!isAdmin}
+          continueLabel={isAdmin ? 'Continue to send quote' : 'Continue to payment'}
+          continueDisabled={!reviewDetailsReady(wizard)}
+          hideContinue={!pageChrome && isMobileLayout}
         />
       )}
       {step === 4 && isAdmin && (
@@ -493,12 +525,67 @@ function QuoteWizardInner({
     </>
   )
 
+  const reviewMoveCard = (
+    <QuoteReviewYourMoveCard
+      quoteRef={quoteRef}
+      wizard={wizard}
+      breakdown={breakdown}
+      pricingSettings={settings}
+      totalM3={totalM3}
+      priceWithoutPromo={priceWithoutPromo}
+      onContinueToPayment={next}
+      onBack={back}
+      continueDisabled={!reviewDetailsReady(wizard)}
+      continueLabel={isAdmin ? 'Continue to send quote' : 'Continue to payment'}
+      showReference={false}
+      showMap={false}
+      showOffer={!isAdmin}
+      headingId="quote-your-move-heading-side"
+    />
+  )
+
+  const step2Sidebar = <Step2Continuation columnsLayout={step2Columns} hideExtras={fromTablet} />
+
+  const reviewLike = step === 2 || step === 3
+  const chromeTitle = step === 3 ? 'Review your move' : step === 2 ? 'Choose your items' : 'Get your instant quote'
+  const chromeSubtitle =
+    step === 3 ? '' : step === 2 ? 'Add your items and contact details to get your quote.' : 'Your price is shown at the review step.'
+
+  const reviewSidebar = (
+    <div className="flex min-w-0 flex-col gap-4 overflow-visible">
+      <QuoteReviewSelectedSlot
+        wizard={wizard}
+        breakdown={breakdown}
+        pricingSettings={settings}
+        serviceType={serviceType}
+        lineItems={lineItems}
+        heavyItemCount={heavyItemCount}
+        priceWithoutPromo={priceWithoutPromo}
+      />
+      <QuoteEstimatedTotalStrip
+        breakdown={breakdown}
+        pricingSettings={settings}
+        promoCode={wizard.promoCode}
+        priceWithoutPromo={priceWithoutPromo}
+        note=""
+      />
+      <QuoteReviewMapInventory
+        wizard={wizard}
+        inventoryLines={wizard.inventoryLines}
+        totalM3={totalM3}
+        onDistanceFromRoute={handleDistanceFromRoute}
+        onInventoryLinesChange={(inventoryLines) => setWizard((current) => ({ ...current, inventoryLines }))}
+        afterMap={reviewMoveCard}
+      />
+    </div>
+  )
+
   return (
     <section
       id="quote"
       className={
         pageChrome
-          ? 'quote-flow-scope quote-wizard-section scroll-mt-24 bg-transparent py-0'
+          ? `quote-flow-scope quote-wizard-section scroll-mt-24 bg-transparent py-0${step2MatchTablet ? ' quote-step2-tablet' : ''}`
           : compact
             ? 'quote-flow-scope quote-wizard-section quote-wizard-section--embedded scroll-mt-20 py-1.5 md:py-5'
             : 'quote-flow-scope quote-wizard-section scroll-mt-24 border-t border-slate-200 bg-slate-50 py-1.5 md:border-t md:py-14'
@@ -559,37 +646,78 @@ function QuoteWizardInner({
           ) : (
             <p className="text-center text-slate-600">{editQuoteId ? 'Loading this quote…' : 'Loading…'}</p>
           )
-        ) : isMobileLayout ? (
-          <div className="quote-wizard-mobile-stack block min-w-0 max-w-full space-y-1.5">
+        ) : isMobileLayout || step2MatchTablet ? (
+          <div className={`quote-wizard-mobile-stack block min-w-0 max-w-full space-y-1.5 ${reviewLike ? 'md:grid md:grid-cols-[minmax(0,1fr)_minmax(260px,340px)] md:items-start md:gap-4 md:space-y-0' : ''}`}>
             <div
-              className={`quote-wizard-form-card box-border min-w-0 w-full max-w-full rounded-xl border border-slate-200 bg-white p-2 shadow-card${compact ? ' quote-wizard-card' : ''}`}
+              className={`quote-wizard-form-card box-border min-w-0 w-full max-w-full rounded-xl border border-slate-200 bg-white shadow-card ${reviewLike ? 'p-2 min-[420px]:p-3 sm:p-4' : 'p-2'}${compact ? ' quote-wizard-card' : ''}`}
             >
               {pageChrome ? (
                 <>
                   {pageChromeTopBack}
                   {titleTag === 'h2' ? (
-                    <h2 id={titleId} className="text-[1.45rem] font-extrabold tracking-tight text-slate-900">
-                      Get your instant quote
+                    <h2 id={titleId} className={`font-extrabold tracking-tight text-slate-900 ${reviewLike ? 'text-2xl' : 'text-[1.45rem]'}`}>
+                      {chromeTitle}
                     </h2>
                   ) : (
-                    <h1 id={titleId} className="text-[1.45rem] font-extrabold tracking-tight text-slate-900">
-                      Get your instant quote
+                    <h1 id={titleId} className={`font-extrabold tracking-tight text-slate-900 ${reviewLike ? 'text-2xl' : 'text-[1.45rem]'}`}>
+                      {chromeTitle}
                     </h1>
                   )}
-                  <p className="mt-1 text-sm leading-snug text-slate-500">
-                    Your price is shown at the review step.
-                  </p>
+                  {chromeSubtitle ? (
+                    <p className="mt-1 text-sm leading-snug text-slate-500">{chromeSubtitle}</p>
+                  ) : null}
                   <div id="quote-wizard-top" className="mt-3">
-                    <WizardProgress step={step} variant="page" step4ShortLabel={isAdmin ? 'Send' : undefined} />
+                    <WizardProgress step={step} variant="page" step4ShortLabel={isAdmin ? 'Send' : undefined} capAtTablet={step2MatchTablet} />
                   </div>
-                  <p className="mb-2 mt-1 text-sm text-slate-500">{isAdmin && step === 4 ? 'Step 4 of 4 · Price & send' : PAGE_STEP_LINE[step]}</p>
+                  {reviewLike && quoteRef ? (
+                    <p className={`mb-3 text-center font-mono text-[11px] font-semibold tracking-wide text-slate-500 md:text-sm ${step2MatchTablet ? '' : 'lg:text-base xl:text-lg'}`}>REF: {quoteRef}</p>
+                  ) : null}
+                  {reviewLike ? null : (
+                    <p className="mb-2 mt-1 text-sm text-slate-500">{isAdmin && step === 4 ? 'Step 4 of 4 · Price & send' : PAGE_STEP_LINE[step]}</p>
+                  )}
                   <div className="relative min-w-0">{stepPanelBody}</div>
+                  {step === 2 && step2Columns ? (
+                    <div className="mt-4">
+                      <Step2ContactCard lockMobile />
+                    </div>
+                  ) : null}
                 </>
               ) : (
                 stepPanel
               )}
             </div>
-            {step === 3 ? null : <MoveSummary {...summaryProps} />}
+            {step === 3 ? (
+              <aside className="hidden min-w-0 md:block">{reviewSidebar}</aside>
+            ) : step === 2 ? (
+              <aside className="min-w-0">
+                {step2Sidebar}
+                {step2Columns && pageChrome ? (
+                  <div className="mt-4">
+                    <div className="flex items-stretch gap-6 sm:gap-8">
+                      <button
+                        type="button"
+                        onClick={back}
+                        className="inline-flex min-h-[52px] shrink-0 items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white px-5 text-sm font-semibold text-slate-800 shadow-sm transition hover:border-slate-300 hover:bg-slate-50 sm:min-w-[7.5rem] sm:px-6"
+                      >
+                        <span aria-hidden>←</span>
+                        Back
+                      </button>
+                      <button
+                        type="button"
+                        onClick={next}
+                        disabled={quoteStepTransitionLoading}
+                        className="flex min-h-[52px] min-w-0 flex-1 items-center justify-center rounded-xl bg-blue-600 px-5 text-base font-bold text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60 sm:px-6"
+                      >
+                        {quoteStepTransitionLoading ? 'Finding your price…' : 'Get a quote ›'}
+                      </button>
+                    </div>
+                    <QuoteStep2TrustRow />
+                  </div>
+                ) : null}
+              </aside>
+            ) : (
+              <MoveSummary {...summaryProps} />
+            )}
             {pageChrome ? (
               <>
                 {stepNavButtons}
@@ -604,63 +732,57 @@ function QuoteWizardInner({
                 ) : null}
               </>
             ) : (
-              <MobileQuoteStickyActions
-                step={step}
-                onBack={back}
-                onNext={next}
-                nextDisabled={quoteStepTransitionLoading || (step === 3 && !reviewDetailsReady(wizard))}
-                nextLoading={quoteStepTransitionLoading && step === 2}
-              />
+              <div className={step === 3 ? 'md:hidden' : undefined}>
+                <MobileQuoteStickyActions
+                  step={step}
+                  onBack={back}
+                  onNext={next}
+                  nextDisabled={quoteStepTransitionLoading || (step === 3 && !reviewDetailsReady(wizard))}
+                  nextLoading={quoteStepTransitionLoading && step === 2}
+                />
+              </div>
             )}
           </div>
         ) : pageChrome ? (
           <div
-            className={`quote-wizard-desktop-grid mx-auto grid w-full max-w-6xl items-start gap-4 ${
-              step === 3
-                ? 'lg:grid-cols-[minmax(0,1fr)_minmax(260px,32%)] lg:gap-6'
-                : 'lg:grid-cols-[minmax(0,1fr)_minmax(300px,min(100%,380px))] lg:gap-6'
+            className={`quote-wizard-desktop-grid mx-auto grid w-full items-start gap-4 ${
+              reviewLike
+                ? 'max-w-6xl lg:grid-cols-[minmax(0,1fr)_minmax(280px,380px)] lg:gap-6'
+                : 'max-w-6xl lg:grid-cols-[minmax(0,1fr)_minmax(300px,min(100%,380px))] lg:gap-6'
             }`}
           >
-            <div className="quote-wizard-form-card min-w-0 lg:col-start-1 lg:row-start-1">
+            <div className="quote-wizard-form-card min-w-0 min-[1200px]:col-start-1 min-[1200px]:row-start-1 lg:col-start-1 lg:row-start-1">
               {pageChromeTopBack}
               {titleTag === 'h2' ? (
-                <h2 id={titleId} className="text-[1.7rem] font-extrabold tracking-tight text-slate-900 sm:text-3xl">
-                  Get your instant quote
+                <h2 id={titleId} className={`font-extrabold tracking-tight text-slate-900 ${reviewLike ? 'text-2xl' : 'text-[1.7rem] sm:text-3xl'}`}>
+                  {chromeTitle}
                 </h2>
               ) : (
-                <h1 id={titleId} className="text-[1.7rem] font-extrabold tracking-tight text-slate-900 sm:text-3xl">
-                  Get your instant quote
+                <h1 id={titleId} className={`font-extrabold tracking-tight text-slate-900 ${reviewLike ? 'text-2xl' : 'text-[1.7rem] sm:text-3xl'}`}>
+                  {chromeTitle}
                 </h1>
               )}
-              <p className="mt-1 text-sm leading-snug text-slate-500">
-                Your price is shown at the review step.
-              </p>
-              <div id="quote-wizard-top" className="mt-4">
-                <WizardProgress step={step} variant="page" step4ShortLabel={isAdmin ? 'Send' : undefined} />
+              {chromeSubtitle ? (
+                <p className="mt-1 text-sm leading-snug text-slate-500">{chromeSubtitle}</p>
+              ) : null}
+              <div id="quote-wizard-top" className={reviewLike ? 'mt-3' : 'mt-4'}>
+                <WizardProgress step={step} variant="page" step4ShortLabel={isAdmin ? 'Send' : undefined} capAtTablet={step2MatchTablet} />
               </div>
-              <p className="mb-3 text-sm text-slate-500">{isAdmin && step === 4 ? 'Step 4 of 4 · Price & send' : PAGE_STEP_LINE[step]}</p>
+              {reviewLike && quoteRef ? (
+                <p className="mb-3 text-center font-mono text-[11px] font-semibold tracking-wide text-slate-500 md:text-sm lg:text-base xl:text-lg">REF: {quoteRef}</p>
+              ) : null}
+              {reviewLike ? null : (
+                <p className="mb-3 text-sm text-slate-500">{isAdmin && step === 4 ? 'Step 4 of 4 · Price & send' : PAGE_STEP_LINE[step]}</p>
+              )}
               <div className="relative min-w-0">{stepPanelBody}</div>
             </div>
             {step === 3 ? (
-              <div className="quote-wizard-sidebar hidden min-w-0 lg:col-start-2 lg:row-start-1 lg:row-span-2 lg:block">
-                <MoveSummary
-                  {...summaryProps}
-                  afterMap={
-                    <QuoteReviewYourMoveCard
-                      quoteRef={quoteRef}
-                      wizard={wizard}
-                      breakdown={breakdown}
-                      pricingSettings={settings}
-                      totalM3={totalM3}
-                      priceWithoutPromo={priceWithoutPromo}
-                      onContinueToPayment={next}
-                      continueDisabled={!reviewDetailsReady(wizard)}
-                      showReference={false}
-                      showMap={false}
-                      hideContinue
-                    />
-                  }
-                />
+              <div className="quote-wizard-sidebar min-w-0 lg:col-start-2 lg:row-start-1 lg:row-span-2">
+                {reviewSidebar}
+              </div>
+            ) : step === 2 ? (
+              <div className="quote-wizard-sidebar min-w-0 lg:col-start-2 lg:row-start-1 lg:row-span-2">
+                {step2Sidebar}
               </div>
             ) : (
               <div ref={sidebarAlignRef} className="quote-wizard-sidebar lg:col-start-2 lg:row-start-1 lg:row-span-2">
@@ -681,7 +803,7 @@ function QuoteWizardInner({
             </div>
           </div>
         ) : (
-          <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(260px,min(100%,340px))] lg:gap-6">
+          <div className={`grid items-start gap-4 ${reviewLike ? 'mx-auto max-w-6xl lg:grid-cols-[minmax(0,1fr)_minmax(280px,380px)] lg:gap-6' : 'lg:grid-cols-[minmax(0,1fr)_minmax(260px,min(100%,340px))] lg:gap-6'}`}>
             <div className="min-w-0">
               <div
                 className={`quote-wizard-form-card min-w-0 rounded-2xl border border-slate-200 bg-white shadow-card ${
@@ -692,25 +814,9 @@ function QuoteWizardInner({
               </div>
             </div>
             {step === 3 ? (
-              <div className="hidden min-w-0 lg:block">
-                <MoveSummary
-                  {...summaryProps}
-                  afterMap={
-                    <QuoteReviewYourMoveCard
-                      quoteRef={quoteRef}
-                      wizard={wizard}
-                      breakdown={breakdown}
-                      pricingSettings={settings}
-                      totalM3={totalM3}
-                      priceWithoutPromo={priceWithoutPromo}
-                      onContinueToPayment={next}
-                      continueDisabled={!reviewDetailsReady(wizard)}
-                      showReference={false}
-                      showMap={false}
-                    />
-                  }
-                />
-              </div>
+              <div className="min-w-0">{reviewSidebar}</div>
+            ) : step === 2 ? (
+              <div className="min-w-0">{step2Sidebar}</div>
             ) : (
               <MoveSummary {...summaryProps} />
             )}

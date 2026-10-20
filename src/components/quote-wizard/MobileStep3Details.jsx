@@ -1,4 +1,4 @@
-import { MapPin, Minus, Plus, User, Wrench } from 'lucide-react'
+import { MapPin, MessageSquare, Minus, Plus, User, Wrench } from 'lucide-react'
 import {
   isQuoteAddressesConfirmed,
   isQuoteContactComplete,
@@ -6,10 +6,12 @@ import {
 } from './QuoteReviewAccordion'
 import MobileStepTitleWithRef from './MobileStepTitleWithRef'
 import { reassemblySameAsDismantlingPatch } from '../../lib/quoteWizardReassembly'
-import AddressConfirmationSection from './AddressConfirmationSection'
+import AddressConfirmationSection, { PickupPersonFields } from './AddressConfirmationSection'
 import QuoteSpecialInstructionsField from './QuoteSpecialInstructionsField'
 import PackingMaterialsSection from './PackingMaterialsSection'
 import { applyWizardPatch } from '../../lib/wizardStateUpdate'
+import { AddressRouteSummary } from './ReviewMoveSummaries'
+import QuoteReviewExtrasCard from './QuoteReviewExtrasCard'
 import { quoteMobileInput, quoteMobileLabel } from '../../lib/quoteMobileUiClasses'
 
 const card = 'box-border min-w-0 w-full rounded-lg border border-slate-200 bg-white shadow-sm md:rounded-xl'
@@ -133,7 +135,7 @@ export default function MobileStep3Details({
   return (
     <div
       data-quote-step="3"
-      className={`box-border min-w-0 w-full max-w-full space-y-2 lg:hidden${
+      className={`box-border min-w-0 w-full max-w-full space-y-2 min-[1200px]:hidden${
         accordionLayout ? ' mt-4' : hideContactSection ? ' mt-2 border-t border-slate-200 pt-3' : ''
       }`}
     >
@@ -168,23 +170,52 @@ export default function MobileStep3Details({
         accordion={accordionLayout}
         title="Contact details"
         confirmed={contactConfirmed}
+        trackConfirmation
         icon={User}
         defaultOpen={!contactConfirmed}
+        hint="If the person at pickup is not the one making this booking, select Different person and enter their name."
       >
       {accordionLayout && hideContactSection ? (
-        <div className="space-y-2 text-sm text-slate-800">
-          <p><span className="text-slate-500">Name � </span>{data.fullName || '�'}</p>
-          <p><span className="text-slate-500">Phone � </span>{data.phone || '�'}</p>
-          <p><span className="text-slate-500">Email � </span>{data.email || '�'}</p>
-          {typeof onGoToStep === 'function' ? (
-            <button
-              type="button"
-              onClick={() => onGoToStep(2)}
-              className="text-xs font-semibold text-blue-700 underline-offset-2 hover:underline"
-            >
-              Edit contact details
-            </button>
-          ) : null}
+        <div className="space-y-3">
+          <PickupPersonFields data={data} onChange={onChange} />
+          <label className="block">
+            <span className={label}>Full name</span>
+            <input
+              id="quote-wizard-fullName-mobile"
+              required
+              autoComplete="name"
+              value={data.fullName}
+              onChange={(e) => set({ fullName: e.target.value })}
+              className={input}
+            />
+          </label>
+          <label className="block">
+            <span className={label}>Phone</span>
+            <input
+              id="quote-wizard-phone-mobile"
+              required
+              type="tel"
+              autoComplete="tel"
+              value={data.phone}
+              onChange={(e) => set({ phone: e.target.value })}
+              className={input}
+            />
+          </label>
+          <label className="block">
+            <span className={label}>Email</span>
+            <input
+              id="quote-wizard-email-mobile"
+              required
+              type="email"
+              autoComplete="email"
+              readOnly={Boolean(accountEmail)}
+              value={accountEmail || data.email}
+              onChange={(e) => {
+                if (!accountEmail) set({ email: e.target.value })
+              }}
+              className={input}
+            />
+          </label>
         </div>
       ) : null}
       {!hideContactSection ? (
@@ -241,10 +272,13 @@ export default function MobileStep3Details({
 
       <ReviewGroup
         accordion={accordionLayout}
-        title="Pickup & delivery addresses"
+        title="Pickup & delivery"
         confirmed={addressesConfirmed}
+        trackConfirmation
         icon={MapPin}
         defaultOpen={!addressesConfirmed}
+        summary={<AddressRouteSummary data={data} />}
+        hint="If the person at drop-off is not the one making this booking, select Different person and enter their name."
       >
       <AddressConfirmationSection
         data={data}
@@ -255,7 +289,15 @@ export default function MobileStep3Details({
       />
       </ReviewGroup>
 
-      <QuoteSpecialInstructionsField data={data} onChange={onChange} variant="mobile" />
+      <ReviewGroup
+        accordion={accordionLayout}
+        title="Special instructions"
+        icon={MessageSquare}
+        alwaysOpen
+        accent="blue"
+      >
+      <QuoteSpecialInstructionsField data={data} onChange={onChange} variant="mobile" embedded />
+      </ReviewGroup>
 
       {validationMessage ? (
         <p
@@ -267,13 +309,7 @@ export default function MobileStep3Details({
         </p>
       ) : null}
 
-      <ReviewGroup
-        accordion={accordionLayout}
-        title="Optional extras"
-        icon={Plus}
-        defaultOpen={false}
-        accent="blue"
-      >
+      <QuoteReviewExtrasCard data={data} editable={accordionLayout}>
       <div className={`${card} p-2.5 md:p-3`}>
         <div className="flex items-start gap-2.5">
           <div
@@ -402,7 +438,7 @@ export default function MobileStep3Details({
           />
         </label>
       </div>
-      </ReviewGroup>
+      </QuoteReviewExtrasCard>
 
     </div>
   )

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Check, ChevronLeft, ChevronRight } from 'lucide-react'
+import { CalendarDays, Check, ChevronLeft, ChevronRight, Tag } from 'lucide-react'
 import { getLocalDateYYYYMMDD } from '../../lib/moveDateLocal'
 import {
   addDaysToIsoDate,
@@ -19,10 +19,13 @@ import {
   parseIsoDateParts,
 } from '../../lib/quoteReviewPriceOptions'
 import { alignReviewOptionsToLockedTotal } from '../../lib/quoteResumePriceLock'
+import { findCheaperReviewDate } from '../../lib/reviewDateSavings'
+import { packageFeeForBase, resolveServicePackages } from '../../lib/servicePackages'
+import MobileStep1ArrivalWindow from './MobileStep1ArrivalWindow'
 import { isCalendarBestPriceDate, resolveDaySlotAvailability } from '../../lib/calendarDayPricing'
 import { useQuoteDaySlotCounts } from '../../hooks/useQuoteDaySlotCounts'
 import { useQuoteMoveWeather } from '../../hooks/useQuoteMoveWeather'
-import QuotePromoPriceReduction, { QuotePromoCalendarPrice } from './QuotePromoPriceReduction'
+import QuotePromoPriceReduction from './QuotePromoPriceReduction'
 import QuoteReviewPriceCard from './QuoteReviewPriceCard'
 import { useQuoteWizard } from './QuoteWizardContext'
 
@@ -92,6 +95,9 @@ export default function QuoteReviewPriceCalendar({
       wizard?.packingApproxBoxes,
       wizard?.packingFragile,
       wizard?.packingMaterials,
+      wizard?.packingMaterialsQuantities,
+      wizard?.packingMaterialsDetail,
+      wizard?.packingWhat,
       wizard?.dismantling,
       wizard?.dismantlingItemCount,
       wizard?.reassembly,
@@ -206,13 +212,32 @@ export default function QuoteReviewPriceCalendar({
 
   if (weekGrid) {
     const optionByDate = new Map(options.map((option) => [option.moveDate, option]))
-    const arrivalLabel = formatReviewShortTimeLabel(wizard, { compact: true })
     const currentMonday = mondayOnOrBeforeIso(todayIso)
     const prevStart = addDaysToIsoDate(windowStart, -28)
     const canGoBack = Boolean(prevStart && addDaysToIsoDate(prevStart, 27) >= todayIso)
     const maxStart = currentMonday ? addDaysToIsoDate(currentMonday, 28 * 6) : ''
     const canGoForward = Boolean(maxStart && windowStart < maxStart)
     const selectedHeading = formatSelectedDateHeading(wizard?.moveDate)
+    const selectedHeadingPrice =
+      selectedTotal != null
+        ? selectedTotal
+        : options.find((option) => option.id === selectedOptionId)?.estimatedTotal
+    const packageId = breakdown?.servicePackageId || wizard?.packageTier || 'standard'
+    const selectedPackage = resolveServicePackages(pricingSettings)[packageId] || resolveServicePackages(pricingSettings).standard
+    const cheaperDate = findCheaperReviewDate(
+      options.map((option) => {
+        const base = Number(option.estimatedTotal)
+        const slot = slotFor(option.moveDate)
+        const inclusive = Number.isFinite(base) ? Math.round((base + packageFeeForBase(base, selectedPackage)) * 100) / 100 : null
+        return {
+          moveDate: option.moveDate,
+          total: inclusive,
+          past: option.moveDate < todayIso,
+          full: slot.full,
+        }
+      }),
+      String(wizard?.moveDate || ''),
+    )
 
     return (
       <section
@@ -220,32 +245,22 @@ export default function QuoteReviewPriceCalendar({
         aria-labelledby="quote-review-price-calendar-heading"
       >
         <div className="mb-3">
-          <h3 id="quote-review-price-calendar-heading" className="text-xl font-bold text-slate-900 sm:text-2xl">
+          <h3 id="quote-review-price-calendar-heading" className="text-base font-bold text-slate-900 lg:text-2xl xl:text-3xl">
             Choose your moving date
           </h3>
-          <p className="mt-1 text-sm text-slate-600">
-            Compare available dates and select the price that works for you.
-          </p>
         </div>
-
-        {selectedHeading ? (
-          <p className="mb-3 rounded-xl border border-blue-100 bg-blue-50 px-3 py-2 text-sm font-semibold text-slate-900 lg:hidden">
-            {selectedHeading}
-            {arrivalLabel ? <span className="font-medium text-slate-600"> · {arrivalLabel}</span> : null}
-          </p>
-        ) : null}
 
         <div className="mb-3 flex items-center justify-between gap-2">
           <button
             type="button"
             disabled={!canGoBack}
             onClick={() => prevStart && setWindowStart(prevStart)}
-            className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+            className="inline-flex h-8 w-8 items-center justify-center rounded-full text-slate-500 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40 lg:h-11 lg:w-11"
             aria-label="Previous four weeks"
           >
-            <ChevronLeft className="h-4 w-4" aria-hidden />
+            <ChevronLeft className="h-4 w-4 lg:h-6 lg:w-6" aria-hidden />
           </button>
-          <p className="text-sm font-bold text-slate-900 sm:text-base">{formatWeekWindowLabel(windowStart, weekEnd)}</p>
+          <p className="min-w-0 flex-1 text-center text-sm font-bold leading-tight text-slate-900 min-[420px]:text-base lg:text-xl xl:text-2xl">{formatWeekWindowLabel(windowStart, weekEnd)}</p>
           <button
             type="button"
             disabled={!canGoForward}
@@ -253,10 +268,10 @@ export default function QuoteReviewPriceCalendar({
               const next = addDaysToIsoDate(windowStart, 28)
               if (next) setWindowStart(next)
             }}
-            className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+            className="inline-flex h-8 w-8 items-center justify-center rounded-full text-slate-500 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40 lg:h-11 lg:w-11"
             aria-label="Next four weeks"
           >
-            <ChevronRight className="h-4 w-4" aria-hidden />
+            <ChevronRight className="h-4 w-4 lg:h-6 lg:w-6" aria-hidden />
           </button>
         </div>
 
@@ -265,7 +280,13 @@ export default function QuoteReviewPriceCalendar({
             Add a valid move date on step 1 to see price options here.
           </p>
         ) : (
-          <div className="grid grid-cols-7 gap-1.5 sm:gap-2.5 md:gap-3" role="listbox" aria-label="Move date prices">
+          <div className="quote-review-week-grid min-w-0" style={{ touchAction: 'pan-x pan-y pinch-zoom' }}>
+            <div className="mb-1 grid grid-cols-7 gap-0.5 text-center text-[9px] font-semibold leading-none text-slate-500 min-[420px]:gap-1 min-[420px]:text-[10px] lg:mb-2 lg:gap-3 lg:text-base xl:text-lg" aria-hidden>
+              {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((day) => (
+                <span key={day}>{day}</span>
+              ))}
+            </div>
+            <div className="grid grid-cols-7 gap-0.5 min-[420px]:gap-1 lg:gap-3 xl:gap-4" role="listbox" aria-label="Move date prices">
             {weekDates.map((iso) => {
               const option = optionByDate.get(iso)
               const parts = formatReviewCalendarParts(iso)
@@ -276,7 +297,11 @@ export default function QuoteReviewPriceCalendar({
               const isWeekend = isReviewWeekendIso(iso)
               const slot = slotFor(iso)
               const disabled = past || !option || slot.full
-              const priceTone = isBest ? 'best' : isWeekend ? 'weekend' : 'standard'
+              const slotText = !slot.limited || !option || past
+                ? ''
+                : slot.full
+                  ? 'Full'
+                  : `${slotCountsLoaded ? slot.remaining : slot.capacity} slots`
               return (
                 <button
                   key={iso}
@@ -286,99 +311,94 @@ export default function QuoteReviewPriceCalendar({
                   aria-disabled={disabled}
                   disabled={disabled}
                   onClick={() => option && handleSelect(option)}
-                  className={`relative flex min-h-[84px] min-w-0 flex-col items-center justify-center overflow-hidden rounded-xl border px-0.5 py-1.5 text-center transition md:min-h-[168px] md:rounded-2xl md:px-2 md:py-3 ${
+                  className={`relative flex min-h-[4.5rem] min-w-0 flex-col items-center justify-center overflow-hidden rounded-lg border px-0 py-1 text-center transition min-[420px]:rounded-xl min-[420px]:px-0.5 lg:min-h-[8rem] lg:rounded-2xl lg:py-3 xl:min-h-[9.5rem] ${
                     selected
-                      ? isWeekend
-                        ? 'border-blue-600 bg-red-50 shadow-sm ring-1 ring-blue-600'
-                        : 'border-blue-600 bg-blue-50 shadow-sm ring-1 ring-blue-600'
+                      ? 'border-blue-700 bg-blue-600 text-white shadow-sm'
                       : isWeekend && option && !past
-                        ? 'border-red-200 bg-red-50 hover:border-red-300'
+                        ? 'border-red-100 bg-red-50 text-slate-900 hover:border-red-200'
                         : isBest
-                          ? 'border-orange-300 bg-orange-50 hover:border-orange-400'
+                          ? 'border-emerald-200 bg-emerald-50 text-slate-900 hover:border-emerald-300'
                           : option && !past
-                            ? 'border-emerald-300 bg-emerald-50/80 hover:border-emerald-400'
-                            : 'border-slate-200 bg-white'
-                  } ${disabled ? 'cursor-not-allowed opacity-50 hover:border-slate-200' : ''}`}
+                            ? 'border-slate-200 bg-white text-slate-900 hover:border-slate-300'
+                            : 'border-slate-200 bg-slate-50 text-slate-400'
+                  } ${disabled ? 'cursor-not-allowed opacity-50' : ''}`}
                 >
                   {selected ? (
-                    <Check className="absolute right-1 top-1 h-3.5 w-3.5 text-blue-600 md:h-4 md:w-4" aria-hidden />
+                    <Check className="absolute right-0 top-0 h-2.5 w-2.5 text-white min-[420px]:right-0.5 min-[420px]:top-0.5 min-[420px]:h-3 min-[420px]:w-3 lg:right-2 lg:top-2 lg:h-5 lg:w-5" aria-hidden />
                   ) : null}
-                  <span className="text-xs font-extrabold leading-none text-black md:text-sm">
-                    {parts.weekdayShort}
-                  </span>
-                  <span className={`mt-0.5 text-lg font-extrabold leading-none md:text-2xl ${past ? 'text-slate-300' : 'text-black'}`}>
+                  <span className={`text-[13px] font-extrabold leading-none min-[420px]:text-[15px] lg:text-3xl xl:text-4xl ${selected ? 'text-white' : past ? 'text-slate-300' : 'text-slate-900'}`}>
                     {parts.dayNum}
                   </span>
-                  <span className="mt-0.5 hidden text-sm font-bold text-slate-700 lg:block">{parts.monthShort}</span>
-                  <span className="mt-1 hidden text-[11px] leading-tight text-slate-500 lg:block">{arrivalLabel}</span>
-                  {showPriceLabels && option && !past ? (
-                    <span
-                      className={`mt-1.5 max-w-full rounded px-1 py-0.5 text-center text-[8px] font-bold uppercase leading-tight tracking-wide md:text-[10px] ${
-                        isBest
-                          ? 'bg-orange-500 text-white'
-                          : isWeekend
-                            ? 'bg-red-200 text-red-800'
-                            : 'bg-emerald-600 text-white'
-                      }`}
-                    >
-                      <span className="lg:hidden">{isBest ? 'Best' : isWeekend ? 'Wkd' : 'Std'}</span>
-                      <span className="hidden lg:inline">{isBest ? 'Best price' : isWeekend ? 'Weekend' : 'Standard'}</span>
-                    </span>
-                  ) : null}
                   {price != null && Number.isFinite(price) ? (
-                    <span className="mt-1 w-full">
-                      {selected ? (
-                        <span
-                          className={`block text-[11px] font-extrabold tabular-nums md:text-base ${
-                            isBest ? 'text-orange-600' : isWeekend ? 'text-red-700' : 'text-emerald-700'
-                          }`}
-                        >
-                          £{price.toFixed(2)}
-                        </span>
-                      ) : (
-                        <QuotePromoCalendarPrice
-                          promoCode={wizard?.promoCode}
-                          pricingSettings={pricingSettings}
-                          priceWithPromo={option?.estimatedTotal}
-                          priceWithoutPromo={option?.estimatedTotalWithoutPromo}
-                          selected={false}
-                          priceTone={priceTone}
-                          className={`text-[11px] font-extrabold md:text-base ${
-                            isBest ? 'text-orange-600' : isWeekend ? 'text-red-700' : 'text-emerald-700'
-                          }`}
-                        />
-                      )}
+                    <span className={`mt-0.5 max-w-full truncate text-[8px] font-bold tabular-nums leading-none tracking-tight min-[420px]:mt-1 min-[420px]:text-[9px] lg:mt-1.5 lg:text-base xl:text-lg ${
+                      selected ? 'text-white' : isWeekend ? 'text-red-800' : isBest ? 'text-emerald-700' : 'text-slate-600'
+                    }`}>
+                      £{price.toFixed(2)}
                     </span>
                   ) : null}
-                  {slot.limited && option && !past ? (
-                    <span className="mt-1 max-w-full truncate text-[11px] font-extrabold leading-tight text-black md:text-sm">
-                      {slot.full ? 'Full' : slotCountsLoaded ? `${slot.remaining} left` : `${slot.capacity} slots`}
-                    </span>
-                  ) : null}
-                  {selected ? (
-                    <span className="mt-1 hidden w-full rounded-md bg-blue-600 py-0.5 text-[9px] font-bold tracking-wide text-white lg:block">
-                      SELECTED
+                  {slotText ? (
+                    <span className={`mt-0.5 max-w-full truncate text-[7px] font-semibold leading-none min-[420px]:text-[8px] lg:text-sm xl:text-base ${selected ? 'text-white' : 'text-slate-700'}`}>
+                      {slotText}
                     </span>
                   ) : null}
                 </button>
               )
             })}
+            </div>
           </div>
         )}
-        {showPriceLabels ? (
-          <div className="mt-3 flex flex-wrap gap-2 text-[11px] font-semibold">
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-orange-50 px-2 py-1 text-orange-700">
-              <span className="h-2 w-2 rounded-full bg-orange-500" aria-hidden />
-              Best price
-            </span>
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2 py-1 text-emerald-700">
-              <span className="h-2 w-2 rounded-full bg-emerald-600" aria-hidden />
-              Standard price
-            </span>
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-red-50 px-2 py-1 text-red-700">
-              <span className="h-2 w-2 rounded-full bg-red-300" aria-hidden />
-              Weekend
-            </span>
+        <div className="mt-3 flex flex-wrap items-center justify-center gap-4 text-[11px] font-semibold text-slate-600 lg:mt-4 lg:gap-5 lg:text-base">
+          <span className="inline-flex items-center gap-1.5">
+            <span className="h-2.5 w-2.5 rounded-full bg-emerald-500" aria-hidden />
+            Best price
+          </span>
+          <span className="inline-flex items-center gap-1.5">
+            <span className="h-2.5 w-2.5 rounded-full bg-blue-600" aria-hidden />
+            Selected
+          </span>
+          <span className="inline-flex items-center gap-1.5">
+            <span className="h-2.5 w-2.5 rounded-full bg-red-400" aria-hidden />
+            Weekend
+          </span>
+        </div>
+        {selectedHeading ? (
+          <div className="mt-3 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
+            <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm font-bold text-slate-900 sm:text-base">
+              <CalendarDays className="h-4 w-4 shrink-0 text-slate-500" aria-hidden />
+              <span>{formatSelectedDateLong(wizard?.moveDate)}</span>
+              {selectedHeadingPrice != null && Number.isFinite(Number(selectedHeadingPrice)) ? (
+                <span className="text-lg font-bold text-blue-700 sm:text-xl">
+                  Estimated price{' '}
+                  <span className="text-xl tabular-nums sm:text-2xl">£{Number(selectedHeadingPrice).toFixed(2)}</span>
+                </span>
+              ) : null}
+            </p>
+            <div className="mt-2">
+              <MobileStep1ArrivalWindow
+                data={wizard}
+                onChange={onWizardChange}
+                triggerId="review-arrival-window"
+                hideLabel
+                chevronDown
+                variant="mobile-card"
+              />
+            </div>
+            {cheaperDate ? (
+              <button
+                type="button"
+                onClick={() => {
+                  const option = optionByDate.get(cheaperDate.moveDate)
+                  if (option) handleSelect(option)
+                }}
+                className="mt-2 flex w-full items-center justify-between gap-2 rounded-xl bg-emerald-50 px-3 py-2.5 text-left text-sm font-semibold text-emerald-800"
+              >
+                <span className="inline-flex min-w-0 items-center gap-2">
+                  <Tag className="h-4 w-4 shrink-0" aria-hidden />
+                  <span>Save £{cheaperDate.save.toFixed(2)} on {formatSavingsDate(cheaperDate.moveDate)}</span>
+                </span>
+                <ChevronRight className="h-4 w-4 shrink-0" aria-hidden />
+              </button>
+            ) : null}
           </div>
         ) : null}
       </section>
@@ -547,6 +567,27 @@ function formatWeekWindowLabel(startIso, endIso) {
   if (a.year === b.year && a.month === b.month) return `${startMonth} ${yearA}`
   if (a.year === b.year) return `${startMonth} – ${endMonth} ${yearA}`
   return `${startMonth} ${yearA} – ${endMonth} ${yearB}`
+}
+
+function formatSelectedDateLong(isoDate) {
+  const parts = parseIsoDateParts(isoDate)
+  if (!parts) return ''
+  return new Intl.DateTimeFormat('en-GB', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  }).format(new Date(parts.year, parts.month, parts.day))
+}
+
+function formatSavingsDate(isoDate) {
+  const parts = parseIsoDateParts(isoDate)
+  if (!parts) return ''
+  return new Intl.DateTimeFormat('en-GB', {
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
+  }).format(new Date(parts.year, parts.month, parts.day))
 }
 
 function formatSelectedDateHeading(isoDate) {

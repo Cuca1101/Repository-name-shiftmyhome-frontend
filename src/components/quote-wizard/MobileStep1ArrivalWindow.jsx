@@ -70,6 +70,8 @@ export default function MobileStep1ArrivalWindow({
   error = '',
   triggerId = 'mobile-arrival-window-trigger',
   variant = 'default',
+  hideLabel = false,
+  chevronDown = false,
 }) {
   const [open, setOpen] = useState(false)
   const [draft, setDraft] = useState(() => draftFromData(data))
@@ -175,9 +177,11 @@ export default function MobileStep1ArrivalWindow({
 
   return (
     <div className="box-border min-w-0 w-full space-y-1">
+      {hideLabel ? <span className="sr-only" id="mobile-arrival-window-label">Preferred arrival window</span> : (
       <span className={labelClass} id="mobile-arrival-window-label">
         Preferred arrival window
       </span>
+      )}
 
       <button
         id={triggerId}
@@ -203,7 +207,7 @@ export default function MobileStep1ArrivalWindow({
           stroke="currentColor"
           aria-hidden
         >
-          <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+          <path strokeLinecap="round" strokeLinejoin="round" d={chevronDown ? 'M19.5 8.25l-7.5 7.5-7.5-7.5' : 'M8.25 4.5l7.5 7.5-7.5 7.5'} />
         </svg>
       </button>
 

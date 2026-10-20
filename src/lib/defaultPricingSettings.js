@@ -51,7 +51,7 @@ export function getDefaultPricingSettings() {
     saturdaySurchargePercent: 8,
     sundaySurchargePercent: 10,
     bankHolidaySurchargePercent: 20,
-    /** Badge best-price weekdays (orange) and standard days (green) on the Step 3 calendar. */
+    /** Badge best-price weekdays (green) on the Step 3 calendar. Weekends stay red. */
     showCalendarBestPrice: true,
     /** Percent taken off the quote total on the weekdays listed in weekdayBestPriceDays. */
     weekdayBestPriceDiscountPercent: 0,
@@ -115,6 +115,8 @@ export function getDefaultPricingSettings() {
     packingMaterialPriceTape: 0,
     packingMaterialPriceMattress: 0,
     depositAmount: 50,
+    /** Hours a customer offer stays open before it expires. */
+    offerExpiryHours: 48,
     promoCodesEnabled: false,
     promoCodes: [],
     /** Applied to inventory volume £; optionally floors/no-lift when applyVolumeMultiplierToAccessCharges. */

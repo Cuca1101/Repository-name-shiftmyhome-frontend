@@ -30,12 +30,12 @@ const INVENTORY_ITEM_SYNONYMS = {
   'Tall freezer': ['upright freezer', 'full-height freezer', 'full height freezer', 'vertical freezer'],
   'Range cooker': ['range oven', 'range cooker oven', 'large range cooker'],
   'Air fryer': ['airfryer', 'air-fryer', 'air frier'],
-  'Extra-large moving box (XL)': [
-    'extra large box',
+  'Extra large box': [
     'extra-large box',
+    'extra large moving box',
     'XL box',
     'extra big box',
-    'extra large moving box',
+    'extra-large moving box',
   ],
   Crate: ['storage crate', 'transport crate', 'packing crate', 'wooden crate'],
   'Outdoor storage box': [
@@ -140,9 +140,9 @@ const INVENTORY_ITEM_SYNONYMS = {
   'Mirror cabinet': ['mirrored cabinet', 'bathroom mirror cabinet', 'mirrored bathroom cabinet'],
   'Towel rail / radiator': ['towel radiator', 'heated towel rail', 'towel heater', 'bathroom radiator'],
   'Archive box': ['document box', 'file box', 'filing box', 'archive storage box'],
-  'Moving box (medium)': ['Box', 'medium box', 'medium moving box', 'standard box', 'medium cardboard box', 'M box'],
-  'Large box / crate': ['large box', 'large moving box', 'big box', 'large cardboard box', 'L box'],
-  'Moving box (small)': ['small box', 'small moving box', 'small cardboard box', 'S box'],
+  'Medium box': ['medium moving box', 'standard box', 'medium cardboard box', 'M box', 'moving box medium'],
+  'Large box': ['large moving box', 'big box', 'large cardboard box', 'L box', 'large box crate'],
+  'Small box': ['small moving box', 'small cardboard box', 'S box', 'moving box small'],
   'Plastic storage box': ['plastic box', 'storage tub', 'plastic container', 'plastic storage container'],
   'Storage bag': ['moving bag', 'clothes storage bag', 'packing bag'],
   'Suitcase / bag': ['suitcase', 'luggage', 'travel bag', 'holdall'],
@@ -222,7 +222,7 @@ const NAME_ALIASES = {
   'sofa 2 seater': '2-seater sofa',
   'sofa 3 seater': '3-seater sofa',
   'l shaped sofas': 'Corner sofa',
-  box: 'Moving box (medium)',
+  box: 'Medium box',
 }
 
 /** Lowercase, ignore apostrophes, and treat spaces, hyphens and slashes as the same gap. */

@@ -71,8 +71,21 @@ export default function PackingMaterialsSection({
   }, [expanded])
 
   useEffect(() => {
-    if (contentRef.current) {
-      setContentHeight(contentRef.current.scrollHeight)
+    const node = contentRef.current
+    if (!node || !expanded) return
+
+    const measure = () => {
+      const next = node.scrollHeight
+      if (next > 0) setContentHeight((current) => (current === next ? current : next))
+    }
+
+    measure()
+    const frame = requestAnimationFrame(measure)
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(measure)
+    observer?.observe(node)
+    return () => {
+      cancelAnimationFrame(frame)
+      observer?.disconnect()
     }
   }, [expanded, data.packingMaterialsQuantities])
 
@@ -96,10 +109,9 @@ export default function PackingMaterialsSection({
   }
 
   function setMaterialQty(id, qty) {
-    const next = normalizePackingMaterialQuantities({
-      ...materialQty,
-      [id]: Math.max(0, qty),
-    })
+    const raw = { ...materialQty, [id]: Math.max(0, qty) }
+    delete raw.boxes
+    const next = normalizePackingMaterialQuantities(raw)
     const detail = buildPackingWhatFromQuantities(next)
     const any = PACKING_MATERIALS_CATALOG.some((m) => (next[m.id] || 0) > 0)
     set({
@@ -147,7 +159,9 @@ export default function PackingMaterialsSection({
       </button>
 
       <div
-        style={{ maxHeight: expanded ? `${contentHeight + 32}px` : '0px' }}
+        style={{
+          maxHeight: !expanded ? '0px' : contentHeight > 0 ? `${contentHeight + 32}px` : 'none',
+        }}
         className="transition-[max-height] duration-300 ease-in-out overflow-hidden"
       >
         <div ref={contentRef} className="px-3 pb-3 sm:px-5 sm:pb-5">

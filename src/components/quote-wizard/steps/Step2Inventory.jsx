@@ -1,5 +1,5 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
-import { ChevronDown, PackagePlus } from 'lucide-react'
+import { ChevronRight, PackagePlus } from 'lucide-react'
 import { useQuoteInventoryCatalog } from '../useQuoteInventoryCatalog'
 import InlineInventoryQtyControl from '../InlineInventoryQtyControl'
 import HighlightedInventoryName from '../HighlightedInventoryName'
@@ -56,6 +56,8 @@ export default function Step2Inventory({
   /** @type {'quote' | 'admin'} */
   layoutVariant = 'quote',
   showCustomerIdentity = false,
+  showContact = true,
+  matchTablet = false,
 }) {
   const isAdminLayout = layoutVariant === 'admin'
   const searchId = useId()
@@ -75,6 +77,7 @@ export default function Step2Inventory({
   const [searchQuery, setSearchQuery] = useState('')
   const [customName, setCustomName] = useState('')
   const [customSize, setCustomSize] = useState('medium')
+  const [customFormOpen, setCustomFormOpen] = useState(false)
 
   useEffect(() => {
     if (!categoryOrder.length) return
@@ -378,15 +381,18 @@ export default function Step2Inventory({
         renderCatalogRow={renderMobileCatalogRow}
         catalogItemsListClassName={MOBILE_INVENTORY_LIST}
         searchResultsCompact
+        customFormOpen={customFormOpen}
+        setCustomFormOpen={setCustomFormOpen}
         resultsPanelRef={resultsPanelRef}
         categoriesRef={categoriesRef}
         inputClass={input}
+        matchTablet={matchTablet}
       />
 
     <div
-      className={`quote-inventory-panel hidden min-w-0 w-full max-w-full lg:block ${isAdminLayout ? 'space-y-4' : 'space-y-8'}`}
+      className={`quote-inventory-panel min-w-0 w-full max-w-full ${matchTablet ? 'hidden' : 'hidden lg:block'} ${isAdminLayout || quotePage ? 'space-y-4' : 'space-y-8'}`}
     >
-      {!isAdminLayout ? (
+      {!isAdminLayout && !quotePage ? (
         <div>
           <h2 className="text-lg font-bold text-slate-900 sm:text-2xl">Inventory</h2>
           <p className="mt-1 text-sm text-slate-600">
@@ -402,11 +408,13 @@ export default function Step2Inventory({
             <p className="mt-2 text-xs text-slate-500">Using your Items Library catalogue.</p>
           ) : null}
         </div>
-      ) : (
+      ) : isAdminLayout ? (
         <p className="text-sm text-slate-600">
           Choose crew size, then add items. Search and categories use the full width below.
         </p>
-      )}
+      ) : catalogLoading ? (
+        <p className="text-xs text-slate-500">Loading item catalogue…</p>
+      ) : null}
 
       {quotePage ? (
         <div className="mb-2 lg:hidden">
@@ -432,6 +440,25 @@ export default function Step2Inventory({
         </p>
       ) : null}
 
+      <InventorySearchDropdown
+        id={searchId}
+        value={searchQuery}
+        onChange={setSearchQuery}
+        catalogLoading={catalogLoading}
+        open={searchDropdownOpen}
+        className="relative z-30 w-full min-w-0 max-w-full"
+      >
+        {searchResults.length === 0 ? (
+          <InventorySearchDropdownEmpty />
+        ) : (
+          <ul className="min-w-0 py-0.5">
+            {searchResults.map((e) => renderSearchResultRow(e, false))}
+          </ul>
+        )}
+      </InventorySearchDropdown>
+
+      <div>
+        <h3 className="mb-2 text-sm font-bold text-slate-900">Browse categories</h3>
       <div className="quote-inventory-category-grid">
         {categoryOrder.map((key) => {
           const c = inventoryByCategory[key]
@@ -453,34 +480,18 @@ export default function Step2Inventory({
             >
               <CategoryLucideIcon
                 categoryKey={key}
-                className={`h-5 w-5 shrink-0 ${isOpen ? 'text-blue-700' : 'text-slate-600'}`}
+                className="h-5 w-5 shrink-0 text-blue-600"
               />
               <span className="quote-inventory-item-name min-w-0 flex-1 leading-snug">{c.label}</span>
-              <ChevronDown
-                className={`h-5 w-5 shrink-0 text-slate-500 transition-transform ${isOpen ? 'rotate-180 text-blue-600' : ''}`}
+              <ChevronRight
+                className={`h-5 w-5 shrink-0 text-slate-400 transition-transform ${isOpen ? 'rotate-90 text-blue-600' : ''}`}
                 aria-hidden
               />
             </button>
           )
         })}
       </div>
-
-      <InventorySearchDropdown
-        id={searchId}
-        value={searchQuery}
-        onChange={setSearchQuery}
-        catalogLoading={catalogLoading}
-        open={searchDropdownOpen}
-        className="relative z-30 mt-4 w-full min-w-0 max-w-full"
-      >
-        {searchResults.length === 0 ? (
-          <InventorySearchDropdownEmpty />
-        ) : (
-          <ul className="min-w-0 py-0.5">
-            {searchResults.map((e) => renderSearchResultRow(e, false))}
-          </ul>
-        )}
-      </InventorySearchDropdown>
+      </div>
 
       {activeCategory ? (
         <div
@@ -505,12 +516,23 @@ export default function Step2Inventory({
         </div>
       ) : null}
 
-      <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50/50 p-4 sm:p-5">
-        <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Custom item</p>
-        <p className="mt-1 text-sm font-bold text-blue-700">
-          If you can&apos;t find your item in the inventory, add it manually.
-        </p>
-        <div className="quote-inventory-custom-grid mt-3">
+      <div className="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-4">
+        <div className="min-w-0">
+          <p className="text-sm font-bold text-slate-900">Can&apos;t find your item?</p>
+          <p className="text-xs text-slate-500">Add a custom item with your own details.</p>
+        </div>
+        <button
+          type="button"
+          onClick={() => setCustomFormOpen((open) => !open)}
+          className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-xl border border-blue-200 bg-white px-3 text-sm font-semibold text-blue-700"
+          aria-expanded={customFormOpen}
+        >
+          + Add custom item
+        </button>
+      </div>
+      {customFormOpen ? (
+      <div className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-5">
+        <div className="quote-inventory-custom-grid">
           <label className="block min-w-0">
             <span className="text-sm font-medium text-slate-700">Name</span>
             <input
@@ -544,6 +566,8 @@ export default function Step2Inventory({
             </button>
           </div>
         </div>
+      </div>
+      ) : null}
 
         {customLines.length > 0 ? (
           <ul className="quote-inventory-custom-list mt-5 space-y-3 border-t border-slate-200/80 pt-5">
@@ -607,9 +631,7 @@ export default function Step2Inventory({
         )}
       </div>
 
-    </div>
-
-      {data && onChange ? (
+      {showContact && data && onChange ? (
         <JobDetailsContactSection
           data={data}
           onChange={onChange}

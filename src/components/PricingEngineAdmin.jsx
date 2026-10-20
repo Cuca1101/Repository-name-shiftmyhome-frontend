@@ -611,7 +611,7 @@ export default function PricingEngineAdmin() {
             <span>
               <span className="block text-sm font-semibold text-slate-900">Show best price and standard price</span>
               <span className="mt-0.5 block text-xs leading-relaxed text-slate-600">
-                Best price days are orange. Every other bookable day is standard price in green.
+                Best price days are green. Weekends are red. Every other bookable day is standard price.
               </span>
             </span>
           </label>
@@ -801,7 +801,7 @@ export default function PricingEngineAdmin() {
                 onChange={(e) => setNum('packingMaterialsFee', e.target.value)}
               />
               <p className="mt-1.5 text-xs leading-relaxed text-slate-500">
-                Used only when per-item material pricing is off. When per-item is on, this flat fee is not applied.
+                Used only when every per-item price below is £0. If any price is above £0, each selected item adds that price, so two boxes cost more than one. Enable only shows the price on the quote.
               </p>
             </Field>
             <Field label="Exact arrival time premium (£)">
@@ -820,8 +820,8 @@ export default function PricingEngineAdmin() {
         <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-card">
           <h3 className="text-lg font-semibold text-slate-900">Packing materials — per item</h3>
           <p className="mt-1 text-sm text-slate-600">
-            When enabled with prices above £0, quote Step 3 material quantities are priced per line (flat packing
-            materials fee is skipped).
+            Each price above £0 is charged for every item the customer selects. Enable shows that price next to the
+            material on the quote. With Enable off, the price is still charged but not shown.
           </p>
           <label className="mt-4 flex cursor-pointer items-center gap-2 text-sm text-slate-700">
             <input
@@ -876,6 +876,17 @@ export default function PricingEngineAdmin() {
         <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-card">
           <h3 className="text-lg font-semibold text-slate-900">Reservation fee & promo codes</h3>
           <div className="mt-4 grid gap-4 sm:grid-cols-2">
+            <Field label="Customer offer expiry (hours)" helper="How long an offer or counteroffer stays open. Default is 48 hours.">
+              <input
+                type="number"
+                step="1"
+                min="1"
+                max="720"
+                className={inputClass}
+                value={settings.offerExpiryHours ?? 48}
+                onChange={(e) => setNum('offerExpiryHours', e.target.value)}
+              />
+            </Field>
             <Field label="Reservation fee (£)">
               <input
                 type="number"

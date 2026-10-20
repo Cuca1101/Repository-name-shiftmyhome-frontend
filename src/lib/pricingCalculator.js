@@ -28,6 +28,7 @@ import { resolveAccessChargeRates, resolveDepositAmountGbp as resolveDepositFrom
 import { getEffectiveReassemblyItemCount } from './quoteWizardReassembly.js'
 import {
   PACKING_MATERIALS_CATALOG,
+  hasPackingMaterialUnitPrices,
   resolvePackingMaterialUnitPrices,
 } from './packingMaterialsCatalog.js'
 import { getBankHolidayName, isBankHolidayDate } from './ukBankHolidays.js'
@@ -288,11 +289,6 @@ export function findPromoMatch(promoCodes, rawCode) {
     if (code && code === normalized) return row
   }
   return null
-}
-
-/** @param {Record<string, number>} prices */
-function hasAnyPackingMaterialPerItemRate(prices) {
-  return Object.values(prices).some((v) => v > 0)
 }
 
 /**
@@ -624,9 +620,7 @@ export function calculateQuote(settings, input) {
   if (extras.packingMaterials) {
     const matQty = extras.packingMaterialQuantities || {}
     const unitPrices = resolvePackingMaterialUnitPrices(s)
-    const perItemActive =
-      Boolean(s.packingMaterialPerItemEnabled) && hasAnyPackingMaterialPerItemRate(unitPrices)
-    if (perItemActive) {
+    if (hasPackingMaterialUnitPrices(s)) {
       for (const def of PACKING_MATERIALS_CATALOG) {
         const q = Math.max(0, Number(matQty[def.id]) || 0)
         const rate = unitPrices[def.id] || 0

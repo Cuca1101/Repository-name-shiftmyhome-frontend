@@ -1,4 +1,4 @@
-import { MapPin, Plus, User } from 'lucide-react'
+import { MapPin, MessageSquare, User } from 'lucide-react'
 import { useAuthenticatedCustomerEmail } from '../../../lib/useAuthenticatedCustomerEmail'
 import { applyWizardPatch } from '../../../lib/wizardStateUpdate'
 import MobileStep3Details from '../MobileStep3Details'
@@ -7,10 +7,12 @@ import {
   isQuoteContactComplete,
   ReviewGroup,
 } from '../QuoteReviewAccordion'
-import AddressConfirmationSection from '../AddressConfirmationSection'
+import AddressConfirmationSection, { PickupPersonFields } from '../AddressConfirmationSection'
 import QuoteSpecialInstructionsField from '../QuoteSpecialInstructionsField'
 import PackingMaterialsSection from '../PackingMaterialsSection'
 import DesktopFurnitureServicesSection from '../DesktopFurnitureServicesSection'
+import { AddressRouteSummary } from '../ReviewMoveSummaries'
+import QuoteReviewExtrasCard from '../QuoteReviewExtrasCard'
 
 export default function Step3Details({
   data,
@@ -55,7 +57,7 @@ export default function Step3Details({
       />
 
       <div
-        className={`hidden lg:block${
+        className={`hidden min-[1200px]:block${
           accordionLayout
             ? ' mt-4 space-y-2'
             : hideContactSection
@@ -83,23 +85,54 @@ export default function Step3Details({
         accordion={accordionLayout}
         title="Contact details"
         confirmed={contactConfirmed}
+        trackConfirmation
         icon={User}
         defaultOpen={!contactConfirmed}
+        hint="If the person at pickup is not the one making this booking, select Different person and enter their name."
       >
       {accordionLayout && hideContactSection ? (
-        <div className="space-y-1.5 text-sm text-slate-800">
-          <p><span className="text-slate-500">Name � </span>{data.fullName || '?'}</p>
-          <p><span className="text-slate-500">Phone � </span>{data.phone || '?'}</p>
-          <p><span className="text-slate-500">Email � </span>{data.email || '?'}</p>
-          {typeof onGoToStep === 'function' ? (
-            <button
-              type="button"
-              onClick={() => onGoToStep(2)}
-              className="text-xs font-semibold text-blue-700 underline-offset-2 hover:underline"
-            >
-              Edit contact details
-            </button>
-          ) : null}
+        <div className="space-y-3">
+          <PickupPersonFields data={data} onChange={onChange} />
+          <div className="grid grid-cols-2 gap-3">
+            <label className="block sm:col-span-2">
+              <span className={label}>Full name</span>
+              <input
+                id="quote-wizard-fullName-desktop"
+                required
+                autoComplete="name"
+                value={data.fullName}
+                onChange={(e) => set('fullName', e.target.value)}
+                className={input}
+              />
+            </label>
+            <label className="block">
+              <span className={label}>Phone</span>
+              <input
+                id="quote-wizard-phone-desktop"
+                required
+                type="tel"
+                autoComplete="tel"
+                value={data.phone}
+                onChange={(e) => set('phone', e.target.value)}
+                className={input}
+              />
+            </label>
+            <label className="block">
+              <span className={label}>Email</span>
+              <input
+                id="quote-wizard-email-desktop"
+                required
+                type="email"
+                autoComplete="email"
+                readOnly={Boolean(accountEmail)}
+                value={accountEmail || data.email}
+                onChange={(e) => {
+                  if (!accountEmail) set('email', e.target.value)
+                }}
+                className={input}
+              />
+            </label>
+          </div>
         </div>
       ) : null}
       {!hideContactSection ? (
@@ -175,10 +208,13 @@ export default function Step3Details({
 
       <ReviewGroup
         accordion={accordionLayout}
-        title="Pickup & delivery addresses"
+        title="Pickup & delivery"
         confirmed={addressesConfirmed}
+        trackConfirmation
         icon={MapPin}
         defaultOpen={!addressesConfirmed}
+        summary={<AddressRouteSummary data={data} />}
+        hint="If the person at drop-off is not the one making this booking, select Different person and enter their name."
       >
       <AddressConfirmationSection
         data={data}
@@ -189,15 +225,17 @@ export default function Step3Details({
       />
       </ReviewGroup>
 
-      <QuoteSpecialInstructionsField data={data} onChange={onChange} variant="desktop" />
-
       <ReviewGroup
         accordion={accordionLayout}
-        title="Optional extras"
-        icon={Plus}
-        defaultOpen={false}
+        title="Special instructions"
+        icon={MessageSquare}
+        alwaysOpen
         accent="blue"
       >
+      <QuoteSpecialInstructionsField data={data} onChange={onChange} variant="desktop" embedded />
+      </ReviewGroup>
+
+      <QuoteReviewExtrasCard data={data} editable={accordionLayout}>
       <div className="space-y-4">
         <DesktopFurnitureServicesSection
           data={data}
@@ -232,7 +270,7 @@ export default function Step3Details({
           />
         </label>
       </div>
-      </ReviewGroup>
+      </QuoteReviewExtrasCard>
     </div>
     </>
   )

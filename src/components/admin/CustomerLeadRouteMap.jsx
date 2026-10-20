@@ -415,7 +415,7 @@ export default function CustomerLeadRouteMap({
 
   if (coords.loading) {
     return (
-      <div className={`flex items-center justify-center bg-slate-100 text-sm text-slate-500 ${MAP_FRAME}`}>
+      <div className={`flex items-center justify-center bg-slate-100 text-sm text-slate-500 ${frameClass || MAP_FRAME}`}>
         Loading route map…
       </div>
     )

@@ -439,11 +439,11 @@ function LeadActionsMenu({
                 type="button"
                 role="menuitem"
                 disabled={convertDisabled}
-                title="Create paid job from saved lead details (Available Jobs)"
+                title="Convert this lead to a booking in Available Jobs"
                 className={`${itemClass} text-emerald-900 hover:bg-emerald-50`}
                 onClick={() => choose(onConvert)}
               >
-                {busyConvert ? 'Creating…' : 'Create job'}
+                {busyConvert ? 'Converting…' : 'Convert'}
               </button>
             )}
             <div className="my-1 h-px bg-slate-100" role="separator" />
@@ -639,16 +639,16 @@ export default function CustomerLeadsAdmin() {
 
       const ok = window.confirm(
         [
-          `Create paid job from lead ${customerLeadBookingRef(row) || row.lead_ref || ''}?`,
+          `Convert lead ${customerLeadBookingRef(row) || row.lead_ref || ''} to a booking?`,
           '',
           `Pickup: ${summary.pickupAddress}`,
           `Delivery: ${summary.deliveryAddress}`,
-          `Price: ${formatGbp(chargeable)} (marked paid — same as card-paid bookings)`,
+          `Price: ${formatGbp(chargeable)}`,
           '',
           'Uses the saved lead details — you do not need to re-enter addresses.',
-          'The job will appear in Available Jobs as Paid.',
-          'Lead will show as Converted (Paid in Available Jobs).',
-          'You can Undo convert later if the job is still unassigned.',
+          'The booking appears in Available Jobs.',
+          'Payment status is left as recorded. This does not mark an unpaid booking as paid.',
+          'The lead is marked Converted. You can Undo convert later if the job is still unassigned.',
         ].join('\n'),
       )
       if (!ok) return
@@ -662,7 +662,7 @@ export default function CustomerLeadsAdmin() {
           releaseToAvailableJobs: true,
         })
         setActionMsg(
-          `Job ${result.quoteRef} created as Paid (£${Number(resolveChargeableTotal(row) || 0).toFixed(2)}) and sent to Available Jobs. Lead marked Converted.`,
+          `Booking ${result.quoteRef} created at £${Number(resolveChargeableTotal(row) || 0).toFixed(2)} and sent to Available Jobs. Payment status was left as recorded. Lead marked Converted.`,
         )
         await load()
         navigate(`/admin/available-jobs/${encodeURIComponent(result.quoteId)}`)
@@ -853,11 +853,11 @@ export default function CustomerLeadsAdmin() {
           </h2>
           <p className="mt-1 text-sm text-slate-600">
             Quote wizard and homepage enquiries saved before payment — reference format{' '}
-            <code className="rounded bg-slate-100 px-1">SMH-LEAD-000001</code>. Use Create job to
-            convert a lead into a Paid Available Jobs booking. Use Undo convert to put the lead back
-            if the job is still unassigned (card-paid bookings stay protected). Converted leads stay
-            in this list for 12 hours, then leave Customer Leads. The booking stays in Available Jobs
-            or Active Jobs. Delete moves a lead to Trash.
+            <code className="rounded bg-slate-100 px-1">SMH-LEAD-000001</code>. Convert sends the
+            saved lead to Available Jobs and leaves the payment status as recorded. Undo convert puts
+            the lead back if the job is still unassigned. Converted leads stay in this list for 12
+            hours, then leave Customer Leads. The booking stays in Available Jobs or Active Jobs.
+            Delete moves a lead to Trash.
           </p>
         </div>
         <button
@@ -994,6 +994,7 @@ export default function CustomerLeadsAdmin() {
                 <col className="w-px" />
                 <col className="w-px" />
                 <col className="w-px" />
+                <col className="w-px" />
               </colgroup>
               <thead className="bg-blue-50 text-xs font-semibold uppercase tracking-wide text-blue-900">
                 <tr>
@@ -1015,6 +1016,7 @@ export default function CustomerLeadsAdmin() {
                   <th className="w-px whitespace-nowrap px-3 py-2.5">Postcode</th>
                   <th className="w-px whitespace-nowrap px-3 py-2.5">Quote price</th>
                   <th className="w-px whitespace-nowrap px-3 py-2.5">Agreed</th>
+                  <th className="w-px whitespace-nowrap px-3 py-2.5">Customer offer</th>
                   <th className="w-px whitespace-nowrap px-3 py-2.5">Status</th>
                   <th className="w-px whitespace-nowrap px-3 py-2.5">Last activity</th>
                   <th className="w-px whitespace-nowrap px-3 py-2.5">Created</th>
@@ -1068,8 +1070,13 @@ export default function CustomerLeadsAdmin() {
                         >
                           {customerLeadBookingRef(row) || '—'}
                         </Link>
-                        {countdown || customerLeadCallbackDue(row, listNow) || customerLeadNeedsFirstCall(row, listNow) || row.called_at || row.callback_at ? (
+                        {countdown || customerLeadCallbackDue(row, listNow) || customerLeadNeedsFirstCall(row, listNow) || row.called_at || row.callback_at || row.pending_offer ? (
                           <div className="mt-1 flex flex-col items-start gap-1">
+                            {row.pending_offer ? (
+                              <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-900">
+                                Pending offer
+                              </span>
+                            ) : null}
                             {countdown ? <MoveCountdownBadge moveDate={row.move_date} /> : null}
                             <CallBadge row={row} now={listNow} />
                           </div>
@@ -1097,6 +1104,20 @@ export default function CustomerLeadsAdmin() {
                       <td className="w-px whitespace-nowrap px-3 py-2 tabular-nums">
                         {row.agreed_price != null ? (
                           <span className="font-semibold text-brand-800">{money(row.agreed_price)}</span>
+                        ) : (
+                          '—'
+                        )}
+                      </td>
+                      <td className="w-px whitespace-nowrap px-3 py-2">
+                        {row.customer_offer ? (
+                          <span className="inline-flex flex-col items-start">
+                            <span className="font-semibold tabular-nums text-amber-950">
+                              {money(row.customer_offer.proposed_amount)}
+                            </span>
+                            <span className="text-[11px] capitalize text-slate-500">
+                              {String(row.customer_offer.status || '').replaceAll('_', ' ')}
+                            </span>
+                          </span>
                         ) : (
                           '—'
                         )}

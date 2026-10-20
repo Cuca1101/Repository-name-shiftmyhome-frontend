@@ -9,7 +9,7 @@ import { quoteMobileInput } from '../../lib/quoteMobileUiClasses'
  *   variant?: 'desktop' | 'mobile',
  * }} props
  */
-export default function QuoteSpecialInstructionsField({ data, onChange, variant = 'desktop' }) {
+export default function QuoteSpecialInstructionsField({ data, onChange, variant = 'desktop', embedded = false }) {
   const isMobile = variant === 'mobile'
   const input = isMobile
     ? quoteMobileInput
@@ -18,17 +18,23 @@ export default function QuoteSpecialInstructionsField({ data, onChange, variant 
   return (
     <div
       className={
-        isMobile
+        embedded
+          ? 'min-w-0'
+          : isMobile
           ? 'box-border min-w-0 w-full rounded-lg border border-slate-200 bg-white p-2.5 shadow-sm'
           : 'rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6'
       }
       data-quote-field="special-instructions"
     >
+      {embedded ? null : (
+        <>
       <h3 className={`font-bold text-blue-600 ${isMobile ? 'text-sm' : 'text-base'}`}>Special instructions</h3>
       <p className={`mt-1 text-slate-600 ${isMobile ? 'text-[11px] leading-snug' : 'text-sm'}`}>
-        Fragile items, narrow access, parking, or anything the crew should know before they arrive.
+        Anything the crew should know?
       </p>
-      <label className="mt-3 block">
+        </>
+      )}
+      <label className={embedded ? 'block' : 'mt-3 block'}>
         <span className="sr-only">Special instructions</span>
         <textarea
           rows={3}

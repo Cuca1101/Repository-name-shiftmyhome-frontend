@@ -1,5 +1,4 @@
-import { Lock, ShieldCheck, Tag } from 'lucide-react'
-import MobileStepRefBadge from './MobileStepRefBadge'
+import { useEffect } from 'react'
 import QuoteReviewPriceCalendar from './QuoteReviewPriceCalendar'
 import QuoteReviewYourMoveCard from './QuoteReviewYourMoveCard'
 import QuoteServicePackagePicker from './QuoteServicePackagePicker'
@@ -19,8 +18,17 @@ export default function Step3ReviewLayout({
   onGoToStep,
   totalM3 = 0,
   onContinueToPayment,
+  onBack,
   embedSummary = false,
+  showOffer = true,
+  continueLabel = 'Continue to payment',
+  continueDisabled = false,
+  hideContinue = false,
 }) {
+  useEffect(() => {
+    document.body.classList.add('quote-step3-review')
+    return () => document.body.classList.remove('quote-step3-review')
+  }, [])
   const calendarProps = {
     wizard,
     onWizardChange,
@@ -37,11 +45,6 @@ export default function Step3ReviewLayout({
 
   return (
     <div data-quote-step="3" className="min-w-0 max-w-full">
-      {embedSummary ? (
-        <div className="mb-3">
-          <MobileStepRefBadge quoteRef={quoteRef} />
-        </div>
-      ) : null}
       <QuoteReviewPriceCalendar {...calendarProps} />
 
       <QuoteServicePackagePicker
@@ -56,19 +59,6 @@ export default function Step3ReviewLayout({
         onChange={(packageTier) => onWizardChange?.((prev) => ({ ...prev, packageTier }))}
       />
 
-      <div className="mt-4 lg:hidden">
-        <QuoteReviewYourMoveCard
-          quoteRef={quoteRef}
-          wizard={wizard}
-          breakdown={breakdown}
-          pricingSettings={settings}
-          totalM3={totalM3}
-          priceWithoutPromo={priceWithoutPromo}
-          onContinueToPayment={onContinueToPayment}
-          hideContinue={embedSummary}
-        />
-      </div>
-
       <Step3Details
         data={wizard}
         onChange={onWizardChange}
@@ -79,24 +69,25 @@ export default function Step3ReviewLayout({
         accordionLayout
       />
 
-      {quoteRef && !embedSummary ? (
-        <p className="mt-3 font-mono text-xs font-semibold text-slate-500">Quote reference {quoteRef}</p>
-      ) : null}
+      <div className="mt-4">
+        <QuoteReviewYourMoveCard
+          quoteRef={quoteRef}
+          wizard={wizard}
+          breakdown={breakdown}
+          pricingSettings={settings}
+          totalM3={totalM3}
+          priceWithoutPromo={priceWithoutPromo}
+          onContinueToPayment={onContinueToPayment}
+          onBack={onBack}
+          continueDisabled={continueDisabled}
+          hideContinue={hideContinue}
+          showReference={!embedSummary}
+          showMap={false}
+          showOffer={showOffer}
+          continueLabel={continueLabel}
+        />
+      </div>
 
-      <ul className="mt-4 grid grid-cols-3 gap-2 border-t border-slate-100 pt-4 text-center text-[11px] font-semibold text-slate-600 sm:text-xs">
-        <li className="flex flex-col items-center gap-1">
-          <ShieldCheck className="h-4 w-4 text-blue-600" aria-hidden />
-          Fully insured
-        </li>
-        <li className="flex flex-col items-center gap-1">
-          <Lock className="h-4 w-4 text-blue-600" aria-hidden />
-          Secure payment
-        </li>
-        <li className="flex flex-col items-center gap-1">
-          <Tag className="h-4 w-4 text-blue-600" aria-hidden />
-          No hidden fees
-        </li>
-      </ul>
     </div>
   )
 }
