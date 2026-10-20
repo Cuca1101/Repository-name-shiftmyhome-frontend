@@ -1,6 +1,5 @@
 import { MapPin, MessageSquare, Minus, Plus, User, Wrench } from 'lucide-react'
 import {
-  isQuoteAddressesConfirmed,
   isQuoteContactComplete,
   ReviewGroup,
 } from './QuoteReviewAccordion'
@@ -130,7 +129,6 @@ export default function MobileStep3Details({
   }
 
   const contactConfirmed = isQuoteContactComplete(data)
-  const addressesConfirmed = isQuoteAddressesConfirmed(data)
 
   return (
     <div
@@ -273,10 +271,8 @@ export default function MobileStep3Details({
       <ReviewGroup
         accordion={accordionLayout}
         title="Pickup & delivery"
-        confirmed={addressesConfirmed}
-        trackConfirmation
         icon={MapPin}
-        defaultOpen={!addressesConfirmed}
+        defaultOpen
         summary={<AddressRouteSummary data={data} />}
         hint="If the person at drop-off is not the one making this booking, select Different person and enter their name."
       >

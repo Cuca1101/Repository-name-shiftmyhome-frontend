@@ -45,7 +45,7 @@ export default function MoveSummary(props) {
             label={stickyPanelProps.continueLabel}
           />
         </div>
-      ) : bodyProps.step === 4 && !alwaysShowMobile ? null : (
+      ) : (
         <MobileMoveSummary {...bodyProps} mapVariant={mapVariant} afterSummary={afterSummary} />
       )}
     </>

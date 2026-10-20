@@ -1,5 +1,3 @@
-import { reviewAddressesConfirmed } from './addressConfirmation'
-
 /**
  * Pickup/delivery contact helpers for the quote wizard (Step 3).
  * Resolved values are embedded in quote `details` text until dedicated DB columns exist.
@@ -58,9 +56,12 @@ export function pickupDeliveryContactsValid(wizard) {
   return contactDetailsComplete(delivery.name, delivery.phone)
 }
 
-/** Both Review addresses are confirmed and the required people can be contacted. */
+/**
+ * Step 3 can continue to payment when the people at pickup and drop-off can be contacted.
+ * Confirming the addresses on Review is optional and does not block payment.
+ */
 export function reviewDetailsReady(wizard) {
-  return reviewAddressesConfirmed(wizard) && pickupDeliveryContactsValid(wizard)
+  return pickupDeliveryContactsValid(wizard)
 }
 
 /**

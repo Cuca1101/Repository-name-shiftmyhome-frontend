@@ -6,6 +6,49 @@ import {
   OTHER_ITEMS_CATEGORY_KEY,
 } from './inventoryCatalog'
 
+function normalizeCatalogName(name) {
+  return String(name || '')
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+}
+
+/** Drop later rows that repeat the same item name inside a category. */
+export function dedupeCatalogCategoryItems(items) {
+  const seen = new Set()
+  const unique = []
+  for (const item of items || []) {
+    const nameKey = normalizeCatalogName(item?.name)
+    const idKey = String(item?.id || '').trim()
+    const key = nameKey || idKey
+    if (!key || seen.has(key)) continue
+    seen.add(key)
+    if (idKey) seen.add(`id:${idKey}`)
+    unique.push(item)
+  }
+  return unique
+}
+
+/** One row per item name, so the same item cannot show as selected twice. */
+function dedupeCatalogGlobally(inventoryByCategory) {
+  const seen = new Set()
+  const keys = [
+    ...CATEGORY_ORDER.filter((key) => inventoryByCategory[key]),
+    ...Object.keys(inventoryByCategory).filter((key) => !CATEGORY_ORDER.includes(key)),
+  ]
+  for (const key of keys) {
+    const cat = inventoryByCategory[key]
+    if (!cat) continue
+    cat.items = (cat.items || []).filter((item) => {
+      const nameKey = normalizeCatalogName(item?.name)
+      if (!nameKey || seen.has(nameKey)) return false
+      seen.add(nameKey)
+      return true
+    })
+  }
+  return inventoryByCategory
+}
+
 function ensureCategoryOrder(categoryOrder, inventoryByCategory) {
   const order = []
   for (const key of CATEGORY_ORDER) {
@@ -28,6 +71,7 @@ function ensureCategoryOrder(categoryOrder, inventoryByCategory) {
  * @param {Record<string, CatalogCategory>} inventoryByCategory
  */
 export function mergeFallbackCatalogGaps(inventoryByCategory) {
+  dedupeCatalogGlobally(inventoryByCategory)
   for (const key of CATEGORY_ORDER) {
     const fallback = INVENTORY_BY_CATEGORY[key]
     if (!fallback) continue
@@ -47,7 +91,9 @@ export function mergeFallbackCatalogGaps(inventoryByCategory) {
       existingNames.add(nameKey)
       inventoryByCategory[key].items.push({ ...item })
     }
+    inventoryByCategory[key].items = dedupeCatalogCategoryItems(inventoryByCategory[key].items)
   }
+  dedupeCatalogGlobally(inventoryByCategory)
   return inventoryByCategory
 }
 
@@ -101,7 +147,10 @@ export function buildQuoteInventoryCatalogFromLibrary(rows) {
       byKey.set(key, { label: categoryLabel, items: [] })
     }
     const defaultQty = Math.max(1, parseInt(String(row.default_quantity ?? 1), 10) || 1)
-    byKey.get(key).items.push({
+    const bucket = byKey.get(key)
+    const nameKey = normalizeCatalogName(row.name)
+    if (bucket.items.some((item) => normalizeCatalogName(item.name) === nameKey)) continue
+    bucket.items.push({
       id: String(row.id),
       name: String(row.name),
       m3: Math.max(0.01, Number(row.cubic_metres) || 0),
@@ -139,6 +188,7 @@ export function getFallbackInventoryCatalog() {
       { label: cat.label, items: cat.items.map((item) => ({ ...item })) },
     ]),
   )
+  dedupeCatalogGlobally(inventoryByCategory)
   return {
     categoryOrder: ensureCategoryOrder([...CATEGORY_ORDER], inventoryByCategory),
     inventoryByCategory,

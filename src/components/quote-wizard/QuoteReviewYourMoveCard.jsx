@@ -1,23 +1,13 @@
 import { Calendar, CreditCard, FileText, Lock, MapPin, ShieldCheck, Users } from 'lucide-react'
 import { PACKING_MATERIALS_CATALOG } from '../../lib/packingMaterialsCatalog'
-import { cityFromAddress } from '../../lib/journeyPlannerDisplay'
 import { formatMoveSummaryCrewForPricing } from '../../lib/moveSummaryDisplay'
+import { placeSummary } from './ReviewMoveSummaries'
 import { formatReviewShortTimeLabel, parseIsoDateParts } from '../../lib/quoteReviewPriceOptions'
 import QuotePromoPriceReduction from './QuotePromoPriceReduction'
 import QuoteReferenceCard from './QuoteReferenceCard'
 import QuoteRouteMap from './QuoteRouteMap'
 import MakeAnOfferPanel from './MakeAnOfferPanel'
 import { WHATSAPP_URL } from '../../config'
-
-function placeLabel(address) {
-  const city = cityFromAddress(address)
-  if (city) return city
-  const first = String(address || '')
-    .split(',')
-    .map((part) => part.trim())
-    .find(Boolean)
-  return first || '—'
-}
 
 function formatSelectedMoveDate(isoDate) {
   const parts = parseIsoDateParts(isoDate)
@@ -109,9 +99,10 @@ export default function QuoteReviewYourMoveCard({
     ? `${crewCount} mover${crewCount === 1 ? '' : 's'}`
     : crew
   const rows = [
-    { icon: MapPin, label: `${placeLabel(wizard?.pickupAddress)} → ${placeLabel(wizard?.deliveryAddress)}` },
-    { icon: Calendar, label: [formatSelectedMoveDate(wizard?.moveDate), arrival].filter(Boolean).join(' · ') },
-    { icon: Users, label: [crewLine, formatVolume(totalM3)].filter((part) => part && part !== '—').join(' · ') || '—' },
+    { key: 'pickup', icon: MapPin, label: 'Pickup: ' + placeSummary(wizard, 'pickup') },
+    { key: 'delivery', icon: MapPin, label: 'Delivery: ' + placeSummary(wizard, 'delivery') },
+    { key: 'when', icon: Calendar, label: [formatSelectedMoveDate(wizard?.moveDate), arrival].filter(Boolean).join(' · ') },
+    { key: 'crew', icon: Users, label: [crewLine, formatVolume(totalM3)].filter((part) => part && part !== '—').join(' · ') || '—' },
   ]
 
   return (
@@ -146,9 +137,9 @@ export default function QuoteReviewYourMoveCard({
         {rows.map((row) => {
           const Icon = row.icon
           return (
-            <li key={row.label} className="flex items-start gap-2.5 text-sm text-slate-800">
+            <li key={row.key} className="flex items-start gap-2.5 text-sm text-slate-800">
               <Icon className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" aria-hidden />
-              <span className="min-w-0 leading-snug">{row.label}</span>
+              <span className="min-w-0 break-words leading-snug">{row.label}</span>
             </li>
           )
         })}

@@ -1,5 +1,8 @@
+import { useRef } from 'react'
+
 /**
  * Mobile-friendly inline quantity: Add when 0, otherwise [−] qty [+].
+ * The first tap must not also hit the + button that replaces Add.
  */
 export default function InlineInventoryQtyControl({
   quantity,
@@ -13,6 +16,22 @@ export default function InlineInventoryQtyControl({
   /** Medium −/+ for selected catalog cards (smaller than default, larger than tiny). */
   catalog = false,
 }) {
+  const blockIncrementUntil = useRef(0)
+
+  function handleAdd(event) {
+    event.preventDefault()
+    blockIncrementUntil.current = Date.now() + 500
+    onAdd?.()
+  }
+
+  function handleIncrement(event) {
+    if (Date.now() < blockIncrementUntil.current) {
+      event.preventDefault()
+      return
+    }
+    onIncrement?.()
+  }
+
   const dec = catalog
     ? 'inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white text-xs font-semibold leading-none text-slate-800 shadow-sm transition enabled:hover:border-brand-400 enabled:hover:bg-brand-50 enabled:active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-45'
     : compact
@@ -29,7 +48,7 @@ export default function InlineInventoryQtyControl({
 
   if (!quantity || quantity <= 0) {
     return (
-      <button type="button" onClick={onAdd} disabled={disabled} className={addBtn}>
+      <button type="button" onClick={handleAdd} disabled={disabled} className={addBtn}>
         {addLabel}
       </button>
     )
@@ -48,7 +67,7 @@ export default function InlineInventoryQtyControl({
         −
       </button>
       <span className={qtyClass}>{quantity}</span>
-      <button type="button" onClick={onIncrement} disabled={disabled} className={inc} aria-label="Increase quantity">
+      <button type="button" onClick={handleIncrement} disabled={disabled} className={inc} aria-label="Increase quantity">
         +
       </button>
     </div>

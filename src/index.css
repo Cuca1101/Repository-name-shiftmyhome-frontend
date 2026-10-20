@@ -1104,6 +1104,19 @@
   touch-action: pan-y pinch-zoom;
 }
 
+/* Steps 2 and 3 mount the route map inside a grid that gets its size after first paint.
+   Mapbox forces position:relative, so the canvas stayed at 0 height and looked stuck. */
+.quote-route-map .mapboxgl-map {
+  position: absolute !important;
+  inset: 0;
+  width: 100% !important;
+  height: 100% !important;
+}
+
+.quote-route-map .mapboxgl-canvas {
+  max-width: none !important;
+}
+
 .quote-route-map--review .mapboxgl-ctrl-attrib {
   font-size: 10px;
 }

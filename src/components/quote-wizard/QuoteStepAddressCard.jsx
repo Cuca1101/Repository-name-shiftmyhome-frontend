@@ -77,10 +77,16 @@ function composeStreetAddress(base, houseNumber) {
 }
 
 function placeStreetLine(place) {
+  const formatted = String(place?.formattedAddress || '')
+    .replace(/,\s*(United Kingdom|UK)\s*$/i, '')
+    .trim()
   const locality = [place?.town, place?.postcode].filter(Boolean).join(' ')
   const street = String(place?.street || '').trim()
-  if (street) return [street, locality].filter(Boolean).join(', ')
-  return stripLeadingHouseNumber(place?.formattedAddress || '', place?.houseNumber)
+  const fromStreet = street ? [street, locality].filter(Boolean).join(', ') : ''
+  const formattedHasStreet = Boolean(street) && formatted.toLowerCase().includes(street.toLowerCase())
+  if (formattedHasStreet) return stripLeadingHouseNumber(formatted, place?.houseNumber)
+  if (fromStreet) return fromStreet
+  return stripLeadingHouseNumber(formatted, place?.houseNumber)
 }
 
 function addressBase(address, apartment, houseNumber) {

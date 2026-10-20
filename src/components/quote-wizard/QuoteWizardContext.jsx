@@ -933,8 +933,8 @@ export function QuoteWizardProvider({
           type: 'error',
           text:
           mode === 'admin'
-            ? 'Confirm both addresses and the contact details before continuing.'
-            : 'Confirm both addresses and the contact details before continuing to payment.',
+            ? 'Add the pickup and drop-off contact details before continuing.'
+            : 'Add the pickup and drop-off contact details before continuing to payment.',
         })
         document.getElementById('quote-wizard-address-confirmation')?.scrollIntoView({
           behavior: 'smooth',

@@ -12,6 +12,10 @@ import {
   planLegacyCategoryCleanup,
 } from '../lib/data/cleanupLegacyItemsLibraryCategories'
 import {
+  cleanupDuplicateLibraryItems,
+  planDuplicateLibraryCleanup,
+} from '../lib/data/cleanupDuplicateLibraryItems'
+import {
   importMissingCatalogToItemsLibrary,
   isBrokenLibraryRow,
   isValidLibraryRow,
@@ -82,6 +86,21 @@ export default function ItemsLibraryAdmin() {
     setError('')
     try {
       let data = await fetchItemsLibrary()
+      try {
+        const duplicatePlan = planDuplicateLibraryCleanup(data)
+        if (duplicatePlan.deletedCount > 0) {
+          const cleaned = await cleanupDuplicateLibraryItems(data)
+          data = await fetchItemsLibrary()
+          if (cleaned.deleted > 0) {
+            setImportMessage(`Removed ${cleaned.deleted} duplicate item(s) from the library. Saved quotes are unchanged.`)
+          }
+        }
+      } catch (dupErr) {
+        if (import.meta.env.DEV) {
+          // eslint-disable-next-line no-console
+          console.warn('[ItemsLibrary] duplicate cleanup skipped', dupErr?.message || dupErr)
+        }
+      }
       // Idempotent: add any new catalogue rows that are not already in the library.
       try {
         const validOnly = data.filter(isValidLibraryRow)

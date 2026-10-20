@@ -83,8 +83,13 @@ class MapErrorBoundary extends Component {
   }
 }
 
+function finiteCoord(value) {
+  const n = typeof value === "number" ? value : Number(value)
+  return Number.isFinite(n) ? n : null
+}
+
 function coordsPairReady(lng, lat) {
-  return lng != null && lat != null && Number.isFinite(lng) && Number.isFinite(lat)
+  return finiteCoord(lng) != null && finiteCoord(lat) != null
 }
 
 function coordsReady(plng, plat, dlng, dlat) {
@@ -105,10 +110,71 @@ function clearMarkers(markersRef) {
 function clearRoute(map) {
   try {
     if (map.getLayer('route-line')) map.removeLayer('route-line')
+    if (map.getLayer('route-casing')) map.removeLayer('route-casing')
     if (map.getSource('route')) map.removeSource('route')
   } catch {
     /* ignore */
   }
+}
+
+/** Driving line above the basemap, with a light edge so it stays visible on the quote tiles. */
+function drawRouteLine(map, geometry) {
+  const data = {
+    type: 'Feature',
+    properties: {},
+    geometry,
+  }
+  if (map.getSource('route')) {
+    map.getSource('route').setData(data)
+  } else {
+    map.addSource('route', { type: 'geojson', data })
+  }
+  if (!map.getLayer('route-casing')) {
+    map.addLayer({
+      id: 'route-casing',
+      type: 'line',
+      source: 'route',
+      layout: { 'line-cap': 'round', 'line-join': 'round' },
+      paint: { 'line-color': '#ffffff', 'line-width': 9, 'line-opacity': 0.95 },
+    })
+  }
+  if (!map.getLayer('route-line')) {
+    map.addLayer({
+      id: 'route-line',
+      type: 'line',
+      source: 'route',
+      layout: { 'line-cap': 'round', 'line-join': 'round' },
+      paint: { 'line-color': '#0369a1', 'line-width': 5, 'line-opacity': 1 },
+    })
+  }
+  if (map.getLayer('route-casing')) map.moveLayer('route-casing')
+  if (map.getLayer('route-line')) map.moveLayer('route-line')
+}
+
+function safeBoundsPadding(map, variant) {
+  const wanted = mapVariantBoundsPadding(variant)
+  const box = typeof wanted === 'number' ? { top: wanted, bottom: wanted, left: wanted, right: wanted } : wanted
+  const canvas = typeof map.getCanvas === 'function' ? map.getCanvas() : null
+  const width = canvas?.clientWidth || map.getContainer()?.clientWidth || 0
+  const height = canvas?.clientHeight || map.getContainer()?.clientHeight || 0
+  const maxX = Math.max(12, Math.floor(width / 2) - 12)
+  const maxY = Math.max(12, Math.floor(height / 2) - 12)
+  return {
+    top: Math.min(box.top, maxY),
+    bottom: Math.min(box.bottom, maxY),
+    left: Math.min(box.left, maxX),
+    right: Math.min(box.right, maxX),
+  }
+}
+
+function fitRoute(map, bounds, variant) {
+  if (!bounds || bounds.isEmpty()) return
+  map.resize()
+  map.fitBounds(bounds, {
+    padding: safeBoundsPadding(map, variant),
+    maxZoom: 14,
+    duration: 0,
+  })
 }
 
 /** Strip city/POI labels from the Mapbox basemap for a clean quote preview. */
@@ -227,6 +293,7 @@ function QuoteRouteMapInner({
   const markersRef = useRef([])
   const routeRequestRef = useRef(0)
   const onDistanceRef = useRef(onDistanceFromRoute)
+  const fittedBoundsRef = useRef(null)
   const [mapReadyTick, setMapReadyTick] = useState(0)
 
   const [debounced, setDebounced] = useState(() => ({
@@ -239,6 +306,17 @@ function QuoteRouteMapInner({
   const [overlay, setOverlay] = useState(null)
 
   onDistanceRef.current = onDistanceFromRoute
+
+  const paintFittedRoute = () => {
+    const map = mapRef.current
+    const bounds = fittedBoundsRef.current
+    if (!map || !bounds) return
+    try {
+      fitRoute(map, bounds, mapVariant)
+    } catch {
+      /* container may still be settling */
+    }
+  }
 
   useEffect(() => {
     const t = window.setTimeout(() => {
@@ -262,6 +340,7 @@ function QuoteRouteMapInner({
         }
         mapRef.current = null
       }
+      fittedBoundsRef.current = null
       setMapReadyTick(0)
       return undefined
     }
@@ -270,6 +349,7 @@ function QuoteRouteMapInner({
     if (!shellEl) return undefined
 
     let disposed = false
+    let settleTimer = 0
 
     const resizeMap = () => {
       const map = mapRef.current
@@ -279,6 +359,11 @@ function QuoteRouteMapInner({
       } catch {
         /* ignore */
       }
+    }
+
+    const settleMap = () => {
+      resizeMap()
+      paintFittedRoute()
     }
 
     const initMap = () => {
@@ -292,15 +377,23 @@ function QuoteRouteMapInner({
         center: [SCOTLAND_CENTER.lng, SCOTLAND_CENTER.lat],
         zoom: SCOTLAND_ZOOM,
         attributionControl: true,
+        fadeDuration: 0,
       })
       map.addControl(new mapboxgl.NavigationControl({ visualizePitch: false }), 'top-right')
       mapRef.current = map
 
       map.on('load', () => {
+        if (disposed || mapRef.current !== map) return
         applyCleanQuoteBasemap(map)
         if (passScrollOnMobile) applyMobilePreviewMapGestures(map, mapVariant)
-        resizeMap()
+        settleMap()
         setMapReadyTick((n) => n + 1)
+        window.requestAnimationFrame(() => {
+          if (!disposed) settleMap()
+        })
+        settleTimer = window.setTimeout(() => {
+          if (!disposed) settleMap()
+        }, 250)
       })
 
       map.on('error', (e) => {
@@ -314,7 +407,7 @@ function QuoteRouteMapInner({
       typeof ResizeObserver !== 'undefined'
         ? new ResizeObserver(() => {
             if (mapRef.current) {
-              resizeMap()
+              settleMap()
             } else {
               initMap()
             }
@@ -328,8 +421,7 @@ function QuoteRouteMapInner({
             (entries) => {
               if (!entries.some((entry) => entry.isIntersecting)) return
               if (mapRef.current) {
-                resizeMap()
-                setMapReadyTick((n) => n + 1)
+                settleMap()
               } else {
                 initMap()
               }
@@ -341,6 +433,7 @@ function QuoteRouteMapInner({
 
     return () => {
       disposed = true
+      window.clearTimeout(settleTimer)
       resizeObserver?.disconnect()
       intersectionObserver?.disconnect()
       if (mapRef.current) {
@@ -369,12 +462,12 @@ function QuoteRouteMapInner({
     }
 
     const run = async () => {
-      if (!map.loaded()) {
-        return
-      }
       if (cancelled || requestId !== routeRequestRef.current) return
 
-      const { plng, plat, dlng, dlat } = debounced
+      const plng = finiteCoord(debounced.plng)
+      const plat = finiteCoord(debounced.plat)
+      const dlng = finiteCoord(debounced.dlng)
+      const dlat = finiteCoord(debounced.dlat)
 
       clearMarkers(markersRef)
       clearRoute(map)
@@ -431,28 +524,21 @@ function QuoteRouteMapInner({
           })
         }
 
-        map.addSource('route', {
-          type: 'geojson',
-          data: {
-            type: 'Feature',
-            properties: {},
-            geometry: route.geometry,
-          },
-        })
-        map.addLayer({
-          id: 'route-line',
-          type: 'line',
-          source: 'route',
-          layout: {
-            'line-cap': 'round',
-            'line-join': 'round',
-          },
-          paint: {
-            'line-color': '#0284c7',
-            'line-width': 5,
-            'line-opacity': 0.88,
-          },
-        })
+        const geometry =
+          route?.geometry?.coordinates?.length >= 2
+            ? route.geometry
+            : {
+                type: 'LineString',
+                coordinates: [
+                  [pickup.lng, pickup.lat],
+                  [delivery.lng, delivery.lat],
+                ],
+              }
+        try {
+          drawRouteLine(map, geometry)
+        } catch (err) {
+          console.warn('[QuoteRouteMap] draw', err)
+        }
 
         const mA = new mapboxgl.Marker({ element: mkMarkerEl('A', '#2563eb'), anchor: 'bottom' })
           .setLngLat([pickup.lng, pickup.lat])
@@ -463,39 +549,71 @@ function QuoteRouteMapInner({
         markersRef.current = [mA, mB]
 
         const bounds = new mapboxgl.LngLatBounds()
-        route.geometry.coordinates.forEach((coord) => bounds.extend(coord))
-        map.fitBounds(bounds, {
-          padding: mapVariantBoundsPadding(mapVariant),
-          maxZoom: 12,
-          duration: 0,
-        })
+        geometry.coordinates.forEach((coord) => bounds.extend(coord))
+        bounds.extend([pickup.lng, pickup.lat])
+        bounds.extend([delivery.lng, delivery.lat])
+        fittedBoundsRef.current = bounds
+        const frameRoute = () => {
+          if (cancelled || requestId !== routeRequestRef.current) return
+          try {
+            if (map.getLayer('route-line')) map.moveLayer('route-line')
+            fitRoute(map, bounds, mapVariant)
+          } catch (err) {
+            console.warn('[QuoteRouteMap] fit', err)
+          }
+        }
+        frameRoute()
+        window.requestAnimationFrame(frameRoute)
+        window.setTimeout(frameRoute, 250)
         setOverlayIfCurrent(null)
         return
       }
 
+      fittedBoundsRef.current = null
       onDistanceRef.current?.({ type: 'incomplete' })
       setOverlayIfCurrent(null)
-      flyToNeutralScotland(map)
+      try {
+        flyToNeutralScotland(map)
+      } catch {
+        /* ignore */
+      }
     }
 
-    const onMapLoad = () => {
+    const styleReady = () =>
+      typeof map.isStyleLoaded === 'function' ? map.isStyleLoaded() : map.loaded()
+
+    let started = false
+    let tries = 0
+    let retryTimer = 0
+    const onReady = () => {
+      if (cancelled || started || requestId !== routeRequestRef.current) return
+      if (!styleReady()) {
+        tries += 1
+        if (tries <= 40) {
+          map.once('idle', onReady)
+          window.clearTimeout(retryTimer)
+          retryTimer = window.setTimeout(onReady, 150)
+          return
+        }
+      }
+      started = true
       void run()
     }
 
-    if (!map.loaded()) {
-      map.once('load', onMapLoad)
-    } else {
-      void run()
+    if (styleReady()) onReady()
+    else {
+      map.once('load', onReady)
+      map.once('idle', onReady)
     }
 
     return () => {
       cancelled = true
-      if (!map.loaded()) {
-        try {
-          map.off('load', onMapLoad)
-        } catch {
-          /* ignore */
-        }
+      window.clearTimeout(retryTimer)
+      try {
+        map.off('load', onReady)
+        map.off('idle', onReady)
+      } catch {
+        /* ignore */
       }
     }
   }, [debounced, token, mapReadyTick, mapVariant])

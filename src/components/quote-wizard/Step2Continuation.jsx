@@ -216,7 +216,7 @@ export default function Step2Continuation({ columnsLayout = false, hideExtras = 
                 <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-blue-600" aria-hidden />
                 <div className="min-w-0">
                   <p className="text-slate-500">Pickup</p>
-                  <p className="font-semibold text-slate-900">{placeSummary(wizard, 'pickup')}</p>
+                  <p className="break-words font-semibold text-slate-900">{placeSummary(wizard, 'pickup')}</p>
                   {accessLine(wizard, 'pickup') ? (
                     <p className="text-xs text-slate-500">{accessLine(wizard, 'pickup')}</p>
                   ) : null}
@@ -226,7 +226,7 @@ export default function Step2Continuation({ columnsLayout = false, hideExtras = 
                 <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-red-500" aria-hidden />
                 <div className="min-w-0">
                   <p className="text-slate-500">Delivery</p>
-                  <p className="font-semibold text-slate-900">{placeSummary(wizard, 'delivery')}</p>
+                  <p className="break-words font-semibold text-slate-900">{placeSummary(wizard, 'delivery')}</p>
                   {accessLine(wizard, 'delivery') ? (
                     <p className="text-xs text-slate-500">{accessLine(wizard, 'delivery')}</p>
                   ) : null}

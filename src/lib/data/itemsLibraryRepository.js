@@ -96,6 +96,27 @@ export async function updateLibraryItem(id, patch) {
 }
 
 /**
+ * @param {string[]} ids
+ */
+export async function deleteLibraryItems(ids) {
+  const unique = [...new Set((ids || []).map((id) => String(id || '').trim()).filter(Boolean))]
+  if (unique.length === 0) return
+  if (isSupabaseConfigured && supabase) {
+    const { data: sessionData } = await supabase.auth.getSession()
+    if (!sessionData?.session) throw new Error('Sign in to manage items.')
+    const { error } = await supabase.from(TABLE).delete().in('id', unique)
+    if (error) throw error
+    return
+  }
+  const drop = new Set(unique)
+  const list = await fetchItemsFromLs()
+  localStorage.setItem(
+    LS_ITEMS,
+    JSON.stringify(list.filter((row) => !drop.has(row.id))),
+  )
+}
+
+/**
  * @param {string} id
  */
 export async function deleteLibraryItem(id) {

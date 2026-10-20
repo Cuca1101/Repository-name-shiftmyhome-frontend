@@ -135,7 +135,7 @@ export default function Step2Inventory({
         name: item.name,
         categoryKey,
         categoryLabel,
-        quantity: item.defaultQty ?? 1,
+        quantity: 1,
         m3: item.m3,
         defaultM3: item.m3,
         weightType: item.weightType,

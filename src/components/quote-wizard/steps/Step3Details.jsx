@@ -3,7 +3,6 @@ import { useAuthenticatedCustomerEmail } from '../../../lib/useAuthenticatedCust
 import { applyWizardPatch } from '../../../lib/wizardStateUpdate'
 import MobileStep3Details from '../MobileStep3Details'
 import {
-  isQuoteAddressesConfirmed,
   isQuoteContactComplete,
   ReviewGroup,
 } from '../QuoteReviewAccordion'
@@ -32,7 +31,6 @@ export default function Step3Details({
   const signedInEmail = useAuthenticatedCustomerEmail()
   const accountEmail = isAdminLayout ? '' : signedInEmail
   const contactConfirmed = isQuoteContactComplete(data)
-  const addressesConfirmed = isQuoteAddressesConfirmed(data)
   const input =
     'w-full max-w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-base text-slate-900 shadow-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/25 sm:px-4 sm:py-3'
   const label = 'mb-1.5 block text-sm font-medium text-slate-700'
@@ -209,10 +207,8 @@ export default function Step3Details({
       <ReviewGroup
         accordion={accordionLayout}
         title="Pickup & delivery"
-        confirmed={addressesConfirmed}
-        trackConfirmation
         icon={MapPin}
-        defaultOpen={!addressesConfirmed}
+        defaultOpen
         summary={<AddressRouteSummary data={data} />}
         hint="If the person at drop-off is not the one making this booking, select Different person and enter their name."
       >

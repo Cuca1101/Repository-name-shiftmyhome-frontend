@@ -7,11 +7,70 @@ import InlineInventoryQtyControl from './InlineInventoryQtyControl'
 import QuoteRouteMap from './QuoteRouteMap'
 import { useQuoteWizard } from './QuoteWizardContext'
 
+function addressPartIncluded(address, part) {
+  const line = String(address || '').trim().toLowerCase()
+  const piece = String(part || '').trim().toLowerCase()
+  return Boolean(line && piece && line.includes(piece))
+}
+
+function withoutPostcodeAndRegion(address) {
+  return String(address || '')
+    .replace(/\b(united kingdom|uk|scotland|england|wales|northern ireland)\b/gi, ' ')
+    .replace(/\b[A-Z]{1,2}\d[A-Z\d]?\s*\d[A-Z]{2}\b/gi, ' ')
+    .replace(/[^a-z]+/gi, ' ')
+    .trim()
+}
+
+function postcodeAnywhere(text) {
+  const match = String(text || '').match(/\b([A-Z]{1,2}\d[A-Z\d]?\s*\d[A-Z]{2})\b/i)
+  return match ? match[1].toUpperCase().replace(/\s+/g, ' ') : ''
+}
+
+/** Town after the street, never the postcode itself. */
+function townFromAddress(address, postcode) {
+  const skip = /^(uk|united kingdom|scotland|england|wales|northern ireland|great britain)$/i
+  const parts = String(address || '')
+    .split(',')
+    .map((part) => part.trim())
+    .filter(Boolean)
+  for (let i = parts.length - 1; i >= 0; i -= 1) {
+    const part = parts[i].replace(/\b[A-Z]{1,2}\d[A-Z\d]?\s*\d[A-Z]{2}\b/gi, ' ').replace(/\s+/g, ' ').trim()
+    if (!part || skip.test(part) || (postcode && part.toLowerCase() === postcode.toLowerCase())) continue
+    if (/^[A-Z]{1,2}\d/i.test(part)) continue
+    return part
+  }
+  return ''
+}
+
+/** How much of the line is a street, not only a postcode and city. */
+function streetDetailScore(line) {
+  return withoutPostcodeAndRegion(line).replace(/\s+/g, ' ').trim().length
+}
+
+/** Full street line for steps 2 and 3. A saved postcode is only the fallback. */
 export function placeSummary(data, side) {
-  const postcode = String(data?.[`${side}Postcode`] || '').trim() || extractUkPostcode(data?.[`${side}Address`])
-  const town = String(data?.[`${side}Town`] || '').trim() || cityFromAddress(data?.[`${side}Address`])
-  if (postcode && town) return `${postcode}, ${town}`
-  return postcode || town || String(data?.[`${side}Address`] || '').trim() || 'Add address'
+  const address = String(data?.[`${side}Address`] || '').trim()
+  const house = String(data?.[`${side}HouseNumber`] || '').trim()
+  const street = String(data?.[`${side}Street`] || '').trim()
+  const postcode = String(data?.[`${side}Postcode`] || '').trim() || postcodeAnywhere(address) || extractUkPostcode(address)
+  const town = String(data?.[`${side}Town`] || '').trim() || townFromAddress(address, postcode) || cityFromAddress(address)
+  const flat = String(data?.[`${side}Apartment`] || data?.[`${side}FlatDetails`] || '').trim()
+  const door = [house, street].filter(Boolean).join(' ')
+  const composed = [door, town, postcode].filter(Boolean).join(', ')
+
+  function withFlat(line) {
+    const text = String(line || '').trim()
+    if (!flat || !text) return text
+    if (text.toLowerCase().includes(flat.toLowerCase())) return text
+    return `${flat}, ${text}`
+  }
+
+  const saved = withFlat(address)
+  const built = withFlat(composed)
+  const savedHasDoor = Boolean(door) && addressPartIncluded(saved, street || house)
+  if (door && built && !savedHasDoor) return built
+  if (saved && streetDetailScore(saved) >= streetDetailScore(built)) return saved
+  return built || saved || 'Add address'
 }
 
 export function extrasSummary(data) {
@@ -49,14 +108,14 @@ export function AddressRouteSummary({ data }) {
           <MapPin className="h-3.5 w-3.5" aria-hidden />
         </span>
         <span className="w-16 text-slate-500">Pickup</span>
-        <span className="min-w-0 flex-1 text-right font-semibold text-slate-900">{placeSummary(data, 'pickup')}</span>
+        <span className="min-w-0 flex-1 break-words text-right font-semibold text-slate-900">{placeSummary(data, 'pickup')}</span>
       </p>
       <p className="flex items-center gap-2">
         <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-red-500 text-white">
           <MapPin className="h-3.5 w-3.5" aria-hidden />
         </span>
         <span className="w-16 text-slate-500">Delivery</span>
-        <span className="min-w-0 flex-1 text-right font-semibold text-slate-900">{placeSummary(data, 'delivery')}</span>
+        <span className="min-w-0 flex-1 break-words text-right font-semibold text-slate-900">{placeSummary(data, 'delivery')}</span>
       </p>
       <div className="border-t border-slate-100" />
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
