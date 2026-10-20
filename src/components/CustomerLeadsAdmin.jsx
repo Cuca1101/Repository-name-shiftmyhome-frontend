@@ -1082,13 +1082,13 @@ export default function CustomerLeadsAdmin() {
             id="customer-leads-table"
             className="leads-table-scroll w-full min-w-0 overflow-x-auto"
           >
-            <table className="w-full border-collapse text-left text-sm [&_td]:border [&_td]:border-blue-200/80 [&_th]:border [&_th]:border-blue-300">
+            <table className="w-max border-collapse text-left text-sm [&_td]:border [&_td]:border-blue-200/80 [&_th]:border [&_th]:border-blue-300">
               <colgroup>
                 <col className="w-px" />
                 <col className="w-px" />
                 <col className="w-36" />
                 <col className="w-px" />
-                <col />
+                <col className="w-px" />
                 <col className="w-px" />
                 <col className="w-px" />
                 <col className="w-px" />
@@ -1114,7 +1114,7 @@ export default function CustomerLeadsAdmin() {
                   <th className="w-px whitespace-nowrap px-3 py-2.5">Reference</th>
                   <th className="w-36 whitespace-nowrap px-3 py-2.5">Name</th>
                   <th className="w-px whitespace-nowrap px-3 py-2.5">Phone</th>
-                  <th className="w-full px-3 py-2.5">Email</th>
+                  <th className="w-px whitespace-nowrap px-3 py-2.5">Email</th>
                   <th className="w-px whitespace-nowrap px-3 py-2.5">Service</th>
                   <th className="w-px whitespace-nowrap px-3 py-2.5">Postcode</th>
                   <th className="w-px whitespace-nowrap px-3 py-2.5">Quote price</th>
@@ -1194,10 +1194,10 @@ export default function CustomerLeadsAdmin() {
                       <td className="w-px whitespace-nowrap px-3 py-2">
                         <LeadCallButton phone={phone || ''} />
                       </td>
-                      <td className="w-full max-w-0 truncate px-3 py-2" title={email || undefined}>
+                      <td className="w-px max-w-[14rem] truncate whitespace-nowrap px-3 py-2" title={email || undefined}>
                         {email || '—'}
                       </td>
-                      <td className="w-px whitespace-nowrap px-3 py-2 text-xs text-slate-700">{row.service_type || '—'}</td>
+                      <td className="w-px whitespace-nowrap px-3 py-2">{row.service_type || '—'}</td>
                       <td className="w-px px-3 py-2 align-top">
                         <LeadRoute row={row} />
                       </td>
@@ -1253,10 +1253,10 @@ export default function CustomerLeadsAdmin() {
                           </p>
                         ) : null}
                       </td>
-                      <td className="w-px whitespace-nowrap px-3 py-2 text-xs text-slate-600">
+                      <td className="w-px whitespace-nowrap px-3 py-2 text-slate-600">
                         {formatDateTimeUK(row.last_activity_at)}
                       </td>
-                      <td className="w-px whitespace-nowrap px-3 py-2 text-xs text-slate-500">
+                      <td className="w-px whitespace-nowrap px-3 py-2 text-slate-500">
                         {formatDateTimeUK(row.created_at)}
                       </td>
                       <td className="w-px whitespace-nowrap px-3 py-2 text-right">
