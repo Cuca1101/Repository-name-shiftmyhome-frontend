@@ -5,6 +5,7 @@ import {
   dismissCustomerLeadCallback,
   fetchCustomerLeadById,
   markCustomerLeadRead,
+  purgeCustomerLeadById,
   restoreCustomerLeadById,
   saveCustomerLeadCall,
 } from '../lib/data/customerLeadsRepository'
@@ -184,6 +185,7 @@ export default function CustomerLeadDetailAdmin() {
   const [actionMsg, setActionMsg] = useState('')
   const [busy, setBusy] = useState('')
   const [deleting, setDeleting] = useState(false)
+  const [purging, setPurging] = useState(false)
   const [previewHtml, setPreviewHtml] = useState('')
   const [pricePanelOpen, setPricePanelOpen] = useState(false)
   const [pricingPanelOpen, setPricingPanelOpen] = useState(false)
@@ -733,6 +735,24 @@ export default function CustomerLeadDetailAdmin() {
     }
   }
 
+  async function handlePurge() {
+    if (!lead?.id || !customerLeadIsTrashed(lead)) return
+    const ok = window.confirm(
+      `Delete ${lead.lead_ref || 'this lead'} permanently? It leaves Trash and cannot be restored. A linked booking stays in Available Jobs or Active Jobs.`,
+    )
+    if (!ok) return
+
+    setPurging(true)
+    setError('')
+    try {
+      await purgeCustomerLeadById(String(lead.id))
+      navigate('/admin/customer-leads', { replace: true })
+    } catch (e) {
+      setError(e?.message || 'Failed to delete lead permanently.')
+      setPurging(false)
+    }
+  }
+
   if (loading) {
     return <p className="p-8 text-center text-slate-500">Loading…</p>
   }
@@ -829,6 +849,19 @@ export default function CustomerLeadDetailAdmin() {
                   >
                     {deleting ? 'Restoring…' : 'Restore lead'}
                   </button>
+                ) : null}
+                {trashed ? (
+                  <button
+                    type="button"
+                    disabled={purging}
+                    onClick={() => void handlePurge()}
+                    className="block w-full rounded-lg px-3 py-2 text-left text-sm font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50"
+                  >
+                    {purging ? 'Deleting…' : 'Delete permanently'}
+                    <span className="mt-0.5 block text-xs font-normal text-slate-500">
+                      Removes this lead from Trash. A linked booking stays.
+                    </span>
+                  </button>
                 ) : (
                   <button
                     type="button"
@@ -907,8 +940,16 @@ export default function CustomerLeadDetailAdmin() {
           <p className="font-semibold">In Trash</p>
           <p className="mt-1">
             Deleted {formatDateTimeUK(lead.deleted_at)}. Restore puts this lead back on Customer Leads.
-            The booking is unchanged.
+            Delete permanently removes it from Trash. The booking is unchanged.
           </p>
+          <button
+            type="button"
+            disabled={purging}
+            onClick={() => void handlePurge()}
+            className="mt-3 inline-flex min-h-[40px] items-center rounded-lg bg-red-700 px-4 py-2 text-sm font-semibold text-white hover:bg-red-800 disabled:opacity-50"
+          >
+            {purging ? 'Deleting…' : 'Delete permanently'}
+          </button>
         </div>
       ) : null}
 
@@ -979,6 +1020,7 @@ export default function CustomerLeadDetailAdmin() {
           <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 px-4 py-3">
             <h3 className="text-sm font-bold text-slate-900">Route</h3>
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs font-semibold tabular-nums text-slate-600">
+              <span>{lead.move_date ? formatDateUK(lead.move_date) : 'No move date'}</span>
               {distanceLabel ? <span>{distanceLabel}</span> : null}
               {driveLabel ? <span>{driveLabel} to delivery</span> : null}
             </div>

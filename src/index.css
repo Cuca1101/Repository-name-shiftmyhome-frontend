@@ -1097,30 +1097,26 @@
     width: 0;
     height: 0;
   }
+}
 
 .quote-route-map--pass-scroll .mapboxgl-canvas-container,
 .quote-route-map--pass-scroll .mapboxgl-canvas {
   touch-action: pan-y pinch-zoom;
 }
 
-.quote-route-map--review,
-.quote-route-map--review .mapboxgl-map,
-.quote-route-map--review .mapboxgl-canvas-container,
-.quote-route-map--review .mapboxgl-canvas {
-  width: 100% !important;
-  max-width: 100%;
-}
-
 .quote-route-map--review .mapboxgl-ctrl-attrib {
   font-size: 10px;
 }
 
-  .smh-lead-map-host .mapboxgl-canvas-container,
-  .smh-lead-map-host .mapboxgl-canvas {
-    width: 100% !important;
-    height: 100% !important;
-    max-width: none;
-  }
+.smh-lead-map-host {
+  position: relative;
+}
+
+.smh-lead-map-host .mapboxgl-map {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
 }
 
 @media (min-width: 768px) {

@@ -7,6 +7,7 @@ import {
   deleteCustomerLeadById,
   dismissCustomerLeadCallback,
   fetchCustomerLeadsForAdmin,
+  purgeCustomerLeadById,
   restoreCustomerLeadById,
 } from '../lib/data/customerLeadsRepository'
 import { CUSTOMER_LEAD_STATUS_LABELS, customerLeadBookingRef } from '../lib/customerLeadStatus'
@@ -17,7 +18,7 @@ import {
   customerLeadNeedsFirstCall,
   customerLeadVisibleInList,
 } from '../lib/customerLeadList'
-import { formatDateTimeUK } from '../lib/formatDateDisplay'
+import { formatDateTimeUK, formatDateUK } from '../lib/formatDateDisplay'
 import { formatGbp, resolveChargeableTotal } from '../lib/adminAgreedPrice'
 import {
   convertCustomerLeadToUnpaidJob,
@@ -295,10 +296,12 @@ function LeadActionsMenu({
   revertDisabled,
   deleteDisabled,
   trashed,
+  busyPurge,
   onConvert,
   onRevert,
   onDelete,
   onRestore,
+  onPurge,
 }) {
   const navigate = useNavigate()
   const buttonRef = useRef(null)
@@ -448,15 +451,26 @@ function LeadActionsMenu({
             )}
             <div className="my-1 h-px bg-slate-100" role="separator" />
             {trashed ? (
-              <button
-                type="button"
-                role="menuitem"
-                disabled={deleteDisabled}
-                className={`${itemClass} text-emerald-900 hover:bg-emerald-50`}
-                onClick={() => choose(onRestore)}
-              >
-                {busyDelete ? 'Restoring…' : 'Restore'}
-              </button>
+              <>
+                <button
+                  type="button"
+                  role="menuitem"
+                  disabled={deleteDisabled}
+                  className={`${itemClass} text-emerald-900 hover:bg-emerald-50`}
+                  onClick={() => choose(onRestore)}
+                >
+                  {busyDelete ? 'Restoring…' : 'Restore'}
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  disabled={deleteDisabled || busyPurge}
+                  className={`${itemClass} text-red-800 hover:bg-red-50`}
+                  onClick={() => choose(onPurge)}
+                >
+                  {busyPurge ? 'Deleting…' : 'Delete permanently'}
+                </button>
+              </>
             ) : (
               <button
                 type="button"
@@ -473,7 +487,7 @@ function LeadActionsMenu({
         )
       : null
 
-  const triggerBusy = busyConvert || busyRevert || busyDelete
+  const triggerBusy = busyConvert || busyRevert || busyDelete || busyPurge
 
   return (
     <>
@@ -487,7 +501,17 @@ function LeadActionsMenu({
         onClick={() => onOpenChange(!open)}
         className="inline-flex min-h-10 items-center gap-1 whitespace-nowrap rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-800 shadow-sm hover:bg-slate-50 disabled:opacity-50 sm:min-h-8"
       >
-        {busyConvert ? 'Creating…' : busyRevert ? 'Undoing…' : busyDelete ? (trashed ? 'Restoring…' : 'Deleting…') : 'Actions'}
+        {busyPurge
+          ? 'Deleting…'
+          : busyConvert
+            ? 'Creating…'
+            : busyRevert
+              ? 'Undoing…'
+              : busyDelete
+                ? trashed
+                  ? 'Restoring…'
+                  : 'Deleting…'
+                : 'Actions'}
         <svg
           className={`h-3.5 w-3.5 text-slate-500 transition ${open ? 'rotate-180' : ''}`}
           fill="none"
@@ -525,7 +549,9 @@ export default function CustomerLeadsAdmin() {
   const [error, setError] = useState('')
   const [selectedIds, setSelectedIds] = useState(() => new Set())
   const [bulkDeleting, setBulkDeleting] = useState(false)
+  const [bulkPurging, setBulkPurging] = useState(false)
   const [deletingId, setDeletingId] = useState('')
+  const [purgingId, setPurgingId] = useState('')
   const [convertingId, setConvertingId] = useState('')
   const [revertingId, setRevertingId] = useState('')
   const [actionMsg, setActionMsg] = useState('')
@@ -615,6 +641,32 @@ export default function CustomerLeadsAdmin() {
       setError(e?.message || 'Failed to restore lead.')
     } finally {
       setDeletingId('')
+    }
+  }, [])
+
+  const handlePurgeLead = useCallback(async (row) => {
+    const ref = customerLeadBookingRef(row) || row.lead_ref || 'this lead'
+    const ok = window.confirm(
+      `Delete ${ref} permanently? It leaves Trash and cannot be restored. A linked booking stays in Available Jobs or Active Jobs.`,
+    )
+    if (!ok) return
+
+    setPurgingId(String(row.id))
+    setError('')
+    setActionMsg('')
+    try {
+      await purgeCustomerLeadById(String(row.id))
+      setAllRows((prev) => prev.filter((r) => String(r.id) !== String(row.id)))
+      setSelectedIds((prev) => {
+        const next = new Set(prev)
+        next.delete(String(row.id))
+        return next
+      })
+      setActionMsg(`Deleted ${ref} permanently.`)
+    } catch (e) {
+      setError(e?.message || 'Failed to delete lead permanently.')
+    } finally {
+      setPurgingId('')
     }
   }, [])
 
@@ -819,6 +871,41 @@ export default function CustomerLeadsAdmin() {
     setBulkDeleting(false)
   }, [bulkDeleting, filter, selectedIds, visibleIds])
 
+  const handlePurgeSelected = useCallback(async () => {
+    const ids = visibleIds.filter((id) => selectedIds.has(id))
+    if (!ids.length || bulkPurging || filter !== 'trash') return
+    const ok = window.confirm(
+      `Delete ${ids.length} selected lead${ids.length === 1 ? '' : 's'} permanently? They leave Trash and cannot be restored. Linked bookings stay in the system.`,
+    )
+    if (!ok) return
+
+    setBulkPurging(true)
+    setError('')
+    setActionMsg('')
+    const done = []
+    let failed = 0
+    for (const id of ids) {
+      try {
+        await purgeCustomerLeadById(id)
+        done.push(id)
+      } catch {
+        failed += 1
+      }
+    }
+    const removed = new Set(done)
+    setAllRows((prev) => prev.filter((row) => !removed.has(String(row.id))))
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      done.forEach((id) => next.delete(id))
+      return next
+    })
+    if (failed) setError(`Could not delete ${failed} lead${failed === 1 ? '' : 's'} permanently.`)
+    if (done.length) {
+      setActionMsg(`Deleted ${done.length} lead${done.length === 1 ? '' : 's'} permanently.`)
+    }
+    setBulkPurging(false)
+  }, [bulkPurging, filter, selectedIds, visibleIds])
+
   const selectAllRef = useRef(null)
   useEffect(() => {
     if (!selectAllRef.current) return
@@ -857,7 +944,7 @@ export default function CustomerLeadsAdmin() {
             saved lead to Available Jobs and leaves the payment status as recorded. Undo convert puts
             the lead back if the job is still unassigned. Converted leads stay in this list for 12
             hours, then leave Customer Leads. The booking stays in Available Jobs or Active Jobs.
-            Delete moves a lead to Trash.
+            Delete moves a lead to Trash. In Trash, Delete permanently removes it for good.
           </p>
         </div>
         <button
@@ -948,22 +1035,34 @@ export default function CustomerLeadsAdmin() {
           <p className={`text-sm font-semibold ${filter === 'trash' ? 'text-emerald-950' : 'text-red-900'}`}>
             {selectedVisibleCount} selected
           </p>
-          <button
-            type="button"
-            disabled={bulkDeleting}
-            onClick={() => void handleDeleteSelected()}
-            className={`min-h-[40px] rounded-lg px-4 py-2 text-sm font-semibold text-white disabled:opacity-50 ${
-              filter === 'trash' ? 'bg-emerald-700 hover:bg-emerald-800' : 'bg-red-700 hover:bg-red-800'
-            }`}
-          >
-            {bulkDeleting
-              ? filter === 'trash'
-                ? 'Restoring…'
-                : 'Deleting…'
-              : filter === 'trash'
-                ? 'Restore selected'
-                : 'Delete selected'}
-          </button>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              disabled={bulkDeleting || bulkPurging}
+              onClick={() => void handleDeleteSelected()}
+              className={`min-h-[40px] rounded-lg px-4 py-2 text-sm font-semibold text-white disabled:opacity-50 ${
+                filter === 'trash' ? 'bg-emerald-700 hover:bg-emerald-800' : 'bg-red-700 hover:bg-red-800'
+              }`}
+            >
+              {bulkDeleting
+                ? filter === 'trash'
+                  ? 'Restoring…'
+                  : 'Deleting…'
+                : filter === 'trash'
+                  ? 'Restore selected'
+                  : 'Delete selected'}
+            </button>
+            {filter === 'trash' ? (
+              <button
+                type="button"
+                disabled={bulkDeleting || bulkPurging}
+                onClick={() => void handlePurgeSelected()}
+                className="min-h-[40px] rounded-lg bg-red-700 px-4 py-2 text-sm font-semibold text-white hover:bg-red-800 disabled:opacity-50"
+              >
+                {bulkPurging ? 'Deleting…' : 'Delete permanently'}
+              </button>
+            ) : null}
+          </div>
         </div>
       ) : null}
 
@@ -1070,6 +1169,9 @@ export default function CustomerLeadsAdmin() {
                         >
                           {customerLeadBookingRef(row) || '—'}
                         </Link>
+                        {row.move_date ? (
+                          <p className="mt-1 text-[11px] font-semibold text-slate-600">{formatDateUK(row.move_date)}</p>
+                        ) : null}
                         {countdown || customerLeadCallbackDue(row, listNow) || customerLeadNeedsFirstCall(row, listNow) || row.called_at || row.callback_at || row.pending_offer ? (
                           <div className="mt-1 flex flex-col items-start gap-1">
                             {row.pending_offer ? (
@@ -1149,12 +1251,14 @@ export default function CustomerLeadsAdmin() {
                           busyDelete={deletingId === rowId}
                           convertDisabled={busyConvert || Boolean(convertingId) || Boolean(revertingId)}
                           revertDisabled={busyRevert || Boolean(convertingId) || Boolean(revertingId)}
-                          deleteDisabled={bulkDeleting || deletingId === rowId}
+                          deleteDisabled={bulkDeleting || bulkPurging || deletingId === rowId || purgingId === rowId}
                           trashed={trashed}
+                          busyPurge={purgingId === rowId}
                           onConvert={() => void handleConvertLead(row)}
                           onRevert={() => void handleRevertLead(row)}
                           onDelete={() => handleDeleteLead(row)}
                           onRestore={() => void handleRestoreLead(row)}
+                          onPurge={() => void handlePurgeLead(row)}
                         />
                       </td>
                     </tr>

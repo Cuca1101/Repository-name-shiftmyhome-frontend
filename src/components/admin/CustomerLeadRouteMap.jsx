@@ -141,9 +141,17 @@ function LeadTrafficMap({
     if (!host || !token) return undefined
     let cancelled = false
     const markers = []
+    let map = null
+    let timers = []
+    let observer
+
+    const start = () => {
+      if (cancelled || map) return
+      const box = host.getBoundingClientRect()
+      if (box.width < 2 || box.height < 2) return
 
     mapboxgl.accessToken = token
-    const map = new mapboxgl.Map({
+    map = new mapboxgl.Map({
       container: host,
       style: 'mapbox://styles/mapbox/streets-v12',
       center: [pickupLng, pickupLat],
@@ -212,15 +220,24 @@ function LeadTrafficMap({
     else map.once('load', onLoad)
     map.on('webglcontextrestored', resize)
     resize()
-    const timers = [80, 250, 600].map((ms) => window.setTimeout(resize, ms))
-    let observer
+    timers = [80, 250, 600].map((ms) => window.setTimeout(resize, ms))
     if (typeof ResizeObserver !== 'undefined') {
       observer = new ResizeObserver(() => resize())
       observer.observe(host)
     }
 
+    }
+
+    start()
+    let sizeObserver
+    if (!map && typeof ResizeObserver !== 'undefined') {
+      sizeObserver = new ResizeObserver(() => start())
+      sizeObserver.observe(host)
+    }
+
     return () => {
       cancelled = true
+      sizeObserver?.disconnect()
       timers.forEach((id) => window.clearTimeout(id))
       observer?.disconnect()
       markers.forEach((marker) => {

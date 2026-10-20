@@ -369,6 +369,28 @@ export async function restoreCustomerLeadById(id) {
 }
 
 /**
+ * Remove a trashed lead for good. Active leads are left untouched.
+ * A linked quote or booking is not deleted.
+ * @param {string} id
+ */
+export async function purgeCustomerLeadById(id) {
+  if (!isSupabaseConfigured || !supabase || !id) {
+    throw new Error('Supabase is not configured.')
+  }
+  const { data, error } = await supabase
+    .from(TABLE)
+    .delete()
+    .eq('id', id)
+    .not('deleted_at', 'is', null)
+    .select('id')
+  if (error) {
+    throw new Error(error.message || 'Failed to delete lead permanently.')
+  }
+  if (!data?.length) throw new Error('This lead is not in Trash, so it was not deleted.')
+  return data[0]
+}
+
+/**
  * Link lead to paid booking by quote reference (admin or post-payment page).
  * @param {{ quoteRef: string, quoteId?: string | null }} params
  */
