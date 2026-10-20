@@ -1075,29 +1075,29 @@ export default function CustomerLeadsAdmin() {
       ) : emptyMessage ? (
         <p className="py-8 text-center text-slate-600">{emptyMessage}</p>
       ) : (
-        <div className="leads-screen-fit relative w-full min-w-0 max-w-full">
+        <div className="relative w-full min-w-0">
           <LeadsHorizontalScrollbar scrollRef={bodyRef} placement="top" />
           <div
             ref={bodyRef}
             id="customer-leads-table"
-            className="leads-table-scroll w-full min-w-0 max-w-full overflow-x-auto"
+            className="leads-table-scroll w-full min-w-0 overflow-x-auto"
           >
             <table className="w-full border-collapse text-left text-sm [&_td]:border [&_td]:border-blue-200/80 [&_th]:border [&_th]:border-blue-300">
               <colgroup>
-                <col className="leads-col-check" />
-                <col className="leads-col-ref" />
-                <col className="leads-col-name" />
-                <col className="leads-col-phone" />
-                <col className="leads-col-email" />
-                <col className="leads-col-service" />
-                <col className="leads-col-postcode" />
-                <col className="leads-col-price" />
-                <col className="leads-col-agreed" />
-                <col className="leads-col-offer" />
-                <col className="leads-col-status" />
-                <col className="leads-col-activity" />
-                <col className="leads-col-created" />
-                <col className="leads-col-actions" />
+                <col className="w-px" />
+                <col className="w-px" />
+                <col className="w-36" />
+                <col className="w-px" />
+                <col />
+                <col className="w-px" />
+                <col className="w-px" />
+                <col className="w-px" />
+                <col className="w-px" />
+                <col className="w-px" />
+                <col className="w-px" />
+                <col className="w-px" />
+                <col className="w-px" />
+                <col className="w-px" />
               </colgroup>
               <thead className="bg-blue-50 text-xs font-semibold uppercase tracking-wide text-blue-900">
                 <tr>
@@ -1115,14 +1115,14 @@ export default function CustomerLeadsAdmin() {
                   <th className="w-36 whitespace-nowrap px-3 py-2.5">Name</th>
                   <th className="w-px whitespace-nowrap px-3 py-2.5">Phone</th>
                   <th className="w-full px-3 py-2.5">Email</th>
-                  <th className="w-px whitespace-nowrap px-3 py-2.5 text-[10px]">Service</th>
+                  <th className="w-px whitespace-nowrap px-3 py-2.5">Service</th>
                   <th className="w-px whitespace-nowrap px-3 py-2.5">Postcode</th>
                   <th className="w-px whitespace-nowrap px-3 py-2.5">Quote price</th>
                   <th className="w-px whitespace-nowrap px-3 py-2.5">Agreed</th>
                   <th className="w-px whitespace-nowrap px-3 py-2.5">Customer offer</th>
                   <th className="w-px whitespace-nowrap px-3 py-2.5">Status</th>
-                  <th className="w-px whitespace-nowrap px-3 py-2.5 text-[10px]">Last activity</th>
-                  <th className="w-px whitespace-nowrap px-3 py-2.5 text-[10px]">Created</th>
+                  <th className="w-px whitespace-nowrap px-3 py-2.5">Last activity</th>
+                  <th className="w-px whitespace-nowrap px-3 py-2.5">Created</th>
                   <th className="w-px whitespace-nowrap px-3 py-2.5 text-right">Actions</th>
                 </tr>
               </thead>
@@ -1185,19 +1185,19 @@ export default function CustomerLeadsAdmin() {
                       </td>
                       <td className="w-px px-3 py-2">
                         <p
-                          className="min-w-0 whitespace-normal break-words leading-snug"
+                          className="w-36 whitespace-normal break-words leading-snug"
                           title={row.customer_name || undefined}
                         >
                           {row.customer_name || '—'}
                         </p>
                       </td>
                       <td className="w-px whitespace-nowrap px-3 py-2">
-                        <LeadCallButton phone={phone || ''} compact />
+                        <LeadCallButton phone={phone || ''} />
                       </td>
-                      <td className="min-w-0 max-w-0 truncate px-3 py-2 lg:max-w-none" title={email || undefined}>
+                      <td className="w-full max-w-0 truncate px-3 py-2" title={email || undefined}>
                         {email || '—'}
                       </td>
-                      <td className="w-px px-2 py-2 text-[11px] leading-tight text-slate-700">{row.service_type || '—'}</td>
+                      <td className="w-px whitespace-nowrap px-3 py-2 text-xs text-slate-700">{row.service_type || '—'}</td>
                       <td className="w-px px-3 py-2 align-top">
                         <LeadRoute row={row} />
                       </td>
@@ -1253,10 +1253,10 @@ export default function CustomerLeadsAdmin() {
                           </p>
                         ) : null}
                       </td>
-                      <td className="w-px px-1.5 py-2 text-[10px] leading-tight text-slate-600" title={formatDateTimeUK(row.last_activity_at)}>
+                      <td className="w-px whitespace-nowrap px-3 py-2 text-xs text-slate-600">
                         {formatDateTimeUK(row.last_activity_at)}
                       </td>
-                      <td className="w-px px-1.5 py-2 text-[10px] leading-tight text-slate-500" title={formatDateTimeUK(row.created_at)}>
+                      <td className="w-px whitespace-nowrap px-3 py-2 text-xs text-slate-500">
                         {formatDateTimeUK(row.created_at)}
                       </td>
                       <td className="w-px whitespace-nowrap px-3 py-2 text-right">

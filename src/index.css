@@ -1735,67 +1735,6 @@ body.quote-step3-review a[aria-label='Chat on WhatsApp'] {
   width: 0;
 }
 
-/* Laptop and desktop: the leads table stays inside the page. No sideways scrollbar. */
-@media (min-width: 1024px) {
-  .leads-screen-fit {
-    overflow-x: clip;
-  }
-
-  .leads-screen-fit .leads-h-scroll {
-    display: none;
-  }
-
-  .leads-screen-fit .leads-table-scroll {
-    overflow-x: clip;
-  }
-
-  .leads-screen-fit table {
-    width: 100%;
-    table-layout: fixed;
-    font-size: 12px;
-  }
-
-  .leads-screen-fit :is(th, td) {
-    white-space: normal;
-    overflow-wrap: anywhere;
-    padding: 0.35rem 0.28rem;
-  }
-
-  .leads-screen-fit th {
-    font-size: 10px;
-    letter-spacing: 0;
-    line-height: 1.15;
-  }
-
-  .leads-screen-fit .whitespace-nowrap {
-    white-space: normal;
-  }
-
-  .leads-screen-fit td :is(span, a, button) {
-    max-width: 100%;
-  }
-
-  .leads-screen-fit td:last-child button {
-    min-width: 0;
-    padding-inline: 0.3rem;
-  }
-
-  .leads-screen-fit .leads-col-check { width: 2.4%; }
-  .leads-screen-fit .leads-col-ref { width: 9.5%; }
-  .leads-screen-fit .leads-col-name { width: 8%; }
-  .leads-screen-fit .leads-col-phone { width: 9%; }
-  .leads-screen-fit .leads-col-email { width: 10%; }
-  .leads-screen-fit .leads-col-service { width: 5.5%; }
-  .leads-screen-fit .leads-col-postcode { width: 6.5%; }
-  .leads-screen-fit .leads-col-price { width: 5.8%; }
-  .leads-screen-fit .leads-col-agreed { width: 5.5%; }
-  .leads-screen-fit .leads-col-offer { width: 10.2%; }
-  .leads-screen-fit .leads-col-status { width: 7.2%; }
-  .leads-screen-fit .leads-col-activity { width: 5.8%; }
-  .leads-screen-fit .leads-col-created { width: 5.8%; }
-  .leads-screen-fit .leads-col-actions { width: 8.8%; }
-}
-
 /* Finance & Profit: columns share the panel width. Portrait tablets may scroll inside the table only. */
 .finance-table-scroll {
   min-width: 0;
