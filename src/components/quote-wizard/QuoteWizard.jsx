@@ -310,7 +310,7 @@ function QuoteWizardInner({
           <button
             type="button"
             onClick={next}
-            disabled={quoteStepTransitionLoading || (step === 3 && !reviewDetailsReady(wizard))}
+            disabled={quoteStepTransitionLoading || (isAdmin && step === 3 && !reviewDetailsReady(wizard))}
             className="flex min-h-[52px] min-w-0 flex-1 items-center justify-center rounded-xl bg-blue-600 px-5 text-base font-bold text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60 sm:px-6"
           >
             {quoteStepTransitionLoading && step === 2
@@ -464,7 +464,7 @@ function QuoteWizardInner({
           embedSummary={pageChrome}
           showOffer={!isAdmin}
           continueLabel={isAdmin ? 'Continue to send quote' : 'Continue to payment'}
-          continueDisabled={!reviewDetailsReady(wizard)}
+          continueDisabled={isAdmin && !reviewDetailsReady(wizard)}
           hideContinue={!pageChrome && isMobileLayout}
         />
       )}
@@ -537,7 +537,7 @@ function QuoteWizardInner({
       priceWithoutPromo={priceWithoutPromo}
       onContinueToPayment={next}
       onBack={back}
-      continueDisabled={!reviewDetailsReady(wizard)}
+      continueDisabled={isAdmin && !reviewDetailsReady(wizard)}
       continueLabel={isAdmin ? 'Continue to send quote' : 'Continue to payment'}
       showReference={false}
       showMap={false}
@@ -739,7 +739,7 @@ function QuoteWizardInner({
                   step={step}
                   onBack={back}
                   onNext={next}
-                  nextDisabled={quoteStepTransitionLoading || (step === 3 && !reviewDetailsReady(wizard))}
+                  nextDisabled={quoteStepTransitionLoading || (isAdmin && step === 3 && !reviewDetailsReady(wizard))}
                   nextLoading={quoteStepTransitionLoading && step === 2}
                 />
               </div>

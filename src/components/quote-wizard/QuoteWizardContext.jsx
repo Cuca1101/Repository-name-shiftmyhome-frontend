@@ -801,10 +801,11 @@ export function QuoteWizardProvider({
         const crewOk = Number(w.crewSize) >= 1 && Number(w.crewSize) <= 4
         return w.inventoryLines.length > 0 && crewOk && step3ContactDetailsValid(w)
       }
-      if (step === 3) return reviewDetailsReady(w)
+      // Address confirmation on Review is optional. Customers can pay without it.
+      if (step === 3) return mode === "admin" ? reviewDetailsReady(w) : true
       return true
     },
-    [step, wizard],
+    [step, wizard, mode],
   )
 
   const next = useCallback(async () => {
