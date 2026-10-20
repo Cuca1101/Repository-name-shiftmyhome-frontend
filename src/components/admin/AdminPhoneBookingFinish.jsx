@@ -32,7 +32,6 @@ export default function AdminPhoneBookingFinish({
   onSaved,
   priceMode,
   onPriceModeChange,
-  onNewBooking,
   notice = '',
 }) {
   const { wizard, serviceType, quoteRef, breakdown, goToStep, setFeedback, back } = useQuoteWizard()
@@ -46,7 +45,7 @@ export default function AdminPhoneBookingFinish({
     onPriceModeChange({ ...priceMode, ...next })
   }
 
-  async function saveDraft() {
+  async function saveDraft({ closeAfter = false } = {}) {
     if (submitting) return null
     setError('')
     const errors = collectAdminPhoneBookingFieldErrors(wizard)
@@ -85,7 +84,7 @@ export default function AdminPhoneBookingFinish({
       const saved = updated
         ? await updateAdminPhoneBookingFromWizard({ ...payload, quoteId: savedQuoteId })
         : await insertAdminPhoneBookingFromWizard(payload)
-      onSaved(saved, { updated })
+      onSaved(saved, { updated, closeAfter })
       setActionsRefreshKey((key) => key + 1)
       return saved
     } catch (err) {
@@ -188,6 +187,24 @@ export default function AdminPhoneBookingFinish({
         </p>
       ) : null}
 
+      <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <h3 className="text-sm font-bold text-slate-900">Save</h3>
+        <p className="mt-1 text-xs text-slate-600">
+          Save puts this quote in My saved quotes and closes the form. Open it again from the list when you want.
+          Nothing is emailed until you send a payment link.
+        </p>
+        <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+          <button
+            type="button"
+            disabled={submitting}
+            onClick={() => void saveDraft({ closeAfter: true })}
+            className="inline-flex min-h-[48px] items-center justify-center rounded-xl bg-slate-900 px-5 py-2.5 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-50"
+          >
+            {submitting ? 'Saving…' : 'Save'}
+          </button>
+        </div>
+      </section>
+
       <AdminPhoneQuoteActions
         savedQuoteId={savedQuoteId}
         saving={submitting}
@@ -200,13 +217,6 @@ export default function AdminPhoneBookingFinish({
         refreshKey={actionsRefreshKey}
       />
 
-      <button
-        type="button"
-        onClick={onNewBooking}
-        className="text-sm font-semibold text-slate-500 underline-offset-2 hover:text-slate-800 hover:underline"
-      >
-        New booking
-      </button>
     </div>
   )
 }

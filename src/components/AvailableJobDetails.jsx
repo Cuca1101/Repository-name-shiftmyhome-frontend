@@ -810,7 +810,7 @@ export default function AvailableJobDetails() {
               <DlItem label="Quote total" value={customerPayment?.total != null ? money(customerPayment.total) : '—'} />
               <DlItem
                 label="Payment type"
-                value={q.payment_type === 'deposit' ? 'Deposit' : q.payment_type === 'full' ? 'Full' : q.payment_type ?? '—'}
+                value={q.payment_type === 'deposit' ? 'Deposit' : q.payment_type === 'full' ? 'Full' : q.payment_type === 'cash' ? 'Cash' : q.payment_type ?? '—'}
               />
               <DlItem label="Amount paid" value={customerPayment ? money(customerPayment.paid) : money(q.amount_paid)} />
               <DlItem label="Paid date" value={formatDateTimeUK(q.paid_at)} />

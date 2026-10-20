@@ -5,10 +5,13 @@ import {
   deletePendingAdminPhoneBooking,
   fetchPendingAdminPhoneBookings,
   fetchSentAdminPhoneBookings,
+  holdAdminPhoneBookingFromAvailableJobs,
   releaseAdminPhoneBookingToAvailableJobs,
 } from '../../lib/data/quotesAdminRepository'
 import { formatDateTimeUK, formatDateUK } from '../../lib/formatDateDisplay'
-import { phoneQuoteFinalTotal } from '../../lib/phoneQuotePaymentRules'
+import { previewPhoneQuoteEmail, sendPhoneQuoteEmail } from '../../lib/phoneQuoteApi'
+import { PHONE_QUOTE_DEPOSIT_GBP, phoneQuoteFinalTotal, phoneQuotePaymentOptions } from '../../lib/phoneQuotePaymentRules'
+import { copyTextToClipboard } from '../../lib/quoteRecoveryAdminApi'
 import PhoneQuoteStatusBadge from './PhoneQuoteStatusBadge'
 
 const TABS = [
@@ -29,19 +32,32 @@ function money(n) {
  *   mode: 'waiting' | 'sent',
  *   busy: boolean,
  *   onRelease?: (id: string, ref: string) => void,
+ *   onHold?: (id: string, ref: string) => void,
  *   onDelete?: (id: string, ref: string) => void,
+ *   onCopyLink?: (id: string, ref: string, paymentType: 'full' | 'deposit') => void,
+ *   onSendLink?: (id: string, ref: string, paymentType: 'full' | 'deposit') => void,
  * }} props
  */
-function PhoneBookingJobRow({ q, mode, busy, onRelease, onDelete }) {
+function PhoneBookingJobRow({ q, mode, busy, onRelease, onHold, onDelete, onCopyLink, onSendLink }) {
   const id = String(q.id)
   const ref = String(q.quote_ref || '—')
   const total = phoneQuoteFinalTotal(q)
   const balance =
     q.remaining_balance != null && q.remaining_balance !== '' ? q.remaining_balance : total
+  const paymentOptions = phoneQuotePaymentOptions({
+    moveDate: q.move_date,
+    arrivalTime: q.arrival_time || q.arrival_window,
+    total,
+    amountPaid: q.amount_paid,
+    paymentStatus: q.payment_status,
+  })
+  const paid = paymentOptions.alreadyPaid
+  const btn =
+    'inline-flex min-h-[44px] items-center rounded-xl px-4 py-2 text-sm font-semibold disabled:opacity-50'
 
   return (
-    <li className="flex flex-col gap-3 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
-      <div className="min-w-0 flex-1">
+    <li className="flex flex-col gap-3 px-4 py-4">
+      <div className="min-w-0">
         <div className="flex flex-wrap items-center gap-2">
           <p className="font-mono text-sm font-bold text-slate-900">{ref}</p>
           <PhoneQuoteStatusBadge q={q} />
@@ -70,45 +86,77 @@ function PhoneBookingJobRow({ q, mode, busy, onRelease, onDelete }) {
           <p className="mt-1 text-xs font-medium text-amber-800">Not in Available Jobs yet</p>
         )}
       </div>
-      <div className="flex flex-wrap gap-2 sm:shrink-0">
+      <div className="flex flex-wrap gap-2 border-t border-slate-100 pt-3">
         <Link
           to={`/admin/new-phone-booking?edit=${encodeURIComponent(id)}`}
-          className="inline-flex min-h-[44px] items-center rounded-xl border border-brand-200 bg-brand-50 px-4 py-2 text-sm font-semibold text-brand-800 hover:bg-brand-100"
+          className={`${btn} border border-brand-200 bg-brand-50 text-brand-800 hover:bg-brand-100`}
         >
-          Edit quote
+          Open quote
         </Link>
-        <Link
-          to={`/admin/available-jobs/${id}`}
-          className="inline-flex min-h-[44px] items-center rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-800 hover:bg-slate-50"
+        <button
+          type="button"
+          disabled={busy || paid || total == null}
+          onClick={() => onCopyLink?.(id, ref, 'full')}
+          className={`${btn} border border-slate-200 bg-white text-slate-800 hover:bg-slate-50`}
         >
-          View
-        </Link>
+          {busy ? 'Working…' : 'Copy payment link'}
+        </button>
+        <button
+          type="button"
+          disabled={busy || paid || total == null}
+          onClick={() => onSendLink?.(id, ref, 'full')}
+          className={`${btn} bg-brand-600 text-white hover:bg-brand-700`}
+        >
+          Send payment link
+        </button>
+        {paymentOptions.depositAllowed ? (
+          <>
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => onCopyLink?.(id, ref, 'deposit')}
+              className={`${btn} border border-slate-200 bg-white text-slate-800 hover:bg-slate-50`}
+            >
+              Copy £{PHONE_QUOTE_DEPOSIT_GBP} link
+            </button>
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => onSendLink?.(id, ref, 'deposit')}
+              className={`${btn} bg-slate-900 text-white hover:bg-slate-800`}
+            >
+              Send £{PHONE_QUOTE_DEPOSIT_GBP} link
+            </button>
+          </>
+        ) : null}
         {mode === 'waiting' ? (
           <>
             <button
               type="button"
               disabled={busy}
               onClick={() => onRelease?.(id, ref)}
-              className="inline-flex min-h-[44px] items-center rounded-xl bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-50"
+              className={`${btn} border border-emerald-200 bg-emerald-50 text-emerald-900 hover:bg-emerald-100`}
             >
-              {busy ? 'Working…' : 'Send to Available Jobs'}
+              Send to Available Jobs
             </button>
             <button
               type="button"
               disabled={busy}
               onClick={() => onDelete?.(id, ref)}
-              className="inline-flex min-h-[44px] items-center rounded-xl border border-red-200 bg-white px-4 py-2 text-sm font-semibold text-red-800 hover:bg-red-50 disabled:opacity-50"
+              className={`${btn} border border-red-200 bg-white text-red-800 hover:bg-red-50`}
             >
               Delete
             </button>
           </>
         ) : (
-          <Link
-            to="/admin/available-jobs"
-            className="inline-flex min-h-[44px] items-center rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-800 hover:bg-slate-50"
+          <button
+            type="button"
+            disabled={busy || paid}
+            onClick={() => onHold?.(id, ref)}
+            className={`${btn} border border-amber-300 bg-amber-50 text-amber-950 hover:bg-amber-100`}
           >
-            Open Available Jobs
-          </Link>
+            Take out of Available Jobs
+          </button>
         )}
       </div>
     </li>
@@ -116,9 +164,9 @@ function PhoneBookingJobRow({ q, mode, busy, onRelease, onDelete }) {
 }
 
 /**
- * @param {{ refreshKey?: number, onReleased?: (id: string) => void }} props
+ * @param {{ refreshKey?: number, onReleased?: (id: string) => void, onCreateNew?: () => void }} props
  */
-export default function AdminPhoneBookingPendingList({ refreshKey = 0, onReleased }) {
+export default function AdminPhoneBookingPendingList({ refreshKey = 0, onReleased, onCreateNew }) {
   const [tab, setTab] = useState('waiting')
   const [searchInput, setSearchInput] = useState('')
   const [activeSearch, setActiveSearch] = useState('')
@@ -205,6 +253,65 @@ export default function AdminPhoneBookingPendingList({ refreshKey = 0, onRelease
     }
   }
 
+  async function handleHold(id, quoteRef) {
+    if (
+      !window.confirm(
+        `Take ${quoteRef || 'this booking'} out of Available Jobs? It comes back here so you can edit it or send a payment link. Drivers will no longer see it.`,
+      )
+    ) {
+      return
+    }
+    setBusyId(id)
+    setMessage('')
+    setError('')
+    try {
+      await holdAdminPhoneBookingFromAvailableJobs(id)
+      setMessage(`${quoteRef || 'Booking'} is back on New phone booking.`)
+      onReleased?.(id)
+      await load()
+      setTab('waiting')
+    } catch (e) {
+      setError(e?.message || 'Could not take this job out of Available Jobs.')
+    } finally {
+      setBusyId('')
+    }
+  }
+
+  async function handleCopyLink(id, quoteRef, paymentType) {
+    setBusyId(id)
+    setMessage('')
+    setError('')
+    try {
+      const res = await previewPhoneQuoteEmail(id, paymentType)
+      const link = String(res?.pay_url || '').trim()
+      if (!link) throw new Error('No payment link was returned.')
+      await copyTextToClipboard(link)
+      const label = paymentType === 'deposit' ? `£${PHONE_QUOTE_DEPOSIT_GBP} deposit link` : 'payment link'
+      setMessage(`${label} for ${quoteRef || 'this quote'} copied. Paste it to the customer.`)
+    } catch (e) {
+      setError(e?.message || 'Could not copy the payment link.')
+    } finally {
+      setBusyId('')
+    }
+  }
+
+  async function handleSendLink(id, quoteRef, paymentType) {
+    const label = paymentType === 'deposit' ? `£${PHONE_QUOTE_DEPOSIT_GBP} deposit link` : 'full payment link'
+    if (!window.confirm(`Email the ${label} for ${quoteRef || 'this quote'} to the customer?`)) return
+    setBusyId(id)
+    setMessage('')
+    setError('')
+    try {
+      const res = await sendPhoneQuoteEmail(id, paymentType)
+      setMessage(`${label} sent to ${res.to || 'the customer'}.`)
+      await load()
+    } catch (e) {
+      setError(e?.message || 'Could not send the payment link.')
+    } finally {
+      setBusyId('')
+    }
+  }
+
   const rows = tab === 'sent' ? sentRows : waitingRows
 
   return (
@@ -213,12 +320,22 @@ export default function AdminPhoneBookingPendingList({ refreshKey = 0, onRelease
       className="rounded-2xl border border-slate-200 bg-white shadow-sm ring-1 ring-brand-100/50"
     >
       <div className="border-b border-slate-100 px-4 py-4 sm:px-6">
-        <h3 className="text-lg font-bold text-slate-900">My jobs created</h3>
-        <p className="mt-1 text-sm text-slate-600">
-          Drafts and quotes waiting for payment stay here. A paid quote moves to{' '}
-          <strong className="font-semibold text-slate-800">Available Jobs</strong> automatically; you can also send
-          one there manually.
-        </p>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h3 className="text-lg font-bold text-slate-900">My saved quotes</h3>
+            <p className="mt-1 text-sm text-slate-600">
+              A saved quote stays here. Open it only when you want. The buttons under each quote copy or send the
+              payment link, or add and remove it from Available Jobs.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => onCreateNew?.()}
+            className="inline-flex min-h-[44px] items-center rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800"
+          >
+            Create a new quote
+          </button>
+        </div>
         <div className="mt-4 flex flex-wrap gap-2">
           {TABS.map((t) => {
             const count = t.id === 'sent' ? sentRows.length : waitingRows.length
@@ -274,7 +391,7 @@ export default function AdminPhoneBookingPendingList({ refreshKey = 0, onRelease
               {activeSearch
                 ? 'No matching jobs in this tab.'
                 : tab === 'waiting'
-                  ? 'No jobs waiting — create one with the form below.'
+                  ? 'No saved quotes yet. Press Create a new quote.'
                   : 'Nothing in Available Jobs yet — paid quotes move here automatically.'}
             </p>
             {tab === 'waiting' ? (
@@ -300,7 +417,10 @@ export default function AdminPhoneBookingPendingList({ refreshKey = 0, onRelease
                 mode={tab === 'sent' ? 'sent' : 'waiting'}
                 busy={busyId === String(q.id)}
                 onRelease={(id, ref) => void handleRelease(id, ref)}
+                onHold={(id, ref) => void handleHold(id, ref)}
                 onDelete={(id, ref) => void handleDelete(id, ref)}
+                onCopyLink={(id, ref, paymentType) => void handleCopyLink(id, ref, paymentType)}
+                onSendLink={(id, ref, paymentType) => void handleSendLink(id, ref, paymentType)}
               />
             ))}
           </ul>

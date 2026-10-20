@@ -180,8 +180,9 @@ function QuoteWizardInner({
     }
   }, [editQuoteId, savedQuoteId, setFeedback, setQuoteRef, setServiceType, setStep, setWizard])
 
-  function startNewAdminBooking() {
+  function startNewAdminBooking({ skipConfirm = false } = {}) {
     if (
+      !skipConfirm &&
       !window.confirm(
         savedQuoteId
           ? 'Start a new empty phone booking? This quote stays saved.'
@@ -470,7 +471,7 @@ function QuoteWizardInner({
       {step === 4 && isAdmin && (
         <AdminPhoneBookingFinish
           savedQuoteId={savedQuoteId}
-          onSaved={(saved, { updated }) => {
+          onSaved={(saved, { updated, closeAfter = false }) => {
             setSavedQuoteId(saved.id)
             setQuoteRef(saved.quote_ref)
             clearAdminPhoneBookingDraft()
@@ -480,8 +481,9 @@ function QuoteWizardInner({
                 ? `Quote ${saved.quote_ref} updated. No email was sent.`
                 : `Quote ${saved.quote_ref} saved as a draft. No email was sent.`,
             )
-            if (updated) adminPhoneBooking?.onBookingUpdated?.(saved)
-            else adminPhoneBooking?.onBookingCreated?.(saved)
+            const meta = { closeAfter }
+            if (updated) adminPhoneBooking?.onBookingUpdated?.(saved, meta)
+            else adminPhoneBooking?.onBookingCreated?.(saved, meta)
           }}
           priceMode={priceMode}
           onPriceModeChange={setPriceMode}

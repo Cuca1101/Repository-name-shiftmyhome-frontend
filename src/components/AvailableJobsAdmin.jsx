@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { fetchQuotesForAdmin, AVAILABLE_JOB_LIST_COLUMNS } from '../lib/data/quotesAdminRepository'
 import { supabase } from '../lib/supabase'
-import { quoteIsAdminPhoneBookingReleased, quoteIsCardPaid, quotePassesAvailableJobsStrict } from '../lib/adminJobListRules'
+import { quotePassesAvailableJobsStrict } from '../lib/adminJobListRules'
 import {
   availableJobIdSet,
   findNewAvailableJobIds,
@@ -35,9 +35,9 @@ const HIGHLIGHT_MS = 4_000
 const NOTIFY_DEBOUNCE_MS = 450
 
 const FILTERS = [
-  { key: 'all_paid', label: 'All open' },
+  { key: 'all_paid', label: 'Paid and sent' },
   { key: 'paid_online', label: 'Paid online' },
-  { key: 'offline', label: 'Offline / phone' },
+  { key: 'offline', label: 'Sent from New phone booking' },
   { key: 'deposit_paid', label: 'Deposit paid' },
   { key: 'paid', label: 'Fully paid' },
 ]
@@ -126,7 +126,6 @@ export default function AvailableJobsAdmin() {
   const [testEmailToast, setTestEmailToast] = useState(null)
   const [soundEnabled, setSoundEnabled] = useState(() => readAvailableJobsSoundEnabled())
   const [soundUnlocked, setSoundUnlocked] = useState(() => readAvailableJobsSoundUnlocked())
-
   const knownIdsRef = useRef(new Set())
   const notifyReadyRef = useRef(false)
   const refreshInFlightRef = useRef(false)
@@ -328,16 +327,6 @@ export default function AvailableJobsAdmin() {
     return copy
   }, [rows, sortKey])
 
-  const onlinePaidRows = useMemo(
-    () => sortedRows.filter((q) => quoteIsCardPaid(q)),
-    [sortedRows],
-  )
-  const offlinePhoneRows = useMemo(
-    () => sortedRows.filter((q) => quoteIsAdminPhoneBookingReleased(q) && !quoteIsCardPaid(q)),
-    [sortedRows],
-  )
-  const splitAllOpen = filterKey === 'all_paid'
-
   const runSearchNow = useCallback(() => {
     setActiveSearch(searchInput.trim())
   }, [searchInput])
@@ -346,13 +335,11 @@ export default function AvailableJobsAdmin() {
     if (loading) return ''
     if (sortedRows.length > 0) return ''
     if (activeSearch) return 'No jobs found.'
-    if (filterKey === 'offline') {
-      return 'No offline / phone bookings in Available Jobs yet.'
-    }
-    if (filterKey === 'paid_online') {
-      return 'No online-paid jobs in Available Jobs yet.'
-    }
-    return 'No Available Jobs yet.'
+    if (filterKey === 'offline') return 'No jobs sent from New phone booking yet.'
+    if (filterKey === 'deposit_paid') return 'No deposit-paid jobs in Available Jobs yet.'
+    if (filterKey === 'paid') return 'No fully paid jobs in Available Jobs yet.'
+    if (filterKey === 'paid_online') return 'No online-paid jobs in Available Jobs yet.'
+    return 'No paid jobs or jobs sent from New phone booking yet.'
   }, [loading, sortedRows.length, activeSearch, filterKey])
 
   async function enableSoundAlerts() {
@@ -493,8 +480,8 @@ export default function AvailableJobsAdmin() {
         <div>
           <h2 className="text-2xl font-bold text-slate-900">Available Jobs</h2>
           <p className="mt-1 max-w-2xl text-sm text-slate-600">
-            Only card-paid bookings waiting for assignment appear here. Open a job for marketplace controls,
-            assignment, and payment history.
+            Paid jobs appear here on their own. A quote enters only when you send it from New phone booking,
+            and you take it out from there too.
             <span className="mt-1 block text-xs text-slate-500">
               Updates when a booking changes. Manual refresh stays available.
               {isRefreshing ? ' · Updating…' : null}
@@ -612,10 +599,8 @@ export default function AvailableJobsAdmin() {
             ))}
           </div>
           <p className="text-xs text-slate-500">
-            <span className="font-semibold text-slate-700">Paid online</span> = Stripe card/deposit.
-            {' '}
-            <span className="font-semibold text-slate-700">Offline / phone</span> = paid separately
-            (cash, bank, admin booking) — not hidden by online payment filters.
+            Paid and sent shows online payments and quotes you sent from New phone booking. Take a sent job
+            back out on New phone booking.
           </p>
         </div>
 
@@ -675,46 +660,6 @@ export default function AvailableJobsAdmin() {
         <p className="rounded-xl border border-slate-200 bg-white p-6 text-center text-slate-600 shadow-sm">
           {emptyMessage}
         </p>
-      ) : splitAllOpen ? (
-        <div className="space-y-8">
-          <section className="space-y-3">
-            <div className="flex flex-wrap items-baseline justify-between gap-2">
-              <h3 className="text-sm font-bold text-slate-900">Paid online</h3>
-              <p className="text-xs text-slate-500">Stripe card / deposit · {onlinePaidRows.length}</p>
-            </div>
-            {onlinePaidRows.length ? (
-              <AdminJobListSections
-                jobs={onlinePaidRows}
-                viewMode={viewMode}
-                renderJob={renderAvailableJob}
-              />
-            ) : (
-              <p className="rounded-xl border border-dashed border-slate-200 bg-white px-4 py-5 text-sm text-slate-500">
-                No online-paid jobs right now.
-              </p>
-            )}
-          </section>
-          <section className="space-y-3">
-            <div className="flex flex-wrap items-baseline justify-between gap-2">
-              <h3 className="text-sm font-bold text-slate-900">Offline / phone</h3>
-              <p className="text-xs text-slate-500">
-                Paid separately (not online) · {offlinePhoneRows.length}
-              </p>
-            </div>
-            {offlinePhoneRows.length ? (
-              <AdminJobListSections
-                jobs={offlinePhoneRows}
-                viewMode={viewMode}
-                renderJob={renderAvailableJob}
-              />
-            ) : (
-              <p className="rounded-xl border border-dashed border-amber-200 bg-amber-50/50 px-4 py-5 text-sm text-amber-950">
-                No offline / unpaid phone bookings here. A customer-lead conversion keeps the
-                recorded payment status, so an unpaid booking appears in this list.
-              </p>
-            )}
-          </section>
-        </div>
       ) : (
         <AdminJobListSections
           jobs={sortedRows}

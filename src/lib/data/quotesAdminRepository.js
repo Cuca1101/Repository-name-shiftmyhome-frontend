@@ -1,8 +1,11 @@
 import { sanitizeAdminIlikeTerm } from '../adminSearch'
 import { isSupabaseConfigured, supabase } from '../supabase'
 import {
+  quoteHasAssignedDriver,
+  quoteHasAssignedPartner,
   quoteIsAdminPhoneBooking,
   quoteIsAdminPhoneBookingPending,
+  quoteIsCardPaid,
   quotePassesAvailableJobsStrict,
   quoteShowsOnNewPhoneBookingInbox,
 } from '../adminJobListRules'
@@ -575,6 +578,88 @@ export async function releaseAdminPhoneBookingToAvailableJobs(id) {
   }
 
   notifyAdminDataRefresh({ source: 'phone_booking_release' })
+}
+
+/**
+ * Pull an unpaid, unassigned phone booking back from Available Jobs onto New phone booking.
+ *
+ * @param {string} id quote UUID
+ */
+export async function holdAdminPhoneBookingFromAvailableJobs(id) {
+  if (!isSupabaseConfigured || !supabase) {
+    throw new Error('Supabase is not configured.')
+  }
+  const quoteId = String(id || '').trim()
+  if (!quoteId) throw new Error('Missing quote id.')
+
+  const row = await fetchQuoteByIdForAdmin(quoteId)
+  if (!row) throw new Error('Booking not found.')
+  if (!quoteIsAdminPhoneBooking(row)) throw new Error('This is not a phone booking.')
+  if (quoteIsAdminPhoneBookingPending(row)) {
+    throw new Error('This booking is already on New phone booking.')
+  }
+  if (quoteHasAssignedDriver(row) || quoteHasAssignedPartner(row)) {
+    throw new Error('Unassign the driver or partner before taking this job out of Available Jobs.')
+  }
+  if (quoteIsCardPaid(row)) {
+    throw new Error('This job is already paid, so it stays in Available Jobs. You can still edit the quote.')
+  }
+
+  await updateQuoteWorkflowAssignment(quoteId, {
+    operational_status: PHONE_BOOKING_PENDING_OPERATIONAL_STATUS,
+    marketplace_visibility: 'hidden_from_partners',
+    ...(String(row.payment_type || '').toLowerCase() === 'cash' ? { payment_type: null } : {}),
+  })
+
+  const updated = await fetchQuoteByIdForAdmin(quoteId)
+  if (!updated || !quoteIsAdminPhoneBookingPending(updated)) {
+    throw new Error('Could not take this job out of Available Jobs. Try again.')
+  }
+
+  notifyAdminDataRefresh({ source: 'phone_booking_hold' })
+}
+
+/**
+ * Turn a saved phone quote into an Available Job the customer will pay in cash, not online.
+ * Already-released unpaid phone jobs are only marked as cash.
+ *
+ * @param {string} id quote UUID
+ */
+export async function convertAdminPhoneBookingToCashJob(id) {
+  if (!isSupabaseConfigured || !supabase) {
+    throw new Error('Supabase is not configured.')
+  }
+  const quoteId = String(id || '').trim()
+  if (!quoteId) throw new Error('Missing quote id.')
+
+  const row = await fetchQuoteByIdForAdmin(quoteId)
+  if (!row) throw new Error('Booking not found.')
+  if (!quoteIsAdminPhoneBooking(row)) throw new Error('This is not a phone booking.')
+  if (quoteIsCardPaid(row)) {
+    throw new Error('This job is already paid online. It stays with the paid jobs.')
+  }
+  if (quoteHasAssignedDriver(row) || quoteHasAssignedPartner(row)) {
+    throw new Error('Unassign the driver or partner before converting this job.')
+  }
+
+  const pending = quoteIsAdminPhoneBookingPending(row)
+  await updateQuoteWorkflowAssignment(quoteId, {
+    payment_type: 'cash',
+    payment_status: 'unpaid',
+    ...(pending
+      ? { operational_status: null, marketplace_visibility: 'hidden_from_partners' }
+      : {}),
+  })
+
+  const updated = await fetchQuoteByIdForAdmin(quoteId)
+  if (!updated || quoteIsAdminPhoneBookingPending(updated) || !quotePassesAvailableJobsStrict(updated)) {
+    throw new Error('Could not convert this quote into an Available Job. Try again.')
+  }
+  if (String(updated.payment_type || '').toLowerCase() !== 'cash') {
+    throw new Error('The job was released, but it was not marked as cash.')
+  }
+
+  notifyAdminDataRefresh({ source: 'phone_booking_cash' })
 }
 
 /**
