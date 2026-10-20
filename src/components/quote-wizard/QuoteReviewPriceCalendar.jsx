@@ -245,7 +245,7 @@ export default function QuoteReviewPriceCalendar({
         aria-labelledby="quote-review-price-calendar-heading"
       >
         <div className="mb-3">
-          <h3 id="quote-review-price-calendar-heading" className="text-base font-bold text-slate-900 lg:text-2xl xl:text-3xl">
+          <h3 id="quote-review-price-calendar-heading" className="text-base font-bold text-slate-900">
             Choose your moving date
           </h3>
         </div>
@@ -255,12 +255,12 @@ export default function QuoteReviewPriceCalendar({
             type="button"
             disabled={!canGoBack}
             onClick={() => prevStart && setWindowStart(prevStart)}
-            className="inline-flex h-8 w-8 items-center justify-center rounded-full text-slate-500 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40 lg:h-11 lg:w-11"
+            className="inline-flex h-8 w-8 items-center justify-center rounded-full text-slate-500 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40"
             aria-label="Previous four weeks"
           >
-            <ChevronLeft className="h-4 w-4 lg:h-6 lg:w-6" aria-hidden />
+            <ChevronLeft className="h-4 w-4" aria-hidden />
           </button>
-          <p className="min-w-0 flex-1 text-center text-sm font-bold leading-tight text-slate-900 min-[420px]:text-base lg:text-xl xl:text-2xl">{formatWeekWindowLabel(windowStart, weekEnd)}</p>
+          <p className="min-w-0 flex-1 text-center text-sm font-bold leading-tight text-slate-900 min-[420px]:text-base">{formatWeekWindowLabel(windowStart, weekEnd)}</p>
           <button
             type="button"
             disabled={!canGoForward}
@@ -268,10 +268,10 @@ export default function QuoteReviewPriceCalendar({
               const next = addDaysToIsoDate(windowStart, 28)
               if (next) setWindowStart(next)
             }}
-            className="inline-flex h-8 w-8 items-center justify-center rounded-full text-slate-500 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40 lg:h-11 lg:w-11"
+            className="inline-flex h-8 w-8 items-center justify-center rounded-full text-slate-500 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40"
             aria-label="Next four weeks"
           >
-            <ChevronRight className="h-4 w-4 lg:h-6 lg:w-6" aria-hidden />
+            <ChevronRight className="h-4 w-4" aria-hidden />
           </button>
         </div>
 
@@ -281,12 +281,12 @@ export default function QuoteReviewPriceCalendar({
           </p>
         ) : (
           <div className="quote-review-week-grid min-w-0" style={{ touchAction: 'pan-x pan-y pinch-zoom' }}>
-            <div className="mb-1 grid grid-cols-7 gap-0.5 text-center text-[9px] font-semibold leading-none text-slate-500 min-[420px]:gap-1 min-[420px]:text-[10px] lg:mb-2 lg:gap-3 lg:text-base xl:text-lg" aria-hidden>
+            <div className="mx-auto mb-1 grid w-full max-w-xl grid-cols-7 gap-0.5 text-center text-[9px] font-semibold leading-none text-slate-500 min-[420px]:gap-1 min-[420px]:text-[10px]" aria-hidden>
               {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((day) => (
                 <span key={day}>{day}</span>
               ))}
             </div>
-            <div className="grid grid-cols-7 gap-0.5 min-[420px]:gap-1 lg:gap-3 xl:gap-4" role="listbox" aria-label="Move date prices">
+            <div className="mx-auto grid w-full max-w-xl grid-cols-7 gap-0.5 min-[420px]:gap-1" role="listbox" aria-label="Move date prices">
             {weekDates.map((iso) => {
               const option = optionByDate.get(iso)
               const parts = formatReviewCalendarParts(iso)
@@ -311,7 +311,7 @@ export default function QuoteReviewPriceCalendar({
                   aria-disabled={disabled}
                   disabled={disabled}
                   onClick={() => option && handleSelect(option)}
-                  className={`relative flex min-h-[4.5rem] min-w-0 flex-col items-center justify-center overflow-hidden rounded-lg border px-0 py-1 text-center transition min-[420px]:rounded-xl min-[420px]:px-0.5 lg:min-h-[8rem] lg:rounded-2xl lg:py-3 xl:min-h-[9.5rem] ${
+                  className={`relative flex min-h-[4.5rem] min-w-0 flex-col items-center justify-center overflow-hidden rounded-lg border px-0 py-1 text-center transition min-[420px]:rounded-xl min-[420px]:px-0.5 ${
                     selected
                       ? 'border-blue-700 bg-blue-600 text-white shadow-sm'
                       : isWeekend && option && !past
@@ -324,20 +324,20 @@ export default function QuoteReviewPriceCalendar({
                   } ${disabled ? 'cursor-not-allowed opacity-50' : ''}`}
                 >
                   {selected ? (
-                    <Check className="absolute right-0 top-0 h-2.5 w-2.5 text-white min-[420px]:right-0.5 min-[420px]:top-0.5 min-[420px]:h-3 min-[420px]:w-3 lg:right-2 lg:top-2 lg:h-5 lg:w-5" aria-hidden />
+                    <Check className="absolute right-0 top-0 h-2.5 w-2.5 text-white min-[420px]:right-0.5 min-[420px]:top-0.5 min-[420px]:h-3 min-[420px]:w-3" aria-hidden />
                   ) : null}
-                  <span className={`text-[13px] font-extrabold leading-none min-[420px]:text-[15px] lg:text-3xl xl:text-4xl ${selected ? 'text-white' : past ? 'text-slate-300' : 'text-slate-900'}`}>
+                  <span className={`text-[13px] font-extrabold leading-none min-[420px]:text-[15px] ${selected ? 'text-white' : past ? 'text-slate-300' : 'text-slate-900'}`}>
                     {parts.dayNum}
                   </span>
                   {price != null && Number.isFinite(price) ? (
-                    <span className={`mt-0.5 max-w-full truncate text-[8px] font-bold tabular-nums leading-none tracking-tight min-[420px]:mt-1 min-[420px]:text-[9px] lg:mt-1.5 lg:text-base xl:text-lg ${
+                    <span className={`mt-0.5 max-w-full truncate text-[8px] font-bold tabular-nums leading-none tracking-tight min-[420px]:mt-1 min-[420px]:text-[9px] ${
                       selected ? 'text-white' : isWeekend ? 'text-red-800' : isBest ? 'text-emerald-700' : 'text-slate-600'
                     }`}>
                       £{price.toFixed(2)}
                     </span>
                   ) : null}
                   {slotText ? (
-                    <span className={`mt-0.5 max-w-full truncate text-[7px] font-semibold leading-none min-[420px]:text-[8px] lg:text-sm xl:text-base ${selected ? 'text-white' : 'text-slate-700'}`}>
+                    <span className={`mt-0.5 max-w-full truncate text-[7px] font-semibold leading-none min-[420px]:text-[8px] ${selected ? 'text-white' : 'text-slate-700'}`}>
                       {slotText}
                     </span>
                   ) : null}
@@ -347,7 +347,7 @@ export default function QuoteReviewPriceCalendar({
             </div>
           </div>
         )}
-        <div className="mt-3 flex flex-wrap items-center justify-center gap-4 text-[11px] font-semibold text-slate-600 lg:mt-4 lg:gap-5 lg:text-base">
+        <div className="mt-3 flex flex-wrap items-center justify-center gap-4 text-[11px] font-semibold text-slate-600">
           <span className="inline-flex items-center gap-1.5">
             <span className="h-2.5 w-2.5 rounded-full bg-emerald-500" aria-hidden />
             Best price
