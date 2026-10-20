@@ -164,9 +164,10 @@ function money(n) {
 function customerOfferView(offer, pendingFlag) {
   const status = String(offer?.status || '')
   const accepted = status === 'accepted' || status === 'counter_accepted'
+  const declined = status === 'declined' || status === 'counter_declined'
   const pending = status === 'pending' || status === 'countered' || (!offer && Boolean(pendingFlag))
   const amount = accepted ? offer?.agreed_amount ?? offer?.proposed_amount : offer?.proposed_amount
-  return { accepted, pending, amount, status }
+  return { accepted, declined, pending, amount, status }
 }
 
 function mailHref(email) {
@@ -1086,7 +1087,7 @@ export default function CustomerLeadsAdmin() {
               <colgroup>
                 <col className="w-px" />
                 <col className="w-px" />
-                <col className="w-36" />
+                <col className="w-28" />
                 <col className="w-px" />
                 <col />
                 <col className="w-px" />
@@ -1112,10 +1113,10 @@ export default function CustomerLeadsAdmin() {
                     />
                   </th>
                   <th className="w-px whitespace-nowrap px-3 py-2.5">Reference</th>
-                  <th className="w-36 whitespace-nowrap px-3 py-2.5">Name</th>
+                  <th className="w-28 whitespace-nowrap px-2 py-2.5">Name</th>
                   <th className="w-px whitespace-nowrap px-3 py-2.5">Phone</th>
                   <th className="w-full px-3 py-2.5">Email</th>
-                  <th className="w-px whitespace-nowrap px-3 py-2.5">Service</th>
+                  <th className="w-px whitespace-nowrap px-2 py-2.5 text-[11px]">Service</th>
                   <th className="w-px whitespace-nowrap px-3 py-2.5">Postcode</th>
                   <th className="w-px whitespace-nowrap px-3 py-2.5">Quote price</th>
                   <th className="w-px whitespace-nowrap px-3 py-2.5">Agreed</th>
@@ -1176,16 +1177,20 @@ export default function CustomerLeadsAdmin() {
                         {row.move_date ? (
                           <p className="mt-1 text-[11px] font-semibold text-slate-600">{formatDateUK(row.move_date)}</p>
                         ) : null}
-                        {countdown || customerLeadCallbackDue(row, listNow) || customerLeadNeedsFirstCall(row, listNow) || row.called_at || row.callback_at ? (
+                        {customerLeadCallbackDue(row, listNow) || customerLeadNeedsFirstCall(row, listNow) || row.called_at || row.callback_at ? (
                           <div className="mt-1 flex flex-col items-start gap-1">
-                            {countdown ? <MoveCountdownBadge moveDate={row.move_date} /> : null}
                             <CallBadge row={row} now={listNow} />
                           </div>
                         ) : null}
                       </td>
-                      <td className="w-px px-3 py-2">
+                      <td className="w-px px-2 py-2 align-top">
+                        {countdown ? (
+                          <div className="mb-1">
+                            <MoveCountdownBadge moveDate={row.move_date} />
+                          </div>
+                        ) : null}
                         <p
-                          className="w-36 whitespace-normal break-words leading-snug"
+                          className="w-28 whitespace-normal break-words text-[13px] leading-snug"
                           title={row.customer_name || undefined}
                         >
                           {row.customer_name || '—'}
@@ -1197,14 +1202,14 @@ export default function CustomerLeadsAdmin() {
                       <td className="w-full max-w-0 truncate px-3 py-2" title={email || undefined}>
                         {email || '—'}
                       </td>
-                      <td className="w-px whitespace-nowrap px-3 py-2">{row.service_type || '—'}</td>
+                      <td className="w-px max-w-[5.5rem] whitespace-normal px-2 py-2 text-[11px] leading-tight">{row.service_type || '—'}</td>
                       <td className="w-px px-3 py-2 align-top">
                         <LeadRoute row={row} />
                       </td>
                       <td className="w-px whitespace-nowrap px-3 py-2 tabular-nums">{money(row.estimated_total)}</td>
                       <td className="w-px whitespace-nowrap px-3 py-2 tabular-nums">
                         {row.agreed_price != null ? (
-                          <span className={`font-semibold ${customerOfferView(row.customer_offer, row.pending_offer).accepted ? 'text-emerald-700' : 'text-brand-800'}`}>
+                          <span className={`font-semibold ${customerOfferView(row.customer_offer, row.pending_offer).accepted ? 'font-extrabold text-emerald-700' : 'text-brand-800'}`}>
                             {money(row.agreed_price)}
                           </span>
                         ) : (
@@ -1219,8 +1224,14 @@ export default function CustomerLeadsAdmin() {
                             <span className="inline-flex flex-col items-start gap-1">
                               {offer.amount != null ? (
                                 <span
-                                  className={`font-semibold tabular-nums ${
-                                    offer.accepted ? 'text-emerald-700' : offer.pending ? 'text-amber-950' : 'text-slate-800'
+                                  className={`tabular-nums ${
+                                    offer.accepted
+                                      ? 'font-extrabold text-emerald-700'
+                                      : offer.declined
+                                        ? 'font-extrabold text-red-700'
+                                        : offer.pending
+                                          ? 'font-semibold text-amber-950'
+                                          : 'font-semibold text-slate-800'
                                   }`}
                                 >
                                   {money(offer.amount)}
@@ -1232,11 +1243,16 @@ export default function CustomerLeadsAdmin() {
                                 </span>
                               ) : null}
                               {offer.accepted ? (
-                                <span className="rounded-full bg-emerald-100 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-emerald-900">
+                                <span className="rounded-full bg-emerald-700 px-1.5 py-0.5 text-[10px] font-extrabold uppercase tracking-wide text-white">
                                   Offer accepted
                                 </span>
                               ) : null}
-                              {!offer.pending && !offer.accepted && offer.status ? (
+                              {offer.declined ? (
+                                <span className="rounded-full bg-red-700 px-1.5 py-0.5 text-[10px] font-extrabold uppercase tracking-wide text-white">
+                                  Offer declined
+                                </span>
+                              ) : null}
+                              {!offer.pending && !offer.accepted && !offer.declined && offer.status ? (
                                 <span className="text-[11px] capitalize text-slate-500">
                                   {offer.status.replaceAll('_', ' ')}
                                 </span>
