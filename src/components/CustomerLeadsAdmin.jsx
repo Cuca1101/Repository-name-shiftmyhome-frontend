@@ -252,11 +252,7 @@ function LeadsHorizontalScrollbar({ scrollRef, placement }) {
 
   return (
     <div
-      className={
-        isTop
-          ? 'sticky top-14 z-20 sm:top-16'
-          : 'sticky bottom-0 z-20'
-      }
+      className={`leads-h-scroll ${isTop ? 'sticky top-14 z-20 sm:top-16' : 'sticky bottom-0 z-20'}`}
     >
       <div
         ref={trackRef}
@@ -1071,29 +1067,29 @@ export default function CustomerLeadsAdmin() {
       ) : emptyMessage ? (
         <p className="py-8 text-center text-slate-600">{emptyMessage}</p>
       ) : (
-        <div className="relative w-full min-w-0">
+        <div className="leads-screen-fit relative w-full min-w-0 max-w-full">
           <LeadsHorizontalScrollbar scrollRef={bodyRef} placement="top" />
           <div
             ref={bodyRef}
             id="customer-leads-table"
-            className="leads-table-scroll w-full min-w-0 overflow-x-auto"
+            className="leads-table-scroll w-full min-w-0 max-w-full overflow-x-auto"
           >
             <table className="w-full border-collapse text-left text-sm [&_td]:border [&_td]:border-blue-200/80 [&_th]:border [&_th]:border-blue-300">
               <colgroup>
-                <col className="w-px" />
-                <col className="w-px" />
-                <col className="w-36" />
-                <col className="w-px" />
-                <col />
-                <col className="w-px" />
-                <col className="w-px" />
-                <col className="w-px" />
-                <col className="w-px" />
-                <col className="w-px" />
-                <col className="w-px" />
-                <col className="w-px" />
-                <col className="w-px" />
-                <col className="w-px" />
+                <col className="leads-col-check" />
+                <col className="leads-col-ref" />
+                <col className="leads-col-name" />
+                <col className="leads-col-phone" />
+                <col className="leads-col-email" />
+                <col className="leads-col-service" />
+                <col className="leads-col-postcode" />
+                <col className="leads-col-price" />
+                <col className="leads-col-agreed" />
+                <col className="leads-col-offer" />
+                <col className="leads-col-status" />
+                <col className="leads-col-activity" />
+                <col className="leads-col-created" />
+                <col className="leads-col-actions" />
               </colgroup>
               <thead className="bg-blue-50 text-xs font-semibold uppercase tracking-wide text-blue-900">
                 <tr>
@@ -1186,16 +1182,16 @@ export default function CustomerLeadsAdmin() {
                       </td>
                       <td className="w-px px-3 py-2">
                         <p
-                          className="w-36 whitespace-normal break-words leading-snug"
+                          className="min-w-0 whitespace-normal break-words leading-snug"
                           title={row.customer_name || undefined}
                         >
                           {row.customer_name || '—'}
                         </p>
                       </td>
                       <td className="w-px whitespace-nowrap px-3 py-2">
-                        <LeadCallButton phone={phone || ''} />
+                        <LeadCallButton phone={phone || ''} compact />
                       </td>
-                      <td className="w-full max-w-0 truncate px-3 py-2" title={email || undefined}>
+                      <td className="min-w-0 max-w-0 truncate px-3 py-2 lg:max-w-none" title={email || undefined}>
                         {email || '—'}
                       </td>
                       <td className="w-px whitespace-nowrap px-3 py-2">{row.service_type || '—'}</td>

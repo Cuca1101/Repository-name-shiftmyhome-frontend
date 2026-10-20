@@ -6,7 +6,7 @@ import { teamsCallLink } from '../../lib/teamsPhone'
  * Visible telephone number plus one Teams call control.
  * @param {{ phone?: string }} props
  */
-export default function LeadCallButton({ phone = '' }) {
+export default function LeadCallButton({ phone = '', compact = false }) {
   const [error, setError] = useState('')
   const display = String(phone || '').trim()
   if (!display) return <span className="text-slate-500">—</span>
@@ -14,8 +14,8 @@ export default function LeadCallButton({ phone = '' }) {
   const link = teamsCallLink(display)
 
   return (
-    <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
-      <span className="whitespace-nowrap text-slate-800">{display}</span>
+    <span className={`inline-flex max-w-full items-center gap-1 ${compact ? 'flex-wrap' : 'gap-1.5 whitespace-nowrap'}`}>
+      <span className={compact ? 'min-w-0 break-all text-slate-800' : 'whitespace-nowrap text-slate-800'}>{display}</span>
       <a
         href={link.ok ? link.href : '#call'}
         target="_blank"
@@ -32,7 +32,7 @@ export default function LeadCallButton({ phone = '' }) {
         }}
       >
         <Phone className="h-3.5 w-3.5" aria-hidden />
-        Call
+        {compact ? <span className="sr-only">Call</span> : 'Call'}
       </a>
       {error ? <span className="text-xs text-amber-900">{error}</span> : null}
     </span>
