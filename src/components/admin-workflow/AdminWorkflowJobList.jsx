@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { ADMIN_RECORDS_SEARCH_PLACEHOLDER } from '../../lib/adminSearch'
-import { fetchQuotesForAdmin } from '../../lib/data/quotesAdminRepository'
+import { fetchCancelledQuotesForAdmin, fetchQuotesForAdmin } from '../../lib/data/quotesAdminRepository'
 import { fetchMarketplaceJourneysForAdmin } from '../../lib/data/journeysRepository'
 import { fetchAllJobs } from '../../lib/data/jobsRepository'
 import { formatDateTimeUK, formatDateUK } from '../../lib/formatDateDisplay'
@@ -176,7 +176,9 @@ export default function AdminWorkflowJobList({ workflow, title, description }) {
     setError('')
     try {
       const [qList, jList] = await Promise.all([
-        fetchQuotesForAdmin('all', activeSearch),
+        workflow === 'cancelled'
+          ? fetchCancelledQuotesForAdmin(activeSearch)
+          : fetchQuotesForAdmin('all', activeSearch),
         fetchAllJobs(),
       ])
       let jJourneys = []

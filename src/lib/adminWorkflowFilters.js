@@ -4,7 +4,6 @@ import {
   quoteHasInProgressWorkflowStatus,
   quoteOperationalStatusLower,
   quotePassesActiveStrict,
-  quotePassesAvailableJobsStrict,
   quotePassesMarketplaceStrict,
 } from './adminJobListRules'
 import {
@@ -100,6 +99,10 @@ export function quoteIsCompleted(q, job, assignment) {
   return false
 }
 
+function statusIsCancelled(value) {
+  return String(value ?? '').trim().toLowerCase() === 'cancelled'
+}
+
 /**
  * @param {Record<string, unknown>} q
  * @param {Record<string, unknown> | null} job
@@ -107,10 +110,10 @@ export function quoteIsCompleted(q, job, assignment) {
 export function quoteIsCancelled(q, job) {
   const op = quoteOperationalStatusLower(q)
   if (op === 'cancelled') return true
-  if (String(q.status) === 'Cancelled') return true
-  if (job && String(job.status) === 'Cancelled') return true
+  if (statusIsCancelled(q?.status)) return true
+  if (job && statusIsCancelled(job.status)) return true
   if (ov(q).marketplaceVisibility === 'cancelled') return true
-  if (q.cancelled_at) return true
+  if (q?.cancelled_at) return true
   const o = ov(q)
   if ((o.workflowCancelledAt || '').trim()) return true
   return false
@@ -133,17 +136,13 @@ export function quoteIsInCompletedJobsInbox(q, job, assignment) {
 }
 
 /**
- * Cancelled Jobs tab: operational cancelled or marketplace/legacy cancelled.
+ * Cancelled Jobs tab. Same signals as the customer portal: a leftover journey
+ * status (On way, Loading, …) must not hide a booking that was cancelled.
  * @param {Record<string, unknown>} q
  * @param {Record<string, unknown> | null} job
  */
 export function quoteIsInCancelledJobsInbox(q, job) {
-  const op = quoteOperationalStatusLower(q)
-  if (op === 'cancelled') return true
-  if (ov(q).marketplaceVisibility === 'cancelled') return true
-  if (!op && (String(q.status) === 'Cancelled' || q.cancelled_at)) return true
-  if (!op && job && String(job.status) === 'Cancelled') return true
-  return false
+  return quoteIsCancelled(q, job)
 }
 
 /**
@@ -217,8 +216,6 @@ export function filterCancelledQuotes(quotes, jobs, assignmentsByQuoteId = {}) {
     if (!quoteVisibleInProductionAdmin(q)) return false
     const j = findLinkedJobForQuote(q, jobRows)
     const a = assignmentsByQuoteId[String(q.id || '')]
-    if (quotePassesActiveStrict(q)) return false
-    if (quotePassesAvailableJobsStrict(q)) return false
     if (quoteIsCompleted(q, j, a) && !quoteIsCancelled(q, j)) return false
     return quoteIsInCancelledJobsInbox(q, j)
   })

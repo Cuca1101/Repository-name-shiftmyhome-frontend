@@ -77,7 +77,7 @@ export function cancelledJobDisplayFields(q, job = null, charges = []) {
           .join('; ')
 
   return {
-    quoteRef: String(q.quote_ref || q.id || '').slice(0, 12),
+    quoteRef: String(q.quote_ref || q.id || ''),
     customer: String(q.full_name || '—'),
     driver:
       String(q.assigned_driver_name || o.assignedDriver || '').trim() ||

@@ -196,6 +196,54 @@ export async function fetchQuotesForAdmin(filterKey = 'all', searchTerm = '', op
   return rows
 }
 
+/** Quote rows the customer portal treats as cancelled. */
+const CANCELLED_QUOTE_OR =
+  'cancelled_at.not.is.null,status.ilike.cancelled,operational_status.ilike.cancelled,marketplace_visibility.eq.cancelled'
+
+/**
+ * Cancelled Jobs inbox. The generic admin list only returns the newest 1000
+ * quotes, so an older cancelled booking never reached the tab.
+ *
+ * @param {string} [searchTerm]
+ * @returns {Promise<Record<string, unknown>[]>}
+ */
+export async function fetchCancelledQuotesForAdmin(searchTerm = '') {
+  if (!isSupabaseConfigured || !supabase) return []
+
+  try {
+    const pageSize = 1000
+    const rows = []
+    const safe = sanitizeAdminIlikeTerm(searchTerm)
+
+    for (let page = 0; page < 20; page += 1) {
+      let q = supabase
+        .from(QUOTES_TABLE)
+        .select('*')
+        .or(CANCELLED_QUOTE_OR)
+        .order('created_at', { ascending: false })
+        .range(page * pageSize, page * pageSize + pageSize - 1)
+
+      if (safe.length > 0) {
+        const p = `%${safe}%`
+        q = q.or(
+          `quote_ref.ilike.${p},full_name.ilike.${p},phone.ilike.${p},email.ilike.${p},pickup_address.ilike.${p},delivery_address.ilike.${p}`,
+        )
+      }
+
+      const { data, error } = await q
+      if (error) throw error
+      const batch = data ?? []
+      rows.push(...batch.filter((row) => !quoteIsTrashed(row)))
+      if (batch.length < pageSize) break
+    }
+
+    return rows
+  } catch (error) {
+    console.error('[fetchCancelledQuotesForAdmin]', error)
+    return fetchQuotesForAdmin('all', searchTerm)
+  }
+}
+
 /**
  * @param {string} id
  * @returns {Promise<Record<string, unknown>|undefined>}
