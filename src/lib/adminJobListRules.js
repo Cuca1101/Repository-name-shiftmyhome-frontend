@@ -37,10 +37,20 @@ export function quoteIsCardPaid(q) {
   return ps === 'paid' || ps === 'deposit_paid'
 }
 
+/** Soft-deleted row (New phone booking Trash, or any future trash). */
+export function quoteIsTrashed(q) {
+  return q?.deleted_at != null && String(q.deleted_at).trim() !== ''
+}
+
 /** Staff phone booking (any stage). */
 export function quoteIsAdminPhoneBooking(q) {
   const src = String(q?.source ?? '').trim()
   return src === ADMIN_PHONE_BOOKING_SOURCE || src === LEGACY_ADMIN_PHONE_BOOKING_SOURCE
+}
+
+/** Phone booking sitting in New phone booking → Trash. */
+export function quoteIsAdminPhoneBookingTrashed(q) {
+  return quoteIsAdminPhoneBooking(q) && quoteIsTrashed(q)
 }
 
 /** Still on New phone booking — not yet sent to Available Jobs. */
@@ -54,7 +64,7 @@ export function quoteIsAdminPhoneBookingPending(q) {
 
 /** Released to Available Jobs (legacy rows without pending flag count as released). */
 export function quoteIsAdminPhoneBookingReleased(q) {
-  return quoteIsAdminPhoneBooking(q) && !quoteIsAdminPhoneBookingPending(q)
+  return quoteIsAdminPhoneBooking(q) && !quoteIsAdminPhoneBookingPending(q) && !quoteIsTrashed(q)
 }
 
 /**
@@ -63,12 +73,26 @@ export function quoteIsAdminPhoneBookingReleased(q) {
  * @param {Record<string, unknown>} q
  */
 export function quoteShowsOnNewPhoneBookingInbox(q) {
-  if (!quoteIsAdminPhoneBooking(q)) return false
+  if (!quoteIsAdminPhoneBooking(q) || quoteIsTrashed(q)) return false
+  // A confirmed deposit or full payment that qualifies for Available Jobs leaves this list.
+  // The quote row is unchanged; Available Jobs reads the same record.
+  if (quoteIsCardPaid(q) && quotePassesAvailableJobsStrict(q)) return false
   if (quoteIsAdminPhoneBookingPending(q)) return true
   if (quotePassesAvailableJobsStrict(q)) return false
   const op = String(q?.operational_status ?? '').trim().toLowerCase()
   if (op && op !== '') return false
   return true
+}
+
+/**
+ * Unpaid phone bookings that staff sent to Available Jobs.
+ * A confirmed deposit or full payment is listed only in Available Jobs.
+ * @param {Record<string, unknown>} q
+ */
+export function quoteShowsOnNewPhoneBookingSentTab(q) {
+  if (!quoteIsAdminPhoneBooking(q) || quoteIsTrashed(q) || quoteIsCardPaid(q)) return false
+  if (quoteIsAdminPhoneBookingPending(q)) return false
+  return quotePassesAvailableJobsStrict(q)
 }
 
 /** @param {Record<string, unknown>} q */
@@ -145,6 +169,7 @@ export function quoteHasInProgressWorkflowStatus(q) {
  * @param {Record<string, unknown>} q
  */
 export function quotePassesAvailableJobsStrict(q) {
+  if (quoteIsTrashed(q)) return false
   if (!quoteVisibleInAdminLists(q)) return false
   if (q?.bundled_journey_id != null && String(q.bundled_journey_id).trim() !== '') return false
   if (!quoteIsAvailableJobsPayment(q)) return false
@@ -166,6 +191,7 @@ export function quotePassesAvailableJobsStrict(q) {
  * @param {Record<string, unknown>} q
  */
 export function quotePassesMarketplaceStrict(q) {
+  if (quoteIsTrashed(q)) return false
   if (!quoteVisibleInAdminLists(q)) return false
   if (q?.bundled_journey_id != null && String(q.bundled_journey_id).trim() !== '') return false
   const mv = mergedAdminWorkflowForQuote(q).marketplaceVisibility
@@ -207,6 +233,7 @@ export function journeyPassesMarketplaceStrict(j) {
  * @param {Record<string, unknown>} q
  */
 export function quotePassesActiveStrict(q) {
+  if (quoteIsTrashed(q)) return false
   if (!quoteVisibleInAdminLists(q)) return false
   const assigned =
     quoteHasAssignedDriver(q) || quoteHasAssignedPartner(q) || quoteMarketplaceJobAccepted(q)

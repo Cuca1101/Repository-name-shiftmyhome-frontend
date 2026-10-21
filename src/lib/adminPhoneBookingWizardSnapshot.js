@@ -26,6 +26,8 @@ export function pickPhoneBookingWizardSnapshot(wizard) {
  *   finalPriceOverride?: string,
  *   overrideReason?: string,
  *   adminNote?: string,
+ *   quoteBy?: { name?: string, at?: string } | null,
+ *   priceChanges?: Array<{ by?: string, at?: string, from?: number | null, to?: number | null, reason?: string }>,
  * }} meta
  */
 export function appendWizardSnapshotToDetails(detailsText, meta) {
@@ -38,6 +40,10 @@ export function appendWizardSnapshotToDetails(detailsText, meta) {
     finalPriceOverride: String(meta.finalPriceOverride ?? ''),
     overrideReason: String(meta.overrideReason ?? ''),
     adminNote: String(meta.adminNote ?? ''),
+    quoteBy: meta.quoteBy
+      ? { name: String(meta.quoteBy.name || ''), at: String(meta.quoteBy.at || '') }
+      : null,
+    priceChanges: Array.isArray(meta.priceChanges) ? meta.priceChanges : [],
   }
   const block = `${SNAPSHOT_START}\n${JSON.stringify(payload)}\n${SNAPSHOT_END}`
   return body ? `${body}\n\n${block}` : block
@@ -54,6 +60,8 @@ export function appendWizardSnapshotToDetails(detailsText, meta) {
  *     finalPriceOverride: string,
  *     overrideReason: string,
  *     adminNote: string,
+ *     quoteBy: { name: string, at: string } | null,
+ *     priceChanges: Array<{ by?: string, at?: string, from?: number | null, to?: number | null, reason?: string }>,
  *   } | null,
  * }}
  */
@@ -80,6 +88,11 @@ export function extractWizardSnapshotFromDetails(details) {
         finalPriceOverride: String(parsed.finalPriceOverride ?? ''),
         overrideReason: String(parsed.overrideReason ?? ''),
         adminNote: String(parsed.adminNote ?? ''),
+        quoteBy:
+          parsed.quoteBy && typeof parsed.quoteBy === 'object'
+            ? { name: String(parsed.quoteBy.name || ''), at: String(parsed.quoteBy.at || '') }
+            : null,
+        priceChanges: Array.isArray(parsed.priceChanges) ? parsed.priceChanges : [],
       },
     }
   } catch {

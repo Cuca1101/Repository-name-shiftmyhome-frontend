@@ -71,6 +71,7 @@ export default function MoveSummaryBody({
   pricingSettings = null,
   promoCode = '',
   priceWithoutPromo = null,
+  appliedFinalTotal = null,
   compact = false,
   mapVariant = 'default',
   hideEstimatedTotalCard = false,
@@ -341,8 +342,14 @@ export default function MoveSummaryBody({
         <div className="min-w-0 rounded-xl border border-emerald-100 bg-gradient-to-br from-emerald-50/90 to-white p-3 ring-1 ring-emerald-100/80 sm:p-5">
           <h3 className="text-sm font-bold text-slate-900">Estimated total</h3>
           <p className="mt-1 text-xl font-bold tracking-tight text-emerald-700 sm:text-2xl">
-            £{breakdown.estimatedTotal.toFixed(2)}
+            £{(appliedFinalTotal != null && Number.isFinite(Number(appliedFinalTotal))
+              ? Number(appliedFinalTotal)
+              : breakdown.estimatedTotal
+            ).toFixed(2)}
           </p>
+          {appliedFinalTotal != null && Number.isFinite(Number(appliedFinalTotal)) ? (
+            <p className="mt-1 text-[11px] font-medium text-emerald-800">Custom price applied</p>
+          ) : (
           <QuotePromoPriceReduction
             promoCode={promoCode}
             pricingSettings={pricingSettings ?? crewSettings}
@@ -351,6 +358,7 @@ export default function MoveSummaryBody({
             className="mt-1.5"
             messageStyle="savingsAmount"
           />
+          )}
           <p className="mt-2 text-[11px] leading-relaxed text-slate-600">
             Updates as you add details. Final price confirmed by ShiftMyHome.
           </p>

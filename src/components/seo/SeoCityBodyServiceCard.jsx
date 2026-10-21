@@ -1,7 +1,7 @@
 import HomeStyleServiceCard, { slugForServiceHeading } from './HomeStyleServiceCard'
 import { getServicePageByPath } from '../../constants/servicePages'
 import { getBrandedServiceImage } from '../../lib/getBrandedServiceImage'
-import { markNewQuoteFromServiceCard } from '../../lib/quoteSessionMode'
+import { startFreshPublicQuote } from '../../lib/quoteSessionMode'
 import { useSeoQuoteModal } from '../../context/SeoQuoteModalContext'
 /**
  * @param {{
@@ -26,7 +26,7 @@ export default function SeoCityBodyServiceCard({ section, pagePath }) {
         href="#seo-quote"
         onClick={(e) => {
           e.preventDefault()
-          markNewQuoteFromServiceCard(serviceType, pagePath)
+          startFreshPublicQuote(serviceType, pagePath)
           openQuote(serviceType || undefined)
         }}
       />

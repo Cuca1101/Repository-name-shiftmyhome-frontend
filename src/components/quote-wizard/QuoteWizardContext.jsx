@@ -65,7 +65,7 @@ import {
 import { isMoveDateOnOrAfterToday, moveDatePastErrorMessage } from '../../lib/moveDateLocal'
 import { formatReservationFeeGbp } from '../../lib/quoteReservationFee'
 import { QUOTE_STEP2_TRANSITION_DURATION_MS } from '../../lib/quoteStep2Transition'
-import { clearQuoteDraft, saveQuoteDraft } from '../../lib/quoteDraftStorage'
+import { clearQuoteDraft, loadQuoteDraft, saveQuoteDraft } from '../../lib/quoteDraftStorage'
 import { resolveWizardBootstrap } from '../../lib/quoteWizardBootstrap'
 import { resolveServiceLabel } from '../../lib/normalizeServiceType'
 import {
@@ -73,7 +73,8 @@ import {
   makeQuoteRef,
   QUOTE_WIZARD_MAX_STEP,
 } from '../../lib/quoteWizardDefaults'
-import { clearResumeSavedQuote, setActiveQuoteWizardRef } from '../../lib/quoteSessionMode'
+import { clearResumeSavedQuote, setActiveQuoteWizardRef, START_FRESH_QUOTE_EVENT } from '../../lib/quoteSessionMode'
+import { recheckSavedQuoteResume } from '../../lib/savedQuoteResume'
 import {
   activeLockedQuoteTotal,
   buildPriceAffectingFingerprint,
@@ -119,10 +120,16 @@ function scrollQuoteWizardIntoView(opts = {}) {
   const behavior = opts.behavior ?? 'smooth'
   requestAnimationFrame(() => {
     requestAnimationFrame(() => {
+      const overlay = document.getElementById('admin-phone-booking-overlay')
+      const wizardTop = document.getElementById('quote-wizard-top')
+      if (overlay && wizardTop && overlay.contains(wizardTop)) {
+        overlay.scrollTo({ top: 0, behavior })
+        return
+      }
       const scrollOpts = { behavior, block: 'start' }
       document.getElementById('quote-step2-transition')?.scrollIntoView(scrollOpts)
       document.querySelector('#quote')?.scrollIntoView(scrollOpts)
-      document.querySelector('#quote-wizard-top')?.scrollIntoView(scrollOpts)
+      wizardTop?.scrollIntoView(scrollOpts)
       window.scrollTo({ top: 0, behavior })
     })
   })
@@ -1381,7 +1388,8 @@ export function QuoteWizardProvider({
     }
   }, [breakdown, settings, serviceType, quoteRef, wizard, quotePhotoFiles, buildQuotePayloadForSave])
 
-  const resetQuoteWizard = useCallback(() => {
+  const resetQuoteWizard = useCallback((options = {}) => {
+    const keepSavedDraft = options.keepSavedDraft === true
     skipAutosaveRef.current = true
     draftSnapshotRef.current = null
     clearResumeSavedQuote()
@@ -1393,7 +1401,7 @@ export function QuoteWizardProvider({
     addressBaselineRef.current = null
     savedDraftTrackedRef.current = false
     funnelTrackedRef.current = false
-    clearQuoteDraft()
+    if (!keepSavedDraft) clearQuoteDraft()
     rotateWebsiteLeadSessionId()
     clearCustomerLeadCache()
     customerLeadStatusRef.current = 'new_lead'
@@ -1412,6 +1420,37 @@ export function QuoteWizardProvider({
       skipAutosaveRef.current = false
     }, 600)
   }, [serviceTypeProp, clearStepTransitionTimer])
+
+  useEffect(() => {
+    if (mode === 'admin') return undefined
+    const onFresh = () => resetQuoteWizard({ keepSavedDraft: true })
+    window.addEventListener(START_FRESH_QUOTE_EVENT, onFresh)
+    return () => window.removeEventListener(START_FRESH_QUOTE_EVENT, onFresh)
+  }, [mode, resetQuoteWizard])
+
+  useEffect(() => {
+    if (mode === 'admin' || !isResumedRef.current) return undefined
+    let cancelled = false
+    const recheck = () => {
+      if (document.visibilityState === 'hidden') return
+      const draft = loadQuoteDraft()
+      if (!draft || draft.quoteRef !== quoteRef) return
+      void recheckSavedQuoteResume().then((state) => {
+        if (cancelled || state === 'resumable') return
+        if (state === 'booked' || state === 'expired' || state === 'closed') {
+          resetQuoteWizard()
+        }
+      })
+    }
+    recheck()
+    document.addEventListener('visibilitychange', recheck)
+    window.addEventListener('pageshow', recheck)
+    return () => {
+      cancelled = true
+      document.removeEventListener('visibilitychange', recheck)
+      window.removeEventListener('pageshow', recheck)
+    }
+  }, [mode, quoteRef, resetQuoteWizard])
 
   const value = {
     mode,

@@ -1,11 +1,12 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { notifyAdminDataRefresh } from '../../lib/adminDataRefresh'
 import { fetchQuoteByIdForAdmin } from '../../lib/data/quotesAdminRepository'
 import { previewPhoneQuoteEmail, sendPhoneQuoteEmail } from '../../lib/phoneQuoteApi'
 import { PHONE_QUOTE_DEPOSIT_GBP, phoneQuoteAdminStatus, phoneQuoteFinalTotal, phoneQuotePaymentOptions } from '../../lib/phoneQuotePaymentRules'
 import { formatDateTimeUK } from '../../lib/formatDateDisplay'
 import { supabase } from '../../lib/supabase'
 import EmailPreviewDialog from './EmailPreviewDialog'
-import PhoneQuoteStatusBadge from './PhoneQuoteStatusBadge'
+import PhoneQuoteStatusBadge, { QuoteEmailSentBadge } from './PhoneQuoteStatusBadge'
 
 function gbp(n) {
   const v = Number(n)
@@ -28,7 +29,7 @@ const btnBase =
  *   customerEmail: string,
  *   moveDate?: string,
  *   arrivalTime?: string,
- *   onSaveDraft: () => Promise<{ id: string, quote_ref: string } | null>,
+ *   onSaveDraft: (options?: { silentNotice?: boolean }) => Promise<{ id: string, quote_ref: string } | null>,
  *   refreshKey?: number,
  * }} props
  */
@@ -50,6 +51,7 @@ export default function AdminPhoneQuoteActions({
   const [notice, setNotice] = useState('')
   const [preview, setPreview] = useState(null)
   const [sentEmails, setSentEmails] = useState([])
+  const sendLock = useRef(false)
 
   const loadRow = useCallback(async (id) => {
     if (!id) {
@@ -72,7 +74,7 @@ export default function AdminPhoneQuoteActions({
     }
     const { data, error: archiveError } = await supabase
       .from('customer_email_archive')
-      .select('id, subject, recipient_email, html_snapshot, sent_at')
+      .select('id, subject, recipient_email, html_snapshot, sent_at, event_key')
       .eq('quote_id', id)
       .order('sent_at', { ascending: false })
     if (archiveError) {
@@ -87,6 +89,8 @@ export default function AdminPhoneQuoteActions({
     void loadSentEmails(savedQuoteId)
   }, [savedQuoteId, refreshKey, loadRow, loadSentEmails])
 
+  const latestQuoteEmail = sentEmails.find((item) => item.event_key === 'phone_quote_sent') || null
+  const sentRecipient = String(latestQuoteEmail?.recipient_email || row?.email || '').trim()
   const status = row ? phoneQuoteAdminStatus(row) : { key: 'draft', label: 'Not saved yet' }
   const savedFinal = row ? phoneQuoteFinalTotal(row) : null
   const sentTotal = row?.quote_sent_total != null ? Number(row.quote_sent_total) : null
@@ -95,8 +99,8 @@ export default function AdminPhoneQuoteActions({
   const customerPaid = status.key === 'deposit_paid' || status.key === 'paid_in_full'
   const emailOk = /.+@.+\..+/.test(String(customerEmail || '').trim())
 
-  async function saveFirst() {
-    const saved = await onSaveDraft()
+  async function saveFirst(options) {
+    const saved = await onSaveDraft(options)
     if (!saved?.id) return null
     await loadRow(saved.id)
     return saved
@@ -107,7 +111,7 @@ export default function AdminPhoneQuoteActions({
     setNotice('')
     setBusy('save')
     try {
-      const saved = await saveFirst()
+      const saved = await saveFirst({ silentNotice: true })
       if (saved) setNotice(`Draft ${saved.quote_ref} saved. No email was sent.`)
     } finally {
       setBusy('')
@@ -131,7 +135,7 @@ export default function AdminPhoneQuoteActions({
     setNotice('')
     setBusy(`preview-${paymentType}`)
     try {
-      const saved = await saveFirst()
+      const saved = await saveFirst({ silentNotice: true })
       if (!saved) return
       const res = await previewPhoneQuoteEmail(saved.id, paymentType)
       setPreview({ ...res, original: false, paymentType })
@@ -151,16 +155,19 @@ export default function AdminPhoneQuoteActions({
     }
     setBusy(`send-${paymentType}`)
     try {
-      const saved = await saveFirst()
+      const saved = await saveFirst({ silentNotice: true })
       if (!saved) return
       const fresh = await loadRow(saved.id)
       const total = fresh ? phoneQuoteFinalTotal(fresh) : finalPrice
       const linkLabel = paymentType === 'deposit' ? `£${PHONE_QUOTE_DEPOSIT_GBP} deposit link` : 'full payment link'
       const again = fresh?.quote_sent_at ? ' again' : ''
-      if (!window.confirm(`Send the ${linkLabel} for ${saved.quote_ref} (${gbp(total)}) to ${customerEmail.trim()}${again}?`)) return
+      if (!window.confirm(`Send the ${linkLabel} for ${saved.quote_ref} (${gbp(total)}) to ${customerEmail.trim()}${again}?`)) {
+        return
+      }
       const res = await sendPhoneQuoteEmail(saved.id, paymentType)
       await loadRow(saved.id)
       await loadSentEmails(saved.id)
+      notifyAdminDataRefresh({ source: 'phone_quote_email_sent' })
       setPreview(null)
       setNotice(`${paymentType === 'deposit' ? 'Deposit' : 'Full payment'} link sent to ${res.to} at ${formatDateTimeUK(res.sent_at)}.`)
     } catch (e) {
@@ -170,8 +177,47 @@ export default function AdminPhoneQuoteActions({
     }
   }
 
+  async function handleSendQuote() {
+    if (sendLock.current || saving || customerPaid) return
+    setError('')
+    setNotice('')
+    if (!emailOk) {
+      setError('Add a valid customer email in step 2 before sending the quote.')
+      return
+    }
+    sendLock.current = true
+    setBusy('send-quote')
+    try {
+      let saved = null
+      try {
+        saved = await saveFirst({ silentNotice: true })
+      } catch (e) {
+        setError(e?.message || 'The quote could not be saved, so the email was not sent.')
+        return
+      }
+      if (!saved) {
+        setError('The quote could not be saved, so the email was not sent.')
+        return
+      }
+      try {
+        const res = await sendPhoneQuoteEmail(saved.id)
+        await loadRow(saved.id)
+        await loadSentEmails(saved.id)
+        notifyAdminDataRefresh({ source: 'phone_quote_email_sent' })
+        setPreview(null)
+        const to = String(res.to || customerEmail || '').trim()
+        setNotice(`Quote saved and sent successfully to ${to}.`)
+      } catch {
+        await loadSentEmails(saved.id)
+        setError('Quote saved, but the email could not be sent. Please try again.')
+      }
+    } finally {
+      sendLock.current = false
+      setBusy('')
+    }
+  }
+
   const working = Boolean(busy) || saving
-  const editing = Boolean(savedQuoteId)
   const paymentOptions = phoneQuotePaymentOptions({
     moveDate: moveDate || row?.move_date,
     arrivalTime: arrivalTime || row?.arrival_time || row?.arrival_window,
@@ -183,11 +229,7 @@ export default function AdminPhoneQuoteActions({
     ? ''
     : paymentOptions.alreadyPaid
       ? 'This quote is already paid.'
-      : paymentOptions.fullOnlyReason === 'under_48h'
-        ? 'The £50 deposit is not available less than 48 hours before the move.'
-        : paymentOptions.fullOnlyReason === 'total_too_low'
-          ? 'The £50 deposit is not available when the total is £50 or less.'
-          : 'The £50 deposit is not available until the move date and price are set.'
+      : 'A £50 deposit is only available when the total is more than £50.'
 
   return (
     <section
@@ -197,7 +239,10 @@ export default function AdminPhoneQuoteActions({
     >
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3">
         <h3 className="text-sm font-bold text-slate-900">Quote &amp; email</h3>
-        {row ? <PhoneQuoteStatusBadge q={row} /> : <span className="text-xs text-slate-500">{status.label}</span>}
+        <span className="flex flex-wrap items-center gap-2">
+          {row ? <PhoneQuoteStatusBadge q={row} /> : <span className="text-xs text-slate-500">{status.label}</span>}
+          <QuoteEmailSentBadge sentAt={row?.quote_sent_at} recipient={sentRecipient} />
+        </span>
       </div>
 
       <dl className="mt-3 grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
@@ -224,6 +269,7 @@ export default function AdminPhoneQuoteActions({
       {row?.quote_sent_at ? (
         <p className="mt-3 text-xs text-slate-600">
           Last sent {formatDateTimeUK(row.quote_sent_at)}
+          {sentRecipient ? ` to ${sentRecipient}` : ''}
           {sentTotal != null ? ` · ${gbp(sentTotal)}` : ''}
           {row.quote_sent_count > 1 ? ` · sent ${row.quote_sent_count} times` : ''}
         </p>
@@ -263,7 +309,7 @@ export default function AdminPhoneQuoteActions({
           disabled={working || disabled}
           className={`${btnBase} border border-slate-300 bg-white text-slate-900 hover:bg-slate-50`}
         >
-          {busy === 'save' || (saving && !busy) ? 'Saving…' : editing ? 'Save changes' : 'Save draft'}
+          {busy === 'save' || (saving && !busy) ? 'Saving…' : 'Save Changes'}
         </button>
         <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
           <button
@@ -303,10 +349,20 @@ export default function AdminPhoneQuoteActions({
             {busy === 'send-deposit' ? 'Sending…' : `Send £${PHONE_QUOTE_DEPOSIT_GBP} deposit link`}
           </button>
         </div>
+        <button
+          type="button"
+          onClick={() => void handleSendQuote()}
+          disabled={working || disabled || customerPaid || sendLock.current}
+          className={`${btnBase} min-h-14 w-full bg-emerald-600 text-base font-bold text-white shadow-md hover:bg-emerald-700`}
+        >
+          {busy === 'send-quote' ? 'Sending…' : 'Send Quote to Customer'}
+        </button>
       </div>
       {depositReason ? <p className="mt-2 text-xs text-slate-500">{depositReason}</p> : null}
       <p className="mt-2 text-xs text-slate-500">
-        {editing ? 'Save changes updates this quote' : 'Save draft stores this quote'} and does not email the customer. The deposit link and the full payment link are sent only when you press those buttons.
+        Save Changes updates this quote and does not send an email. Send full payment link and Send £50 deposit link
+        each send that one option. Send Quote to Customer saves this quote, then sends one email with both Pay £50
+        Deposit and Pay in Full.
       </p>
       {sentEmails.length ? (
         <div className="mt-4 border-t border-slate-100 pt-3">

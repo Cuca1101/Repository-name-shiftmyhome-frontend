@@ -71,3 +71,6 @@ verify_jwt = false
 
 [functions.phone-quote]
 verify_jwt = false
+
+[functions.customer-offer]
+verify_jwt = false

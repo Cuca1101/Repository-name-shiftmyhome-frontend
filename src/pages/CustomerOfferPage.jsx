@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react'
-import { useParams } from 'react-router-dom'
+import { useEffect, useRef, useState } from 'react'
+import { useParams, useSearchParams } from 'react-router-dom'
 import SeoHead from '../components/seo/SeoHead'
 import QuoteStripePayment from '../components/quote-wizard/QuoteStripePayment'
 import { fetchCustomerOffer, respondToCounteroffer } from '../lib/customerOfferApi'
@@ -26,6 +26,9 @@ function statusCopy(offer) {
 
 export default function CustomerOfferPage() {
   const { token = '' } = useParams()
+  const [searchParams] = useSearchParams()
+  const wantPay = searchParams.get('pay') === '1'
+  const autoPayRef = useRef(false)
   const [offer, setOffer] = useState(null)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(true)
@@ -106,6 +109,11 @@ export default function CustomerOfferPage() {
     }
   }
 
+  useEffect(() => {
+    if (!wantPay || autoPayRef.current || !offer?.payable || card) return
+    autoPayRef.current = true
+    void startPayment()
+  }, [wantPay, offer, card])
   return (
     <div className="mx-auto w-full max-w-lg px-3 py-4 sm:px-4">
       <SeoHead title="Your offer | ShiftMyHome" description="View the reply to your ShiftMyHome removal offer." path={`/offer/${token}`} robots="noindex, nofollow" />

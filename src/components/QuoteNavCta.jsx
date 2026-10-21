@@ -4,6 +4,8 @@ import { useSeoQuoteModal } from '../context/SeoQuoteModalContext'
 import { getSeoPageByPath } from '../data/seoPages'
 import { getServicePageByPath } from '../constants/servicePages'
 import { normalizePublicPath } from '../lib/normalizePublicPath'
+import { pathUsesDedicatedQuotePage } from '../lib/quoteModalRoutes'
+import { startFreshPublicQuote } from '../lib/quoteSessionMode'
 
 /**
  * Navbar / drawer quote CTA — opens quote modal on homepage & general pages;
@@ -23,6 +25,24 @@ export default function QuoteNavCta({ className, children, onNavigate, trackLabe
   const isServiceQuote = Boolean(getServicePageByPath(routePath))
   const { openQuote, hasModal } = useSeoQuoteModal()
 
+  if (pathUsesDedicatedQuotePage(routePath)) {
+    return (
+      <button
+        type="button"
+        className={className}
+        data-track-click={trackLabel || 'Nav: Get a Quote'}
+        data-track-section="nav"
+        onClick={() => {
+          onNavigate?.()
+          startFreshPublicQuote('', routePath)
+          document.querySelector('[data-quote-flow]')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+        }}
+      >
+        {children}
+      </button>
+    )
+  }
+
   if (isSeoLanding) {
     return (
       <Link
@@ -31,7 +51,10 @@ export default function QuoteNavCta({ className, children, onNavigate, trackLabe
         className={className}
         data-track-click={trackLabel || 'Nav: seo quote'}
         data-track-section="nav"
-        onClick={() => onNavigate?.()}
+        onClick={() => {
+          startFreshPublicQuote('', routePath)
+          onNavigate?.()
+        }}
       >
         {children}
       </Link>
@@ -45,7 +68,10 @@ export default function QuoteNavCta({ className, children, onNavigate, trackLabe
         className={className}
         data-track-click={trackLabel || 'Nav: service quote'}
         data-track-section="nav"
-        onClick={() => onNavigate?.()}
+        onClick={() => {
+          startFreshPublicQuote('', routePath)
+          onNavigate?.()
+        }}
       >
         {children}
       </a>
@@ -61,6 +87,7 @@ export default function QuoteNavCta({ className, children, onNavigate, trackLabe
         data-track-section="nav"
         onClick={() => {
           onNavigate?.()
+          startFreshPublicQuote('', routePath)
           openQuote()
         }}
       >
@@ -73,7 +100,10 @@ export default function QuoteNavCta({ className, children, onNavigate, trackLabe
     <HomeSectionLink
       sectionId="services"
       className={className}
-      onNavigate={onNavigate}
+      onNavigate={() => {
+        startFreshPublicQuote('', routePath)
+        onNavigate?.()
+      }}
       trackLabel={trackLabel}
     >
       {children}

@@ -565,6 +565,8 @@ export default function AdminLayout() {
   const customerLeadsWide =
     pathname === '/admin/customer-leads' ||
     pathname.startsWith('/admin/customer-leads/') ||
+    pathname === '/admin/new-phone-booking' ||
+    pathname.startsWith('/admin/new-phone-booking/') ||
     financePage
 
   return (

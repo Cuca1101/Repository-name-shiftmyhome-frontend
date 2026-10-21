@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom'
 import { stripePromise } from '../../lib/stripePromise'
 import { STRIPE_LOCALE } from '../../lib/stripeConfig'
 import { verifyPaymentIntent, scheduleAdminAvailableJobNotification } from '../../lib/stripeCheckout'
-import { clearQuoteDraft } from '../../lib/quoteDraftStorage'
+import { clearSavedQuoteResume } from '../../lib/savedQuoteResume'
 
 function paymentElementOptions(customerEmail) {
   const options = {
@@ -113,7 +113,7 @@ function PaymentForm({
             )
           }
         }
-        clearQuoteDraft()
+        clearSavedQuoteResume()
         navigate(`/payment-success?payment_intent=${encodeURIComponent(paymentIntent.id)}`)
         return
       }

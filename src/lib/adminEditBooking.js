@@ -23,8 +23,12 @@ import { hydrateWizardFromDraft } from './quoteDraftStorage'
 import { resolveChargeableTotal } from './adminAgreedPrice'
 import {
   adminPhoneBookingFormStateFromQuoteRow,
+  readPhoneBookingAttribution,
   resolveAdminPhoneBookingFinalPrice,
 } from './adminPhoneBooking'
+import { quoteIsAdminPhoneBooking } from './adminJobListRules'
+import { buildPhoneBookingAttribution } from './phoneBookingAttribution'
+import { phoneQuoteFinalTotal } from './phoneQuotePaymentRules'
 import {
   buildCustomerFacingBookingSnapshot,
   diffCustomerFacingBooking,
@@ -463,7 +467,24 @@ export function buildAdminEditBookingPatch({
     paymentStatus = remaining <= 0.009 ? 'paid' : 'deposit_paid'
   }
 
-  const { displayDetails } = extractWizardSnapshotFromDetails(String(existing.details || ''))
+  const { displayDetails, meta: priorMeta } = extractWizardSnapshotFromDetails(String(existing.details || ''))
+  let quoteBy = priorMeta?.quoteBy ?? null
+  let priceChanges = Array.isArray(priorMeta?.priceChanges) ? priorMeta.priceChanges : []
+  if (quoteIsAdminPhoneBooking(existing)) {
+    const prior = readPhoneBookingAttribution(existing)
+    const nextAttribution = buildPhoneBookingAttribution({
+      existingQuoteBy: prior.quoteBy,
+      existingChanges: prior.priceChanges,
+      actor: editedBy || 'Staff',
+      at: new Date().toISOString(),
+      previousFinal: phoneQuoteFinalTotal(existing),
+      nextFinal: finalTotal,
+      reason: useCalculatedPrice ? '' : overrideReason,
+    })
+    quoteBy = nextAttribution.quoteBy
+    priceChanges = nextAttribution.priceChanges
+  }
+  const latestPriceChange = priceChanges.length ? priceChanges[priceChanges.length - 1] : null
   const staffBits = []
   if (editedBy) staffBits.push(`Last edited by admin (${editedBy}) at ${new Date().toISOString()}`)
   if (!useCalculatedPrice && overrideReason.trim()) {
@@ -499,6 +520,8 @@ export function buildAdminEditBookingPatch({
     finalPriceOverride: String(finalPriceOverride ?? ''),
     overrideReason,
     adminNote,
+    quoteBy,
+    priceChanges,
   })
 
   const inventoryJson = (wizard.inventoryLines || []).map((l) => {
@@ -527,20 +550,25 @@ export function buildAdminEditBookingPatch({
       Math.abs(calculatedTotal - finalTotal) > 0.009
         ? finalTotal
         : null,
-    price_override_reason:
-      !useCalculatedPrice && overrideReason.trim() ? overrideReason.trim() : null,
-    price_override_by:
-      !useCalculatedPrice &&
-      calculatedTotal != null &&
-      finalTotal != null &&
-      Math.abs(calculatedTotal - finalTotal) > 0.009
+    price_override_reason: quoteIsAdminPhoneBooking(existing)
+      ? latestPriceChange?.reason || null
+      : !useCalculatedPrice && overrideReason.trim()
+        ? overrideReason.trim()
+        : null,
+    price_override_by: quoteIsAdminPhoneBooking(existing)
+      ? latestPriceChange?.by || null
+      : !useCalculatedPrice &&
+          calculatedTotal != null &&
+          finalTotal != null &&
+          Math.abs(calculatedTotal - finalTotal) > 0.009
         ? editedBy || 'admin'
         : null,
-    price_override_at:
-      !useCalculatedPrice &&
-      calculatedTotal != null &&
-      finalTotal != null &&
-      Math.abs(calculatedTotal - finalTotal) > 0.009
+    price_override_at: quoteIsAdminPhoneBooking(existing)
+      ? latestPriceChange?.at || null
+      : !useCalculatedPrice &&
+          calculatedTotal != null &&
+          finalTotal != null &&
+          Math.abs(calculatedTotal - finalTotal) > 0.009
         ? new Date().toISOString()
         : null,
     details,

@@ -7,6 +7,8 @@ import {
   applyCustomerLeadResumeDraft,
   draftPayloadFromCustomerLead,
 } from '../lib/quoteRecoveryResume'
+import { clearSavedQuoteResume } from '../lib/savedQuoteResume'
+import { loadQuoteDraft } from '../lib/quoteDraftStorage'
 
 function dbClient() {
   if (isSupabasePublicConfigured && supabasePublic) return supabasePublic
@@ -47,9 +49,14 @@ export default function QuoteResumePage() {
         if (cancelled) return
         if (rpcErr) throw rpcErr
         if (!data || data.ok === false) {
+          const saved = loadQuoteDraft()
+          const returnedRef = String(data?.quote_ref || '').trim()
+          if (saved && returnedRef && saved.quoteRef === returnedRef) {
+            clearSavedQuoteResume()
+          }
           setError(
             data?.error === 'already_converted'
-              ? 'This quote was already booked. Contact us if you need help.'
+              ? 'This quote was already booked. You can find it in your customer account.'
               : 'This resume link is invalid or has expired.',
           )
           return

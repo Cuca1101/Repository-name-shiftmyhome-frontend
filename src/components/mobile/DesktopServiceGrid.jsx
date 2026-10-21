@@ -3,13 +3,13 @@ import { HouseIcon, iconBySlug } from '../serviceIcons'
 import { useWebsiteCms } from '../../context/WebsiteCmsContext'
 import { DEFAULT_HOMEPAGE } from '../../lib/websiteCmsDefaults'
 import { useServiceGridCards } from '../../hooks/useServiceGridCards'
-import { markNewQuoteFromServiceCard } from '../../lib/quoteSessionMode'
+import { startFreshPublicQuote } from '../../lib/quoteSessionMode'
 import { useSeoQuoteModal } from '../../context/SeoQuoteModalContext'
 import { trackWebsiteClick, trackWebsiteLeadEvent } from '../../lib/websiteLeadTracker'
 
 function onServiceCardClick(card) {
   const label = `Service card: ${card.title || card.serviceType || 'Quote'}`
-  markNewQuoteFromServiceCard(card.serviceType || '', card.seoPath || card.path)
+  startFreshPublicQuote(card.serviceType || '', card.seoPath || card.path)
   void trackWebsiteClick(label, { href: card.path, section: 'services', serviceType: card.serviceType })
   trackWebsiteLeadEvent('new_quote_from_service', {
     serviceType: card.serviceType,

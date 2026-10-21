@@ -3,11 +3,11 @@ import { initialWizardState, QUOTE_WIZARD_MAX_STEP } from './quoteWizardDefaults
 import { step3ContactDetailsValid } from './quoteWizardStep3ContactScroll'
 import { sanitizeDraftMoveDate } from './moveDateLocal'
 import { getWebsiteLeadSessionId } from './websiteLeadSession'
+import { QUOTE_DRAFT_MAX_AGE_MS } from './savedQuoteResumeRules'
 
 export const QUOTE_DRAFT_STORAGE_KEY = 'shiftmyhome_quote_draft_v1'
 
 const DRAFT_VERSION = 1
-const MAX_AGE_MS = 14 * 24 * 60 * 60 * 1000
 
 /**
  * @param {string} serviceType
@@ -65,7 +65,7 @@ export function loadQuoteDraft() {
     if (!raw) return null
     const data = JSON.parse(raw)
     if (!data || data.version !== DRAFT_VERSION) return null
-    if (typeof data.savedAt !== 'number' || Date.now() - data.savedAt > MAX_AGE_MS) {
+    if (typeof data.savedAt !== 'number' || Date.now() - data.savedAt > QUOTE_DRAFT_MAX_AGE_MS) {
       clearQuoteDraft()
       return null
     }

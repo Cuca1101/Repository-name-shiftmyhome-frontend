@@ -39,6 +39,19 @@ export function clearResumeSavedQuote() {
   session()?.removeItem(QUOTE_RESUME_SESSION_KEY)
 }
 
+export const START_FRESH_QUOTE_EVENT = 'shiftmyhome-start-fresh-quote'
+
+/**
+ * Get a Quote starts a new reference. The saved draft stays so Continue can reopen it.
+ * @param {unknown} [serviceType]
+ * @param {string} [path]
+ */
+export function startFreshPublicQuote(serviceType = '', path = '') {
+  markNewQuoteFromServiceCard(serviceType, path)
+  if (typeof window === 'undefined') return
+  window.dispatchEvent(new Event(START_FRESH_QUOTE_EVENT))
+}
+
 /** Quote ref of the wizard currently on screen. Empty after the customer leaves it. */
 let activeQuoteWizardRef = ''
 

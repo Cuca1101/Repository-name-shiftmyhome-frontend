@@ -1,6 +1,6 @@
 import { useServiceGridCards } from '../../hooks/useServiceGridCards'
 import { getBrandedServiceImage } from '../../lib/getBrandedServiceImage'
-import { markNewQuoteFromServiceCard } from '../../lib/quoteSessionMode'
+import { startFreshPublicQuote } from '../../lib/quoteSessionMode'
 import { useSeoQuoteModal } from '../../context/SeoQuoteModalContext'
 import HomeStyleServiceCard from './HomeStyleServiceCard'
 
@@ -30,10 +30,10 @@ export default function SeoLandingServiceGrid({ pagePath, quoteAnchor = '#seo-qu
               hasModal
                 ? (e) => {
                     e.preventDefault()
-                    markNewQuoteFromServiceCard(card.serviceType || '', pagePath)
+                    startFreshPublicQuote(card.serviceType || '', pagePath)
                     openQuote(card.serviceType || undefined)
                   }
-                : () => markNewQuoteFromServiceCard(card.serviceType || '', pagePath)
+                : () => startFreshPublicQuote(card.serviceType || '', pagePath)
             }
           />
         </li>

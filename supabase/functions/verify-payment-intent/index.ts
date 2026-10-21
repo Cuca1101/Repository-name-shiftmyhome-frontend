@@ -4,6 +4,7 @@ import { updateQuoteFromPaymentIntent } from '../_shared/updateQuoteFromPaymentI
 import { sendPaymentConfirmationWithPdfIfNeeded } from '../_shared/paymentConfirmationEmail.ts'
 import { runAfterPaymentVerifiedHooks } from '../_shared/afterPaymentVerifiedHooks.ts'
 import { guardStripeSecretKey, respondStripeConfigFailure } from '../_shared/stripeSecretGuard.ts'
+import { markCustomerOfferBooked } from '../_shared/customerOfferCheckout.ts'
 
 /**
  * Verifies succeeded PaymentIntent, updates quote/job and sends booking confirmation PDF email.
@@ -82,6 +83,14 @@ Deno.serve(async (req) => {
 
   const supabase = createClient(supabaseUrl, serviceRole)
   const result = await updateQuoteFromPaymentIntent(supabase, pi, 'paid')
+  const offerId = typeof pi.metadata?.offer_id === 'string' ? pi.metadata.offer_id.trim() : ''
+  if (offerId) {
+    try {
+      await markCustomerOfferBooked(supabase, offerId)
+    } catch (e) {
+      console.error('[verify-payment-intent] offer booked', e instanceof Error ? e.message : e)
+    }
+  }
 
   let quote_ref =
     typeof pi.metadata?.quote_ref === 'string' ? pi.metadata.quote_ref.trim() : ''
@@ -142,13 +151,23 @@ Deno.serve(async (req) => {
     typeof pi.currency === 'string' && pi.currency.trim()
       ? pi.currency.trim().toUpperCase()
       : 'GBP'
+  const paymentType = typeof pi.metadata?.payment_type === 'string' ? pi.metadata.payment_type : ''
+  const quoteTotalRaw = Number(pi.metadata?.quote_total_gbp)
+  const quote_total_gbp = Number.isFinite(quoteTotalRaw) && quoteTotalRaw > 0 ? Math.round(quoteTotalRaw * 100) / 100 : undefined
+  const balance_after_gbp =
+    paymentType === 'deposit' && quote_total_gbp != null && amount_gbp != null
+      ? Math.max(0, Math.round((quote_total_gbp - amount_gbp) * 100) / 100)
+      : undefined
 
   return jsonResponse({
     ok: result.ok,
     updated: result.ok,
     error: result.error,
     payment_status: pi.status,
+    payment_type: paymentType || undefined,
     quote_ref: quote_ref || undefined,
+    quote_total_gbp,
+    balance_after_gbp,
     amount_gbp,
     service_package: typeof pi.metadata?.service_package === 'string' ? pi.metadata.service_package : undefined,
     service_package_fee:

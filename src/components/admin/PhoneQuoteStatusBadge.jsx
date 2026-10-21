@@ -1,3 +1,5 @@
+import { MailCheck } from 'lucide-react'
+import { formatDateTimeUK } from '../../lib/formatDateDisplay'
 import { phoneQuoteAdminStatus } from '../../lib/phoneQuotePaymentRules'
 
 const STYLES = {
@@ -16,6 +18,27 @@ export default function PhoneQuoteStatusBadge({ q }) {
       data-phone-quote-status={s.key}
     >
       {s.label}
+    </span>
+  )
+}
+
+/**
+ * Green envelope shown only after a quote email was sent successfully.
+ * @param {{ sentAt?: string | null, recipient?: string | null }} props
+ */
+export function QuoteEmailSentBadge({ sentAt, recipient }) {
+  if (!sentAt) return null
+  const when = formatDateTimeUK(sentAt)
+  const to = String(recipient || '').trim()
+  const detail = to ? `Sent ${when} to ${to}` : `Sent ${when}`
+  return (
+    <span
+      className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-700"
+      title={detail}
+      aria-label={`Email sent. ${detail}`}
+    >
+      <MailCheck className="h-3.5 w-3.5 shrink-0" aria-hidden />
+      Email sent
     </span>
   )
 }

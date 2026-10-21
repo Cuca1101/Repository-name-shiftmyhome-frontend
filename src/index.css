@@ -1273,51 +1273,7 @@
   max-width: 100%;
 }
 
-/* Admin phone booking uses the homepage quote wizard. The admin sidebar is outside
-   this container, so the map column waits until the form still has about two thirds. */
-.admin-phone-quote {
-  container-type: inline-size;
-  container-name: admin-phone-quote;
-}
-
-.admin-main-compact .admin-phone-quote :is(h1, h2, h3) {
-  font-size: unset;
-  line-height: unset;
-}
-
-.admin-phone-quote .quote-wizard-section > .mx-auto,
-.admin-phone-quote .quote-wizard-desktop-grid {
-  max-width: none;
-}
-
-.admin-phone-quote .quote-wizard-desktop-grid {
-  grid-template-columns: minmax(0, 1fr) !important;
-}
-
-.admin-phone-quote .quote-wizard-sidebar,
-.admin-phone-quote .quote-wizard-nav {
-  grid-column: 1 / -1 !important;
-  grid-row: auto !important;
-  max-height: none;
-  overflow: visible;
-}
-
-@container admin-phone-quote (min-width: 64rem) {
-  .admin-phone-quote .quote-wizard-desktop-grid {
-    grid-template-columns: minmax(0, 2fr) minmax(18rem, 1fr) !important;
-    align-items: start;
-  }
-
-  .admin-phone-quote .quote-wizard-sidebar {
-    grid-column: 2 !important;
-    grid-row: 1 / span 2 !important;
-  }
-
-  .admin-phone-quote .quote-wizard-nav {
-    grid-column: 1 !important;
-    grid-row: 2 !important;
-  }
-}
+/* New phone booking uses the public quote wizard classes. Do not restack its columns. */
 
 .quote-contact-card {
   container-type: inline-size;
@@ -1781,22 +1737,22 @@ body.quote-step3-review a[aria-label='Chat on WhatsApp'] {
 
 /* Admin: scale down cards/grids on narrow viewports without changing structure. */
 @media (max-width: 512px) {
-  .admin-main-compact :is(h2) {
+  .admin-main-compact :is(h2):not(.admin-phone-quote h2) {
     font-size: 1.125rem;
     line-height: 1.5rem;
   }
 
-  .admin-main-compact :is(h3) {
+  .admin-main-compact :is(h3):not(.admin-phone-quote h3) {
     font-size: 0.9375rem;
     line-height: 1.375rem;
   }
 
-  .admin-main-compact .text-3xl {
+  .admin-main-compact .text-3xl:not(.admin-phone-quote .text-3xl) {
     font-size: 1.5rem;
     line-height: 2rem;
   }
 
-  .admin-main-compact .text-2xl {
+  .admin-main-compact .text-2xl:not(.admin-phone-quote .text-2xl) {
     font-size: 1.25rem;
     line-height: 1.75rem;
   }

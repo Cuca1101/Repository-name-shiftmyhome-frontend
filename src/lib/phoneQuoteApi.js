@@ -9,7 +9,7 @@ const ERROR_MESSAGES = {
   no_price: 'This quote has no price yet. Please contact ShiftMyHome.',
   missing_customer_email: 'Add a customer email address before sending the quote.',
   email_failed: 'The email could not be sent. Try again in a moment.',
-  deposit_not_available: 'The £50 deposit link is not available for this move date or total.',
+  deposit_not_available: 'A £50 deposit is only available when the total is more than £50.',
   unauthorized: 'Admin sign-in required or session expired.',
   forbidden: 'You do not have permission for this action.',
 }
@@ -62,7 +62,7 @@ export async function fetchPhoneQuoteView(token) {
 }
 
 /**
- * Server re-checks the 48h rule before creating the PaymentIntent.
+ * Server re-checks that a £50 deposit is only offered when the total is higher.
  * @param {string} token
  * @param {'deposit' | 'full'} paymentType
  */

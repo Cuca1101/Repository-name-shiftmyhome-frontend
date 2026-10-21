@@ -154,6 +154,18 @@ export default function PhoneQuoteViewPage() {
           <section className="rounded-2xl border border-emerald-200 bg-emerald-50/70 p-4 sm:p-5">
             <p className="text-xs font-semibold uppercase tracking-wide text-emerald-800">Total price</p>
             <p className="mt-1 text-3xl font-extrabold tabular-nums text-emerald-700">{gbp(quote.total)}</p>
+            {quote.payment_status === 'deposit_paid' ? (
+              <dl className="mt-3 space-y-1 border-t border-emerald-200 pt-3 text-sm text-emerald-950">
+                <div className="flex items-center justify-between gap-3">
+                  <dt>Deposit paid</dt>
+                  <dd className="font-semibold tabular-nums">{gbp(quote.amount_paid)}</dd>
+                </div>
+                <div className="flex items-center justify-between gap-3 text-base font-bold">
+                  <dt>Remaining balance</dt>
+                  <dd className="tabular-nums">{gbp(quote.balance)}</dd>
+                </div>
+              </dl>
+            ) : null}
           </section>
 
           {quote.closed && !isPaid ? (
@@ -164,16 +176,8 @@ export default function PhoneQuoteViewPage() {
 
           {opts.can_pay ? (
             <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5" aria-label="Payment">
-              <h2 className="text-sm font-bold text-slate-900">
-                {requestedPay === 'deposit' ? 'Pay the £50 deposit' : requestedPay === 'full' ? 'Pay in full' : 'How would you like to pay?'}
-              </h2>
-              {!opts.deposit_allowed && opts.full_only_reason === 'under_48h' ? (
-                <p className="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900">
-                  Your move is less than {opts.min_hours_for_deposit} hours away, so full payment is needed to confirm the booking.
-                </p>
-              ) : null}
+              <h2 className="text-sm font-bold text-slate-900">How would you like to pay?</h2>
               <div className="mt-3 space-y-2">
-                {requestedPay === 'deposit' ? null : (
                 <label
                   className={`flex cursor-pointer items-start gap-3 rounded-xl border p-3 ${
                     choice === 'full' ? 'border-brand-500 bg-brand-50/60 ring-2 ring-brand-500/20' : 'border-slate-200'
@@ -190,12 +194,11 @@ export default function PhoneQuoteViewPage() {
                     }}
                   />
                   <span>
-                    <span className="block text-sm font-bold text-slate-900">Pay in full — {gbp(quote.total)}</span>
+                    <span className="block text-sm font-bold text-slate-900">Pay in Full — {gbp(quote.total)}</span>
                     <span className="block text-xs text-slate-600">Nothing more to pay before your move.</span>
                   </span>
                 </label>
-                )}
-                {opts.deposit_allowed && requestedPay !== 'full' ? (
+                {opts.deposit_allowed ? (
                   <label
                     className={`flex cursor-pointer items-start gap-3 rounded-xl border p-3 ${
                       choice === 'deposit' ? 'border-brand-500 bg-brand-50/60 ring-2 ring-brand-500/20' : 'border-slate-200'
@@ -212,9 +215,7 @@ export default function PhoneQuoteViewPage() {
                       }}
                     />
                     <span className="min-w-0">
-                      <span className="block text-sm font-bold text-slate-900">
-                        {gbp(opts.deposit)} deposit to secure the booking
-                      </span>
+                      <span className="block text-sm font-bold text-slate-900">Pay £{opts.deposit} Deposit</span>
                       <span className="mt-1 grid grid-cols-[auto_1fr] gap-x-3 text-xs text-slate-700">
                         <span>Total</span>
                         <span className="text-right font-semibold tabular-nums">{gbp(quote.total)}</span>
@@ -259,8 +260,8 @@ export default function PhoneQuoteViewPage() {
                   {starting
                     ? 'Preparing secure payment…'
                     : choice === 'deposit'
-                      ? `Continue — pay ${gbp(opts.deposit)} deposit`
-                      : `Continue — pay ${gbp(quote.total)}`}
+                      ? `Pay £${opts.deposit} Deposit`
+                      : 'Pay in Full'}
                 </button>
               )}
             </section>

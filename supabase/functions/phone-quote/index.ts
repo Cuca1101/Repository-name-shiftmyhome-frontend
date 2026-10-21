@@ -19,7 +19,7 @@ import { arrivalText, buildPhoneQuoteEmail, inventoryRows, resolvePhoneQuoteLogo
  * Public (token):  { action: 'view', token }                       → quote summary + payment options
  *                  { action: 'create_payment', token, payment_type } → Stripe PaymentIntent client_secret
  * Admin (JWT):     { action: 'preview', quoteId, payment_type? }    → email subject + html, nothing sent
- *                  { action: 'send', quoteId, payment_type? }       → sends the deposit or full-payment link
+ *                  { action: 'send', quoteId, payment_type? }       → sends one email; omit payment_type for both pay buttons
  */
 
 const corsHeaders = {
@@ -142,7 +142,7 @@ Deno.serve(async (req) => {
         {
           ok: false,
           error: 'deposit_not_allowed',
-          message: `Your move is less than ${PHONE_QUOTE_DEPOSIT_MIN_HOURS} hours away, so full payment is needed.`,
+          message: 'A £50 deposit is only available when the total is more than £50.',
           quote: publicView(q),
         },
         409,
@@ -232,7 +232,7 @@ Deno.serve(async (req) => {
     return jsonResponse({
       ok: false,
       error: 'deposit_not_available',
-      message: 'The £50 deposit link is not available for this move date or total. Send the full payment link instead.',
+      message: 'A £50 deposit is only available when the total is more than £50. Send the full payment link instead.',
     }, 409)
   }
   const site = siteBaseUrl()

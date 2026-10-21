@@ -6,7 +6,7 @@ import {
   verifyPaymentIntent,
   scheduleAdminAvailableJobNotification,
 } from '../lib/stripeCheckout'
-import { clearQuoteDraft } from '../lib/quoteDraftStorage'
+import { clearSavedQuoteResume } from '../lib/savedQuoteResume'
 import { consumePhotoUploadNotice } from '../lib/quotePhotoUpload'
 import { trackWebsiteLeadEvent } from '../lib/websiteLeadTracker'
 import { markCustomerLeadBookingComplete } from '../lib/customerLeadTracker'
@@ -29,6 +29,7 @@ export default function PaymentSuccessPage() {
   const transactionId = paymentIntentId || checkoutSessionId
   const [quoteRef, setQuoteRef] = useState(null)
   const [packageSummary, setPackageSummary] = useState('')
+  const [depositSummary, setDepositSummary] = useState(null)
   const [photoUploadNotice, setPhotoUploadNotice] = useState(() => consumePhotoUploadNotice())
   const [copied, setCopied] = useState(false)
   const successContentRef = useRef(null)
@@ -61,7 +62,16 @@ export default function PaymentSuccessPage() {
             const totalLabel = Number.isFinite(paidGbp) && paidGbp > 0 ? ` · Total £${paidGbp.toFixed(2)}` : ''
             setPackageSummary(`${label}${feeLabel}${totalLabel}`)
           }
-          clearQuoteDraft()
+          const quoteTotal = Number(data.quote_total_gbp)
+          const balanceAfter = Number(data.balance_after_gbp)
+          if (data.payment_type === 'deposit' && Number.isFinite(quoteTotal) && Number.isFinite(paidGbp) && Number.isFinite(balanceAfter)) {
+            setDepositSummary({
+              total: quoteTotal,
+              paid: paidGbp,
+              balance: balanceAfter,
+            })
+          }
+          clearSavedQuoteResume()
           trackWebsiteLeadEvent('payment_completed', {
             quoteRef: ref,
             recoveredBooking: true,
@@ -176,6 +186,22 @@ export default function PaymentSuccessPage() {
               <>
                 <p>Thank you — your payment has been received.</p>
                 {packageSummary ? <p className="font-semibold text-slate-800">{packageSummary}</p> : null}
+                {depositSummary ? (
+                  <div className="rounded-xl border border-emerald-100 bg-emerald-50/70 px-3 py-3 text-left text-sm text-emerald-950 sm:px-4">
+                    <p className="flex items-center justify-between gap-3">
+                      <span>Total</span>
+                      <span className="font-semibold tabular-nums">£{depositSummary.total.toFixed(2)}</span>
+                    </p>
+                    <p className="mt-1 flex items-center justify-between gap-3">
+                      <span>Deposit paid</span>
+                      <span className="font-semibold tabular-nums">£{depositSummary.paid.toFixed(2)}</span>
+                    </p>
+                    <p className="mt-1 flex items-center justify-between gap-3 text-base font-bold">
+                      <span>Remaining balance</span>
+                      <span className="tabular-nums">£{depositSummary.balance.toFixed(2)}</span>
+                    </p>
+                  </div>
+                ) : null}
 
                 {quoteRef ? (
                   <div

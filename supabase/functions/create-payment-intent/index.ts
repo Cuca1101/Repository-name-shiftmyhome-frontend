@@ -3,6 +3,7 @@ import Stripe from 'npm:stripe@14.21.0'
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import { guardStripeSecretKey, respondStripeConfigFailure } from '../_shared/stripeSecretGuard.ts'
 import { formatGbpLabel, validateDepositAmountGbp } from '../_shared/stripeDepositAmount.ts'
+import { prepareCustomerOfferCheckout } from '../_shared/customerOfferCheckout.ts'
 /**
  * ShiftMyHome — creates a Stripe PaymentIntent for embedded Payment Element.
  *
@@ -575,8 +576,35 @@ Deno.serve(async (req) => {
     merged.payment_type = existing.payment_type
   }
 
-  let gbp = round2(amount_gbp)
-  const resolvedPaymentType: 'deposit' | 'full' = payment_type === 'deposit' ? 'deposit' : 'full'
+  const offerToken = String(body.offer_token ?? '').trim()
+  const offerCheckout = offerToken
+    ? await prepareCustomerOfferCheckout(supabase, {
+        token: offerToken,
+        paymentType: payment_type === 'deposit' ? 'deposit' : 'full',
+      })
+    : null
+  if (offerCheckout && !offerCheckout.ok) {
+    return jsonResponse({ error: offerCheckout.error }, offerCheckout.status)
+  }
+
+  let gbp = offerCheckout && offerCheckout.ok ? offerCheckout.chargeGbp : round2(amount_gbp)
+  const resolvedPaymentType: 'deposit' | 'full' =
+    offerCheckout && offerCheckout.ok ? offerCheckout.paymentType : payment_type === 'deposit' ? 'deposit' : 'full'
+  if (offerCheckout && offerCheckout.ok) {
+    if (offerCheckout.customerEmail) customer_email = offerCheckout.customerEmail
+    merged = {
+      ...sanitizeQuoteLead(offerCheckout.lead),
+      email: customer_email,
+      estimated_total: offerCheckout.agreed,
+      agreed_price: offerCheckout.agreed,
+      calculated_total: offerCheckout.lead.calculated_total ?? null,
+      price_override_reason: 'Accepted customer offer',
+      price_override_at: new Date().toISOString(),
+      remaining_balance: resolvedPaymentType === 'deposit'
+        ? round2(Math.max(0, offerCheckout.agreed - offerCheckout.chargeGbp))
+        : 0,
+    }
+  }
   const pricingTextForTotal = cleanLead ? String(cleanLead.pricing ?? '') : ''
   const estimatedTotalFromLead =
     parsePoundsFromText(pricingTextForTotal, [
@@ -587,7 +615,9 @@ Deno.serve(async (req) => {
       ? Number(cleanLead.estimated_total)
       : null)
 
-  if (resolvedPaymentType === 'deposit') {
+  if (offerCheckout && offerCheckout.ok) {
+    // Agreed offer totals are stored server-side. Do not compare them with the browser amount.
+  } else if (resolvedPaymentType === 'deposit') {
     const depositCheck = validateDepositAmountGbp(gbp, estimatedTotalFromLead)
     if (!depositCheck.ok) {
       const msg =
@@ -609,10 +639,19 @@ Deno.serve(async (req) => {
   const declaredVolumeM3 = Number(body.declared_volume_m3)
   let packageSnapshot: Record<string, unknown> | null = null
   const hasBaseQuote = Number.isFinite(baseQuoteGbp) && baseQuoteGbp >= 0
-  if (resolvedPaymentType === 'full' && !hasBaseQuote) {
+  if (offerCheckout && offerCheckout.ok) {
+    packageSnapshot = {
+      service_package: offerCheckout.packageId,
+      service_package_fee: offerCheckout.packageFee,
+      quote_base_total: round2(Math.max(0, offerCheckout.agreed - offerCheckout.packageFee)),
+      final_total: offerCheckout.agreed,
+      display_name: offerCheckout.packageId,
+      agreed_offer: true,
+      captured_at: new Date().toISOString(),
+    }
+  } else if (resolvedPaymentType === 'full' && !hasBaseQuote) {
     return jsonResponse({ error: 'base_quote_gbp is required' }, 400)
-  }
-  if (hasBaseQuote) {
+  } else if (hasBaseQuote) {
     const { data: pricingRow, error: pricingErr } = await supabase
       .from('pricing_settings')
       .select('data')
@@ -711,10 +750,33 @@ Deno.serve(async (req) => {
     customer_name,
     service_package: String(packageSnapshot?.service_package || servicePackageId || 'standard'),
     service_package_fee: packageSnapshot ? String(packageSnapshot.service_package_fee ?? '') : '',
+    offer_id: offerCheckout && offerCheckout.ok ? offerCheckout.offerId : '',
+    agreed_total_gbp: offerCheckout && offerCheckout.ok ? offerCheckout.agreed.toFixed(2) : '',
   })
 
   try {
-    const intent = await stripe.paymentIntents.create({
+    let intent: Stripe.PaymentIntent | null = null
+    if (offerCheckout && offerCheckout.ok && offerCheckout.activePaymentIntentId) {
+      try {
+        const existingIntent = await stripe.paymentIntents.retrieve(offerCheckout.activePaymentIntentId)
+        if (existingIntent.status === 'succeeded') {
+          return jsonResponse({ error: 'This offer has already been paid.' }, 409)
+        }
+        if (
+          existingIntent.amount === unitAmount &&
+          existingIntent.client_secret &&
+          ['requires_payment_method', 'requires_confirmation', 'requires_action'].includes(existingIntent.status)
+        ) {
+          intent = existingIntent
+        } else if (existingIntent.status !== 'canceled') {
+          await stripe.paymentIntents.cancel(existingIntent.id)
+        }
+      } catch (err) {
+        console.error('[create-payment-intent] offer payment intent lookup', err)
+      }
+    }
+    if (!intent) {
+    const intentCreated = await stripe.paymentIntents.create({
       amount: unitAmount,
       currency: 'gbp',
       automatic_payment_methods: { enabled: true },
@@ -725,8 +787,10 @@ Deno.serve(async (req) => {
           ? `${formatGbpLabel(gbp)} reservation fee — quote ${quote_ref}`
           : `Full payment — quote ${quote_ref}`,
     })
+    intent = intentCreated
+    }
 
-    if (!intent.client_secret) {
+    if (!intent?.client_secret) {
       return jsonResponse({ error: 'Stripe did not return client_secret' }, 500)
     }
 
@@ -746,6 +810,14 @@ Deno.serve(async (req) => {
       paymentType: resolvedPaymentType,
       checkoutSessionId: checkout_session_id || null,
     })
+    if (offerCheckout && offerCheckout.ok) {
+      const { error: offerPiErr } = await supabase
+        .from('customer_offers')
+        .update({ active_payment_intent_id: intent.id, updated_at: new Date().toISOString() })
+        .eq('id', offerCheckout.offerId)
+        .is('booked_at', null)
+      if (offerPiErr) console.error('[create-payment-intent] offer payment intent', offerPiErr.message)
+    }
 
     return jsonResponse({
       client_secret: intent.client_secret,

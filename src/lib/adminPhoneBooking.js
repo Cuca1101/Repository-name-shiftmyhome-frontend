@@ -29,6 +29,12 @@ import { SERVICE_TYPES } from '../constants/serviceTypes'
 import { initialWizardState } from './quoteWizardDefaults'
 import { hydrateWizardFromDraft } from './quoteDraftStorage'
 import { phoneQuoteFinalTotal } from './phoneQuotePaymentRules'
+import {
+  buildPhoneBookingAttribution,
+  normalizePriceChange,
+  priceChangeFromOverrideColumns,
+  quoteCreatorFromDetailsText,
+} from './phoneBookingAttribution'
 
 const QUOTES_TABLE = 'quotes'
 
@@ -203,6 +209,8 @@ export function resolveAdminPhoneBookingFinalPrice(breakdown, { useCalculatedPri
  *   overrideReason?: string,
  *   adminNote?: string,
  *   createdBy?: string,
+ *   quoteBy?: { name?: string, at?: string } | null,
+ *   priceChanges?: Array<{ by?: string, at?: string, from?: number | null, to?: number | null, reason?: string }>,
  * }} params
  */
 export function buildAdminPhoneBookingQuoteRow({
@@ -216,6 +224,8 @@ export function buildAdminPhoneBookingQuoteRow({
   overrideReason = '',
   adminNote = '',
   createdBy = '',
+  quoteBy = null,
+  priceChanges = [],
 }) {
   const ref = String(quoteRef || '').trim() || generateQuoteRef()
   const fullSummaryText = buildWizardFullSummaryText({
@@ -267,8 +277,9 @@ export function buildAdminPhoneBookingQuoteRow({
   const remaining =
     finalTotal != null && Number.isFinite(finalTotal) ? Math.max(0, finalTotal) : null
 
+  const creatorName = String(quoteBy?.name || createdBy || '').trim()
   const staffLines = [
-    createdBy ? `Created by admin (${createdBy})` : 'Created by admin (phone booking)',
+    creatorName ? `Quote by: ${creatorName}` : 'Created by admin (phone booking)',
     'Phone booking — customer pays from the emailed quote link, or payment is arranged manually',
     'Awaiting release from New phone booking to Available Jobs',
   ]
@@ -297,7 +308,11 @@ export function buildAdminPhoneBookingQuoteRow({
     finalPriceOverride: String(finalPriceOverride ?? ''),
     overrideReason,
     adminNote,
+    quoteBy,
+    priceChanges,
   })
+
+  const latestPriceChange = priceChanges.length ? priceChanges[priceChanges.length - 1] : null
 
   const inventoryJson = (wizard.inventoryLines || []).map((l) => ({
     name: l.name,
@@ -328,22 +343,9 @@ export function buildAdminPhoneBookingQuoteRow({
       Math.abs(calculatedTotal - finalTotal) > 0.009
         ? finalTotal
         : null,
-    price_override_reason:
-      !useCalculatedPrice && overrideReason.trim() ? overrideReason.trim() : null,
-    price_override_by:
-      !useCalculatedPrice &&
-      calculatedTotal != null &&
-      finalTotal != null &&
-      Math.abs(calculatedTotal - finalTotal) > 0.009
-        ? createdBy || 'admin'
-        : null,
-    price_override_at:
-      !useCalculatedPrice &&
-      calculatedTotal != null &&
-      finalTotal != null &&
-      Math.abs(calculatedTotal - finalTotal) > 0.009
-        ? new Date().toISOString()
-        : null,
+    price_override_reason: latestPriceChange?.reason || null,
+    price_override_by: latestPriceChange?.by || null,
+    price_override_at: latestPriceChange?.at || null,
     details,
     inventory: inventoryJson.length ? inventoryJson : [],
     pricing: formatQuoteBreakdownLines(breakdown),
@@ -403,8 +405,54 @@ export function adminPhoneBookingFormStateFromQuoteRow(row) {
     finalPriceOverride,
     overrideReason: meta?.overrideReason ?? '',
     adminNote: meta?.adminNote ?? '',
+    attribution: readPhoneBookingAttribution(row),
     step: 4,
   }
+}
+
+/**
+ * Creator plus price-change history stored on a phone-booking quote.
+ * Older rows fall back to the details text and the price override columns.
+ * @param {Record<string, unknown>} row
+ */
+export function readPhoneBookingAttribution(row) {
+  const { meta, displayDetails } = extractWizardSnapshotFromDetails(String(row?.details || ''))
+  const storedBy = meta?.quoteBy && typeof meta.quoteBy === 'object' ? meta.quoteBy : null
+  const storedName = String(storedBy?.name || '').trim()
+  const quoteBy = storedName
+    ? { name: storedName, at: String(storedBy?.at || row?.created_at || '') }
+    : {
+        name: quoteCreatorFromDetailsText(displayDetails),
+        at: String(storedBy?.at || row?.created_at || ''),
+      }
+  const storedChanges = Array.isArray(meta?.priceChanges)
+    ? meta.priceChanges.map(normalizePriceChange).filter(Boolean)
+    : null
+  const fallback = priceChangeFromOverrideColumns(row)
+  const priceChanges = storedChanges || (fallback ? [fallback] : [])
+  return { quoteBy, priceChanges }
+}
+
+/**
+ * @param {{
+ *   existing: Record<string, unknown> | null,
+ *   actor: string,
+ *   previousFinal: number | null,
+ *   nextFinal: number | null,
+ *   reason?: string,
+ * }} input
+ */
+function attributionForPhoneBookingSave({ existing, actor, previousFinal, nextFinal, reason }) {
+  const prior = existing ? readPhoneBookingAttribution(existing) : { quoteBy: null, priceChanges: [] }
+  return buildPhoneBookingAttribution({
+    existingQuoteBy: existing ? prior.quoteBy : null,
+    existingChanges: prior.priceChanges,
+    actor,
+    at: new Date().toISOString(),
+    previousFinal,
+    nextFinal,
+    reason,
+  })
 }
 
 /** Columns an edit must not rewrite. Payments, the pay token, and sent-email history stay on the row. */
@@ -495,9 +543,18 @@ export async function updateAdminPhoneBookingFromWizard(form) {
     throw new Error('This record is not a phone booking.')
   }
 
+  const attribution = attributionForPhoneBookingSave({
+    existing,
+    actor: form.createdBy,
+    previousFinal: phoneQuoteFinalTotal(existing),
+    nextFinal: form.finalPrice ?? form.breakdown?.estimatedTotal ?? null,
+    reason: form.useCalculatedPrice ? '' : form.overrideReason,
+  })
   const row = buildAdminPhoneBookingQuoteRow({
     ...form,
     quoteRef: String(existing.quote_ref || form.quoteRef || ''),
+    quoteBy: attribution.quoteBy,
+    priceChanges: attribution.priceChanges,
   })
 
   const paidStatus = String(existing.payment_status || '').trim().toLowerCase()
@@ -519,7 +576,7 @@ export async function updateAdminPhoneBookingFromWizard(form) {
     .single()
 
   if (error) throw new Error(error.message || 'Could not update booking.')
-  return { id: String(data.id), quote_ref: String(data.quote_ref) }
+  return { id: String(data.id), quote_ref: String(data.quote_ref), attribution }
 }
 
 /**
@@ -530,10 +587,24 @@ export async function insertAdminPhoneBookingFromWizard(form) {
     throw new Error('Supabase is not configured.')
   }
 
+  const calculated = form.breakdown?.estimatedTotal
+  const attribution = attributionForPhoneBookingSave({
+    existing: null,
+    actor: form.createdBy,
+    previousFinal: calculated ?? null,
+    nextFinal: form.finalPrice ?? calculated ?? null,
+    reason: form.useCalculatedPrice ? '' : form.overrideReason,
+  })
+  const withAttribution = {
+    ...form,
+    quoteBy: attribution.quoteBy,
+    priceChanges: attribution.priceChanges,
+  }
+
   const requestedRef = String(form.quoteRef || '').trim()
   if (requestedRef) {
     const row = buildAdminPhoneBookingQuoteRow({
-      ...form,
+      ...withAttribution,
       quoteRef: requestedRef,
       finalPriceOverride: form.finalPriceOverride,
     })
@@ -544,17 +615,17 @@ export async function insertAdminPhoneBookingFromWizard(form) {
       }
       throw new Error(error.message || 'Could not save booking.')
     }
-    return { id: String(data.id), quote_ref: String(data.quote_ref) }
+    return { id: String(data.id), quote_ref: String(data.quote_ref), attribution }
   }
 
   for (let attempt = 0; attempt < 8; attempt += 1) {
     const row = buildAdminPhoneBookingQuoteRow({
-      ...form,
+      ...withAttribution,
       finalPriceOverride: form.finalPriceOverride,
     })
     const { data, error } = await supabase.from(QUOTES_TABLE).insert(row).select('id, quote_ref').single()
     if (!error && data?.id) {
-      return { id: String(data.id), quote_ref: String(data.quote_ref) }
+      return { id: String(data.id), quote_ref: String(data.quote_ref), attribution }
     }
     if (error?.code === '23505') {
       continue

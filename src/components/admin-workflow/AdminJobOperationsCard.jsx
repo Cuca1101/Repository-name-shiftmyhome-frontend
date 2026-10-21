@@ -494,13 +494,31 @@ export default function AdminJobOperationsCard({
     ? 'ring-2 ring-emerald-400/90 bg-emerald-50/40 animate-[available-job-highlight_2s_ease-out_1]'
     : ''
 
+  const depositPaid = cardVariant === 'available' && customerPayment?.label === 'Deposit paid'
+  const paidInFull = cardVariant === 'available' && customerPayment?.label === 'Paid in full'
   const financeBlock =
     cardVariant === 'available' ? (
-      <PaymentStrip
-        fin={displayFin}
-        compact={layoutMode === 'list'}
-        labels={{ total: 'Total job', paid: 'Paid', balance: 'Balance remaining' }}
-      />
+      <div className="min-w-0 space-y-1.5">
+        {depositPaid ? (
+          <p className="text-xs font-bold text-amber-950">
+            Deposit paid · Remaining balance{' '}
+            <span className="tabular-nums">{customerPayment.remaining != null ? money(customerPayment.remaining) : '—'}</span>
+          </p>
+        ) : paidInFull ? (
+          <p className="text-xs font-bold text-emerald-800">Paid in full</p>
+        ) : null}
+        <PaymentStrip
+          fin={displayFin}
+          compact={layoutMode === 'list'}
+          labels={
+            depositPaid
+              ? { total: 'Total', paid: 'Deposit paid', balance: 'Remaining balance' }
+              : paidInFull
+                ? { total: 'Total', paid: 'Paid in full', balance: 'Remaining balance' }
+                : { total: 'Total job', paid: 'Paid', balance: 'Balance remaining' }
+          }
+        />
+      </div>
     ) : cardVariant === 'marketplace' && mpFin ? (
       <MarketplacePaymentStrip mpFin={mpFin} compact={layoutMode === 'list'} />
     ) : (

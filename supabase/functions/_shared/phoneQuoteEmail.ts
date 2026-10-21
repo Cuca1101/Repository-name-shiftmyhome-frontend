@@ -1,5 +1,5 @@
 import {
-  PHONE_QUOTE_DEPOSIT_MIN_HOURS,
+  PHONE_QUOTE_DEPOSIT_GBP,
   phoneQuoteFinalTotal,
   phoneQuotePaymentOptions,
 } from './phoneQuotePaymentRules.ts'
@@ -112,20 +112,28 @@ export function buildPhoneQuoteEmail(
   const arrival = arrivalText(q)
   const subject = `Your ShiftMyHome quote ${ref} — ${gbp(total)}`
 
-  const paymentLine = choice === 'deposit'
-    ? `Pay a ${gbp(opts.deposit)} deposit now to secure your booking. The remaining ${gbp(opts.balanceAfterDeposit)} is paid later.`
-    : choice === 'full'
-      ? `Pay ${gbp(total)} in full to confirm your booking.`
-      : opts.depositAllowed
-        ? `Pay in full, or pay a ${gbp(opts.deposit)} deposit now to secure your booking (remaining ${gbp(opts.balanceAfterDeposit)} paid later).`
-        : opts.fullOnlyReason === 'under_48h'
-          ? `Your move is less than ${PHONE_QUOTE_DEPOSIT_MIN_HOURS} hours away, so full payment is needed to confirm the booking.`
-          : 'Pay securely online to confirm your booking.'
-  const buttonLabel = choice === 'deposit'
-    ? `Pay ${gbp(opts.deposit)} deposit`
-    : choice === 'full'
-      ? `Pay ${gbp(total)} in full`
-      : 'View quote & pay'
+  const depositLabel = `Pay £${PHONE_QUOTE_DEPOSIT_GBP} Deposit`
+  const fullLabel = 'Pay in Full'
+  const showBoth = choice === '' && opts.depositAllowed
+  const payBase = String(link || '').replace(/([?&])pay=(deposit|full)/, '').replace(/[?&]$/, '')
+  const withPay = (type: 'deposit' | 'full') => `${payBase}${payBase.includes('?') ? '&' : '?'}pay=${type}`
+  const depositLink = withPay('deposit')
+  const fullLink = withPay('full')
+  const paymentLine = showBoth
+    ? `Choose ${depositLabel} or ${fullLabel}. A £${PHONE_QUOTE_DEPOSIT_GBP} deposit leaves a remaining balance of ${gbp(opts.balanceAfterDeposit)}.`
+    : choice === 'deposit'
+      ? `Pay a ${gbp(opts.deposit)} deposit now. The remaining balance of ${gbp(opts.balanceAfterDeposit)} is paid later.`
+      : `Pay ${gbp(total)} in full to confirm your booking.`
+  const buttonLabel = showBoth ? `${depositLabel} or ${fullLabel}` : choice === 'deposit' ? depositLabel : fullLabel
+  const buttonStyle =
+    'display:inline-block;color:#ffffff;text-decoration:none;font-size:16px;font-weight:700;padding:14px 28px;border-radius:12px;'
+  const buttonsHtml = showBoth
+    ? `<a href="${esc(depositLink)}" target="_blank" rel="noopener noreferrer" style="${buttonStyle}background:#2563eb;margin:0 0 10px 0;">${esc(depositLabel)}</a><br />
+  <a href="${esc(fullLink)}" target="_blank" rel="noopener noreferrer" style="${buttonStyle}background:#047857;">${esc(fullLabel)}</a>`
+    : `<a href="${esc(choice === 'deposit' ? link : fullLink)}" target="_blank" rel="noopener noreferrer" style="${buttonStyle}background:#2563eb;">${esc(buttonLabel)}</a>`
+  const linkHtml = showBoth
+    ? `${esc(depositLabel)}: <a href="${esc(depositLink)}" style="color:#2563eb;word-break:break-all;">${esc(depositLink)}</a><br />${esc(fullLabel)}: <a href="${esc(fullLink)}" style="color:#2563eb;word-break:break-all;">${esc(fullLink)}</a>`
+    : `<a href="${esc(choice === 'deposit' ? link : fullLink)}" style="color:#2563eb;word-break:break-all;">${esc(choice === 'deposit' ? link : fullLink)}</a>`
 
   const itemsHtml = items.length
     ? items
@@ -158,7 +166,7 @@ export function buildPhoneQuoteEmail(
   </td></tr></table>
 </td></tr>
 <tr><td style="padding:20px 24px 0 24px;font-size:15px;line-height:1.6;color:#334155;">
-  Hi ${esc(firstName)},<br />Thanks for speaking with us. Here is your quote from ShiftMyHome. Check the details below and use the button to pay and confirm your move.
+  Hi ${esc(firstName)},<br />Thanks for speaking with us. Here is your quote from ShiftMyHome. Check the details below and choose how you would like to pay.
 </td></tr>
 <tr><td style="padding:16px 24px 0 24px;">
   <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border:1px solid #e2e8f0;border-radius:12px;"><tr><td style="padding:12px 16px;">
@@ -185,10 +193,10 @@ export function buildPhoneQuoteEmail(
   </td></tr></table>
 </td></tr>
 <tr><td align="center" style="padding:22px 24px 6px 24px;">
-  <a href="${esc(link)}" target="_blank" rel="noopener noreferrer" style="display:inline-block;background:#2563eb;color:#ffffff;text-decoration:none;font-size:16px;font-weight:700;padding:14px 28px;border-radius:12px;">${esc(buttonLabel)}</a>
+  ${buttonsHtml}
 </td></tr>
 <tr><td style="padding:6px 24px 0 24px;font-size:12px;color:#64748b;text-align:center;line-height:1.5;">
-  If the button does not work, copy this link: <a href="${esc(link)}" style="color:#2563eb;word-break:break-all;">${esc(link)}</a>
+  If a button does not work, copy this link:<br />${linkHtml}
 </td></tr>
 <tr><td style="padding:20px 24px 24px 24px;font-size:12px;color:#94a3b8;line-height:1.6;border-top:1px solid #f1f5f9;">
   Questions? Reply to this email or contact <a href="mailto:${esc(supportEmail)}" style="color:#2563eb;">${esc(supportEmail)}</a>.<br />
@@ -212,7 +220,9 @@ export function buildPhoneQuoteEmail(
     `Total price: ${gbp(total)}`,
     paymentLine,
     '',
-    `${buttonLabel}: ${link}`,
+    ...(showBoth
+      ? [`${depositLabel}: ${depositLink}`, `${fullLabel}: ${fullLink}`]
+      : [`${buttonLabel}: ${choice === 'deposit' ? link : fullLink}`]),
   ].join('\n')
 
   return { subject, html, text, link, total }

@@ -1,6 +1,6 @@
 import { Link, useLocation } from 'react-router-dom'
 import { useSeoQuoteModal } from '../context/SeoQuoteModalContext'
-import { markNewQuoteFromServiceCard } from '../lib/quoteSessionMode'
+import { startFreshPublicQuote } from '../lib/quoteSessionMode'
 import { trackWebsiteClick, trackWebsiteLeadEvent } from '../lib/websiteLeadTracker'
 
 /**
@@ -36,8 +36,8 @@ export default function OpenInstantQuoteButton({
         onClick={() => {
           onNavigate?.()
           const resolvedService = String(serviceType || '').trim()
+          startFreshPublicQuote(resolvedService, pathname || '/')
           if (resolvedService) {
-            markNewQuoteFromServiceCard(resolvedService, pathname || '/')
             trackWebsiteLeadEvent('new_quote_from_service', {
               serviceType: resolvedService,
               returnPath: pathname || '/',
@@ -68,9 +68,7 @@ export default function OpenInstantQuoteButton({
       data-track-section={trackSection}
       onClick={() => {
         onNavigate?.()
-        if (serviceType) {
-          markNewQuoteFromServiceCard(serviceType, pathname || '/')
-        }
+        startFreshPublicQuote(serviceType, pathname || '/')
       }}
     >
       {children}

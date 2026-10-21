@@ -90,18 +90,12 @@ export function phoneQuotePaymentOptions({
   const hoursUntilMove = moveStartMs == null ? null : (moveStartMs - now) / 3_600_000
 
   const alreadyPaid = ps === 'paid' || ps === 'deposit_paid'
-  const depositAllowed =
-    !alreadyPaid &&
-    safeTotal != null &&
-    safeTotal > depositGbp &&
-    hoursUntilMove != null &&
-    hoursUntilMove >= PHONE_QUOTE_DEPOSIT_MIN_HOURS
+  // The customer can choose a £50 deposit or full payment at any time, including inside 48 hours.
+  const depositAllowed = !alreadyPaid && safeTotal != null && safeTotal > depositGbp
 
   let fullOnlyReason = ''
-  if (!alreadyPaid && !depositAllowed) {
-    if (hoursUntilMove == null) fullOnlyReason = 'no_move_date'
-    else if (hoursUntilMove < PHONE_QUOTE_DEPOSIT_MIN_HOURS) fullOnlyReason = 'under_48h'
-    else if (safeTotal != null && safeTotal <= depositGbp) fullOnlyReason = 'total_too_low'
+  if (!alreadyPaid && !depositAllowed && safeTotal != null && safeTotal <= depositGbp) {
+    fullOnlyReason = 'total_too_low'
   }
 
   return {

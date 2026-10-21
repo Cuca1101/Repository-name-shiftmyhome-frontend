@@ -5,9 +5,12 @@ import {
   quoteHasAssignedPartner,
   quoteIsAdminPhoneBooking,
   quoteIsAdminPhoneBookingPending,
+  quoteIsAdminPhoneBookingTrashed,
   quoteIsCardPaid,
+  quoteIsTrashed,
   quotePassesAvailableJobsStrict,
   quoteShowsOnNewPhoneBookingInbox,
+  quoteShowsOnNewPhoneBookingSentTab,
 } from '../adminJobListRules'
 import { notifyAdminDataRefresh } from '../adminDataRefresh'
 import { filterProductionAdminQuotes } from '../adminProductionFilters'
@@ -188,7 +191,7 @@ export async function fetchQuotesForAdmin(filterKey = 'all', searchTerm = '', op
 
   const { data, error, count } = await q
   if (error) throw error
-  const rows = data ?? []
+  const rows = (data ?? []).filter((row) => !quoteIsTrashed(row))
   if (opts.withCount) return { rows, total: count ?? rows.length }
   return rows
 }
@@ -534,12 +537,7 @@ export async function fetchSentAdminPhoneBookings(searchTerm = '') {
 
   const { data, error } = await q
   if (error) throw error
-  return filterProductionAdminQuotes(data ?? []).filter(
-    (row) =>
-      quoteIsAdminPhoneBooking(row) &&
-      !quoteIsAdminPhoneBookingPending(row) &&
-      quotePassesAvailableJobsStrict(row),
-  )
+  return filterProductionAdminQuotes(data ?? []).filter(quoteShowsOnNewPhoneBookingSentTab)
 }
 
 /**
@@ -663,7 +661,98 @@ export async function convertAdminPhoneBookingToCashJob(id) {
 }
 
 /**
+ * Move a staged phone booking to Trash. It leaves My saved quotes and Available Jobs.
+ * Restore puts it back on New phone booking.
+ *
+ * @param {string} id quote UUID
+ */
+export async function trashPendingAdminPhoneBooking(id) {
+  if (!isSupabaseConfigured || !supabase) {
+    throw new Error('Supabase is not configured.')
+  }
+  const quoteId = String(id || '').trim()
+  if (!quoteId) throw new Error('Missing quote id.')
+
+  const row = await fetchQuoteByIdForAdmin(quoteId)
+  if (!row) throw new Error('Booking not found.')
+  if (!quoteIsAdminPhoneBooking(row)) throw new Error('This is not a phone booking.')
+  if (quoteIsTrashed(row)) throw new Error('This booking is already in Trash.')
+  if (!quoteIsAdminPhoneBookingPending(row)) {
+    throw new Error('Take this job out of Available Jobs before moving it to Trash.')
+  }
+  if (quoteIsCardPaid(row) || row.paid_at || row.stripe_session_id || row.stripe_payment_intent_id) {
+    throw new Error('Paid bookings cannot be moved to Trash.')
+  }
+
+  const deletedAt = new Date().toISOString()
+  try {
+    await updateQuoteWorkflowAssignment(quoteId, { deleted_at: deletedAt })
+  } catch (error) {
+    if (/deleted_at/i.test(String(error?.message || error || ''))) {
+      throw new Error('Trash is not ready yet. Apply migration 148_phone_booking_trash.sql, then try again.')
+    }
+    throw error
+  }
+  notifyAdminDataRefresh({ source: 'phone_booking_trash' })
+}
+
+/**
+ * Put a trashed phone booking back on New phone booking.
+ *
+ * @param {string} id quote UUID
+ */
+export async function restoreTrashedAdminPhoneBooking(id) {
+  if (!isSupabaseConfigured || !supabase) {
+    throw new Error('Supabase is not configured.')
+  }
+  const quoteId = String(id || '').trim()
+  if (!quoteId) throw new Error('Missing quote id.')
+
+  const row = await fetchQuoteByIdForAdmin(quoteId)
+  if (!row) throw new Error('Booking not found.')
+  if (!quoteIsAdminPhoneBookingTrashed(row)) throw new Error('This booking is not in Trash.')
+
+  await updateQuoteWorkflowAssignment(quoteId, { deleted_at: null })
+  notifyAdminDataRefresh({ source: 'phone_booking_restore' })
+}
+
+/**
+ * Phone bookings in New phone booking → Trash.
+ *
+ * @param {string} [searchTerm]
+ * @returns {Promise<Record<string, unknown>[]>}
+ */
+export async function fetchTrashedAdminPhoneBookings(searchTerm = '') {
+  if (!isSupabaseConfigured || !supabase) {
+    return []
+  }
+
+  let q = supabase
+    .from(QUOTES_TABLE)
+    .select('*')
+    .in('source', ADMIN_PHONE_BOOKING_SOURCES)
+    .not('deleted_at', 'is', null)
+    .order('deleted_at', { ascending: false })
+
+  const safe = sanitizeAdminIlikeTerm(searchTerm)
+  if (safe.length > 0) {
+    const p = `%${safe}%`
+    q = q.or(
+      `quote_ref.ilike.${p},full_name.ilike.${p},phone.ilike.${p},email.ilike.${p},pickup_address.ilike.${p},delivery_address.ilike.${p}`,
+    )
+  }
+
+  const { data, error } = await q
+  if (error) {
+    if (/deleted_at/i.test(String(error.message || ''))) return []
+    throw error
+  }
+  return filterProductionAdminQuotes(data ?? []).filter(quoteIsAdminPhoneBookingTrashed)
+}
+
+/**
  * Delete a staged phone booking (only while still on New phone booking).
+ * Trash uses this for the permanent delete.
  *
  * @param {string} id quote UUID
  */
@@ -686,4 +775,21 @@ export async function deletePendingAdminPhoneBooking(id) {
     .is('paid_at', null)
 
   if (error) throw error
+}
+
+/**
+ * Remove a trashed phone booking for good. Active quotes are left untouched.
+ *
+ * @param {string} id quote UUID
+ */
+export async function purgeTrashedAdminPhoneBooking(id) {
+  const quoteId = String(id || '').trim()
+  const row = await fetchQuoteByIdForAdmin(quoteId)
+  if (!row || !quoteIsAdminPhoneBookingTrashed(row)) {
+    throw new Error('This booking is not in Trash, so it was not deleted.')
+  }
+  await deletePendingAdminPhoneBooking(quoteId)
+  const still = await fetchQuoteByIdForAdmin(quoteId)
+  if (still) throw new Error('Could not delete this booking permanently.')
+  notifyAdminDataRefresh({ source: 'phone_booking_purge' })
 }

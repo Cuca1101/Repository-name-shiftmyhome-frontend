@@ -123,6 +123,7 @@ export default function MobileQuoteMoveSummary({
   pricingSettings = null,
   promoCode = '',
   priceWithoutPromo = null,
+  appliedFinalTotal = null,
   showOnDesktop = false,
   mapVariant = 'default',
   afterSummary = null,
@@ -346,7 +347,15 @@ export default function MobileQuoteMoveSummary({
       Number.isFinite(breakdown.estimatedTotal) ? (
         <div className="border-t border-emerald-100 bg-gradient-to-br from-emerald-50/90 to-white px-3 py-3">
           <p className="text-[10px] font-semibold uppercase tracking-wide text-emerald-800">Estimated total</p>
-          <p className="mt-0.5 text-lg font-bold text-emerald-700">£{breakdown.estimatedTotal.toFixed(2)}</p>
+          <p className="mt-0.5 text-lg font-bold text-emerald-700">
+            £{(appliedFinalTotal != null && Number.isFinite(Number(appliedFinalTotal))
+              ? Number(appliedFinalTotal)
+              : breakdown.estimatedTotal
+            ).toFixed(2)}
+          </p>
+          {appliedFinalTotal != null && Number.isFinite(Number(appliedFinalTotal)) ? (
+            <p className="mt-1 text-[10px] font-medium text-emerald-800">Custom price applied</p>
+          ) : (
           <QuotePromoPriceReduction
             promoCode={promoCode ?? wizard?.promoCode}
             pricingSettings={pricingSettings ?? crewSettings}
@@ -355,6 +364,7 @@ export default function MobileQuoteMoveSummary({
             className="mt-1"
             messageStyle="savingsAmount"
           />
+          )}
           <p className="mt-1.5 text-[10px] leading-snug text-slate-600">Final price confirmed by ShiftMyHome.</p>
         </div>
       ) : null}

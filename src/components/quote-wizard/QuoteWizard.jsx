@@ -106,6 +106,8 @@ function QuoteWizardInner({
   const [editReady, setEditReady] = useState(!editQuoteId)
   const [editError, setEditError] = useState('')
   const [adminNotice, setAdminNotice] = useState('')
+  const [appliedFinalTotal, setAppliedFinalTotal] = useState(null)
+  const [phoneAttribution, setPhoneAttribution] = useState(null)
   const [priceMode, setPriceMode] = useState(() => {
     if (!isAdmin || editQuoteId) {
       return { useCalculatedPrice: true, finalPriceOverride: '', overrideReason: '', adminNote: '' }
@@ -122,7 +124,7 @@ function QuoteWizardInner({
   const isMobileLayout = useMobileQuoteLayout()
   const isTabletLayout = useTabletQuoteLayout()
   const fromTablet = useFromTabletQuoteLayout()
-  const step2MatchTablet = step === 2 && pageChrome && !isAdmin
+  const step2MatchTablet = step === 2 && pageChrome
   const step2Columns = step === 2 && fromTablet && (isTabletLayout || step2MatchTablet)
   const navigate = useNavigate()
   const serviceTypeOptions = allowServiceChange ? [...SERVICE_TYPES] : undefined
@@ -169,6 +171,13 @@ function QuoteWizardInner({
           overrideReason: loaded.overrideReason || '',
           adminNote: loaded.adminNote || '',
         })
+        const savedOverride = Number(loaded.finalPriceOverride)
+        setAppliedFinalTotal(
+          loaded.useCalculatedPrice === false && Number.isFinite(savedOverride) && savedOverride >= 0
+            ? Math.round(savedOverride * 100) / 100
+            : null,
+        )
+        setPhoneAttribution(loaded.attribution || null)
         setAdminNotice(`Editing ${loaded.quote_ref}. Same quote. Save changes does not send an email.`)
         setEditReady(true)
       })
@@ -190,6 +199,7 @@ function QuoteWizardInner({
       )
     ) return
     clearAdminPhoneBookingDraft()
+    setPhoneAttribution(null)
     adminPhoneBooking?.onStartNew?.()
   }
 
@@ -263,6 +273,7 @@ function QuoteWizardInner({
     promoCode: wizard.promoCode,
     priceWithoutPromo,
     crewRestrictions,
+    appliedFinalTotal: isAdmin ? appliedFinalTotal : null,
     alwaysShowMobile: isAdmin,
     reviewSticky:
       step === 3
@@ -275,7 +286,7 @@ function QuoteWizardInner({
             heavyItemCount,
             priceWithoutPromo,
             onContinueToPayment: next,
-            continueLabel: isAdmin ? 'Continue to send quote →' : 'Continue to payment →',
+            continueLabel: isAdmin ? 'Review & Edit Price' : 'Continue to payment →',
             placement: 'aboveReference',
           }
         : null,
@@ -317,7 +328,7 @@ function QuoteWizardInner({
               ? 'Finding your price…'
               : step === 3
                 ? isAdmin
-                  ? 'Continue to send quote →'
+                  ? 'Review & Edit Price'
                   : 'Continue to payment →'
                 : step === 2
                   ? 'Get a quote ›'
@@ -325,7 +336,7 @@ function QuoteWizardInner({
           </button>
         </div>
         {step === 2 ? <QuoteStep2TrustRow /> : null}
-        {isAdmin ? null : <QuoteFlowHelp className="mt-4" />}
+        <QuoteFlowHelp className="mt-4" />
       </div>
     ) : pageChrome && step === 4 ? (
       <div className="mt-4">
@@ -337,7 +348,7 @@ function QuoteWizardInner({
           <span aria-hidden>←</span>
           Back
         </button>
-        {isAdmin ? null : <QuoteFlowHelp className="mt-4" />}
+        <QuoteFlowHelp className="mt-4" />
       </div>
     ) : step === 4 ? (
       <div className="mt-6 flex border-t border-slate-200 pt-6 lg:justify-start">
@@ -463,7 +474,7 @@ function QuoteWizardInner({
           onBack={back}
           embedSummary={pageChrome}
           showOffer={!isAdmin}
-          continueLabel={isAdmin ? 'Continue to send quote' : 'Continue to payment'}
+          continueLabel={isAdmin ? 'Review & Edit Price' : 'Continue to payment'}
           continueDisabled={isAdmin && !reviewDetailsReady(wizard)}
           hideContinue={!pageChrome && isMobileLayout}
         />
@@ -471,22 +482,30 @@ function QuoteWizardInner({
       {step === 4 && isAdmin && (
         <AdminPhoneBookingFinish
           savedQuoteId={savedQuoteId}
-          onSaved={(saved, { updated, closeAfter = false }) => {
+          onSaved={(saved, { updated, closeAfter = false, applyPrice = false, silentNotice = false, finalPrice = null, useCalculatedPrice = true }) => {
             setSavedQuoteId(saved.id)
             setQuoteRef(saved.quote_ref)
+            if (saved.attribution) setPhoneAttribution(saved.attribution)
             clearAdminPhoneBookingDraft()
             adminPhoneBooking?.onQuoteSaved?.(saved)
-            setAdminNotice(
-              updated
-                ? `Quote ${saved.quote_ref} updated. No email was sent.`
-                : `Quote ${saved.quote_ref} saved as a draft. No email was sent.`,
-            )
-            const meta = { closeAfter }
+            if (useCalculatedPrice) setAppliedFinalTotal(null)
+            else if (finalPrice != null && Number.isFinite(Number(finalPrice))) {
+              setAppliedFinalTotal(Math.round(Number(finalPrice) * 100) / 100)
+            }
+            if (!applyPrice && !silentNotice) {
+              setAdminNotice(
+                updated
+                  ? `Quote ${saved.quote_ref} updated. No email was sent.`
+                  : `Quote ${saved.quote_ref} saved as a draft. No email was sent.`,
+              )
+            }
+            const meta = { closeAfter, applyPrice }
             if (updated) adminPhoneBooking?.onBookingUpdated?.(saved, meta)
             else adminPhoneBooking?.onBookingCreated?.(saved, meta)
           }}
           priceMode={priceMode}
           onPriceModeChange={setPriceMode}
+          attribution={phoneAttribution}
           onNewBooking={startNewAdminBooking}
           notice={adminNotice}
         />
@@ -538,7 +557,7 @@ function QuoteWizardInner({
       onContinueToPayment={next}
       onBack={back}
       continueDisabled={isAdmin && !reviewDetailsReady(wizard)}
-      continueLabel={isAdmin ? 'Continue to send quote' : 'Continue to payment'}
+      continueLabel={isAdmin ? 'Review & Edit Price' : 'Continue to payment'}
       showReference={false}
       showMap={false}
       showOffer={!isAdmin}
@@ -549,9 +568,23 @@ function QuoteWizardInner({
   const step2Sidebar = <Step2Continuation columnsLayout={step2Columns} hideExtras={fromTablet} />
 
   const reviewLike = step === 2 || step === 3
-  const chromeTitle = step === 3 ? 'Review your move' : step === 2 ? 'Choose your items' : 'Get your instant quote'
+  const chromeTitle =
+    isAdmin && step === 4
+      ? 'Review & edit price'
+      : step === 3
+        ? 'Review your move'
+        : step === 2
+          ? 'Choose your items'
+          : 'Get your instant quote'
   const chromeSubtitle =
-    step === 3 ? '' : step === 2 ? 'Add your items and contact details to get your quote.' : 'Your price is shown at the review step.'
+    isAdmin && step === 4
+      ? 'Check the price and change it if you need to. Nothing is emailed until you press Send Quote to Customer.'
+      : step === 3
+        ? ''
+        : step === 2
+          ? 'Add your items and contact details to get your quote.'
+          : 'Your price is shown at the review step.'
+  const stepLine = isAdmin && step === 4 ? 'Step 4 of 4 · Review & edit price' : PAGE_STEP_LINE[step]
 
   const reviewSidebar = (
     <div className="flex min-w-0 flex-col gap-4 overflow-visible">
@@ -669,13 +702,13 @@ function QuoteWizardInner({
                     <p className="mt-1 text-sm leading-snug text-slate-500">{chromeSubtitle}</p>
                   ) : null}
                   <div id="quote-wizard-top" className="mt-3">
-                    <WizardProgress step={step} variant="page" step4ShortLabel={isAdmin ? 'Send' : undefined} capAtTablet={step2MatchTablet} />
+                    <WizardProgress step={step} variant="page" step4ShortLabel={isAdmin ? 'Price' : undefined} capAtTablet={step2MatchTablet} />
                   </div>
                   {reviewLike && quoteRef ? (
                     <p className={`mb-3 text-center font-mono text-[11px] font-semibold tracking-wide text-slate-500 md:text-sm ${step2MatchTablet ? '' : 'lg:text-base xl:text-lg'}`}>REF: {quoteRef}</p>
                   ) : null}
                   {reviewLike ? null : (
-                    <p className="mb-2 mt-1 text-sm text-slate-500">{isAdmin && step === 4 ? 'Step 4 of 4 · Price & send' : PAGE_STEP_LINE[step]}</p>
+                    <p className="mb-2 mt-1 text-sm text-slate-500">{stepLine}</p>
                   )}
                   <div className="relative min-w-0">{stepPanelBody}</div>
                   {step === 2 && step2Columns ? (
@@ -768,13 +801,13 @@ function QuoteWizardInner({
                 <p className="mt-1 text-sm leading-snug text-slate-500">{chromeSubtitle}</p>
               ) : null}
               <div id="quote-wizard-top" className={reviewLike ? 'mt-3' : 'mt-4'}>
-                <WizardProgress step={step} variant="page" step4ShortLabel={isAdmin ? 'Send' : undefined} capAtTablet={step2MatchTablet} />
+                <WizardProgress step={step} variant="page" step4ShortLabel={isAdmin ? 'Price' : undefined} capAtTablet={step2MatchTablet} />
               </div>
               {reviewLike && quoteRef ? (
                 <p className="mb-3 text-center font-mono text-[11px] font-semibold tracking-wide text-slate-500 md:text-sm lg:text-base xl:text-lg">REF: {quoteRef}</p>
               ) : null}
               {reviewLike ? null : (
-                <p className="mb-3 text-sm text-slate-500">{isAdmin && step === 4 ? 'Step 4 of 4 · Price & send' : PAGE_STEP_LINE[step]}</p>
+                <p className="mb-3 text-sm text-slate-500">{stepLine}</p>
               )}
               <div className="relative min-w-0">{stepPanelBody}</div>
             </div>

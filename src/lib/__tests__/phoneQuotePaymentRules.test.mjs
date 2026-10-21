@@ -22,7 +22,7 @@ test('London wall time converts with GMT and BST', () => {
   assert.equal(londonWallTimeToUtcMs('2026-07-01', '10:00'), ms('2026-07-01T09:00:00Z'))
 })
 
-test('exactly 48h before the move allows the deposit; 1 ms later does not', () => {
+test('deposit stays available on both sides of the 48h boundary', () => {
   const base = { moveDate: '2026-11-05', arrivalTime: '08:00–18:00', total: 300 }
   const at48 = phoneQuotePaymentOptions({ ...base, now: ms('2026-11-03T08:00:00Z') })
   assert.equal(at48.hoursUntilMove, 48)
@@ -31,15 +31,16 @@ test('exactly 48h before the move allows the deposit; 1 ms later does not', () =
   assert.equal(at48.balanceAfterDeposit, 250)
 
   const under = phoneQuotePaymentOptions({ ...base, now: ms('2026-11-03T08:00:00.001Z') })
-  assert.equal(under.depositAllowed, false)
-  assert.equal(under.fullOnlyReason, 'under_48h')
+  assert.equal(under.depositAllowed, true)
+  assert.equal(under.fullOnlyReason, '')
   assert.equal(under.canPay, true)
+  assert.equal(under.balanceAfterDeposit, 250)
 })
 
-test('48h boundary in summer time (BST)', () => {
+test('48h boundary in summer time (BST) still allows the deposit', () => {
   const base = { moveDate: '2026-07-10', arrivalTime: '10:00 (Exact time)', total: 200 }
   assert.equal(phoneQuotePaymentOptions({ ...base, now: ms('2026-07-08T09:00:00Z') }).depositAllowed, true)
-  assert.equal(phoneQuotePaymentOptions({ ...base, now: ms('2026-07-08T09:00:01Z') }).depositAllowed, false)
+  assert.equal(phoneQuotePaymentOptions({ ...base, now: ms('2026-07-08T09:00:01Z') }).depositAllowed, true)
 })
 
 test('48h is real elapsed time across the October clock change', () => {
@@ -53,26 +54,29 @@ test('48h is real elapsed time across the October clock change', () => {
   assert.equal(opts.depositAllowed, true)
 })
 
-test('quote sent with >48h but paid with <48h left is full only', () => {
+test('deposit stays available when fewer than 48 hours remain', () => {
   const quote = { moveDate: '2026-11-05', arrivalTime: '09:00–13:00', total: 420 }
   const whenSent = phoneQuotePaymentOptions({ ...quote, now: ms('2026-10-30T12:00:00Z') })
   assert.equal(whenSent.depositAllowed, true)
   const whenPaying = phoneQuotePaymentOptions({ ...quote, now: ms('2026-11-04T10:00:00Z') })
-  assert.equal(whenPaying.depositAllowed, false)
-  assert.equal(whenPaying.fullOnlyReason, 'under_48h')
+  assert.equal(whenPaying.depositAllowed, true)
+  assert.equal(whenPaying.fullOnlyReason, '')
+  assert.equal(whenPaying.balanceAfterDeposit, 370)
 })
 
-test('no deposit when total is £50 or less, or when already paid, or no date', () => {
+test('no deposit when total is £50 or less, or when already paid', () => {
   const now = ms('2026-10-01T00:00:00Z')
-  assert.equal(
-    phoneQuotePaymentOptions({ moveDate: '2026-11-05', total: 50, now }).fullOnlyReason,
-    'total_too_low',
-  )
+  const low = phoneQuotePaymentOptions({ moveDate: '2026-11-05', total: 50, now })
+  assert.equal(low.depositAllowed, false)
+  assert.equal(low.fullOnlyReason, 'total_too_low')
   const paid = phoneQuotePaymentOptions({ moveDate: '2026-11-05', total: 300, paymentStatus: 'deposit_paid', amountPaid: 50, now })
   assert.equal(paid.alreadyPaid, true)
   assert.equal(paid.canPay, false)
+  assert.equal(paid.depositAllowed, false)
   assert.equal(paid.balance, 250)
-  assert.equal(phoneQuotePaymentOptions({ moveDate: '', total: 300, now }).fullOnlyReason, 'no_move_date')
+  const noDate = phoneQuotePaymentOptions({ moveDate: '', total: 300, now })
+  assert.equal(noDate.depositAllowed, true)
+  assert.equal(noDate.fullOnlyReason, '')
 })
 
 test('final total uses the admin agreed price first', () => {

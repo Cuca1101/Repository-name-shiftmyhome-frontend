@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { FileText, X } from 'lucide-react'
 import {
@@ -6,12 +6,13 @@ import {
   loadQuoteDraft,
   pathForServiceType,
 } from '../lib/quoteDraftStorage'
+import { recheckSavedQuoteResume } from '../lib/savedQuoteResume'
 import {
   dismissQuoteBannerForSession,
   getActiveQuoteWizardRef,
   isQuoteBannerDismissed,
-  markNewQuoteFromServiceCard,
   markResumeSavedQuote,
+  startFreshPublicQuote,
 } from '../lib/quoteSessionMode'
 import { rotateWebsiteLeadSessionId } from '../lib/websiteLeadSession'
 import { clearCustomerLeadCache } from '../lib/customerLeadTracker'
@@ -25,11 +26,26 @@ export default function ContinueQuoteBanner() {
   const [draft, setDraft] = useState(() => loadQuoteDraft())
   const [dismissed, setDismissed] = useState(() => isQuoteBannerDismissed())
   const [activeQuoteRef, setActiveQuoteRef] = useState(() => getActiveQuoteWizardRef())
+  const [resumeReady, setResumeReady] = useState(false)
+  const checkGen = useRef(0)
 
   const refresh = useCallback(() => {
-    setDraft(loadQuoteDraft())
+    const nextDraft = loadQuoteDraft()
+    setDraft(nextDraft)
     setDismissed(isQuoteBannerDismissed())
     setActiveQuoteRef(getActiveQuoteWizardRef())
+    const generation = checkGen.current + 1
+    checkGen.current = generation
+    if (!nextDraft) {
+      setResumeReady(false)
+      return
+    }
+    void recheckSavedQuoteResume().then((state) => {
+      if (checkGen.current !== generation) return
+      const current = loadQuoteDraft()
+      setDraft(current)
+      setResumeReady(state === 'resumable' && current?.quoteRef === nextDraft.quoteRef)
+    })
   }, [])
 
   useLayoutEffect(() => {
@@ -37,15 +53,26 @@ export default function ContinueQuoteBanner() {
   }, [draft?.quoteRef])
 
   useEffect(() => {
+    refresh()
+    const onReturn = () => {
+      if (document.visibilityState === 'hidden') return
+      refresh()
+    }
     window.addEventListener('shiftmyhome-quote-draft', refresh)
     window.addEventListener('storage', refresh)
+    window.addEventListener('pageshow', onReturn)
+    window.addEventListener('focus', onReturn)
+    document.addEventListener('visibilitychange', onReturn)
     return () => {
       window.removeEventListener('shiftmyhome-quote-draft', refresh)
       window.removeEventListener('storage', refresh)
+      window.removeEventListener('pageshow', onReturn)
+      window.removeEventListener('focus', onReturn)
+      document.removeEventListener('visibilitychange', onReturn)
     }
   }, [refresh])
 
-  if (!draft || dismissed) return null
+  if (!draft || dismissed || !resumeReady) return null
   if (activeQuoteRef && activeQuoteRef === draft.quoteRef) return null
 
   const continuePath =
@@ -58,7 +85,13 @@ export default function ContinueQuoteBanner() {
     setDismissed(true)
   }
 
-  function handleContinue() {
+  async function handleContinue() {
+    const state = await recheckSavedQuoteResume()
+    if (state !== 'resumable') {
+      setResumeReady(false)
+      setDraft(loadQuoteDraft())
+      return
+    }
     markResumeSavedQuote()
     void trackWebsiteClick('Continue saved quote', { section: 'banner', href: continuePath })
     trackWebsiteLeadEvent('saved_quote_resumed', {
@@ -81,7 +114,7 @@ export default function ContinueQuoteBanner() {
     clearQuoteDraft()
     rotateWebsiteLeadSessionId()
     clearCustomerLeadCache()
-    markNewQuoteFromServiceCard('', '/quote')
+    startFreshPublicQuote('', '/quote')
     void trackWebsiteClick('Start new quote', { section: 'banner', href: '/quote' })
     trackWebsiteLeadEvent('new_quote_started', {
       source: 'start_new_link',
@@ -129,7 +162,7 @@ export default function ContinueQuoteBanner() {
 
         <button
           type="button"
-          onClick={handleContinue}
+          onClick={() => void handleContinue()}
           className="shrink-0 rounded-lg bg-brand-600 px-3 py-2 text-xs font-bold text-white shadow-sm transition hover:bg-brand-700 active:scale-[0.98]"
         >
           Continue
