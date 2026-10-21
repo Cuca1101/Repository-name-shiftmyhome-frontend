@@ -151,9 +151,18 @@ export async function fetchLatestDriverLivePositionsMap() {
  */
 export function subscribeDriverLivePositions(onEvent) {
   if (!isSupabaseConfigured || !supabase) return () => {}
-  try {
-    const channel = supabase
-      .channel('operational-map-driver-locations')
+  let stopped = false
+  let channel = null
+  let retryTimer = 0
+
+  function start() {
+    if (stopped || !supabase) return
+    if (channel) {
+      void supabase.removeChannel(channel)
+      channel = null
+    }
+    channel = supabase
+      .channel(`operational-map-driver-locations-${Date.now()}`)
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: TABLE },
@@ -167,11 +176,25 @@ export function subscribeDriverLivePositions(onEvent) {
           })
         },
       )
-      .subscribe()
+      .subscribe((status) => {
+        if (stopped) return
+        if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+          window.clearTimeout(retryTimer)
+          retryTimer = window.setTimeout(start, 4000)
+        }
+      })
+  }
+
+  try {
+    start()
     return () => {
-      void supabase.removeChannel(channel)
+      stopped = true
+      window.clearTimeout(retryTimer)
+      if (channel && supabase) void supabase.removeChannel(channel)
     }
   } catch {
-    return () => {}
+    return () => {
+      stopped = true
+    }
   }
 }

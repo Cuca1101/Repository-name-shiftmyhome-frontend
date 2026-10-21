@@ -35,10 +35,31 @@ export async function requestDriverLocation(driverId) {
       expiresAt: result.expiresAt != null ? String(result.expiresAt) : '',
       pushDelivered: result.pushDelivered === true,
       pushError: result.pushError != null ? String(result.pushError) : '',
+      pushNote: locatePushNote(result.pushDelivered === true, result.pushError),
     }
   } catch {
     return { ok: false, message: 'Location request failed.' }
   }
+}
+
+/**
+ * Copy that matches the push result we actually received.
+ * @param {boolean} pushDelivered
+ * @param {unknown} pushError
+ */
+export function locatePushNote(pushDelivered, pushError) {
+  if (pushDelivered) return ''
+  const key = String(pushError || '')
+  if (key === 'no_push_token') {
+    return 'No push token is registered for this phone, so the background request was not sent.'
+  }
+  if (key === 'fcm_not_configured') {
+    return 'Push is not configured on the server, so the background request was not sent.'
+  }
+  if (key === 'fcm_rejected') {
+    return 'The push service rejected the request. The phone was not confirmed to receive it.'
+  }
+  return 'The background push was not delivered. Waiting to see if the phone sends a new position.'
 }
 
 function locateErrorMessage(code) {
@@ -80,7 +101,10 @@ export function describeLocateSession(session, live, nowMs = Date.now()) {
         detail: [lastKnown, session.pushNote].filter(Boolean).join(' '),
       }
     }
-    return { title: lastKnown || 'Last known location', detail: session.pushNote || '' }
+    return {
+      title: 'The phone did not send a new position.',
+      detail: [lastKnown, session.pushNote].filter(Boolean).join(' '),
+    }
   }
   const left = Math.max(0, Math.ceil((expiresMs - nowMs) / 1000))
   return { title: `Live · ${left}s left`, detail: '' }

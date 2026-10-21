@@ -85,8 +85,19 @@ Deno.serve(async (req) => {
       return json({ ok: false, error: sessionError?.message || 'session_failed' }, 500)
     }
 
+    const recordPush = async (pushStatus: string, pushError: string) => {
+      const { error } = await admin
+        .from('driver_locate_sessions')
+        .update({ push_status: pushStatus, push_error: pushError || null })
+        .eq('id', session.id)
+      if (error) {
+        console.warn('[request-driver-location] push record failed', error.message)
+      }
+    }
+
     const fcmKey = Deno.env.get('FCM_SERVER_KEY')
     if (!fcmKey) {
+      await recordPush('not_sent', 'fcm_not_configured')
       return json({
         ok: true,
         sessionId: session.id,
@@ -97,6 +108,7 @@ Deno.serve(async (req) => {
       })
     }
     if (!driver.push_token) {
+      await recordPush('not_sent', 'no_push_token')
       return json({
         ok: true,
         sessionId: session.id,
@@ -128,6 +140,7 @@ Deno.serve(async (req) => {
     const fcmJson = await fcmRes.json().catch(() => ({}))
     const pushDelivered = fcmRes.ok && !(Number(fcmJson?.failure) > 0)
     if (!pushDelivered) {
+      await recordPush('rejected', 'fcm_rejected')
       return json({
         ok: true,
         sessionId: session.id,
@@ -138,6 +151,7 @@ Deno.serve(async (req) => {
       })
     }
 
+    await recordPush('sent', '')
     return json({
       ok: true,
       sessionId: session.id,

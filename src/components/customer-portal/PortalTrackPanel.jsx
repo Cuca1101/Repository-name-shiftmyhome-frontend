@@ -44,10 +44,17 @@ export default function PortalTrackPanel({ token }) {
     }
 
     load()
-    const timer = window.setInterval(load, 10000)
+    const timer = window.setInterval(load, 15000)
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') void load()
+    }
+    document.addEventListener('visibilitychange', onVisible)
+    window.addEventListener('online', onVisible)
     return () => {
       cancelled = true
       window.clearInterval(timer)
+      document.removeEventListener('visibilitychange', onVisible)
+      window.removeEventListener('online', onVisible)
     }
   }, [token])
 
@@ -114,7 +121,7 @@ export default function PortalTrackPanel({ token }) {
             <p className="text-sm text-slate-600">
               {eta.phrase}
               {eta.status === 'stale'
-                ? ' · GPS delayed'
+                ? ' · ETA uses the last known position. GPS delayed'
                 : ''}
             </p>
           ) : (

@@ -8,7 +8,8 @@ import {
   subscribeDriverLivePositions,
 } from '../lib/data/driverLivePositionsRepository'
 import { getFleetDriversCached, loadFleetDriversForAdmin } from '../lib/adminFleetDrivers'
-import { describeLocateSession, requestDriverLocation } from '../lib/requestDriverLocation'
+import { describeLocateSession, formatLondonClock, requestDriverLocation } from '../lib/requestDriverLocation'
+import { formatTrackingLocationLabel } from '../lib/trackingDriverEta'
 import { isSupabaseConfigured, supabase } from '../lib/supabase'
 import {
   filterJourneysForProductionInbox,
@@ -126,6 +127,25 @@ async function geocodeQuotesBatch(quotes, token, onProgress, jobs = []) {
     onProgress({ ...acc })
   }
   return acc
+}
+
+/** Capture time advances while the drawer is open. A later server upload is not a new fix. */
+function GpsCaptureAge({ sampledAt, receivedAt }) {
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => {
+    const id = window.setInterval(() => setNow(Date.now()), 15000)
+    return () => window.clearInterval(id)
+  }, [])
+  const label = formatTrackingLocationLabel(sampledAt, now)
+  const sampleMs = sampledAt ? Date.parse(String(sampledAt)) : NaN
+  const receivedMs = receivedAt ? Date.parse(String(receivedAt)) : NaN
+  const resent = Number.isFinite(sampleMs) && Number.isFinite(receivedMs) && receivedMs - sampleMs > 30000
+  return (
+    <>
+      {label.text}
+      {resent ? ` Last upload at ${formatLondonClock(receivedAt)} was not a new GPS fix.` : ''}
+    </>
+  )
 }
 
 export default function OperationsMapPage() {
@@ -757,9 +777,7 @@ export default function OperationsMapPage() {
               requestedAt: result.requestedAt,
               expiresAt: result.expiresAt,
               error: '',
-              pushNote: result.pushDelivered
-                ? ''
-                : 'Background push was not delivered. The phone answers while the driver app is open.',
+              pushNote: result.pushNote || '',
             }
           : {
               phase: 'failed',
@@ -1143,12 +1161,14 @@ export default function OperationsMapPage() {
                 <p className="text-xs text-slate-500">{String(drawerDriver.email || '')}</p>
                 {(() => {
                   const live = liveByDriverKey[String(drawerDriver.id)] || null
-                  const assigned = activeQuotesForMap.filter(
-                    (q) =>
-                      String(q.assigned_driver_name || '')
-                        .trim()
-                        .toLowerCase() === String(drawerDriver.name || '').trim().toLowerCase(),
-                  )
+                  const driverId = String(drawerDriver.id || '')
+                  const nameNorm = String(drawerDriver.name || '').trim().toLowerCase()
+                  const assigned = activeQuotesForMap.filter((q) => {
+                    const aid = String(q.assigned_driver_id || '').trim()
+                    if (aid && aid === driverId) return true
+                    const dn = String(q.assigned_driver_name || '').trim().toLowerCase()
+                    return Boolean(dn && nameNorm && dn === nameNorm)
+                  })
                   const etaEntry = etaByDriverId[String(drawerDriver.id)]
                   const pres = driverDispatchPresentation(
                     drawerDriver,
@@ -1161,7 +1181,9 @@ export default function OperationsMapPage() {
                     pres.driverPhone || String(drawerDriver.phone || '').trim() || '—'
                   const quoteRef =
                     pres.quoteRef || (assigned[0] ? quoteJobRef(assigned[0]) : '—')
-                  const assignmentRef = pres.assignmentRef || '—'
+                  const assignmentRef = assigned.length
+                    ? pres.status
+                    : (pres.assignmentRef || '—')
                   const locate = locateByDriverId[String(drawerDriver.id)] || null
                   const locateLine = describeLocateSession(locate, live, locateNow)
                   return (
@@ -1206,12 +1228,20 @@ export default function OperationsMapPage() {
                         <dd
                           className={`font-medium ${pres.stale ? 'text-amber-800' : 'text-slate-800'}`}
                         >
-                          {pres.updated}
+                          <GpsCaptureAge
+                            sampledAt={live?.sampled_at || live?.updated_at}
+                            receivedAt={live?.updated_at}
+                          />
                         </dd>
                       </div>
                       <div className="flex justify-between gap-2">
                         <dt className="text-slate-500">ETA</dt>
-                        <dd className="font-medium text-slate-800">{pres.eta}</dd>
+                        <dd className="font-medium text-slate-800">
+                          {pres.eta}
+                          {pres.stale && pres.eta && pres.eta !== '—'
+                            ? ' · based on the last known position'
+                            : ''}
+                        </dd>
                       </div>
                       <div className="pt-1 text-slate-600">
                         <span className="font-semibold text-slate-700">Jobs:</span> {jobRefs}

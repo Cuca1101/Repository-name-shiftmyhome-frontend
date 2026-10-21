@@ -25,7 +25,7 @@ import {
 } from '../lib/trackingDriverEta'
 import { resolveCustomerTrackingStage, resolveGpsStatusHeadline } from '../lib/trackingJobStage'
 
-const POLL_MS = 10000
+const POLL_MS = 15000
 /** Poll faster while waiting for Start Job so the orange collection route appears quickly. */
 const POLL_AWAITING_MS = 5000
 const MEDIA_REFRESH_MS = 10 * 60 * 1000
@@ -263,10 +263,13 @@ export default function JobTrackingPortalPage() {
     const onVisible = () => {
       if (document.visibilityState === 'visible') void load({ force: true })
     }
+    const onOnline = () => void load({ force: true })
     document.addEventListener('visibilitychange', onVisible)
+    window.addEventListener('online', onOnline)
     return () => {
       window.clearInterval(id)
       document.removeEventListener('visibilitychange', onVisible)
+      window.removeEventListener('online', onOnline)
     }
   }, [load, pollMs])
   const etaDestination = useMemo(() => {
@@ -707,7 +710,7 @@ export default function JobTrackingPortalPage() {
                                 </p>
                                 <p className="mt-0.5 text-sm text-slate-600">
                                   {etaStale
-                                    ? `Updated at ${etaView.updatedAt ? formatTimeUK(etaView.updatedAt) : '—'} · GPS delayed`
+                                    ? `ETA uses the last known position${etaView.updatedAt ? ` captured at ${formatTimeUK(etaView.updatedAt)}` : ''}. GPS delayed`
                                     : null}
                                   {etaStale ? ' · ' : ''}
                                   Destination:{' '}
