@@ -1,5 +1,7 @@
 import { mergedAdminWorkflowForQuote } from './quoteAdminWorkflowMerge'
-export { resolveDispatchDriverStatus } from './operationsMapDispatchRules.js'
+import { resolveDispatchDriverStatus } from './operationsMapDispatchRules.js'
+
+export { resolveDispatchDriverStatus }
 
 /** @typedef {'idle'|'assigned'|'on_route'|'arrived_pickup'|'loading'|'collected'|'in_transit'|'arrived_delivery'|'unloading'|'completed'|'offline'} DispatchDriverStatus */
 
