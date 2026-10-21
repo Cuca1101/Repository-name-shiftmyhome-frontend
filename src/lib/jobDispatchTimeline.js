@@ -1,158 +1,224 @@
-import { formatDateTimeUK } from './formatDateDisplay'
 import { mergedAdminWorkflowForQuote } from './quoteAdminWorkflowMerge'
 import { quoteIsCancelled, quoteIsCompleted } from './adminWorkflowFilters'
 import { quoteJobIsStarted } from './adminJobAcceptedStatus'
-import { buildStageClocks, resolveLiveStageLabel } from './stageClocks'
 
-/** @typedef {{ id: string, label: string, match: RegExp }} DispatchTimelineStepDef */
-
-export const DISPATCH_TIMELINE_STEPS = /** @type {DispatchTimelineStepDef[]} */ ([
-  { id: 'accepted', label: 'Accepted', match: /^(assigned|accepted|booked|active)$/i },
-  { id: 'on_way', label: 'Left for collection', match: /\b(on[_\s-]?way|on the way|en route|heading)\b/i },
-  {
-    id: 'arrived_pickup',
-    label: 'At collection',
-    match: /\b(arrived_pickup|at collection|at pickup)\b/i,
-  },
-  { id: 'loading', label: 'Loading', match: /\b(loading_started|^loading$)\b/i },
-  {
-    id: 'in_transit',
-    label: 'Left for delivery',
-    match: /\b(in[_\s-]?transit)\b/i,
-  },
-  {
-    id: 'arrived_delivery',
-    label: 'At delivery',
-    match: /\b(arrived_delivery|at delivery|arrived delivery)\b/i,
-  },
-  { id: 'unloading', label: 'Unloading', match: /\b(unloading_started)\b/i },
-  { id: 'completed', label: 'Completed', match: /\b(completed|complete|delivered)\b/i },
-])
-
-/** @type {Record<string, number>} */
-const WORKFLOW_STEP_BY_STATUS = {
-  accepted: 0,
-  assigned: 0,
-  booked: 0,
-  active: 0,
-  on_way: 1,
-  'on way': 1,
-  in_progress: 1,
-  'in progress': 1,
-  arrived_pickup: 2,
-  arrived: 2,
-  loading: 3,
-  loading_started: 3,
-  pickup_completed: 4,
-  loaded: 4,
-  in_transit: 4,
-  'in transit': 4,
-  arrived_delivery: 5,
-  'arrived delivery': 5,
-  unloading_started: 6,
-  completed: 7,
-  complete: 7,
-  delivered: 7,
-}
-
-/**
- * @param {string} raw
- */
-function normalizeWorkflowStatus(raw) {
-  return String(raw || '')
-    .trim()
-    .toLowerCase()
-    .replace(/\s+/g, '_')
-}
-
-const HISTORY_SKIP_STATUSES = new Set([
+const SKIP_STATUSES = new Set([
   'gps',
   'location',
   'available_location',
   'active_job_location',
+  'correction',
+  'customer_not_available',
+  'unable_to_contact',
 ])
 
-/**
- * Map one job_status_history row to a Status Tracker step id.
- *
- * @param {string} rawStatus
- * @param {{ deliveryPhase?: boolean }} [ctx]
- * @returns {string | null}
- */
-export function historyStatusToTimelineStepId(rawStatus, ctx = {}) {
-  const n = normalizeWorkflowStatus(rawStatus)
-  if (!n || HISTORY_SKIP_STATUSES.has(n)) return null
-  if (n === 'started' || n === 'start') return 'on_way'
-  if (n === 'arrived_pickup') return 'arrived_pickup'
-  if (n === 'arrived_delivery') return 'arrived_delivery'
-  if (n === 'arrived') return ctx.deliveryPhase ? 'arrived_delivery' : 'arrived_pickup'
-  if (n === 'loading_started' || n === 'loading') return 'loading'
-  if (n === 'pickup_completed' || n === 'loaded') return null
-  if (n === 'unloading_started') return 'unloading'
-  if (n === 'in_transit') return 'in_transit'
-  if (n === 'completed' || n === 'complete' || n === 'delivered') return 'completed'
+const COLLECTION_START = new Set(['on_way', 'started', 'start', 'in_progress', 'on_the_way', 'left_for_collection'])
+const COLLECTION_ARRIVED = new Set(['arrived_pickup', 'at_collection'])
+const COLLECTION_COMPLETE = new Set(['pickup_completed', 'loaded', 'collection_finished', 'items_collected'])
+const DELIVERY_START = new Set(['in_transit', 'left_for_delivery', 'on_way_to_delivery'])
+const DELIVERY_ARRIVED = new Set(['arrived_delivery', 'at_delivery'])
+const DELIVERY_COMPLETE = new Set(['completed', 'complete', 'delivered'])
 
-  const idx = matchStepIndex(rawStatus)
-  if (idx >= 0 && idx < DISPATCH_TIMELINE_STEPS.length) {
-    return DISPATCH_TIMELINE_STEPS[idx].id
-  }
-  return null
+/**
+ * @param {string | null | undefined} raw
+ */
+function normStatus(raw) {
+  return String(raw || '').trim().toLowerCase().replace(/[\s-]+/g, '_')
 }
 
 /**
- * First timestamp per tracker step from job_status_history (+ accepted/completed fallbacks).
- *
- * @param {Array<{ status: string, created_at: string }>} historyRows
- * @param {{ acceptedAt?: string, completedAt?: string }} [opts]
- * @returns {Record<string, string>}
+ * @param {Record<string, unknown>} row
  */
-export function buildStepTimestampsFromHistory(historyRows, opts = {}) {
-  /** @type {Record<string, string>} */
-  const timestamps = {}
-  const acceptedAt = String(opts.acceptedAt || '').trim()
-  const completedAt = String(opts.completedAt || '').trim()
-  if (acceptedAt) timestamps.accepted = acceptedAt
+function eventAt(row) {
+  return String(row?.occurred_at || row?.created_at || '').trim()
+}
 
-  const sorted = [...(historyRows || [])].sort(
-    (a, b) => new Date(a.occurred_at || a.created_at || 0).getTime() - new Date(b.occurred_at || b.created_at || 0).getTime(),
-  )
+/**
+ * @param {Array<Record<string, unknown>>} rows
+ */
+function arrivalStamp(rows) {
+  if (!rows.length) return ''
+  const gps = rows.find((row) => normStatus(row.source) === 'gps')
+  return eventAt(gps || rows[0])
+}
 
+const LIVE_LABELS = {
+  accepted: 'Accepted',
+  'collection-start': 'Left for collection',
+  'collection-arrived': 'At collection',
+  'collection-complete': 'Collection complete',
+  'delivery-start': 'Left for delivery',
+  'delivery-arrived': 'At delivery',
+  'delivery-complete': 'Completed',
+}
+
+/**
+ * Admin Job Details live stage.
+ * Accepted is the admin assignment. Collection and delivery Start, Arrived and
+ * Complete are the driver app events already stored on the booking.
+ * Arrived prefers the GPS arrival row. Time on site runs from that arrival
+ * until Complete at the same address, so travel is not included.
+ *
+ * @param {Record<string, unknown> | null | undefined} quote
+ * @param {Array<Record<string, unknown>>} [historyRows]
+ * @param {Record<string, unknown> | null} [job]
+ * @param {{ status?: string, completed_at?: string } | null} [assignment]
+ */
+export function buildAdminLiveStage(quote, historyRows = [], job = null, assignment = null) {
+  const q = quote || {}
+  const completed = quoteIsCompleted(q, job, assignment)
+  const cancelled = quoteIsCancelled(q, job)
+  const sorted = [...(historyRows || [])]
+    .filter((row) => row && !row.corrects_event_id)
+    .sort((a, b) => new Date(eventAt(a) || 0).getTime() - new Date(eventAt(b) || 0).getTime())
+
+  let collectionStart = ''
+  let collectionComplete = ''
+  let deliveryStart = ''
+  let deliveryComplete = ''
   let deliveryPhase = false
+  /** @type {Array<Record<string, unknown>>} */
+  const collectionArrivals = []
+  /** @type {Array<Record<string, unknown>>} */
+  const deliveryArrivals = []
+
   for (const row of sorted) {
-    const at = String(row.occurred_at || row.created_at || '').trim()
+    const status = normStatus(row.status)
+    if (!status || SKIP_STATUSES.has(status)) continue
+    const at = eventAt(row)
     if (!at) continue
-    const stepId = historyStatusToTimelineStepId(row.status, { deliveryPhase })
-    if (stepId === 'in_transit' || stepId === 'arrived_delivery' || stepId === 'completed') {
+    const stop = normStatus(row.stop_type)
+    const deliveryStop = stop === 'delivery' || stop === 'dropoff'
+
+    if (!deliveryPhase && COLLECTION_START.has(status) && !collectionStart) collectionStart = at
+
+    const gpsArrival = normStatus(row.source) === 'gps'
+    if (COLLECTION_ARRIVED.has(status) || (status === 'arrived' && !deliveryPhase && !deliveryStop)) {
+      if (gpsArrival && collectionStart) collectionArrivals.push(row)
+    } else if (DELIVERY_ARRIVED.has(status) || (status === 'arrived' && (deliveryPhase || deliveryStop))) {
+      if (gpsArrival && deliveryStart) {
+        deliveryArrivals.push(row)
+        deliveryPhase = true
+      }
+    }
+
+    if (COLLECTION_COMPLETE.has(status) && !collectionComplete) {
+      collectionComplete = at
       deliveryPhase = true
     }
-    if (stepId && !timestamps[stepId]) {
-      timestamps[stepId] = at
+    if (DELIVERY_START.has(status) && !deliveryStart) {
+      deliveryStart = at
+      deliveryPhase = true
+    }
+    if ((status === 'unloading' || status === 'unloading_started' || status === 'unloading_completed') && !deliveryPhase) {
+      deliveryPhase = true
+    }
+    if (DELIVERY_COMPLETE.has(status) && !deliveryComplete) {
+      deliveryComplete = at
+      deliveryPhase = true
     }
   }
 
-  if (completedAt && !timestamps.completed) timestamps.completed = completedAt
-  return timestamps
+  if (!deliveryComplete && completed) {
+    deliveryComplete = String(q.completed_at || assignment?.completed_at || '').trim()
+  }
+
+  const collectionArrived = arrivalStamp(collectionArrivals)
+  const deliveryArrived = arrivalStamp(deliveryArrivals)
+  const acceptedAt = String(q.assigned_at || '').trim()
+  const terminal = completed || cancelled || Boolean(deliveryComplete)
+
+  const collectionTimer = {
+    startedAt: collectionArrived,
+    endedAt: collectionArrived && collectionComplete ? collectionComplete : '',
+    running: Boolean(
+      collectionArrived
+      && !collectionComplete
+      && !deliveryStart
+      && !deliveryArrived
+      && !deliveryComplete
+      && !completed
+      && !cancelled,
+    ),
+  }
+  const deliveryTimer = {
+    startedAt: deliveryArrived,
+    endedAt: deliveryArrived && deliveryComplete ? deliveryComplete : '',
+    running: Boolean(deliveryArrived && !deliveryComplete && !completed && !cancelled),
+  }
+
+  const ordered = [
+    { id: 'accepted', label: 'Accepted', at: acceptedAt },
+    { id: 'collection-start', label: 'Start', at: collectionStart },
+    { id: 'collection-arrived', label: 'Arrived', at: collectionArrived },
+    { id: 'collection-complete', label: 'Complete', at: collectionComplete },
+    { id: 'delivery-start', label: 'Start', at: deliveryStart },
+    { id: 'delivery-arrived', label: 'Arrived', at: deliveryArrived },
+    { id: 'delivery-complete', label: 'Complete', at: deliveryComplete },
+  ]
+
+  let activeId = ''
+  if (!terminal) {
+    for (const row of ordered) {
+      if (row.at) activeId = row.id
+    }
+  }
+
+  const events = ordered.map((row) => ({
+    ...row,
+    state: !row.at ? 'upcoming' : !terminal && row.id === activeId ? 'current' : 'done',
+  }))
+
+  const byId = Object.fromEntries(events.map((row) => [row.id, row]))
+  const currentLabel = cancelled
+    ? 'Cancelled'
+    : terminal
+      ? 'Completed'
+      : (LIVE_LABELS[activeId] || 'Not started')
+
+  return {
+    currentLabel,
+    accepted: byId.accepted,
+    collection: {
+      start: byId['collection-start'],
+      arrived: byId['collection-arrived'],
+      complete: byId['collection-complete'],
+      timer: collectionTimer,
+    },
+    delivery: {
+      start: byId['delivery-start'],
+      arrived: byId['delivery-arrived'],
+      complete: byId['delivery-complete'],
+      timer: deliveryTimer,
+    },
+  }
 }
 
 /**
- * Loading clock. Starts only when loading_started was recorded.
- * Ends when collection is completed. Arrival time is never copied in.
+ * Customer portal booking details use the same stage as admin Job Details.
+ * The booking payload carries the assignment time and completion stamps.
+ * History rows are the driver events already returned for that booking.
  *
- * @param {Array<{ status?: string, created_at?: string, occurred_at?: string }>} historyRows
- * @returns {{ startedAt: string, finishedAt: string }}
+ * @param {Record<string, unknown> | null | undefined} booking
+ * @param {Array<Record<string, unknown>>} [historyRows]
  */
-export function resolveLoadingWindow(historyRows) {
-  const clocks = buildStageClocks(historyRows)
-  return { startedAt: clocks.loading.startedAt, finishedAt: clocks.loading.endedAt }
-}
-
-/**
- * @param {Array<{ status?: string, created_at?: string, occurred_at?: string }>} historyRows
- * @returns {{ startedAt: string, finishedAt: string }}
- */
-export function resolveUnloadingWindow(historyRows) {
-  const clocks = buildStageClocks(historyRows)
-  return { startedAt: clocks.unloading.startedAt, finishedAt: clocks.unloading.endedAt }
+export function liveStageFromPortalBooking(booking, historyRows = []) {
+  const row = booking || {}
+  return buildAdminLiveStage(
+    {
+      assigned_at: row.assigned_at || '',
+      status: row.status || '',
+      operational_status: row.operational_status || '',
+      completed_at: row.completed_at || '',
+      cancelled_at: row.cancelled_at || '',
+    },
+    historyRows,
+    null,
+    {
+      status: row.assignment_status || '',
+      completed_at: row.assignment_completed_at || '',
+    },
+  )
 }
 
 /**
@@ -178,141 +244,6 @@ export function formatLoadDuration(startedAt, finishedAt, nowMs = Date.now()) {
   if (m > 0) return `${m} min`
   return `${s} sec`
 }
-
-/**
- * Best label for admin Status Tracker (driver mobile → Supabase).
- *
- * @param {Record<string, unknown>} q
- * @param {{ status?: string, updated_at?: string } | null} [assignment]
- * @param {{ workflow_status?: string, workflow_at?: string } | null} [workflow]
- */
-export function resolveDispatchWorkflowLabel(q, assignment = null, workflow = null) {
-  const fromHistory = String(workflow?.workflow_status || '').trim()
-  if (fromHistory) return fromHistory
-
-  const quoteStatus = String(q?.status || '').trim()
-  if (quoteStatus && !/^(new|booked)$/i.test(quoteStatus)) return quoteStatus
-
-  const op = String(q?.operational_status || '').trim()
-  if (op) return op
-
-  const assignStatus = String(assignment?.status || '').trim()
-  if (assignStatus && !/^(active|accepted|assigned)$/i.test(assignStatus)) return assignStatus
-
-  return op || quoteStatus || assignStatus
-}
-
-/**
- * @param {string} op
- */
-function matchStepIndex(op) {
-  const s = String(op || '').trim()
-  if (!s) return -1
-
-  const normalized = normalizeWorkflowStatus(s)
-  if (normalized in WORKFLOW_STEP_BY_STATUS) {
-    return WORKFLOW_STEP_BY_STATUS[normalized]
-  }
-
-  const lower = s.toLowerCase()
-  if (lower in WORKFLOW_STEP_BY_STATUS) {
-    return WORKFLOW_STEP_BY_STATUS[lower]
-  }
-
-  for (let i = DISPATCH_TIMELINE_STEPS.length - 1; i >= 0; i -= 1) {
-    if (DISPATCH_TIMELINE_STEPS[i].match.test(s)) return i
-  }
-  return -1
-}
-
-/**
- * @param {Record<string, unknown>} q
- * @param {Record<string, unknown>} overrides
- * @param {Record<string, unknown> | null} [job]
- * @param {{ status?: string, updated_at?: string } | null} [assignment]
- * @param {{ workflow_status?: string, workflow_at?: string } | null} [workflow]
- * @param {Array<{ status: string, created_at: string }>} [statusHistory]
- */
-export function buildDispatchTimelineState(
-  q,
-  overrides = {},
-  job = null,
-  assignment = null,
-  workflow = null,
-  statusHistory = [],
-) {
-  const op =
-    resolveDispatchWorkflowLabel(q, assignment, workflow) ||
-    String(overrides.operationalStatus || q.operational_status || assignment?.status || '').trim()
-  const completed = quoteIsCompleted(q, job)
-  const cancelled = quoteIsCancelled(q, job)
-  const assigned = Boolean(
-    String(q.assigned_driver_name || overrides.assignedDriver || '').trim() ||
-      String(q.assigned_driver_id || '').trim() ||
-      String(overrides.assignedPartnerCompany || q.assigned_partner_company || '').trim(),
-  )
-
-  let currentIndex = matchStepIndex(op)
-  if (completed) currentIndex = DISPATCH_TIMELINE_STEPS.length - 1
-  else if (cancelled) currentIndex = -1
-  else if (currentIndex < 0 && assigned) {
-    currentIndex = quoteJobIsStarted(q, job, assignment) ? 4 : 0
-  }
-
-  const acceptedAt = q.assigned_at ? String(q.assigned_at) : ''
-  const completedAt = String(q.completed_at || overrides.workflowCompletedAt || '').trim()
-  const stepTimestamps = buildStepTimestampsFromHistory(statusHistory, { acceptedAt, completedAt })
-  const clocks = buildStageClocks(statusHistory)
-  const statusNorm = normalizeWorkflowStatus(op)
-  const collectionFinished = statusNorm === 'pickup_completed' || statusNorm === 'loaded'
-
-  const steps = DISPATCH_TIMELINE_STEPS.map((step, index) => {
-    const clock =
-      step.id === 'arrived_pickup' ? clocks.atCollection
-      : step.id === 'loading' ? clocks.loading
-      : step.id === 'arrived_delivery' ? clocks.atDelivery
-      : step.id === 'unloading' ? clocks.unloading
-      : null
-
-    let state = 'upcoming'
-    if (cancelled) state = 'cancelled'
-    else if (step.id === 'loading' || step.id === 'unloading') {
-      if (!clock?.startedAt) state = 'unrecorded'
-      else if (clock.endedAt || completed) state = 'done'
-      else state = 'current'
-    } else if (step.id === 'arrived_pickup' && clocks.atCollection.startedAt && !clocks.atCollection.endedAt && !completed) {
-      state = 'current'
-    } else if (step.id === 'arrived_delivery' && clocks.atDelivery.startedAt && !clocks.atDelivery.endedAt && !completed) {
-      state = 'current'
-    } else if (step.id === 'in_transit' && collectionFinished && !stepTimestamps.in_transit && !completed) {
-      state = 'upcoming'
-    } else if (completed && index <= currentIndex) state = 'done'
-    else if (index < currentIndex) state = 'done'
-    else if (index === currentIndex) state = 'current'
-
-    const rawTs = clock
-      ? clock.startedAt
-      : step.id === 'accepted'
-        ? ''
-        : stepTimestamps[step.id] || ''
-    const showTime = state === 'done' || state === 'current'
-    const endedAt = clock && showTime ? clock.endedAt : ''
-
-    return {
-      ...step,
-      state,
-      timestamp: rawTs && showTime ? formatDateTimeUK(rawTs) : '',
-      startedAt: rawTs && showTime ? rawTs : '',
-      endedAt,
-      loadingStartedAt: step.id === 'loading' ? clocks.loading.startedAt : '',
-      loadingFinishedAt: step.id === 'loading' ? clocks.loading.endedAt : '',
-    }
-  })
-
-  return steps
-}
-
-export { resolveLiveStageLabel }
 
 /**
  * @param {Record<string, unknown>} q

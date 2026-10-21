@@ -55,12 +55,77 @@ export function resolveCustomerTrackingStage(tracking) {
   // label ("Loading", "Left for collection"). Passing both made a stale
   // "Loading" label win over "on_way", because loading is checked first.
   // GPS age is not an input. A missing or stale fix must not change this badge.
-  const machine = statusKey(tracking?.status_raw)
+  const loadClock = new Set(['loading', 'loading_started', 'unloading', 'unloading_started', 'unloading_completed'])
+  let machine = statusKey(tracking?.status_raw)
+  if (loadClock.has(machine)) machine = ''
+  const assignment = statusKey(tracking?.assignment_status)
+  if (!machine && assignment && !loadClock.has(assignment)) {
+    return resolveTrackingJobStage(assignment, null)
+  }
   const display = statusKey(tracking?.operational_status)
+  if (loadClock.has(display)) {
+    return resolveTrackingJobStage(machine || assignment || 'assigned', null)
+  }
   if (machine) {
     return resolveTrackingJobStage(machine, null)
   }
   return resolveTrackingJobStage(display, null)
+}
+
+/**
+ * Banner for the customer tracking page. Uses the same stage as admin Job Details.
+ * GPS motion is not an input. Loading rows do not count as arrival.
+ *
+ * @param {ReturnType<import('./jobDispatchTimeline.js').buildAdminLiveStage>} stage
+ * @param {Record<string, unknown> | null | undefined} [tracking]
+ */
+export function customerTrackingFromLiveStage(stage, tracking) {
+  const cancelled = Boolean(
+    tracking?.cancelled
+    || tracking?.cancelled_at
+    || statusKey(tracking?.operational_status) === 'cancelled'
+    || statusKey(tracking?.status_raw) === 'cancelled'
+    || statusKey(tracking?.assignment_status) === 'cancelled',
+  )
+  if (cancelled) return resolveTrackingJobStage('cancelled', null)
+
+  const completed = Boolean(
+    tracking?.completed
+    || tracking?.completed_at
+    || stage?.delivery?.complete?.at
+    || statusKey(tracking?.operational_status) === 'completed'
+    || statusKey(tracking?.status_raw) === 'completed'
+    || statusKey(tracking?.assignment_status) === 'completed',
+  )
+  if (completed) {
+    return {
+      stage: 'completed',
+      badge: 'Completed',
+      etaKind: null,
+      placeLabel: null,
+      showLiveEta: false,
+      journeyActive: false,
+      arrivedMessage: null,
+      stageMessage: 'Your move is complete',
+      waitingMessage: null,
+    }
+  }
+  if (stage?.delivery?.arrived?.at) {
+    return resolveTrackingJobStage('arrived_delivery', null)
+  }
+  if (stage?.delivery?.start?.at) {
+    return resolveTrackingJobStage('in_transit', null)
+  }
+  if (stage?.collection?.complete?.at) {
+    return resolveTrackingJobStage('pickup_completed', null)
+  }
+  if (stage?.collection?.arrived?.at) {
+    return resolveTrackingJobStage('arrived_pickup', null)
+  }
+  if (stage?.collection?.start?.at) {
+    return resolveTrackingJobStage('on_way', null)
+  }
+  return resolveTrackingJobStage('assigned', null)
 }
 
 /**
@@ -108,20 +173,7 @@ export function resolveTrackingJobStage(operationalStatus, statusRaw) {
       waitingMessage: null,
     }
   }
-  if (has(['unloading_started'])) {
-    return {
-      stage: 'arrived_delivery',
-      badge: 'Unloading',
-      etaKind: null,
-      placeLabel: 'delivery',
-      showLiveEta: false,
-      journeyActive: true,
-      arrivedMessage: 'Your driver is unloading',
-      stageMessage: null,
-      waitingMessage: null,
-    }
-  }
-  if (has(['arrived_delivery', 'unloading', 'at_delivery'])) {
+  if (has(['arrived_delivery', 'at_delivery'])) {
     return {
       stage: 'arrived_delivery',
       badge: 'At delivery',
@@ -129,7 +181,7 @@ export function resolveTrackingJobStage(operationalStatus, statusRaw) {
       placeLabel: 'delivery',
       showLiveEta: false,
       journeyActive: true,
-      arrivedMessage: 'Your driver has arrived at delivery',
+      arrivedMessage: 'Your driver is at delivery',
       stageMessage: null,
       waitingMessage: null,
     }
@@ -144,33 +196,20 @@ export function resolveTrackingJobStage(operationalStatus, statusRaw) {
       showLiveEta: true,
       journeyActive: true,
       arrivedMessage: null,
-      stageMessage: 'Left for delivery',
+      stageMessage: 'Your driver is on the way to delivery',
       waitingMessage: null,
     }
   }
   if (has(['pickup_completed', 'loaded', 'collection_finished', 'items_collected'])) {
     return {
       stage: 'collected',
-      badge: 'Items collected',
-      etaKind: 'delivery',
-      placeLabel: 'delivery',
-      showLiveEta: true,
-      journeyActive: true,
-      arrivedMessage: null,
-      stageMessage: 'Items collected',
-      waitingMessage: null,
-    }
-  }
-  if (has(['loading_started', 'loading'])) {
-    return {
-      stage: 'arrived_collection',
-      badge: 'Loading',
+      badge: 'Collection complete',
       etaKind: null,
-      placeLabel: 'collection',
+      placeLabel: null,
       showLiveEta: false,
       journeyActive: true,
-      arrivedMessage: 'Your driver is loading',
-      stageMessage: null,
+      arrivedMessage: null,
+      stageMessage: 'Collection is complete',
       waitingMessage: null,
     }
   }
@@ -182,7 +221,7 @@ export function resolveTrackingJobStage(operationalStatus, statusRaw) {
       placeLabel: 'collection',
       showLiveEta: false,
       journeyActive: true,
-      arrivedMessage: 'Your driver has arrived at collection',
+      arrivedMessage: 'Your driver is at collection',
       stageMessage: null,
       waitingMessage: null,
     }
@@ -198,6 +237,20 @@ export function resolveTrackingJobStage(operationalStatus, statusRaw) {
       journeyActive: true,
       arrivedMessage: null,
       stageMessage: 'Your driver is on the way to collection',
+      waitingMessage: null,
+    }
+  }
+  // Loading and unloading are item clocks. They are not a customer stage.
+  if (has(['loading', 'loading_started', 'unloading', 'unloading_started', 'unloading_completed'])) {
+    return {
+      stage: 'awaiting_departure',
+      badge: 'Driver assigned',
+      etaKind: null,
+      placeLabel: 'collection',
+      showLiveEta: false,
+      journeyActive: false,
+      arrivedMessage: null,
+      stageMessage: 'Driver assigned — waiting to start',
       waitingMessage: null,
     }
   }
@@ -222,8 +275,8 @@ export function resolveTrackingJobStage(operationalStatus, statusRaw) {
       showLiveEta: false,
       journeyActive: false,
       arrivedMessage: null,
-      stageMessage: 'Your driver has not yet started the journey to collection.',
-      waitingMessage: 'Waiting for driver to depart.',
+      stageMessage: 'Driver assigned — waiting to start',
+      waitingMessage: null,
     }
   }
   return {

@@ -21,7 +21,6 @@ import {
 import { mergedAdminWorkflowForQuote } from '../lib/quoteAdminWorkflowMerge'
 import { isSupabaseConfigured, supabase } from '../lib/supabase'
 import CustomerAmendmentAdminBanner from './customer-portal/CustomerAmendmentAdminBanner'
-import MoveTimeline from './tracking/MoveTimeline'
 import {
   buildQuotePricingSumTableRows,
   collectInventoryRowsForHeavyFee,
@@ -683,12 +682,6 @@ export default function AvailableJobDetails() {
             resetBusy={resetBusy}
             onReload={load}
             onNotify={showToast}
-          />
-          <MoveTimeline
-            variant="admin"
-            quoteId={q.id}
-            quoteRef={q.quote_ref || ''}
-            completedAt={q.completed_at || null}
           />
           {fullPageDispatch || tab === 'overview' ? (
             <ServicePackageAllowanceCard

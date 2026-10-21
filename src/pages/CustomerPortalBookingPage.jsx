@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
 import PortalShell, { usePortalAccess } from '../components/customer-portal/PortalShell'
 import PortalTrackPanel from '../components/customer-portal/PortalTrackPanel'
-import MoveTimeline from '../components/tracking/MoveTimeline'
+import PortalLiveStage from '../components/customer-portal/PortalLiveStage'
 import { abandonPortalAmendment, confirmPortalPayment, downloadPortalInvoice, getPortalBooking, payPortalAmendment } from '../lib/customerPortalApi'
 import {
   existingBalanceGbp,
@@ -99,6 +99,23 @@ export default function CustomerPortalBookingPage() {
   }, [id, params, access.mode, access.customerId])
 
   const booking = payload?.booking
+
+  useEffect(() => {
+    if (!id || access.mode === 'anonymous' || !booking?.id) return undefined
+    let cancelled = false
+    const timer = window.setInterval(() => {
+      getPortalBooking(id, access)
+        .then((data) => {
+          if (!cancelled) setPayload((prev) => (prev ? { ...prev, ...data } : data))
+        })
+        .catch(() => {})
+    }, 15000)
+    return () => {
+      cancelled = true
+      window.clearInterval(timer)
+    }
+  }, [id, access, booking?.id])
+
   const lock = booking ? jobModificationLock(booking) : { locked: false, contact: false }
   const wizard = booking ? hydratePortalWizard(booking) : null
   const total = booking ? previousChargeableTotal(booking) : null
@@ -228,10 +245,7 @@ export default function CustomerPortalBookingPage() {
             </section>
           ) : null}
 
-          <MoveTimeline
-            token={payload?.tracking_token || ''}
-            completedAt={booking.completed_at || null}
-          />
+          <PortalLiveStage booking={booking} token={payload?.tracking_token || ''} />
 
           {payload?.tracking_token ? <PortalTrackPanel token={payload.tracking_token} /> : (
             <section className="rounded-2xl border border-slate-200 bg-white p-4 text-sm text-slate-600">

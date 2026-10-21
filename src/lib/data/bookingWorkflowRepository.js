@@ -43,7 +43,7 @@ export async function fetchBookingWorkflowByQuoteIds(quoteIds) {
  * Full driver status timeline for admin Status Tracker (oldest → newest).
  *
  * @param {string} quoteId
- * @returns {Promise<Array<{ status: string, created_at: string }>>}
+ * @returns {Promise<Array<{ status: string, created_at: string, occurred_at?: string, workflow_version?: number | null, source?: string, stop_type?: string, corrects_event_id?: string | null }>>}
  */
 export async function fetchJobStatusHistoryForQuote(quoteId) {
   if (!isSupabaseConfigured || !supabase) return []
@@ -52,18 +52,27 @@ export async function fetchJobStatusHistoryForQuote(quoteId) {
 
   let { data, error } = await supabase
     .from('job_status_history')
-    .select('status, created_at, occurred_at, workflow_version')
+    .select('status, created_at, occurred_at, workflow_version, source, stop_type, corrects_event_id')
     .eq('quote_id', id)
     .order('created_at', { ascending: true })
 
-  if (error && /workflow_version/i.test(error.message || '')) {
+  if (error && /workflow_version|source|stop_type|corrects_event_id/i.test(error.message || '')) {
     const fallback = await supabase
       .from('job_status_history')
-      .select('status, created_at, occurred_at')
+      .select('status, created_at, occurred_at, workflow_version')
       .eq('quote_id', id)
       .order('created_at', { ascending: true })
     data = fallback.data
     error = fallback.error
+    if (error && /workflow_version/i.test(error.message || '')) {
+      const legacy = await supabase
+        .from('job_status_history')
+        .select('status, created_at, occurred_at')
+        .eq('quote_id', id)
+        .order('created_at', { ascending: true })
+      data = legacy.data
+      error = legacy.error
+    }
   }
 
   if (error) {
@@ -81,5 +90,8 @@ export async function fetchJobStatusHistoryForQuote(quoteId) {
       created_at: String(row.created_at),
       occurred_at: row.occurred_at ? String(row.occurred_at) : '',
       workflow_version: row.workflow_version != null ? Number(row.workflow_version) : null,
+      source: row.source ? String(row.source) : '',
+      stop_type: row.stop_type ? String(row.stop_type) : '',
+      corrects_event_id: row.corrects_event_id || null,
     }))
 }

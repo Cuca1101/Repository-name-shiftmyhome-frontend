@@ -1,153 +1,239 @@
-import { describe, expect, it } from 'vitest'
-import {
-  buildDispatchTimelineState,
-  buildStepTimestampsFromHistory,
-  formatLoadDuration,
-  historyStatusToTimelineStepId,
-  resolveLoadingWindow,
-} from '../jobDispatchTimeline'
+import assert from 'node:assert/strict'
+import { register } from 'node:module'
+import test from 'node:test'
+import { pathToFileURL } from 'node:url'
 
-describe('buildDispatchTimelineState', () => {
-  const baseQuote = {
-    id: 'q1',
-    assigned_at: '2026-05-28T10:00:00Z',
-    assigned_driver_id: 'd1',
-    assigned_driver_name: 'Driver One',
-  }
+register('./esm-extension-loader.mjs', pathToFileURL('./scripts/'))
 
-  it('highlights On way after pickup Start', () => {
-    const steps = buildDispatchTimelineState(
-      baseQuote,
-      {},
-      null,
-      { status: 'on_way' },
-      { workflow_status: 'on_way', workflow_at: '2026-05-28T11:00:00Z' },
-    )
-    expect(steps.find((s) => s.id === 'on_way')?.state).toBe('current')
-    expect(steps.find((s) => s.id === 'arrived_pickup')?.state).toBe('upcoming')
-  })
+const { buildAdminLiveStage, liveStageFromPortalBooking, formatLoadDuration } = await import('../jobDispatchTimeline.js')
+const { formatDateTimeUK } = await import('../formatDateDisplay.js')
 
-  it('highlights Arrived after pickup Arrived', () => {
-    const steps = buildDispatchTimelineState(
-      baseQuote,
-      {},
-      null,
-      { status: 'arrived' },
-      { workflow_status: 'arrived_pickup', workflow_at: '2026-05-28T11:15:00Z' },
-    )
-    expect(steps.find((s) => s.id === 'arrived_pickup')?.state).toBe('current')
-    expect(steps.find((s) => s.id === 'on_way')?.state).toBe('done')
-  })
+const assigned = {
+  id: 'q1',
+  assigned_at: '2026-05-28T09:00:00Z',
+  assigned_driver_id: 'd1',
+  assigned_driver_name: 'Driver One',
+}
 
-  it('keeps Loading unrecorded when pickup is completed without a loading stamp', () => {
-    const steps = buildDispatchTimelineState(
-      baseQuote,
-      {},
-      null,
-      { status: 'in_progress' },
-      { workflow_status: 'pickup_completed', workflow_at: '2026-05-28T12:00:00Z' },
-    )
-    expect(steps.find((s) => s.id === 'loading')?.state).toBe('unrecorded')
-    expect(steps.find((s) => s.id === 'arrived_pickup')?.state).toBe('done')
-    expect(steps.find((s) => s.id === 'in_transit')?.state).toBe('upcoming')
-  })
+test('Accepted is the admin assignment time, before the driver starts', () => {
+  const stage = buildAdminLiveStage(assigned, [])
+  assert.equal(stage.accepted.at, '2026-05-28T09:00:00Z')
+  assert.equal(stage.accepted.state, 'current')
+  assert.equal(stage.currentLabel, 'Accepted')
+  assert.equal(stage.collection.start.at, '')
+  assert.equal(stage.collection.arrived.at, '')
+  assert.equal(stage.delivery.complete.at, '')
+})
 
-  it('highlights In transit after dropoff Start', () => {
-    const steps = buildDispatchTimelineState(
-      { ...baseQuote, status: 'in_transit' },
-      {},
-      null,
-      { status: 'in_progress' },
-      { workflow_status: 'in_transit', workflow_at: '2026-05-28T13:00:00Z' },
-    )
-    expect(steps.find((s) => s.id === 'in_transit')?.state).toBe('current')
-    expect(steps.find((s) => s.id === 'on_way')?.state).toBe('done')
-  })
+test('maps the driver app sequence and keeps every stamp', () => {
+  const history = [
+    { status: 'on_way', occurred_at: '2026-05-28T10:00:00Z', source: 'manual' },
+    { status: 'arrived_pickup', occurred_at: '2026-05-28T10:20:00Z', source: 'gps' },
+    { status: 'loading_started', occurred_at: '2026-05-28T10:25:00Z', source: 'manual' },
+    { status: 'pickup_completed', occurred_at: '2026-05-28T10:50:00Z', source: 'manual' },
+    { status: 'in_transit', occurred_at: '2026-05-28T10:55:00Z', source: 'manual' },
+    { status: 'arrived_delivery', occurred_at: '2026-05-28T11:30:00Z', source: 'gps' },
+    { status: 'unloading_started', occurred_at: '2026-05-28T11:35:00Z', source: 'manual' },
+    { status: 'completed', occurred_at: '2026-05-28T12:00:00Z', source: 'manual' },
+  ]
+  const stage = buildAdminLiveStage(
+    { ...assigned, status: 'completed', operational_status: 'Completed', completed_at: '2026-05-28T12:00:00Z' },
+    history,
+  )
 
-  it('highlights Arrived delivery after dropoff Arrived', () => {
-    const steps = buildDispatchTimelineState(
-      { ...baseQuote, status: 'arrived' },
-      {},
-      null,
-      { status: 'arrived' },
-      { workflow_status: 'arrived_delivery', workflow_at: '2026-05-28T14:00:00Z' },
-    )
-    expect(steps.find((s) => s.id === 'arrived_delivery')?.state).toBe('current')
-  })
+  assert.equal(stage.collection.start.at, '2026-05-28T10:00:00Z')
+  assert.equal(stage.collection.arrived.at, '2026-05-28T10:20:00Z')
+  assert.equal(stage.collection.complete.at, '2026-05-28T10:50:00Z')
+  assert.equal(stage.delivery.start.at, '2026-05-28T10:55:00Z')
+  assert.equal(stage.delivery.arrived.at, '2026-05-28T11:30:00Z')
+  assert.equal(stage.delivery.complete.at, '2026-05-28T12:00:00Z')
+  assert.equal(stage.collection.timer.running, false)
+  assert.equal(stage.delivery.timer.running, false)
+  assert.equal(stage.collection.timer.endedAt, '2026-05-28T10:50:00Z')
+  assert.equal(stage.delivery.timer.endedAt, '2026-05-28T12:00:00Z')
+  assert.equal(formatLoadDuration(stage.collection.timer.startedAt, stage.collection.timer.endedAt), '30 min')
+  assert.equal(formatLoadDuration(stage.delivery.timer.startedAt, stage.delivery.timer.endedAt), '30 min')
+  assert.equal(stage.currentLabel, 'Completed')
+  assert.equal(stage.collection.start.state, 'done')
+  assert.equal(stage.delivery.complete.state, 'done')
+})
 
-  it('marks Completed when booking is finished', () => {
-    const steps = buildDispatchTimelineState(
-      {
-        ...baseQuote,
-        status: 'completed',
-        operational_status: 'Completed',
-        completed_at: '2026-05-28T15:00:00Z',
-      },
-      {},
-      null,
-      { status: 'completed', updated_at: '2026-05-28T15:00:00Z' },
-      { workflow_status: 'completed', workflow_at: '2026-05-28T15:00:00Z' },
-    )
-    expect(steps.find((s) => s.id === 'completed')?.state).toBe('current')
-    expect(steps.find((s) => s.id === 'loading')?.state).toBe('unrecorded')
-    expect(steps.find((s) => s.id === 'unloading')?.state).toBe('unrecorded')
-    expect(steps.filter((s) => s.state !== 'unrecorded').every((s) => s.id === 'completed' || s.state === 'done')).toBe(true)
-  })
+test('automatic GPS arrival wins over a manual arrived row', () => {
+  const stage = buildAdminLiveStage(assigned, [
+    { status: 'on_way', occurred_at: '2026-05-28T10:00:00Z', source: 'manual' },
+    { status: 'arrived_pickup', occurred_at: '2026-05-28T10:10:00Z', source: 'manual' },
+    { status: 'arrived_pickup', occurred_at: '2026-05-28T10:18:00Z', source: 'gps' },
+  ])
+  assert.equal(stage.collection.arrived.at, '2026-05-28T10:18:00Z')
+  assert.equal(stage.collection.arrived.state, 'current')
+  assert.equal(stage.collection.timer.running, true)
+  assert.equal(stage.collection.timer.startedAt, '2026-05-28T10:18:00Z')
+  assert.equal(stage.currentLabel, 'At collection')
+})
 
-  it('stamps each completed step from job_status_history', () => {
-    const history = [
+test('collection timer runs from arrival until collection complete, excluding travel', () => {
+  const travelling = buildAdminLiveStage(assigned, [
+    { status: 'on_way', occurred_at: '2026-05-28T10:00:00Z' },
+  ])
+  assert.equal(travelling.collection.timer.running, false)
+  assert.equal(travelling.currentLabel, 'Left for collection')
+
+  const onSite = buildAdminLiveStage(assigned, [
+    { status: 'on_way', occurred_at: '2026-05-28T10:00:00Z' },
+    { status: 'arrived_pickup', occurred_at: '2026-05-28T10:20:00Z', source: 'gps' },
+  ])
+  assert.equal(onSite.collection.timer.running, true)
+  assert.equal(onSite.collection.start.state, 'done')
+
+  const finished = buildAdminLiveStage(assigned, [
+    { status: 'on_way', occurred_at: '2026-05-28T10:00:00Z' },
+    { status: 'arrived_pickup', occurred_at: '2026-05-28T10:20:00Z', source: 'gps' },
+    { status: 'pickup_completed', occurred_at: '2026-05-28T10:50:00Z' },
+  ])
+  assert.equal(finished.collection.timer.running, false)
+  assert.equal(finished.collection.timer.endedAt, '2026-05-28T10:50:00Z')
+  assert.equal(finished.collection.complete.state, 'current')
+  assert.equal(finished.currentLabel, 'Collection complete')
+})
+
+test('delivery timer is separate and stops when the job is completed', () => {
+  const history = [
+    { status: 'pickup_completed', occurred_at: '2026-05-28T10:50:00Z' },
+    { status: 'in_transit', occurred_at: '2026-05-28T10:55:00Z' },
+    { status: 'arrived_delivery', occurred_at: '2026-05-28T11:30:00Z', source: 'gps' },
+  ]
+  const onSite = buildAdminLiveStage(assigned, history)
+  assert.equal(onSite.delivery.timer.running, true)
+  assert.equal(onSite.collection.timer.running, false)
+  assert.equal(onSite.currentLabel, 'At delivery')
+  assert.equal(onSite.delivery.start.state, 'done')
+
+  const done = buildAdminLiveStage(assigned, [
+    ...history,
+    { status: 'completed', occurred_at: '2026-05-28T12:10:00Z' },
+  ])
+  assert.equal(done.delivery.timer.running, false)
+  assert.equal(done.delivery.timer.endedAt, '2026-05-28T12:10:00Z')
+  assert.equal(formatLoadDuration(done.delivery.timer.startedAt, done.delivery.timer.endedAt), '40 min')
+})
+
+test('a missing event stays empty and a historical completion stamp is kept', () => {
+  const stage = buildAdminLiveStage(
+    { ...assigned, status: 'completed', completed_at: '2026-05-28T15:00:00Z' },
+    [
       { status: 'on_way', created_at: '2026-05-28T11:00:00Z' },
-      { status: 'arrived_pickup', created_at: '2026-05-28T11:15:00Z' },
-      { status: 'pickup_completed', created_at: '2026-05-28T12:00:00Z' },
       { status: 'in_transit', created_at: '2026-05-28T13:00:00Z' },
-      { status: 'arrived_delivery', created_at: '2026-05-28T14:00:00Z' },
-      { status: 'completed', created_at: '2026-05-28T15:00:00Z' },
-    ]
-    const stamps = buildStepTimestampsFromHistory(history, {
-      acceptedAt: '2026-05-28T10:00:00Z',
-    })
-    expect(stamps.accepted).toBe('2026-05-28T10:00:00Z')
-    expect(stamps.on_way).toBe('2026-05-28T11:00:00Z')
-    expect(stamps.arrived_pickup).toBe('2026-05-28T11:15:00Z')
-    expect(stamps.loading).toBeUndefined()
-    expect(stamps.in_transit).toBe('2026-05-28T13:00:00Z')
-    expect(stamps.arrived_delivery).toBe('2026-05-28T14:00:00Z')
-    expect(stamps.completed).toBe('2026-05-28T15:00:00Z')
+    ],
+  )
+  assert.equal(stage.collection.arrived.at, '')
+  assert.equal(stage.collection.arrived.state, 'upcoming')
+  assert.equal(stage.collection.timer.running, false)
+  assert.equal(stage.delivery.complete.at, '2026-05-28T15:00:00Z')
+  assert.equal(stage.collection.start.at, '2026-05-28T11:00:00Z')
+  assert.equal(stage.delivery.start.at, '2026-05-28T13:00:00Z')
+})
 
-    const steps = buildDispatchTimelineState(
-      { ...baseQuote, status: 'completed', operational_status: 'Completed' },
-      {},
-      null,
-      { status: 'completed' },
-      { workflow_status: 'completed', workflow_at: '2026-05-28T15:00:00Z' },
-      history,
+test('generic arrived follows the stop, and corrections are ignored', () => {
+  const stage = buildAdminLiveStage(assigned, [
+    { status: 'on_way', occurred_at: '2026-05-28T10:00:00Z', source: 'manual' },
+    { id: 'a', status: 'arrived', occurred_at: '2026-05-28T10:20:00Z', source: 'gps', stop_type: 'pickup' },
+    { id: 'b', status: 'arrived', occurred_at: '2026-05-28T10:25:00Z', source: 'manual', corrects_event_id: 'a' },
+    { status: 'in_transit', occurred_at: '2026-05-28T11:00:00Z' },
+    { status: 'arrived', occurred_at: '2026-05-28T11:40:00Z', source: 'gps', stop_type: 'delivery' },
+  ])
+  assert.equal(stage.collection.arrived.at, '2026-05-28T10:20:00Z')
+  assert.equal(stage.delivery.arrived.at, '2026-05-28T11:40:00Z')
+})
+
+test('UK display follows daylight saving', () => {
+  assert.equal(formatDateTimeUK('2026-06-15T12:00:00Z'), '15/06/2026, 13:00')
+  assert.equal(formatDateTimeUK('2026-01-15T12:00:00Z'), '15/01/2026, 12:00')
+})
+
+test('customer portal booking fields match the admin live stage', () => {
+  const history = [
+    { status: 'on_way', occurred_at: '2026-05-28T10:00:00Z', source: 'manual' },
+    { status: 'arrived_pickup', occurred_at: '2026-05-28T10:20:00Z', source: 'gps' },
+    { status: 'loading_started', occurred_at: '2026-05-28T10:25:00Z', source: 'manual' },
+    { status: 'pickup_completed', occurred_at: '2026-05-28T10:50:00Z', source: 'manual' },
+    { status: 'in_transit', occurred_at: '2026-05-28T10:55:00Z', source: 'manual' },
+    { status: 'arrived_delivery', occurred_at: '2026-05-28T11:30:00Z', source: 'gps' },
+    { status: 'unloading_started', occurred_at: '2026-05-28T11:35:00Z', source: 'manual' },
+    { status: 'completed', occurred_at: '2026-05-28T12:10:00Z', source: 'manual' },
+  ]
+  const quote = {
+    ...assigned,
+    status: 'completed',
+    operational_status: 'Completed',
+    completed_at: '2026-05-28T12:10:00Z',
+    cancelled_at: '',
+  }
+  const assignment = { status: 'completed', completed_at: '2026-05-28T12:10:00Z' }
+  const booking = {
+    assigned_at: quote.assigned_at,
+    status: quote.status,
+    operational_status: quote.operational_status,
+    completed_at: quote.completed_at,
+    cancelled_at: '',
+    assignment_status: assignment.status,
+    assignment_completed_at: assignment.completed_at,
+  }
+  const admin = buildAdminLiveStage(quote, history, null, assignment)
+  const portal = liveStageFromPortalBooking(booking, history)
+  assert.deepEqual(portal, admin)
+  const now = Date.parse('2026-05-28T13:00:00Z')
+  for (const key of ['collection', 'delivery']) {
+    assert.equal(formatDateTimeUK(portal[key].start.at), formatDateTimeUK(admin[key].start.at))
+    assert.equal(formatDateTimeUK(portal[key].arrived.at), formatDateTimeUK(admin[key].arrived.at))
+    assert.equal(formatDateTimeUK(portal[key].complete.at), formatDateTimeUK(admin[key].complete.at))
+    assert.equal(
+      formatLoadDuration(portal[key].timer.startedAt, portal[key].timer.endedAt, now),
+      formatLoadDuration(admin[key].timer.startedAt, admin[key].timer.endedAt, now),
     )
-    expect(steps.find((s) => s.id === 'on_way')?.timestamp).toBeTruthy()
-    expect(steps.find((s) => s.id === 'loading')?.state).toBe('unrecorded')
-    expect(steps.find((s) => s.id === 'loading')?.timestamp).toBe('')
-    expect(steps.find((s) => s.id === 'arrived_delivery')?.timestamp).toBeTruthy()
-    const arrived = steps.find((s) => s.id === 'arrived_pickup')
-    expect(arrived?.endedAt).toBe('2026-05-28T12:00:00Z')
-  })
+  }
+  assert.equal(formatDateTimeUK(portal.accepted.at), formatDateTimeUK(admin.accepted.at))
+  assert.equal(formatLoadDuration(portal.collection.timer.startedAt, portal.collection.timer.endedAt, now), '30 min')
+  assert.equal(formatLoadDuration(portal.delivery.timer.startedAt, portal.delivery.timer.endedAt, now), '40 min')
+})
 
-  it('keeps how long loading took on the Loading step', () => {
-    const history = [
-      { status: 'arrived_pickup', created_at: '2026-05-28T11:15:00Z' },
-      { status: 'loading_started', created_at: '2026-05-28T11:20:00Z' },
-      { status: 'pickup_completed', created_at: '2026-05-28T12:00:00Z' },
-    ]
-    const window = resolveLoadingWindow(history)
-    expect(window.startedAt).toBe('2026-05-28T11:20:00Z')
-    expect(window.finishedAt).toBe('2026-05-28T12:00:00Z')
-    expect(formatLoadDuration(window.startedAt, window.finishedAt)).toBe('40 min')
-    const steps = buildDispatchTimelineState(baseQuote, {}, null, null, { workflow_status: 'in_transit' }, history)
-    const loading = steps.find((step) => step.id === 'loading')
-    expect(loading?.loadingStartedAt).toBe('2026-05-28T11:20:00Z')
-    expect(loading?.loadingFinishedAt).toBe('2026-05-28T12:00:00Z')
-  })
+test('a loading row is not arrival, and GPS arrival before Start is ignored', () => {
+  const loadingOnly = buildAdminLiveStage(assigned, [
+    { status: 'on_way', occurred_at: '2026-10-21T22:03:09.993Z', source: 'manual' },
+    { status: 'loading_started', occurred_at: '2026-10-21T22:31:23.44Z', source: 'manual', stop_type: 'pickup' },
+  ])
+  assert.equal(loadingOnly.collection.start.at, '2026-10-21T22:03:09.993Z')
+  assert.equal(loadingOnly.collection.arrived.at, '')
+  assert.equal(loadingOnly.collection.timer.running, false)
+  assert.equal(loadingOnly.currentLabel, 'Left for collection')
 
-  it('maps generic arrived to pickup before in_transit', () => {
-    expect(historyStatusToTimelineStepId('arrived', { deliveryPhase: false })).toBe('arrived_pickup')
-    expect(historyStatusToTimelineStepId('arrived', { deliveryPhase: true })).toBe('arrived_delivery')
-  })
+  const earlyGps = buildAdminLiveStage(assigned, [
+    { status: 'arrived_pickup', occurred_at: '2026-05-28T08:00:00Z', source: 'gps' },
+    { status: 'on_way', occurred_at: '2026-05-28T10:00:00Z', source: 'manual' },
+  ])
+  assert.equal(earlyGps.collection.arrived.at, '')
+  assert.equal(earlyGps.collection.timer.running, false)
+})
+
+test('an earlier assignment does not advance the current one', async () => {
+  const { currentAttemptRows } = await import('../driverWorkflowAttempt.js')
+  const history = [
+    { status: 'on_way', occurred_at: '2026-10-21T18:00:00Z', workflow_version: 5, source: 'manual' },
+    { status: 'loading_started', occurred_at: '2026-10-21T18:20:00Z', workflow_version: 5, source: 'manual' },
+    { status: 'arrived_pickup', occurred_at: '2026-10-21T18:10:00Z', workflow_version: 5, source: 'gps' },
+  ]
+  const stage = buildAdminLiveStage(assigned, currentAttemptRows(history, 6))
+  assert.equal(stage.collection.start.at, '')
+  assert.equal(stage.collection.arrived.at, '')
+  assert.equal(stage.currentLabel, 'Accepted')
+})
+
+test('the same saved stamps rebuild after a fresh call', () => {
+  const history = [
+    { status: 'on_way', occurred_at: '2026-05-28T10:00:00Z' },
+    { status: 'arrived_pickup', occurred_at: '2026-05-28T10:20:00Z', source: 'gps' },
+    { status: 'pickup_completed', occurred_at: '2026-05-28T10:50:00Z' },
+  ]
+  const first = buildAdminLiveStage(assigned, history)
+  const second = buildAdminLiveStage(assigned, history)
+  assert.deepEqual(first, second)
 })

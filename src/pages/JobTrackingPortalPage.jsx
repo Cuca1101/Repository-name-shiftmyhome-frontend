@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
 import SeoHead from '../components/seo/SeoHead'
 import LiveDriverMap from '../components/tracking/LiveDriverMap'
-import MoveTimeline from '../components/tracking/MoveTimeline'
+import LiveStageSummary from '../components/tracking/LiveStageSummary'
 import { formatTimeUK, resolveTrackingMotion } from '../lib/driverMotionStatus'
 import { formatDateTimeUK, formatDateUK } from '../lib/formatDateDisplay'
 import {
@@ -23,7 +23,9 @@ import {
   resolveTrackingGpsState,
   trackingEtaAddress,
 } from '../lib/trackingDriverEta'
-import { resolveCustomerTrackingStage, resolveGpsStatusHeadline } from '../lib/trackingJobStage'
+import { customerTrackingFromLiveStage, resolveCustomerTrackingStage, resolveGpsStatusHeadline } from '../lib/trackingJobStage'
+import { liveStageFromPortalBooking } from '../lib/jobDispatchTimeline'
+import { currentAttemptRows } from '../lib/driverWorkflowAttempt'
 
 const POLL_MS = 15000
 /** Poll faster while waiting for Start Job so the orange collection route appears quickly. */
@@ -129,6 +131,7 @@ export default function JobTrackingPortalPage() {
   const [searchParams] = useSearchParams()
   const viewEvidence = searchParams.get('view') === 'evidence'
   const [data, setData] = useState(null)
+  const [moveTimeline, setMoveTimeline] = useState(null)
   const [media, setMedia] = useState([])
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(true)
@@ -208,10 +211,13 @@ export default function JobTrackingPortalPage() {
                 : 'Invalid tracking link.',
         )
         setData(null)
+        setMoveTimeline(null)
         return
       }
       setData(portal)
       setError('')
+      const { data: timeline } = await client.rpc('public_get_job_move_timeline', { p_token: t })
+      setMoveTimeline(timeline?.ok ? timeline : null)
 
       const nextKey = trackingMediaKey(portal)
       const mediaDue =
@@ -252,7 +258,22 @@ export default function JobTrackingPortalPage() {
   })
   const googleReviewHref = String(GOOGLE_LEAVE_REVIEW_URL || '').trim()
     || 'https://g.page/r/CWmwRUPz2dC7EAE/review'
-  const jobStage = useMemo(() => resolveCustomerTrackingStage(data), [data])
+  const liveStage = useMemo(() => {
+    const events = currentAttemptRows(moveTimeline?.events || [], moveTimeline?.workflow_version)
+    return liveStageFromPortalBooking({
+      assigned_at: moveTimeline?.assigned_at || '',
+      status: data?.status_raw || '',
+      operational_status: data?.operational_status || '',
+      completed_at: data?.completed_at || moveTimeline?.completed_at || '',
+      cancelled_at: data?.cancelled_at || moveTimeline?.cancelled_at || '',
+      assignment_status: data?.assignment_status || moveTimeline?.assignment_status || '',
+      assignment_completed_at: moveTimeline?.assignment_completed_at || '',
+    }, events)
+  }, [data, moveTimeline])
+  const jobStage = useMemo(
+    () => (moveTimeline?.ok ? customerTrackingFromLiveStage(liveStage, data) : resolveCustomerTrackingStage(data)),
+    [data, liveStage, moveTimeline],
+  )
   const completed = jobStage.stage === 'completed'
 
   const pollMs = jobStage.stage === 'awaiting_departure' ? POLL_AWAITING_MS : POLL_MS
@@ -653,9 +674,11 @@ export default function JobTrackingPortalPage() {
                           <p className="text-[15px] font-bold text-slate-900 sm:text-base">
                             {jobStage.stageMessage}
                           </p>
-                          <p className="mt-0.5 text-sm text-amber-900">
-                            {jobStage.waitingMessage}
-                          </p>
+                          {jobStage.waitingMessage ? (
+                            <p className="mt-0.5 text-sm text-amber-900">
+                              {jobStage.waitingMessage}
+                            </p>
+                          ) : null}
                         </div>
                       </div>
                     </div>
@@ -772,6 +795,10 @@ export default function JobTrackingPortalPage() {
                         ) : null}
                       </div>
                     </div>
+                  ) : jobStage.stageMessage ? (
+                    <div className="rounded-xl border border-emerald-200 bg-[#ecfdf5] px-4 py-3.5 sm:px-5">
+                      <p className="text-[15px] font-bold text-slate-900 sm:text-base">{jobStage.stageMessage}</p>
+                    </div>
                   ) : null}
 
                   {/* Blue GPS / movement status */}
@@ -836,9 +863,11 @@ export default function JobTrackingPortalPage() {
                           <p className="text-[15px] font-bold text-slate-900 sm:text-base">
                             {jobStage.stageMessage}
                           </p>
-                          <p className="mt-0.5 text-sm text-amber-900">
-                            {jobStage.waitingMessage}
-                          </p>
+                          {jobStage.waitingMessage ? (
+                            <p className="mt-0.5 text-sm text-amber-900">
+                              {jobStage.waitingMessage}
+                            </p>
+                          ) : null}
                         </div>
                       </div>
                     </div>
@@ -872,7 +901,7 @@ export default function JobTrackingPortalPage() {
           ) : (
             <Section title="Job completed">
               <p className="text-slate-700">
-                Live tracking has stopped. Evidence, feedback and tip options remain available below.
+                Your move is complete. Live tracking has stopped. Evidence, feedback and tip options remain available below.
               </p>
               <Row label="Completed" value={data.completed_at ? formatDateTimeUK(data.completed_at) : '—'} />
             </Section>
@@ -886,7 +915,9 @@ export default function JobTrackingPortalPage() {
             {!data.driver ? <p className="text-slate-500">Driver details will appear once assigned.</p> : null}
           </Section>
 
-          <MoveTimeline token={token} completedAt={data.completed_at || null} collapsible />
+          <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+            <LiveStageSummary stage={liveStage} variant="portal" />
+          </section>
 
           <Section title="Booking">
             <Row label="Reference" value={data.quote_ref} />
