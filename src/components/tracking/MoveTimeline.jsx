@@ -1,5 +1,11 @@
 import { useEffect, useState } from 'react'
 import { buildMoveTimeline, formatMoveDateTime, NOT_RECORDED } from '../../lib/moveTimeline'
+import {
+  currentAttemptRows,
+  earlierAttemptRows,
+  evidenceCountsForCurrentAttempt,
+  workflowVersionNumber,
+} from '../../lib/driverWorkflowAttempt'
 import { formatLoadDuration } from '../../lib/jobDispatchTimeline'
 import { trackingClient } from '../../lib/jobCustomerTracking'
 import { isSupabaseConfigured, supabase } from '../../lib/supabase'
@@ -26,6 +32,7 @@ export default function MoveTimeline({
   collapsible = false,
 }) {
   const [events, setEvents] = useState([])
+  const [earlierEvents, setEarlierEvents] = useState([])
   const [photos, setPhotos] = useState([])
   const [open, setOpen] = useState(!collapsible)
   const [ready, setReady] = useState(false)
@@ -42,11 +49,20 @@ export default function MoveTimeline({
       setLoadError('')
       try {
         if (variant === 'admin' && supabase && quoteId) {
-          const history = await supabase
+          const quoteVersion = await supabase.from('quotes').select('workflow_version').eq('id', quoteId).maybeSingle()
+          const version = workflowVersionNumber(quoteVersion.data?.workflow_version)
+          let history = await supabase
             .from('job_status_history')
-            .select('id, status, occurred_at, created_at, source, stop_type, latitude, longitude, accuracy_m, notes, driver_id, driver_name, corrects_event_id, correction_reason, actor_name')
+            .select('id, status, occurred_at, created_at, source, stop_type, latitude, longitude, accuracy_m, notes, driver_id, driver_name, corrects_event_id, correction_reason, actor_name, workflow_version')
             .eq('quote_id', quoteId)
             .order('created_at', { ascending: true })
+          if (history.error && /workflow_version/i.test(history.error.message || '')) {
+            history = await supabase
+              .from('job_status_history')
+              .select('id, status, occurred_at, created_at, source, stop_type, latitude, longitude, accuracy_m, notes, driver_id, driver_name, corrects_event_id, correction_reason, actor_name')
+              .eq('quote_id', quoteId)
+              .order('created_at', { ascending: true })
+          }
           if (history.error) throw history.error
           let withUrls = []
           try {
@@ -55,9 +71,11 @@ export default function MoveTimeline({
           } catch {
             withUrls = []
           }
+          const rows = history.data || []
           if (!cancelled) {
-            setEvents(history.data || [])
-            setPhotos(withUrls)
+            setEvents(currentAttemptRows(rows, version))
+            setEarlierEvents(earlierAttemptRows(rows, version))
+            setPhotos((withUrls || []).filter((photo) => evidenceCountsForCurrentAttempt(photo, version)))
           }
         } else if (token) {
           const client = trackingClient()
@@ -78,6 +96,7 @@ export default function MoveTimeline({
           }
           if (!cancelled) {
             setEvents(Array.isArray(timeline?.events) ? timeline.events : [])
+            setEarlierEvents([])
             setPhotos(nextPhotos)
           }
         } else if (!cancelled) {
@@ -253,6 +272,28 @@ export default function MoveTimeline({
           )
         })}
       </ol> : null}
+
+      {ready && !loadError && admin && earlierEvents.length ? (
+        <div className="mt-4">
+          <h3 className="text-sm font-bold text-slate-900">Earlier attempt</h3>
+          <p className="mt-1 text-sm text-slate-600">
+            Kept with this booking. It does not count as progress for the driver who has the job now.
+          </p>
+          <ul className="mt-2 space-y-2">
+            {earlierEvents.map((row) => (
+              <li key={row.id || `${row.status}-${row.created_at}`} className="rounded-xl border border-slate-200 px-3 py-3 text-sm text-slate-700">
+                <p className="font-bold text-slate-900">
+                  Attempt {row.workflow_version || 1}
+                  {' · '}
+                  {String(row.status || 'Event').replaceAll('_', ' ')}
+                </p>
+                <p className="mt-1">{formatMoveDateTime(row.occurred_at || row.created_at)}</p>
+                {row.driver_name ? <p className="mt-1 text-slate-600">{row.driver_name}</p> : null}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
 
       {ready && !loadError && admin && timeline.other.length ? (
         <div className="mt-4">

@@ -40,6 +40,8 @@ function money(n) {
  *   onMarkComplete: () => void,
  *   onMarkCompleteWithIssues: () => void,
  *   onCancelJob: () => void,
+ *   onResetDriverProgress?: () => void,
+ *   resetBusy?: boolean,
  *   onReload?: () => void | Promise<void>,
  *   onNotify?: (msg: string) => void,
  * }} props
@@ -63,6 +65,8 @@ export default function JobDispatchControlPanel({
   onMarkComplete,
   onMarkCompleteWithIssues,
   onCancelJob,
+  onResetDriverProgress,
+  resetBusy = false,
   onReload,
   onNotify,
 }) {
@@ -100,6 +104,14 @@ export default function JobDispatchControlPanel({
       </button>
       <button type="button" disabled={terminal} onClick={onCancelJob} className={btnDanger}>
         Cancel job
+      </button>
+      <button
+        type="button"
+        disabled={terminal || resetBusy || !onResetDriverProgress}
+        onClick={onResetDriverProgress}
+        className={btnGhost}
+      >
+        {resetBusy ? 'Resetting…' : 'Reset driver progress'}
       </button>
       <GenerateJobSheetButton
         quote={q}

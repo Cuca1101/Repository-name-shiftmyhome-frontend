@@ -50,11 +50,21 @@ export async function fetchJobStatusHistoryForQuote(quoteId) {
   const id = String(quoteId || '').trim()
   if (!id) return []
 
-  const { data, error } = await supabase
+  let { data, error } = await supabase
     .from('job_status_history')
-    .select('status, created_at, occurred_at')
+    .select('status, created_at, occurred_at, workflow_version')
     .eq('quote_id', id)
     .order('created_at', { ascending: true })
+
+  if (error && /workflow_version/i.test(error.message || '')) {
+    const fallback = await supabase
+      .from('job_status_history')
+      .select('status, created_at, occurred_at')
+      .eq('quote_id', id)
+      .order('created_at', { ascending: true })
+    data = fallback.data
+    error = fallback.error
+  }
 
   if (error) {
     if (import.meta.env.DEV) {
@@ -70,5 +80,6 @@ export async function fetchJobStatusHistoryForQuote(quoteId) {
       status: String(row.status),
       created_at: String(row.created_at),
       occurred_at: row.occurred_at ? String(row.occurred_at) : '',
+      workflow_version: row.workflow_version != null ? Number(row.workflow_version) : null,
     }))
 }

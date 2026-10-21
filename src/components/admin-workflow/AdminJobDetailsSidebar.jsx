@@ -1,4 +1,4 @@
-import { formatDateUK } from '../../lib/formatDateDisplay'
+import { formatDateTimeUK, formatDateUK } from '../../lib/formatDateDisplay'
 import { formatMarketplaceStatusSummary } from '../../lib/marketplaceListingStatus'
 import { buildJobOperationsTimeline, formatTimelineEventTime } from '../../lib/buildJobOpsTimeline'
 
@@ -36,6 +36,8 @@ function TimelineItem({ t, label, detail, isLast }) {
  *   onOpenReassignPartner: () => void,
  *   onMarkComplete: () => void,
  *   onCancelJob: () => void,
+ *   onResetDriverProgress: () => void,
+ *   resetBusy?: boolean,
  * }} props
  */
 export default function AdminJobDetailsSidebar({
@@ -46,6 +48,8 @@ export default function AdminJobDetailsSidebar({
   onOpenReassignPartner,
   onMarkComplete,
   onCancelJob,
+  onResetDriverProgress,
+  resetBusy = false,
 }) {
   const timeline = buildJobOperationsTimeline(q, overrides).slice(-6)
 
@@ -103,6 +107,20 @@ export default function AdminJobDetailsSidebar({
           <button type="button" disabled={terminal} onClick={onCancelJob} className={btnDanger}>
             Cancel job
           </button>
+          <button
+            type="button"
+            disabled={terminal || resetBusy}
+            onClick={onResetDriverProgress}
+            className={btnSecondary}
+          >
+            {resetBusy ? 'Resetting…' : 'Reset driver progress'}
+          </button>
+          {q.workflow_reset_at ? (
+            <p className="px-1 text-[11px] leading-relaxed text-slate-500">
+              Last reset {formatDateTimeUK(q.workflow_reset_at)}
+              {q.workflow_reset_by ? ` by ${q.workflow_reset_by}` : ''}. Earlier progress stays in history.
+            </p>
+          ) : null}
         </div>
       </section>
 

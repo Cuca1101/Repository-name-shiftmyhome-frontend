@@ -1,11 +1,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useLocation, useParams, useSearchParams } from 'react-router-dom'
 import {
+  fetchAssignedByActor,
   fetchQuoteByIdForAdmin,
   updateQuoteWorkflowAssignment,
   updateQuoteWorkflowAssignmentSilent,
   updateQuoteWorkflowStatus,
 } from '../lib/data/quotesAdminRepository'
+import { resetDriverProgressForQuote } from '../lib/data/driverAssignmentSync'
+import { appendAdminNotesLog } from '../lib/adminNotesLog'
+import { currentAttemptRows } from '../lib/driverWorkflowAttempt'
 import { HOME_PAGE_QUOTE_SOURCE } from '../lib/data/quotesRepository'
 import { fetchAllJobs, fetchJobIdsForQuoteRefs } from '../lib/data/jobsRepository'
 import { formatDateTimeUK } from '../lib/formatDateDisplay'
@@ -185,6 +189,7 @@ export default function AvailableJobDetails() {
   const [jobWorkflow, setJobWorkflow] = useState(
     /** @type {{ workflow_status: string, workflow_at: string } | null} */ (null),
   )
+  const [resetBusy, setResetBusy] = useState(false)
   const [jobStatusHistory, setJobStatusHistory] = useState(
     /** @type {Array<{ status: string, created_at: string }>} */ ([]),
   )
@@ -357,6 +362,34 @@ export default function AvailableJobDetails() {
   }, [id, load, refreshWorkflowMeta])
 
   const terminal = Boolean(q && (quoteIsCompleted(q, linkedJob) || quoteIsCancelled(q, linkedJob)))
+  const liveStatusHistory = useMemo(
+    () => currentAttemptRows(jobStatusHistory, q?.workflow_version),
+    [jobStatusHistory, q?.workflow_version],
+  )
+
+  async function resetDriverProgress() {
+    if (!q?.id || terminal || resetBusy) return
+    const confirmed = window.confirm(
+      'Reset driver progress for this job? The driver will need to start again. Booking details, payments and previous history will be kept.',
+    )
+    if (!confirmed) return
+    setResetBusy(true)
+    try {
+      const actor = await fetchAssignedByActor()
+      await resetDriverProgressForQuote(q.id, actor)
+      const m = mergedAdminWorkflowForQuote(q)
+      const log = appendAdminNotesLog(m.adminNotesLog, actor, 'Reset driver progress. The driver must start again.')
+      if (isSupabaseConfigured) {
+        await updateQuoteWorkflowAssignmentSilent(q.id, { admin_notes_log: log })
+      }
+      setToast('Driver progress reset. The driver starts again from the beginning.')
+      await load()
+    } catch (e) {
+      setToast(e?.message || 'Could not reset driver progress.')
+    } finally {
+      setResetBusy(false)
+    }
+  }
 
   const adjustments = useMemo(
     () => normalizeJobAdjustments(overrides.adjustments),
@@ -635,7 +668,7 @@ export default function AvailableJobDetails() {
             linkedJob={linkedJob}
             assignment={jobAssignment}
             workflow={jobWorkflow}
-            statusHistory={jobStatusHistory}
+            statusHistory={liveStatusHistory}
             adjustments={adjustments}
             onAdjustmentsChange={handleAdjustmentsChange}
             adjSum={adjSum}
@@ -646,6 +679,8 @@ export default function AvailableJobDetails() {
             onMarkComplete={() => overrideActionsRef.current?.openMarkComplete?.()}
             onMarkCompleteWithIssues={() => overrideActionsRef.current?.openMarkCompleteWithIssues?.()}
             onCancelJob={() => overrideActionsRef.current?.openMarkCancelled?.()}
+            onResetDriverProgress={() => void resetDriverProgress()}
+            resetBusy={resetBusy}
             onReload={load}
             onNotify={showToast}
           />
@@ -924,6 +959,8 @@ export default function AvailableJobDetails() {
             onOpenReassignPartner={() => overrideActionsRef.current?.openReassignPartner?.()}
             onMarkComplete={() => overrideActionsRef.current?.openMarkComplete?.()}
             onCancelJob={() => overrideActionsRef.current?.openMarkCancelled?.()}
+            onResetDriverProgress={() => void resetDriverProgress()}
+            resetBusy={resetBusy}
           />
         ) : null}
       </div>

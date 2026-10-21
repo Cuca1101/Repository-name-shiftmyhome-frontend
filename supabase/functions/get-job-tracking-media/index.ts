@@ -38,7 +38,9 @@ Deno.serve(async (req) => {
     ...(Array.isArray(portal.photos) ? portal.photos : []),
     ...(Array.isArray(portal.waivers) ? portal.waivers : []),
   ]
-  const all = !evidenceError && stored.length ? stored : fallback
+  // An empty current-attempt list is valid. Falling back would show the previous
+  // driver's signatures as if they had just been collected.
+  const all = !evidenceError && Array.isArray(evidence) ? stored : fallback
 
   const withUrls = []
   for (const p of all) {

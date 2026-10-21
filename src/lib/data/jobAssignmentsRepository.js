@@ -137,6 +137,18 @@ export async function cancelJobAssignmentForQuote(quoteId, status = 'cancelled')
 
   const now = new Date().toISOString()
   const terminalStatus = status === 'inactive' ? 'inactive' : 'cancelled'
+  const { data: prepared, error: prepareError } = await supabase.rpc('prepare_driver_workflow_attempt', {
+    p_quote_id: qid,
+    p_reason: 'unassign',
+    p_driver_id: null,
+    p_actor: null,
+  })
+  if (prepareError) {
+    const missing = /prepare_driver_workflow_attempt|schema cache|does not exist/i.test(prepareError.message || '')
+    if (!missing) return { cancelled: false, error: prepareError }
+  } else if (prepared && prepared.ok === false && prepared.error === 'not_authorised') {
+    return { cancelled: false, error: { message: 'Only an admin can unassign this job.' } }
+  }
   const { data, error } = await supabase
     .from(TABLE)
     .update({

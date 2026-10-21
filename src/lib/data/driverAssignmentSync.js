@@ -49,15 +49,66 @@ export async function syncJobAssignmentFromQuoteAssign(quoteId, driverId, quote,
         ? 'active'
         : rawStatus
 
-  try {
-    await upsertJobAssignment({
-      quoteId: qid,
-      driverId: did,
-      status,
-      scheduledDate: quote ? scheduledDateFromQuote(quote) : undefined,
+  let priorDriverId = ''
+  let priorStatus = ''
+  let priorHidden = true
+  let prepared = { ok: true, bumped: false, assignment_written: false }
+  if (isSupabaseConfigured && supabase && isActiveAssignmentStatus(status)) {
+    const { data: existing } = await supabase
+      .from('job_assignments')
+      .select('driver_id, status')
+      .eq('quote_id', qid)
+      .maybeSingle()
+    priorDriverId = existing?.driver_id != null ? String(existing.driver_id) : ''
+    priorStatus = String(existing?.status || '').trim().toLowerCase()
+    priorHidden =
+      !priorDriverId ||
+      priorStatus === 'cancelled' ||
+      priorStatus === 'inactive' ||
+      priorStatus === 'unassigned' ||
+      priorStatus === 'removed'
+    const { data, error } = await supabase.rpc('prepare_driver_workflow_attempt', {
+      p_quote_id: qid,
+      p_reason: 'reassignment',
+      p_driver_id: did,
+      p_actor: opts.actor || null,
     })
+    if (error) {
+      const missing = /prepare_driver_workflow_attempt|schema cache|does not exist/i.test(error.message || '')
+      if (!missing) throw error
+    } else if (data && data.ok === false && data.error && data.error !== 'completed_or_cancelled') {
+      throw new Error(
+        data.error === 'not_authorised'
+          ? 'Only an admin can reassign this job.'
+          : `Could not start a fresh driver attempt (${data.error}).`,
+      )
+    } else if (data && typeof data === 'object') {
+      prepared = data
+    }
+  }
+
+  try {
+    const alreadyReady =
+      priorDriverId === did &&
+      !priorHidden &&
+      !prepared.bumped &&
+      ['active', 'assigned', 'accepted'].includes(priorStatus)
+    if (!prepared.assignment_written && !alreadyReady) {
+      await upsertJobAssignment({
+        quoteId: qid,
+        driverId: did,
+        status,
+        scheduledDate: quote ? scheduledDateFromQuote(quote) : undefined,
+      })
+    }
     // Background ring: FCM wakes the phone when the app is not in foreground.
-    if (isActiveAssignmentStatus(status)) {
+    const driverChanged = Boolean(priorDriverId && priorDriverId !== did)
+    if (driverChanged) {
+      void notifyDriverJobRemovedPush(priorDriverId, quote ? { ...quote, id: qid } : { id: qid }).catch(
+        () => {},
+      )
+    }
+    if (isActiveAssignmentStatus(status) && (prepared.bumped || driverChanged || priorHidden)) {
       void notifyDriverJobAssignedPush(did, quote ? { ...quote, id: qid } : { id: qid }).catch(
         () => {},
       )
@@ -114,7 +165,10 @@ export async function assignDriverToQuote(quoteId, driverId, driverName, quote, 
     ...quoteWorkflowPatch,
   }
   await updateQuote(quoteId, patch)
-  const sync = await syncJobAssignmentFromQuoteAssign(quoteId, driverId, quote, { assignmentStatus: 'active' })
+  const sync = await syncJobAssignmentFromQuoteAssign(quoteId, driverId, quote, {
+    assignmentStatus: 'active',
+    actor: quoteWorkflowPatch?.assigned_by || null,
+  })
   if (!sync.synced) {
     const detail = sync.error?.message ? `: ${sync.error.message}` : ''
     throw new Error(
@@ -192,6 +246,43 @@ export async function clearDriverFromQuote(quoteId, quoteWorkflowPatch, updateQu
     await clearDriverLocationJobLink(priorDriverId)
     void notifyDriverJobRemovedPush(priorDriverId, { id: quoteId }).catch(() => {})
   }
+}
+
+/**
+ * Manual reset of this job's current driver attempt. Payments, booking details
+ * and earlier history are left in place.
+ *
+ * @param {string} quoteId
+ * @param {string | null} [actor]
+ */
+export async function resetDriverProgressForQuote(quoteId, actor = null) {
+  if (!isSupabaseConfigured || !supabase) {
+    throw new Error('Supabase is not configured.')
+  }
+  const qid = String(quoteId || '').trim()
+  if (!qid) throw new Error('Missing job.')
+  const { data, error } = await supabase.rpc('prepare_driver_workflow_attempt', {
+    p_quote_id: qid,
+    p_reason: 'manual',
+    p_driver_id: null,
+    p_actor: actor || null,
+  })
+  if (error) {
+    if (/prepare_driver_workflow_attempt|schema cache|does not exist/i.test(error.message || '')) {
+      throw new Error('Reset is not available until the latest database migration is applied.')
+    }
+    throw error
+  }
+  if (!data?.ok) {
+    if (data?.error === 'completed_or_cancelled') {
+      throw new Error('Completed or cancelled bookings cannot be reset.')
+    }
+    if (data?.error === 'not_authorised') {
+      throw new Error('Only an admin can reset driver progress.')
+    }
+    throw new Error(data?.error || 'Reset failed')
+  }
+  return data
 }
 
 export { quotePatchForAdminDriverAssign }

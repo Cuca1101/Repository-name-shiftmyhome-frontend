@@ -38,7 +38,29 @@ export function resolveCustomerTrackingStage(tracking) {
       waitingMessage: null,
     }
   }
-  return resolveTrackingJobStage(tracking?.operational_status, tracking?.status_raw)
+  // Admin cancellation sets operational_status / cancelled_at and may leave the
+  // last journey key in quotes.status. That cancellation has to win over
+  // on_way or arrived_pickup. A display label such as "Loading" must not.
+  const cancelled = Boolean(
+    tracking?.cancelled
+    || tracking?.cancelled_at
+    || statusKey(tracking?.operational_status) === 'cancelled'
+    || statusKey(tracking?.status_raw) === 'cancelled'
+    || statusKey(tracking?.assignment_status) === 'cancelled',
+  )
+  if (cancelled) {
+    return resolveTrackingJobStage('cancelled', null)
+  }
+  // quotes.status is the workflow key. operational_status is often the display
+  // label ("Loading", "Left for collection"). Passing both made a stale
+  // "Loading" label win over "on_way", because loading is checked first.
+  // GPS age is not an input. A missing or stale fix must not change this badge.
+  const machine = statusKey(tracking?.status_raw)
+  const display = statusKey(tracking?.operational_status)
+  if (machine) {
+    return resolveTrackingJobStage(machine, null)
+  }
+  return resolveTrackingJobStage(display, null)
 }
 
 /**
@@ -99,7 +121,7 @@ export function resolveTrackingJobStage(operationalStatus, statusRaw) {
       waitingMessage: null,
     }
   }
-  if (has(['arrived_delivery', 'unloading'])) {
+  if (has(['arrived_delivery', 'unloading', 'at_delivery'])) {
     return {
       stage: 'arrived_delivery',
       badge: 'At delivery',
@@ -113,7 +135,7 @@ export function resolveTrackingJobStage(operationalStatus, statusRaw) {
     }
   }
   // Loaded / pickup done → items collected; next step is delivery.
-  if (has(['in_transit', 'on_way_to_delivery'])) {
+  if (has(['in_transit', 'on_way_to_delivery', 'left_for_delivery'])) {
     return {
       stage: 'en_route_delivery',
       badge: 'Left for delivery',
@@ -126,7 +148,7 @@ export function resolveTrackingJobStage(operationalStatus, statusRaw) {
       waitingMessage: null,
     }
   }
-  if (has(['pickup_completed', 'loaded'])) {
+  if (has(['pickup_completed', 'loaded', 'collection_finished', 'items_collected'])) {
     return {
       stage: 'collected',
       badge: 'Items collected',
@@ -152,7 +174,7 @@ export function resolveTrackingJobStage(operationalStatus, statusRaw) {
       waitingMessage: null,
     }
   }
-  if (has(['arrived', 'arrived_pickup'])) {
+  if (has(['arrived', 'arrived_pickup', 'at_collection'])) {
     return {
       stage: 'arrived_collection',
       badge: 'At collection',
@@ -166,7 +188,7 @@ export function resolveTrackingJobStage(operationalStatus, statusRaw) {
     }
   }
   // Start Job in the driver app sets on_way / started — only then is the journey live.
-  if (has(['on_way', 'started', 'start', 'on_the_way', 'on_way_to_collection'])) {
+  if (has(['on_way', 'started', 'start', 'on_the_way', 'on_way_to_collection', 'left_for_collection'])) {
     return {
       stage: 'en_route_collection',
       badge: 'Left for collection',
@@ -221,6 +243,7 @@ export function resolveTrackingJobStage(operationalStatus, statusRaw) {
  * Customer GPS / journey status labels for the blue status card.
  * Show real motion (Moving / Stopped) whenever GPS is fresh — even before Start Job.
  * ETA / “on the way” claims stay gated separately via journeyActive / showLiveEta.
+ * This line is never “Loading” or an arrival stage. Those come only from the job status.
  *
  * @param {{ state?: string } | null | undefined} motion
  * @param {boolean} gpsFresh
