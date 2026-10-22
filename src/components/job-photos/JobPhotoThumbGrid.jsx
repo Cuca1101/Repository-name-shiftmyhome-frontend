@@ -41,29 +41,38 @@ export default function JobPhotoThumbGrid({ photos = [] }) {
           const fileName = photo.file_name != null ? String(photo.file_name) : 'Photo'
           const title = meta.displayTitle || fileName
           const time = photoTime(photo, meta)
+          const signature = title === 'Signature proof' || title === 'Waiver'
           const key = String(photo.id || photo.storage_path || fileName)
           return (
             <li key={key} className="w-[92px]">
               <button
                 type="button"
-                className="relative block h-[92px] w-[92px] overflow-hidden rounded-lg border border-slate-200 bg-slate-100 text-left"
-                onClick={() => src && setPreview({ src, title, time, signerName: meta.signerName })}
+                className={`relative block h-[92px] w-[92px] overflow-hidden rounded-lg border border-slate-200 text-left ${signature ? 'bg-white' : 'bg-slate-100'}`}
+                onClick={() => src && setPreview({ src, title, time, signerName: meta.signerName, signature })}
                 disabled={!src}
                 aria-label={src ? `Open ${title}${time ? `, ${time}` : ''}` : `Preview unavailable: ${title}`}
               >
                 {src ? (
-                  <img src={src} alt="" className="h-full w-full object-cover" loading="lazy" />
+                  <img
+                    src={src}
+                    alt=""
+                    className={signature ? 'h-full w-full bg-white object-contain' : 'h-full w-full object-cover'}
+                    loading="lazy"
+                  />
                 ) : (
                   <span className="flex h-full items-center justify-center px-1 text-center text-[10px] text-slate-500">
                     No preview
                   </span>
                 )}
-                {time ? (
+                {time && !signature ? (
                   <span className="absolute inset-x-0 bottom-0 bg-slate-950/70 px-1 py-0.5 text-[9px] font-semibold leading-tight text-white">
                     {time}
                   </span>
                 ) : null}
               </button>
+              {signature && time ? (
+                <p className="mt-1 truncate text-[9px] font-semibold text-slate-500" title={time}>{time}</p>
+              ) : null}
               <p className="mt-1 truncate text-[10px] font-semibold text-slate-800" title={title}>
                 {title}
               </p>
@@ -93,7 +102,13 @@ export default function JobPhotoThumbGrid({ photos = [] }) {
             Close
           </button>
           <figure className="flex max-h-[90vh] max-w-full flex-col items-center gap-2" onClick={(event) => event.stopPropagation()}>
-            <img src={preview.src} alt={preview.title} className="max-h-[80vh] max-w-full rounded-lg object-contain shadow-2xl" />
+            <div className={preview.signature ? 'rounded-xl bg-white p-4 shadow-2xl' : ''}>
+              <img
+                src={preview.src}
+                alt={preview.title}
+                className={`max-h-[70vh] max-w-full object-contain ${preview.signature ? 'bg-white' : 'rounded-lg shadow-2xl'}`}
+              />
+            </div>
             <figcaption className="max-w-lg text-center text-sm text-white">
               <span className="font-semibold">{preview.title}</span>
               {preview.time ? <span> · {preview.time}</span> : null}
