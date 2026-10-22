@@ -14,7 +14,18 @@ test('arrived keeps running through loading and stops at collection complete', (
   assert.equal(clocks.loading.startedAt, '2026-10-14T10:10:00Z')
   assert.equal(clocks.loading.endedAt, '2026-10-14T10:40:00Z')
 
-  assert.equal(resolveLiveStageLabel('loading_started', clocks, false), 'Loading')
+  assert.equal(resolveLiveStageLabel('loading_started', clocks, false), 'Arrived at collection · Loading')
+})
+
+test('an item tick before arrival does not start the loading clock', () => {
+  const clocks = buildStageClocks([
+    { id: '1', status: 'loading_started', occurred_at: '2026-10-21T22:31:00Z' },
+    { id: '2', status: 'on_way', occurred_at: '2026-10-22T08:15:48Z' },
+    { id: '3', status: 'arrived_pickup', occurred_at: '2026-10-22T08:46:11Z' },
+  ])
+  assert.equal(clocks.loading.startedAt, '')
+  assert.equal(clocks.atCollection.startedAt, '2026-10-22T08:46:11Z')
+  assert.equal(resolveLiveStageLabel('arrived_pickup', clocks, false), 'Arrived at collection')
 })
 
 test('no checked items leaves loading and unloading unrecorded', () => {
@@ -31,7 +42,7 @@ test('no checked items leaves loading and unloading unrecorded', () => {
   assert.equal(clocks.unloading.startedAt, '')
   assert.equal(clocks.atCollection.endedAt, '2026-10-14T10:20:00Z')
   assert.equal(clocks.atDelivery.endedAt, '2026-10-14T11:30:00Z')
-  assert.equal(resolveLiveStageLabel('pickup_completed', clocks, false), 'Items collected')
+  assert.equal(resolveLiveStageLabel('pickup_completed', clocks, false), 'Collection complete')
 })
 
 test('unloading starts at the first stamp and stops when the job is completed', () => {

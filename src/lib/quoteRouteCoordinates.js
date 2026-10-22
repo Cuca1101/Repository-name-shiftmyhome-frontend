@@ -1,4 +1,5 @@
 import { geocodeAddressCached } from './operationsMapGeocodeCache'
+import { isSupabaseConfigured, supabase } from './supabase'
 import {
   resolveQuoteCollectionAddress,
   resolveQuoteDeliveryAddress,
@@ -101,19 +102,44 @@ async function geocodeStop(q, job, kind, token) {
  * @param {Record<string, unknown> | null | undefined} [job]
  * @param {string} token
  */
+function savedStop(record, latKey, lngKey) {
+  const lat = Number(record?.[latKey])
+  const lng = Number(record?.[lngKey])
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null
+  if (lat < -90 || lat > 90 || lng < -180 || lng > 180) return null
+  return { lat, lng }
+}
+
 export async function resolveQuoteRouteCoordinates(q, job, token) {
   const pickupAddr = resolveQuoteCollectionAddress(q, job)
   const deliveryAddr = resolveQuoteDeliveryAddress(q, job)
+  const savedPickup = savedStop(q, 'pickup_lat', 'pickup_lng') || savedStop(job, 'pickup_lat', 'pickup_lng')
+  const savedDelivery = savedStop(q, 'delivery_lat', 'delivery_lng') || savedStop(job, 'delivery_lat', 'delivery_lng')
+  if (savedPickup && savedDelivery) {
+    return {
+      pickupLng: savedPickup.lng,
+      pickupLat: savedPickup.lat,
+      deliveryLng: savedDelivery.lng,
+      deliveryLat: savedDelivery.lat,
+      error: null,
+      pickupAddress: pickupAddr,
+      deliveryAddress: deliveryAddr,
+      coordinateSource: 'saved',
+    }
+  }
 
   if (!token) {
     return {
-      pickupLng: null,
-      pickupLat: null,
-      deliveryLng: null,
-      deliveryLat: null,
-      error: 'Map token not configured. Add VITE_MAPBOX_TOKEN to your .env file and restart npm run dev.',
+      pickupLng: savedPickup?.lng ?? null,
+      pickupLat: savedPickup?.lat ?? null,
+      deliveryLng: savedDelivery?.lng ?? null,
+      deliveryLat: savedDelivery?.lat ?? null,
+      error: savedPickup || savedDelivery
+        ? ''
+        : 'Map token not configured. Add VITE_MAPBOX_TOKEN to your .env file and restart npm run dev.',
       pickupAddress: pickupAddr,
       deliveryAddress: deliveryAddr,
+      coordinateSource: savedPickup || savedDelivery ? 'saved' : '',
     }
   }
 
@@ -133,8 +159,8 @@ export async function resolveQuoteRouteCoordinates(q, job, token) {
   }
 
   const [pickup, delivery] = await Promise.all([
-    geocodeStop(q, job, 'collection', token),
-    geocodeStop(q, job, 'delivery', token),
+    savedPickup ? Promise.resolve(savedPickup) : geocodeStop(q, job, 'collection', token),
+    savedDelivery ? Promise.resolve(savedDelivery) : geocodeStop(q, job, 'delivery', token),
   ])
 
   const parts = []
@@ -152,5 +178,38 @@ export async function resolveQuoteRouteCoordinates(q, job, token) {
         : `Could not locate ${parts.join(' and ')} on the map. Check postcodes in Job details.`,
     pickupAddress: pickupAddr,
     deliveryAddress: deliveryAddr,
+    coordinateSource: savedPickup && savedDelivery ? 'saved' : 'geocoded',
+  }
+}
+
+/**
+ * Keep the map point and the 100 m arrival point the same. Only fills
+ * coordinates that are not already saved.
+ * @param {Record<string, unknown>} quote
+ * @param {{ pickupLat?: number | null, pickupLng?: number | null, deliveryLat?: number | null, deliveryLng?: number | null }} result
+ */
+export async function persistMissingStopCoordinates(quote, result) {
+  if (!isSupabaseConfigured || !supabase || !quote?.id) return
+  const patch = {}
+  if (
+    !savedStop(quote, 'pickup_lat', 'pickup_lng')
+    && Number.isFinite(Number(result?.pickupLat))
+    && Number.isFinite(Number(result?.pickupLng))
+  ) {
+    patch.pickup_lat = Number(result.pickupLat)
+    patch.pickup_lng = Number(result.pickupLng)
+  }
+  if (
+    !savedStop(quote, 'delivery_lat', 'delivery_lng')
+    && Number.isFinite(Number(result?.deliveryLat))
+    && Number.isFinite(Number(result?.deliveryLng))
+  ) {
+    patch.delivery_lat = Number(result.deliveryLat)
+    patch.delivery_lng = Number(result.deliveryLng)
+  }
+  if (!Object.keys(patch).length) return
+  const { error } = await supabase.from('quotes').update(patch).eq('id', String(quote.id))
+  if (error && import.meta.env.DEV) {
+    console.warn('[stop coordinates] save failed', error.message)
   }
 }

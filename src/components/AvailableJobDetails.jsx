@@ -352,6 +352,7 @@ export default function AvailableJobDetails() {
         },
         () => {
           void refreshWorkflowMeta()
+          void load()
         },
       )
       .subscribe()

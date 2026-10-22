@@ -1,4 +1,4 @@
-import { buildAdminLiveStage } from '../../lib/jobDispatchTimeline'
+import { buildAdminLiveStage, confirmedJourneyLabel } from '../../lib/jobDispatchTimeline'
 import LiveStageSummary from '../tracking/LiveStageSummary'
 
 /**
@@ -19,9 +19,14 @@ export default function JobDispatchOpsTimeline({
   q,
   linkedJob = null,
   assignment = null,
+  workflow = null,
   statusHistory = [],
 }) {
-  const stage = buildAdminLiveStage(q, statusHistory, linkedJob, assignment)
+  const derived = buildAdminLiveStage(q, statusHistory, linkedJob, assignment)
+  const confirmed = derived.currentLabel.includes('·')
+    ? ''
+    : confirmedJourneyLabel(workflow?.operational_status || q?.operational_status)
+  const stage = confirmed ? { ...derived, currentLabel: confirmed } : derived
 
   return (
     <div className="border-t border-slate-200 bg-white p-3 lg:border-l lg:border-t-0">

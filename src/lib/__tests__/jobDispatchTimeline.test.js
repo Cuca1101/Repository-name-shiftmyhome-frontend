@@ -58,17 +58,42 @@ test('maps the driver app sequence and keeps every stamp', () => {
   assert.equal(stage.delivery.complete.state, 'done')
 })
 
-test('automatic GPS arrival wins over a manual arrived row', () => {
+test('the first saved arrival is the recorded time, including a manual press', () => {
   const stage = buildAdminLiveStage(assigned, [
     { status: 'on_way', occurred_at: '2026-05-28T10:00:00Z', source: 'manual' },
     { status: 'arrived_pickup', occurred_at: '2026-05-28T10:10:00Z', source: 'manual' },
     { status: 'arrived_pickup', occurred_at: '2026-05-28T10:18:00Z', source: 'gps' },
   ])
-  assert.equal(stage.collection.arrived.at, '2026-05-28T10:18:00Z')
+  assert.equal(stage.collection.arrived.at, '2026-05-28T10:10:00Z')
   assert.equal(stage.collection.arrived.state, 'current')
   assert.equal(stage.collection.timer.running, true)
-  assert.equal(stage.collection.timer.startedAt, '2026-05-28T10:18:00Z')
-  assert.equal(stage.currentLabel, 'At collection')
+  assert.equal(stage.collection.timer.startedAt, '2026-05-28T10:10:00Z')
+  assert.equal(stage.currentLabel, 'Arrived at collection · Manual · 11:10')
+  assert.equal(stage.collection.arrived.label, 'Arrived · Manual')
+})
+
+test('loading after arrival stays on the arrival and names the loading clock', () => {
+  const stage = buildAdminLiveStage(assigned, [
+    { status: 'on_way', occurred_at: '2026-05-28T10:00:00Z', source: 'manual' },
+    { status: 'arrived_pickup', occurred_at: '2026-05-28T10:20:00Z', source: 'manual' },
+    { status: 'loading_started', occurred_at: '2026-05-28T10:25:00Z', source: 'manual' },
+  ])
+  assert.equal(stage.collection.arrived.at, '2026-05-28T10:20:00Z')
+  assert.equal(stage.collection.loadingAt, '2026-05-28T10:25:00Z')
+  assert.equal(stage.currentLabel, 'Arrived at collection · Manual · 11:20')
+})
+
+test('a manual arrival after Start shows even when an older item tick exists', () => {
+  const stage = buildAdminLiveStage(assigned, [
+    { status: 'loading_started', occurred_at: '2026-10-21T22:31:00.233Z', source: 'manual', stop_type: 'pickup' },
+    { status: 'on_way', occurred_at: '2026-10-22T08:15:48.708Z', source: 'manual', stop_type: 'pickup' },
+    { status: 'arrived_pickup', occurred_at: '2026-10-22T08:46:11.180Z', source: 'manual', stop_type: 'pickup' },
+  ])
+  assert.equal(stage.collection.start.at, '2026-10-22T08:15:48.708Z')
+  assert.equal(stage.collection.arrived.at, '2026-10-22T08:46:11.180Z')
+  assert.equal(stage.currentLabel, 'Arrived at collection · Manual · 09:46')
+  assert.equal(stage.collection.arrived.label, 'Arrived · Manual')
+  assert.equal(stage.collection.timer.running, true)
 })
 
 test('collection timer runs from arrival until collection complete, excluding travel', () => {
@@ -105,7 +130,8 @@ test('delivery timer is separate and stops when the job is completed', () => {
   const onSite = buildAdminLiveStage(assigned, history)
   assert.equal(onSite.delivery.timer.running, true)
   assert.equal(onSite.collection.timer.running, false)
-  assert.equal(onSite.currentLabel, 'At delivery')
+  assert.equal(onSite.currentLabel, 'Arrived at delivery · Automatic (GPS) · 12:30')
+  assert.equal(onSite.delivery.arrived.label, 'Arrived · Automatic (GPS)')
   assert.equal(onSite.delivery.start.state, 'done')
 
   const done = buildAdminLiveStage(assigned, [

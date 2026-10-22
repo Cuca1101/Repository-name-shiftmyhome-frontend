@@ -48,6 +48,23 @@ export function formatDateUK(isoOrDate) {
  * @param {string | null | undefined} iso
  * @returns {string}
  */
+/**
+ * Clock only, Europe/London, 24-hour, e.g. 09:46.
+ * @param {string | null | undefined} iso
+ * @returns {string}
+ */
+export function formatTimeUK(iso) {
+  if (iso == null || iso === '') return ''
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return ''
+  return d.toLocaleTimeString('en-GB', {
+    timeZone: UK_TIME_ZONE,
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  })
+}
+
 export function formatDateTimeUK(iso) {
   if (iso == null || iso === '') return '—'
   const d = new Date(iso)

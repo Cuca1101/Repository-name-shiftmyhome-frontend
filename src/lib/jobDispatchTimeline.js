@@ -1,6 +1,7 @@
 import { mergedAdminWorkflowForQuote } from './quoteAdminWorkflowMerge'
 import { quoteIsCancelled, quoteIsCompleted } from './adminWorkflowFilters'
 import { quoteJobIsStarted } from './adminJobAcceptedStatus'
+import { formatTimeUK } from './formatDateDisplay'
 
 const SKIP_STATUSES = new Set([
   'gps',
@@ -36,19 +37,75 @@ function eventAt(row) {
 /**
  * @param {Array<Record<string, unknown>>} rows
  */
+function earliestRow(rows) {
+  if (!rows.length) return null
+  return [...rows].sort(
+    (a, b) => new Date(eventAt(a) || 0).getTime() - new Date(eventAt(b) || 0).getTime(),
+  )[0]
+}
+
 function arrivalStamp(rows) {
-  if (!rows.length) return ''
-  const gps = rows.find((row) => normStatus(row.source) === 'gps')
-  return eventAt(gps || rows[0])
+  const row = earliestRow(rows)
+  return row ? eventAt(row) : ''
+}
+
+/** @param {Record<string, unknown> | null | undefined} row */
+function arrivalMethod(row) {
+  return normStatus(row?.source) === 'gps' ? 'Automatic (GPS)' : 'Manual'
+}
+
+/**
+ * @param {'collection' | 'delivery'} place
+ * @param {Record<string, unknown> | null | undefined} row
+ * @param {string} at
+ */
+function arrivalPhrase(place, row, at) {
+  const clock = formatTimeUK(at)
+  const method = arrivalMethod(row)
+  return clock
+    ? `Arrived at ${place} · ${method} · ${clock}`
+    : `Arrived at ${place} · ${method}`
+}
+
+const CONFIRMED_JOURNEY_LABELS = new Set([
+  'Left for collection',
+  'Arrived at collection',
+  'Arrived at collection · Loading',
+  'Collection complete',
+  'Collection finished',
+  'Left for delivery',
+  'Arrived at delivery',
+  'Arrived at delivery · Unloading',
+  'Loading',
+  'Unloading',
+  'Completed',
+  'At collection',
+  'At delivery',
+])
+
+/**
+ * The stored operational status is the confirmed stage. Older rows used a
+ * shorter label for the same stage.
+ * @param {unknown} raw
+ */
+export function confirmedJourneyLabel(raw) {
+  const text = String(raw || '').trim()
+  if (!CONFIRMED_JOURNEY_LABELS.has(text)) return ''
+  if (text === 'At collection') return 'Arrived at collection'
+  if (text === 'At delivery') return 'Arrived at delivery'
+  if (text === 'Collection finished') return 'Collection complete'
+  if (text === 'Loading') return 'Arrived at collection · Loading'
+  if (text === 'Unloading') return 'Arrived at delivery · Unloading'
+  return text
 }
 
 const LIVE_LABELS = {
   accepted: 'Accepted',
   'collection-start': 'Left for collection',
-  'collection-arrived': 'At collection',
+  'collection-arrived': 'Arrived at collection',
   'collection-complete': 'Collection complete',
   'delivery-start': 'Left for delivery',
-  'delivery-arrived': 'At delivery',
+  'delivery-arrived': 'Arrived at delivery',
   'delivery-complete': 'Completed',
 }
 
@@ -56,8 +113,8 @@ const LIVE_LABELS = {
  * Admin Job Details live stage.
  * Accepted is the admin assignment. Collection and delivery Start, Arrived and
  * Complete are the driver app events already stored on the booking.
- * Arrived prefers the GPS arrival row. Time on site runs from that arrival
- * until Complete at the same address, so travel is not included.
+ * Arrived uses the first saved arrival after Start, manual or GPS.
+ * Time on site runs from that arrival until Complete at the same address.
  *
  * @param {Record<string, unknown> | null | undefined} quote
  * @param {Array<Record<string, unknown>>} [historyRows]
@@ -74,9 +131,13 @@ export function buildAdminLiveStage(quote, historyRows = [], job = null, assignm
 
   let collectionStart = ''
   let collectionComplete = ''
+  let collectionLoading = ''
   let deliveryStart = ''
   let deliveryComplete = ''
+  let deliveryUnloading = ''
   let deliveryPhase = false
+  let firstCollectionArrival = ''
+  let firstDeliveryArrival = ''
   /** @type {Array<Record<string, unknown>>} */
   const collectionArrivals = []
   /** @type {Array<Record<string, unknown>>} */
@@ -92,17 +153,37 @@ export function buildAdminLiveStage(quote, historyRows = [], job = null, assignm
 
     if (!deliveryPhase && COLLECTION_START.has(status) && !collectionStart) collectionStart = at
 
-    const gpsArrival = normStatus(row.source) === 'gps'
     if (COLLECTION_ARRIVED.has(status) || (status === 'arrived' && !deliveryPhase && !deliveryStop)) {
-      if (gpsArrival && collectionStart) collectionArrivals.push(row)
+      if (collectionStart && at >= collectionStart) {
+        collectionArrivals.push(row)
+        if (!firstCollectionArrival) firstCollectionArrival = at
+      }
     } else if (DELIVERY_ARRIVED.has(status) || (status === 'arrived' && (deliveryPhase || deliveryStop))) {
-      if (gpsArrival && deliveryStart) {
+      if (deliveryStart && at >= deliveryStart) {
         deliveryArrivals.push(row)
+        if (!firstDeliveryArrival) firstDeliveryArrival = at
         deliveryPhase = true
       }
     }
 
-    if (COLLECTION_COMPLETE.has(status) && !collectionComplete) {
+    if (
+      (status === 'loading' || status === 'loading_started')
+      && firstCollectionArrival
+      && at >= firstCollectionArrival
+      && !collectionLoading
+    ) {
+      collectionLoading = at
+    }
+    if (
+      (status === 'unloading' || status === 'unloading_started')
+      && firstDeliveryArrival
+      && at >= firstDeliveryArrival
+      && !deliveryUnloading
+    ) {
+      deliveryUnloading = at
+    }
+
+    if (COLLECTION_COMPLETE.has(status) && firstCollectionArrival && at >= firstCollectionArrival && !collectionComplete) {
       collectionComplete = at
       deliveryPhase = true
     }
@@ -123,8 +204,10 @@ export function buildAdminLiveStage(quote, historyRows = [], job = null, assignm
     deliveryComplete = String(q.completed_at || assignment?.completed_at || '').trim()
   }
 
-  const collectionArrived = arrivalStamp(collectionArrivals)
-  const deliveryArrived = arrivalStamp(deliveryArrivals)
+  const collectionArrival = earliestRow(collectionArrivals)
+  const deliveryArrival = earliestRow(deliveryArrivals)
+  const collectionArrived = collectionArrival ? eventAt(collectionArrival) : ''
+  const deliveryArrived = deliveryArrival ? eventAt(deliveryArrival) : ''
   const acceptedAt = String(q.assigned_at || '').trim()
   const terminal = completed || cancelled || Boolean(deliveryComplete)
 
@@ -150,10 +233,10 @@ export function buildAdminLiveStage(quote, historyRows = [], job = null, assignm
   const ordered = [
     { id: 'accepted', label: 'Accepted', at: acceptedAt },
     { id: 'collection-start', label: 'Start', at: collectionStart },
-    { id: 'collection-arrived', label: 'Arrived', at: collectionArrived },
+    { id: 'collection-arrived', label: collectionArrival ? `Arrived · ${arrivalMethod(collectionArrival)}` : 'Arrived', at: collectionArrived },
     { id: 'collection-complete', label: 'Complete', at: collectionComplete },
     { id: 'delivery-start', label: 'Start', at: deliveryStart },
-    { id: 'delivery-arrived', label: 'Arrived', at: deliveryArrived },
+    { id: 'delivery-arrived', label: deliveryArrival ? `Arrived · ${arrivalMethod(deliveryArrival)}` : 'Arrived', at: deliveryArrived },
     { id: 'delivery-complete', label: 'Complete', at: deliveryComplete },
   ]
 
@@ -170,11 +253,17 @@ export function buildAdminLiveStage(quote, historyRows = [], job = null, assignm
   }))
 
   const byId = Object.fromEntries(events.map((row) => [row.id, row]))
-  const currentLabel = cancelled
+  let currentLabel = cancelled
     ? 'Cancelled'
     : terminal
       ? 'Completed'
       : (LIVE_LABELS[activeId] || 'Not started')
+  if (!cancelled && !terminal && activeId === 'collection-arrived' && collectionArrival) {
+    currentLabel = arrivalPhrase('collection', collectionArrival, collectionArrived)
+  }
+  if (!cancelled && !terminal && activeId === 'delivery-arrived' && deliveryArrival) {
+    currentLabel = arrivalPhrase('delivery', deliveryArrival, deliveryArrived)
+  }
 
   return {
     currentLabel,
@@ -182,12 +271,14 @@ export function buildAdminLiveStage(quote, historyRows = [], job = null, assignm
     collection: {
       start: byId['collection-start'],
       arrived: byId['collection-arrived'],
+      loadingAt: collectionLoading,
       complete: byId['collection-complete'],
       timer: collectionTimer,
     },
     delivery: {
       start: byId['delivery-start'],
       arrived: byId['delivery-arrived'],
+      unloadingAt: deliveryUnloading,
       complete: byId['delivery-complete'],
       timer: deliveryTimer,
     },

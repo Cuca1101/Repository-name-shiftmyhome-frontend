@@ -176,12 +176,12 @@ export function resolveTrackingJobStage(operationalStatus, statusRaw) {
   if (has(['arrived_delivery', 'at_delivery'])) {
     return {
       stage: 'arrived_delivery',
-      badge: 'At delivery',
+      badge: 'Arrived at delivery',
       etaKind: null,
       placeLabel: 'delivery',
       showLiveEta: false,
       journeyActive: true,
-      arrivedMessage: 'Your driver is at delivery',
+      arrivedMessage: 'Your driver has arrived at delivery',
       stageMessage: null,
       waitingMessage: null,
     }
@@ -216,12 +216,12 @@ export function resolveTrackingJobStage(operationalStatus, statusRaw) {
   if (has(['arrived', 'arrived_pickup', 'at_collection'])) {
     return {
       stage: 'arrived_collection',
-      badge: 'At collection',
+      badge: 'Arrived at collection',
       etaKind: null,
       placeLabel: 'collection',
       showLiveEta: false,
       journeyActive: true,
-      arrivedMessage: 'Your driver is at collection',
+      arrivedMessage: 'Your driver has arrived at collection',
       stageMessage: null,
       waitingMessage: null,
     }

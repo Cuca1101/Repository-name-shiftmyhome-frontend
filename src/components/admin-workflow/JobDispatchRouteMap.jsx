@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import QuoteRouteMap from '../quote-wizard/QuoteRouteMap'
 import CustomerLeadRouteMap from '../admin/CustomerLeadRouteMap'
-import { resolveQuoteRouteCoordinates } from '../../lib/quoteRouteCoordinates'
+import { persistMissingStopCoordinates, resolveQuoteRouteCoordinates } from '../../lib/quoteRouteCoordinates'
 import { isSupabaseConfigured, supabase } from '../../lib/supabase'
 import { isDriverLocationStale } from '../../lib/data/driverLivePositionsRepository'
 import { formatDateTimeUK } from '../../lib/formatDateDisplay'
@@ -40,6 +40,9 @@ export default function JobDispatchRouteMap({ q, job = null, liveTracking = fals
     void (async () => {
       try {
         const result = await resolveQuoteRouteCoordinates(q, job, token)
+        if (!cancelled && result.coordinateSource !== 'saved') {
+          void persistMissingStopCoordinates(q, result)
+        }
         if (cancelled) return
         setCoords({
           pickupLng: result.pickupLng,

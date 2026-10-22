@@ -13,7 +13,7 @@ export const MOVE_MILESTONES = [
   },
   {
     key: 'arrived_collection',
-    label: 'At collection',
+    label: 'Arrived at collection',
     statuses: ['arrived_pickup'],
     photoStage: null,
     clock: 'atCollection',
@@ -39,7 +39,7 @@ export const MOVE_MILESTONES = [
   },
   {
     key: 'arrived_delivery',
-    label: 'At delivery',
+    label: 'Arrived at delivery',
     statuses: ['arrived_delivery'],
     photoStage: null,
     clock: 'atDelivery',
@@ -161,11 +161,42 @@ export function buildMoveTimeline(events, photos = [], opts = {}) {
     }
   }
   const used = new Set()
+  const firstAt = (statuses) => {
+    const match = primary.find((row) => statuses.includes(normStatus(row.status)))
+    return match ? eventTime(match).displayAt : null
+  }
+  const collectionStartedAt = firstAt(['on_way', 'started', 'start', 'left_for_collection'])
+  const collectionArrivedAt = (() => {
+    const match = primary.find((row) => {
+      const at = eventTime(row).displayAt
+      return ['arrived_pickup', 'at_collection'].includes(normStatus(row.status))
+        && collectionStartedAt
+        && at
+        && at >= collectionStartedAt
+    })
+    return match ? eventTime(match).displayAt : null
+  })()
+  const deliveryStartedAt = firstAt(['in_transit', 'left_for_delivery', 'on_way_to_delivery'])
+  const deliveryArrivedAt = (() => {
+    const match = primary.find((row) => {
+      const at = eventTime(row).displayAt
+      return ['arrived_delivery', 'at_delivery'].includes(normStatus(row.status))
+        && deliveryStartedAt
+        && at
+        && at >= deliveryStartedAt
+    })
+    return match ? eventTime(match).displayAt : null
+  })()
 
   const milestones = MOVE_MILESTONES.map((step) => {
     const match = primary.find((row) => {
       if (used.has(row.id)) return false
-      return step.statuses.includes(normStatus(row.status))
+      if (!step.statuses.includes(normStatus(row.status))) return false
+      const at = eventTime(row).displayAt
+      if (step.key === 'loading_started') return Boolean(collectionArrivedAt && at && at >= collectionArrivedAt)
+      if (step.key === 'unloading_started') return Boolean(deliveryArrivedAt && at && at >= deliveryArrivedAt)
+      if (step.key === 'loading_finished') return Boolean(collectionArrivedAt && at && at >= collectionArrivedAt)
+      return true
     })
     if (match?.id) used.add(match.id)
     const times = match ? eventTime(match) : { occurredAt: null, receivedAt: null, displayAt: null }

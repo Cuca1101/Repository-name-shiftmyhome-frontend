@@ -61,7 +61,8 @@ test('GPS arrival after Start shows at collection, and completion stops the time
     { status: 'arrived_pickup', occurred_at: '2026-05-28T10:20:00Z', source: 'gps' },
   ])
   const atCollection = customerTrackingFromLiveStage(arrived, {})
-  assert.equal(atCollection.arrivedMessage, 'Your driver is at collection')
+  assert.equal(atCollection.arrivedMessage, 'Your driver has arrived at collection')
+  assert.equal(atCollection.badge, 'Arrived at collection')
   assert.equal(atCollection.showLiveEta, false)
   assert.equal(arrived.collection.timer.running, true)
 
@@ -94,6 +95,7 @@ test('delivery start and GPS arrival use their own messages', () => {
     { status: 'unloading_started', occurred_at: '2026-05-28T11:25:00Z', source: 'manual' },
   ])
   const banner = customerTrackingFromLiveStage(there, { location: { motion: { state: 'stationary' } } })
-  assert.equal(banner.arrivedMessage, 'Your driver is at delivery')
+  assert.equal(banner.arrivedMessage, 'Your driver has arrived at delivery')
+  assert.equal(banner.badge, 'Arrived at delivery')
   assert.equal(there.delivery.timer.running, true)
 })

@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom'
 import { formatDateUK } from '../../lib/formatDateDisplay'
 import { formatVolumeAndCrew } from '../../lib/quoteJobAdminModel'
-import { dispatchWorkflowBadge } from '../../lib/jobDispatchTimeline'
+import { confirmedJourneyLabel, dispatchWorkflowBadge } from '../../lib/jobDispatchTimeline'
 import { resolveQuoteCollectionAddress, resolveQuoteDeliveryAddress } from '../../lib/quoteAddressResolve'
 import { resolveAssignedDriverDisplay } from '../../lib/adminJobAcceptedStatus'
 import { getFleetDriversCached } from '../../lib/adminFleetDrivers'
@@ -33,6 +33,7 @@ export default function JobAcceptedListRow({ q, job = null, onUpdated }) {
   const driverRec = driverId ? getFleetDriversCached().find((d) => String(d.id) === driverId) ?? null : null
   const driver = resolveAssignedDriverDisplay(q, driverRec)
   const badge = dispatchWorkflowBadge(q, job)
+  const journeyLabel = confirmedJourneyLabel(q.operational_status)
   const moveDate = q.move_date ? formatDateUK(q.move_date) : '—'
   const service = String(q.service || q.service_type || '—')
   const volCrew = formatVolumeAndCrew(q)
@@ -86,6 +87,9 @@ export default function JobAcceptedListRow({ q, job = null, onUpdated }) {
       </td>
       <td className="px-2 py-2 lg:px-3">
         <JobStatusBadge label={badge.label} tone={badge.tone} />
+        {journeyLabel ? (
+          <p className="mt-1 text-[10px] font-semibold leading-snug text-slate-700">{journeyLabel}</p>
+        ) : null}
       </td>
       <td className="hidden min-w-[6.5rem] px-2 py-2 align-top sm:table-cell lg:px-3">
         <JobAcceptedListPayoutSummary q={q} onUpdated={onUpdated} />

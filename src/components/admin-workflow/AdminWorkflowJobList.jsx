@@ -29,6 +29,7 @@ import AdminJobOverrideActions from './AdminJobOverrideActions'
 import MarketplaceJobRemoveButton from './MarketplaceJobRemoveButton'
 import DriverChargeQuickActions from '../admin-driver-charges/DriverChargeQuickActions'
 import { subscribeAdminDataRefresh } from '../../lib/adminDataRefresh'
+import { isSupabaseConfigured, supabase } from '../../lib/supabase'
 import { fetchCompletedJobAssignmentsMap, fetchJobAssignmentsByQuoteIds } from '../../lib/data/jobAssignmentsRepository'
 import { fetchDriverChargesByQuoteIds } from '../../lib/data/driverChargesRepository'
 import { partnerAcceptanceLabelForMarketplaceCard } from '../../lib/marketplaceListingStatus'
@@ -227,6 +228,26 @@ export default function AdminWorkflowJobList({ workflow, title, description }) {
   }, [load])
 
   useEffect(() => subscribeAdminDataRefresh(load), [load])
+
+  useEffect(() => {
+    if (workflow !== 'active' || !isSupabaseConfigured || !supabase) return undefined
+    let timer = 0
+    const channel = supabase
+      .channel('active-jobs-confirmed-workflow')
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'quotes' }, () => {
+        window.clearTimeout(timer)
+        timer = window.setTimeout(() => { void load() }, 400)
+      })
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'job_status_history' }, () => {
+        window.clearTimeout(timer)
+        timer = window.setTimeout(() => { void load() }, 400)
+      })
+      .subscribe()
+    return () => {
+      window.clearTimeout(timer)
+      void supabase.removeChannel(channel)
+    }
+  }, [workflow, load])
 
   useEffect(() => {
     setPage(0)

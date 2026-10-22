@@ -24,7 +24,7 @@ import {
   trackingEtaAddress,
 } from '../lib/trackingDriverEta'
 import { customerTrackingFromLiveStage, resolveCustomerTrackingStage, resolveGpsStatusHeadline } from '../lib/trackingJobStage'
-import { liveStageFromPortalBooking } from '../lib/jobDispatchTimeline'
+import { confirmedJourneyLabel, liveStageFromPortalBooking } from '../lib/jobDispatchTimeline'
 import { currentAttemptRows } from '../lib/driverWorkflowAttempt'
 
 const POLL_MS = 15000
@@ -260,7 +260,7 @@ export default function JobTrackingPortalPage() {
     || 'https://g.page/r/CWmwRUPz2dC7EAE/review'
   const liveStage = useMemo(() => {
     const events = currentAttemptRows(moveTimeline?.events || [], moveTimeline?.workflow_version)
-    return liveStageFromPortalBooking({
+    const stage = liveStageFromPortalBooking({
       assigned_at: moveTimeline?.assigned_at || '',
       status: data?.status_raw || '',
       operational_status: data?.operational_status || '',
@@ -269,6 +269,10 @@ export default function JobTrackingPortalPage() {
       assignment_status: data?.assignment_status || moveTimeline?.assignment_status || '',
       assignment_completed_at: moveTimeline?.assignment_completed_at || '',
     }, events)
+    const confirmed = stage.currentLabel.includes('·')
+      ? ''
+      : confirmedJourneyLabel(moveTimeline?.workflow?.operational_status || data?.operational_status)
+    return confirmed ? { ...stage, currentLabel: confirmed } : stage
   }, [data, moveTimeline])
   const jobStage = useMemo(
     () => (moveTimeline?.ok ? customerTrackingFromLiveStage(liveStage, data) : resolveCustomerTrackingStage(data)),
@@ -563,7 +567,9 @@ export default function JobTrackingPortalPage() {
     )
   }
 
-  const badgeText = jobStage.badge || statusLabel
+  const badgeText = liveStage.currentLabel && liveStage.currentLabel !== 'Accepted' && liveStage.currentLabel !== 'Not started'
+    ? liveStage.currentLabel
+    : (jobStage.badge || statusLabel)
   const destKind =
     etaView?.kind
     || jobStage.etaKind
