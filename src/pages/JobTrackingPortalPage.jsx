@@ -953,9 +953,12 @@ export default function JobTrackingPortalPage() {
           <Section title="Waiver & signature">
             {photoGroups.waiver.length ? (
               <div className="space-y-3">
-                {photoGroups.waiver.map((p) => (
+                {photoGroups.waiver.map((p) => {
+                  const meta = resolveJobPhotoDisplayMeta(p.metadata, p)
+                  return (
                   <div key={p.id} className="rounded-xl border border-slate-100 p-3">
-                    <Row label="Type" value={p.photo_type === 'pod_signature' ? 'Proof of delivery' : 'Customer waiver'} />
+                    <Row label="Type" value={meta.displayTitle || (p.photo_type === 'pod_signature' ? 'Proof of delivery' : 'Customer waiver')} />
+                    <Row label="Signed by" value={meta.signerName} />
                     <Row label="Signed" value={p.created_at ? formatDateTimeUK(p.created_at) : null} />
                     {p.signed_url ? (
                       <a href={p.signed_url} target="_blank" rel="noreferrer" className="mt-2 inline-block">
@@ -963,7 +966,8 @@ export default function JobTrackingPortalPage() {
                       </a>
                     ) : null}
                   </div>
-                ))}
+                  )
+                })}
               </div>
             ) : (
               <p className="text-slate-500">No waiver signed yet.</p>
@@ -994,7 +998,8 @@ export default function JobTrackingPortalPage() {
                       )}
                       <figcaption className="space-y-0.5 p-2 text-[11px] text-slate-600">
                         <div>{meta.capturedAtDisplay || (p.created_at ? formatDateTimeUK(p.created_at) : '')}</div>
-                        <div className="capitalize">{meta.displayTitle || String(p.photo_type || '').replace(/_/g, ' ')}</div>
+                        <div>{meta.displayTitle || String(p.photo_type || '').replace(/_/g, ' ')}</div>
+                        {meta.signerName ? <div className="font-semibold text-slate-800">Signed by {meta.signerName}</div> : null}
                         {meta.capturedAtAddress ? (
                           <div className="leading-snug text-slate-800" title={meta.capturedAtAddress}>
                             Taken at: {meta.capturedAtAddress}

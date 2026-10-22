@@ -215,6 +215,9 @@ export default function QuotePhotosAdminSection({
                   <p className="truncate text-sm font-medium text-slate-900" title={meta.displayTitle || fileName}>
                     {meta.displayTitle || fileName}
                   </p>
+                  {meta.signerName ? (
+                    <p className="text-sm font-semibold text-slate-900">Signed by {meta.signerName}</p>
+                  ) : null}
                   {meta.capturedAtDisplay ? (
                     <p className="text-[11px] text-slate-600">{meta.capturedAtDisplay}</p>
                   ) : null}

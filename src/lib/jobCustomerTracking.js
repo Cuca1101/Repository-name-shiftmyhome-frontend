@@ -67,14 +67,24 @@ export function customerJobStatusLabel(raw) {
  * @param {string} photoType
  * @param {string} [stopType]
  */
-export function photoSectionForType(photoType, stopType) {
+export function photoSectionForType(photoType, stopType, metadata) {
   const t = String(photoType || '').toLowerCase()
-  const stop = String(stopType || '').toLowerCase()
-  if (t === 'waiver_signature' || t === 'pod_signature') return 'waiver'
-  if (t === 'damage') return 'damage'
+  const meta = metadata && typeof metadata === 'object' ? metadata : {}
+  const stop = String(stopType || meta.stop_type || meta.stopType || '').toLowerCase()
+  const evidence = String(meta.evidence_type || '').toLowerCase()
+  const location = String(meta.location_type || '').toLowerCase()
+  const kind = String(meta.photo_kind || meta.category || '').toLowerCase()
+  if (
+    t === 'waiver_signature'
+    || t === 'pod_signature'
+    || evidence === 'waiver_signature'
+    || evidence === 'pod_signature'
+  ) return 'waiver'
+  if (t === 'damage' || kind === 'damage') return 'damage'
   if (t === 'loaded' || stop === 'loaded' || /load/i.test(t)) return 'loaded'
-  if (stop === 'dropoff' || stop === 'delivery' || t === 'delivery') return 'delivery'
-  if (stop === 'pickup' || stop === 'collection' || t === 'pickup' || t === 'collection') return 'pickup'
+  if (stop === 'pickup' || stop === 'collection' || location === 'collection') return 'pickup'
+  if (stop === 'dropoff' || stop === 'delivery' || location === 'delivery' || t === 'delivery') return 'delivery'
+  if (t === 'pickup' || t === 'collection') return 'pickup'
   if (t === 'proof') return 'proof'
   return 'general'
 }
@@ -83,7 +93,7 @@ export function photoSectionForType(photoType, stopType) {
 export function groupJobPhotos(photos) {
   const groups = { pickup: [], loaded: [], delivery: [], damage: [], waiver: [], proof: [], general: [] }
   for (const photo of photos || []) {
-    const key = photoSectionForType(photo?.photo_type, photo?.stop_type)
+    const key = photoSectionForType(photo?.photo_type, photo?.stop_type, photo?.metadata)
     if (!groups[key]) groups[key] = []
     groups[key].push(photo)
   }

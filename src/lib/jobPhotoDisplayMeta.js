@@ -1,19 +1,87 @@
+function clean(value) {
+  return typeof value === 'string' ? value.trim() : ''
+}
+
+function isCollectionStop(metadata, row) {
+  const location = clean(metadata.location_type).toLowerCase()
+  const stop = clean(metadata.stop_type || metadata.stopType || row?.stop_type).toLowerCase()
+  const kind = clean(metadata.photo_kind).toLowerCase()
+  return (
+    location === 'collection'
+    || stop === 'pickup'
+    || stop === 'collection'
+    || kind === 'pickup'
+    || kind === 'collection'
+  )
+}
+
+function isSignatureRow(metadata, row) {
+  const evidence = clean(metadata.evidence_type).toLowerCase()
+  const type = clean(row?.photo_type).toLowerCase()
+  const file = clean(row?.file_name).toLowerCase()
+  return (
+    evidence === 'pod_signature'
+    || evidence === 'waiver_signature'
+    || type === 'pod_signature'
+    || type === 'waiver_signature'
+    || file.includes('signature')
+  )
+}
+
+function signerNameFrom(metadata) {
+  return clean(
+    metadata.recipientName
+    || metadata.recipient_name
+    || metadata.waiverCustomerName
+    || metadata.waiver_customer_name
+    || metadata.signerName
+    || metadata.signer_name,
+  )
+}
+
+/**
+ * A collection photo stored with the delivery category still belongs to the pickup stop.
+ * @param {string} title
+ * @param {Record<string, unknown>} metadata
+ * @param {{ stop_type?: unknown, photo_type?: unknown, file_name?: unknown } | null} row
+ */
+function collectionAwareTitle(title, metadata, row) {
+  if (!isCollectionStop(metadata, row)) return title
+  if (/^delivery photo$/i.test(title)) return 'Pickup photo'
+  return title
+}
+
 /**
  * Normalize job_photos.metadata for admin / customer display.
  * @param {unknown} metadata
- * @param {{ source_label?: unknown, photo_type?: unknown, created_at?: unknown } | null} [row]
+ * @param {{ source_label?: unknown, photo_type?: unknown, file_name?: unknown, created_at?: unknown, stop_type?: unknown } | null} [row]
  */
 export function resolveJobPhotoDisplayMeta(metadata, row = null) {
   const m = metadata && typeof metadata === 'object' ? metadata : {}
   const sourceLabel = row?.source_label != null ? String(row.source_label).trim() : ''
-  const displayLine =
+  let displayLine =
     (typeof m.display_line === 'string' && m.display_line.trim()) ||
     sourceLabel ||
     ''
-  const displayTitle =
+  const signerName = signerNameFrom(m)
+  const signature = isSignatureRow(m, row)
+  const collection = isCollectionStop(m, row)
+  let displayTitle =
     (typeof m.display_title === 'string' && m.display_title.trim()) ||
     (row?.photo_type ? String(row.photo_type).replace(/_/g, ' ') : '') ||
     'Photo'
+  if (signature) {
+    const waiver = clean(m.evidence_type).toLowerCase() === 'waiver_signature'
+      || clean(row?.file_name).toLowerCase().includes('waiver')
+    displayTitle = waiver
+      ? 'Waiver signature'
+      : (collection ? 'Pickup signature' : 'Delivery signature')
+  } else {
+    displayTitle = collectionAwareTitle(displayTitle, m, row)
+  }
+  if (collection && /^delivery photo\b/i.test(displayLine)) {
+    displayLine = displayLine.replace(/^delivery photo/i, 'Pickup photo')
+  }
   const capturedAtDisplay =
     (typeof m.captured_at_display === 'string' && m.captured_at_display.trim()) ||
     (typeof m.captured_at === 'string' && m.captured_at.trim()) ||
@@ -49,6 +117,7 @@ export function resolveJobPhotoDisplayMeta(metadata, row = null) {
   return {
     displayLine,
     displayTitle,
+    signerName,
     capturedAtDisplay,
     capturedAtAddress,
     jobStopAddress,

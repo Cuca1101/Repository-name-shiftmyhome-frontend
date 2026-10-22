@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import LiveDriverMap from '../tracking/LiveDriverMap'
 import { groupJobPhotos, trackingClient } from '../../lib/jobCustomerTracking'
+import { resolveJobPhotoDisplayMeta } from '../../lib/jobPhotoDisplayMeta'
 import {
   isTrackingGpsFresh,
   resolveTrackingDriverEta,
@@ -172,12 +173,20 @@ function JobPhotos({ groups }) {
             {groups[key].map((photo) => {
               const src = photo.signed_url || photo.signedUrl || ''
               const id = photo.id || photo.storage_path || src
-              return src ? (
-                <a key={id} href={src} target="_blank" rel="noreferrer" className="block overflow-hidden rounded-lg border border-slate-100">
-                  <img src={src} alt="" className="aspect-square w-full object-cover" />
-                </a>
-              ) : (
-                <div key={id} className="flex aspect-square items-center justify-center rounded-lg bg-slate-50 text-[11px] text-slate-400">No preview</div>
+              const meta = resolveJobPhotoDisplayMeta(photo.metadata, photo)
+              return (
+                <div key={id} className="overflow-hidden rounded-lg border border-slate-100">
+                  {src ? (
+                    <a href={src} target="_blank" rel="noreferrer" className="block">
+                      <img src={src} alt="" className="aspect-square w-full object-cover" />
+                    </a>
+                  ) : (
+                    <div className="flex aspect-square items-center justify-center bg-slate-50 text-[11px] text-slate-400">No preview</div>
+                  )}
+                  {meta.signerName ? (
+                    <p className="px-1 py-1 text-[10px] font-semibold leading-snug text-slate-800">Signed by {meta.signerName}</p>
+                  ) : null}
+                </div>
               )
             })}
           </div>
