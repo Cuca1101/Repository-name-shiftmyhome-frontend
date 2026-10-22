@@ -54,16 +54,25 @@ test('a pickup signature shows the person who signed', () => {
     },
     { photo_type: 'collection', stop_type: 'PICKUP', file_name: 'pod_signature.png' },
   )
-  assert.equal(meta.displayTitle, 'Pickup signature')
+  assert.equal(meta.displayTitle, 'Signature proof')
   assert.equal(meta.signerName, 'Elizabeth')
   const groups = groupJobPhotos([
     {
       id: 'sig',
       photo_type: 'collection',
       stop_type: 'PICKUP',
+      file_name: 'pod_signature.png',
       metadata: { evidence_type: 'pod_signature', recipientName: 'Elizabeth', stop_type: 'PICKUP' },
     },
+    {
+      id: 'waiver',
+      photo_type: 'general',
+      file_name: 'waiver_signature.png',
+      metadata: { evidence_type: 'waiver_signature', waiverCustomerName: 'Elizabeth' },
+    },
   ])
+  assert.equal(groups.signature.length, 1)
   assert.equal(groups.waiver.length, 1)
   assert.equal(groups.pickup.length, 0)
+  assert.equal(resolveJobPhotoDisplayMeta(groups.waiver[0].metadata, groups.waiver[0]).displayTitle, 'Waiver')
 })

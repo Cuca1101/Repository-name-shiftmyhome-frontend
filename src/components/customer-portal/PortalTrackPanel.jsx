@@ -157,8 +157,9 @@ const PHOTO_SECTIONS = [
   ['delivery', 'Delivery photos'],
   ['proof', 'Proof photos'],
   ['damage', 'Damage or issue photos'],
+  ['waiver', 'Waiver'],
+  ['signature', 'Signature proof'],
   ['general', 'Photos'],
-  ['waiver', 'Waiver and signature'],
 ]
 
 function JobPhotos({ groups }) {

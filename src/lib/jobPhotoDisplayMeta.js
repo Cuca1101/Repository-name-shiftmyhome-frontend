@@ -73,9 +73,7 @@ export function resolveJobPhotoDisplayMeta(metadata, row = null) {
   if (signature) {
     const waiver = clean(m.evidence_type).toLowerCase() === 'waiver_signature'
       || clean(row?.file_name).toLowerCase().includes('waiver')
-    displayTitle = waiver
-      ? 'Waiver signature'
-      : (collection ? 'Pickup signature' : 'Delivery signature')
+    displayTitle = waiver ? 'Waiver' : 'Signature proof'
   } else {
     displayTitle = collectionAwareTitle(displayTitle, m, row)
   }

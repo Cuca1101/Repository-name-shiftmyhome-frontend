@@ -950,20 +950,14 @@ export default function JobTrackingPortalPage() {
             )}
           </Section>
 
-          <Section title="Waiver & signature">
-            {photoGroups.waiver.length ? (
-              <JobPhotoThumbGrid photos={photoGroups.waiver} />
-            ) : (
-              <p className="text-slate-500">No waiver signed yet.</p>
-            )}
-          </Section>
-
           {[
             ['pickup', 'Pickup photos'],
             ['loaded', 'Loaded vehicle photos'],
             ['delivery', 'Delivery photos'],
-            ['proof', 'Proof photos'],
             ['damage', 'Damage or issue photos'],
+            ['waiver', 'Waiver'],
+            ['signature', 'Signature proof'],
+            ['proof', 'Proof photos'],
             ['general', 'Photos'],
           ].map(([key, title]) =>
             photoGroups[key]?.length ? (

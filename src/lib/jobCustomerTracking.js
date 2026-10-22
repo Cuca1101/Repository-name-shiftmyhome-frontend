@@ -67,19 +67,18 @@ export function customerJobStatusLabel(raw) {
  * @param {string} photoType
  * @param {string} [stopType]
  */
-export function photoSectionForType(photoType, stopType, metadata) {
+export function photoSectionForType(photoType, stopType, metadata, fileName) {
   const t = String(photoType || '').toLowerCase()
   const meta = metadata && typeof metadata === 'object' ? metadata : {}
   const stop = String(stopType || meta.stop_type || meta.stopType || '').toLowerCase()
   const evidence = String(meta.evidence_type || '').toLowerCase()
+  const file = String(fileName || '').toLowerCase()
   const location = String(meta.location_type || '').toLowerCase()
   const kind = String(meta.photo_kind || meta.category || '').toLowerCase()
-  if (
-    t === 'waiver_signature'
-    || t === 'pod_signature'
-    || evidence === 'waiver_signature'
-    || evidence === 'pod_signature'
-  ) return 'waiver'
+  if (t === 'waiver_signature' || evidence === 'waiver_signature' || file.includes('waiver')) return 'waiver'
+  if (t === 'pod_signature' || evidence === 'pod_signature' || file.includes('pod_signature') || file.includes('signature')) {
+    return 'signature'
+  }
   if (t === 'damage' || kind === 'damage') return 'damage'
   if (t === 'loaded' || stop === 'loaded' || /load/i.test(t)) return 'loaded'
   if (stop === 'pickup' || stop === 'collection' || location === 'collection') return 'pickup'
@@ -91,9 +90,9 @@ export function photoSectionForType(photoType, stopType, metadata) {
 
 /** @param {Array<Record<string, unknown>> | null | undefined} photos */
 export function groupJobPhotos(photos) {
-  const groups = { pickup: [], loaded: [], delivery: [], damage: [], waiver: [], proof: [], general: [] }
+  const groups = { pickup: [], loaded: [], delivery: [], damage: [], signature: [], waiver: [], proof: [], general: [] }
   for (const photo of photos || []) {
-    const key = photoSectionForType(photo?.photo_type, photo?.stop_type, photo?.metadata)
+    const key = photoSectionForType(photo?.photo_type, photo?.stop_type, photo?.metadata, photo?.file_name)
     if (!groups[key]) groups[key] = []
     groups[key].push(photo)
   }
