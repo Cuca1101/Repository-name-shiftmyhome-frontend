@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react'
+import JobPhotoThumbGrid from '../job-photos/JobPhotoThumbGrid'
 import {
   attachSignedUrlsToJobPhotos,
   fetchJobPhotosForAdminLookup,
 } from '../../lib/data/jobPhotosRepository'
-import { resolveJobPhotoDisplayMeta } from '../../lib/jobPhotoDisplayMeta'
 import { isSupabaseConfigured } from '../../lib/supabase'
 
 const cardShell =
@@ -28,8 +28,6 @@ export default function QuotePhotosAdminSection({
   const [photos, setPhotos] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
-  const [previewUrl, setPreviewUrl] = useState(null)
-  const [previewLabel, setPreviewLabel] = useState('')
   const [fetchDebug, setFetchDebug] = useState(null)
 
   const legacyNames = Array.isArray(legacyPhotoFileNames)
@@ -98,12 +96,6 @@ export default function QuotePhotosAdminSection({
   if (!isSupabaseConfigured) return null
 
   const signedUrlFailures = photos.filter((p) => p.storage_path && !p.signedUrl)
-
-  const openPreview = (url, label) => {
-    if (!url) return
-    setPreviewUrl(url)
-    setPreviewLabel(label)
-  }
 
   if (loading) {
     return (
@@ -176,134 +168,10 @@ export default function QuotePhotosAdminSection({
             <span className="font-mono text-xs">quote-photos</span> bucket or try refreshing this page.
           </p>
         ) : null}
-        <ul className="grid gap-4 p-5 sm:grid-cols-2 sm:p-6 lg:grid-cols-3">
-          {photos.map((photo) => {
-            const meta = resolveJobPhotoDisplayMeta(photo.metadata, photo)
-            const label =
-              meta.displayLine ||
-              (photo.source_label != null ? String(photo.source_label) : 'Added by customer')
-            const fileName = photo.file_name != null ? String(photo.file_name) : 'Photo'
-            const mimeType = photo.mime_type != null ? String(photo.mime_type) : ''
-            const signedUrl = photo.signedUrl != null ? String(photo.signedUrl) : ''
-            const signedUrlError = photo.signedUrlError != null ? String(photo.signedUrlError) : ''
-            const photoKey = String(photo.id || photo.storage_path || fileName)
-
-            return (
-              <li
-                key={photoKey}
-                className="flex flex-col overflow-hidden rounded-xl border border-slate-200/90 bg-slate-50/50"
-              >
-                <button
-                  type="button"
-                  className="relative aspect-[4/3] w-full bg-slate-100 text-left"
-                  onClick={() => openPreview(signedUrl, fileName)}
-                  disabled={!signedUrl}
-                  aria-label={signedUrl ? `View larger: ${fileName}` : `Preview unavailable: ${fileName}`}
-                >
-                  {signedUrl ? (
-                    <img src={signedUrl} alt="" className="h-full w-full object-cover" loading="lazy" />
-                  ) : (
-                    <div className="flex h-full flex-col items-center justify-center gap-1 px-3 text-center text-xs text-slate-600">
-                      <span>Preview unavailable</span>
-                      {signedUrlError ? (
-                        <span className="text-[10px] text-amber-800">{signedUrlError}</span>
-                      ) : null}
-                    </div>
-                  )}
-                </button>
-                <div className="flex flex-1 flex-col gap-2 p-3">
-                  <p className="truncate text-sm font-medium text-slate-900" title={meta.displayTitle || fileName}>
-                    {meta.displayTitle || fileName}
-                  </p>
-                  {meta.signerName ? (
-                    <p className="text-sm font-semibold text-slate-900">Signed by {meta.signerName}</p>
-                  ) : null}
-                  {meta.capturedAtDisplay ? (
-                    <p className="text-[11px] text-slate-600">{meta.capturedAtDisplay}</p>
-                  ) : null}
-                  {meta.capturedAtAddress ? (
-                    <p className="text-[11px] leading-snug text-slate-800" title={meta.capturedAtAddress}>
-                      Taken at: {meta.capturedAtAddress}
-                    </p>
-                  ) : meta.addressText ? (
-                    <p className="text-[11px] leading-snug text-slate-700" title={meta.addressText}>
-                      {meta.locationLabel ? `${meta.locationLabel}: ` : ''}
-                      {meta.addressText}
-                    </p>
-                  ) : null}
-                  {meta.jobStopAddress &&
-                  meta.capturedAtAddress &&
-                  meta.jobStopAddress !== meta.capturedAtAddress ? (
-                    <p className="text-[10px] leading-snug text-slate-500" title={meta.jobStopAddress}>
-                      Job stop: {meta.jobStopAddress}
-                    </p>
-                  ) : null}
-                  {mimeType ? (
-                    <p className="truncate text-[10px] text-slate-500" title={mimeType}>
-                      {mimeType}
-                    </p>
-                  ) : null}
-                  <span
-                    className="inline-flex w-fit max-w-full rounded-md bg-sky-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-sky-900"
-                    title={label}
-                  >
-                    <span className="truncate">{label}</span>
-                  </span>
-                  <div className="mt-auto flex flex-wrap gap-x-3 gap-y-1">
-                    {meta.mapUrl ? (
-                      <a
-                        href={meta.mapUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-sm font-semibold text-slate-700 hover:underline"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        Open map
-                      </a>
-                    ) : null}
-                    {signedUrl ? (
-                      <a
-                        href={signedUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        download={fileName}
-                        className="text-sm font-semibold text-brand-700 hover:underline"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        View / download
-                      </a>
-                    ) : null}
-                  </div>
-                </div>
-              </li>
-            )
-          })}
-        </ul>
-      </section>
-
-      {previewUrl ? (
-        <div
-          className="fixed inset-0 z-[130] flex items-center justify-center bg-black/80 p-4"
-          role="dialog"
-          aria-modal="true"
-          aria-label={previewLabel || 'Photo preview'}
-          onClick={() => setPreviewUrl(null)}
-        >
-          <button
-            type="button"
-            className="absolute right-4 top-4 rounded-full bg-white/10 px-3 py-1.5 text-sm font-semibold text-white hover:bg-white/20"
-            onClick={() => setPreviewUrl(null)}
-          >
-            Close
-          </button>
-          <img
-            src={previewUrl}
-            alt={previewLabel}
-            className="max-h-[90vh] max-w-full rounded-lg object-contain shadow-2xl"
-            onClick={(e) => e.stopPropagation()}
-          />
+        <div className="p-5 sm:p-6">
+          <JobPhotoThumbGrid photos={photos} />
         </div>
-      ) : null}
+      </section>
     </>
   )
 }

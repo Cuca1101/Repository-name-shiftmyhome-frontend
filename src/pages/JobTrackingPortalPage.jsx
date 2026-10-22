@@ -10,7 +10,7 @@ import {
   groupJobPhotos,
   trackingClient,
 } from '../lib/jobCustomerTracking'
-import { resolveJobPhotoDisplayMeta } from '../lib/jobPhotoDisplayMeta'
+import JobPhotoThumbGrid from '../components/job-photos/JobPhotoThumbGrid'
 import { GOOGLE_LEAVE_REVIEW_URL } from '../lib/reviews/externalReviews'
 import {
   ETA_CALCULATING_TIMEOUT_MS,
@@ -952,23 +952,7 @@ export default function JobTrackingPortalPage() {
 
           <Section title="Waiver & signature">
             {photoGroups.waiver.length ? (
-              <div className="space-y-3">
-                {photoGroups.waiver.map((p) => {
-                  const meta = resolveJobPhotoDisplayMeta(p.metadata, p)
-                  return (
-                  <div key={p.id} className="rounded-xl border border-slate-100 p-3">
-                    <Row label="Type" value={meta.displayTitle || (p.photo_type === 'pod_signature' ? 'Proof of delivery' : 'Customer waiver')} />
-                    <Row label="Signed by" value={meta.signerName} />
-                    <Row label="Signed" value={p.created_at ? formatDateTimeUK(p.created_at) : null} />
-                    {p.signed_url ? (
-                      <a href={p.signed_url} target="_blank" rel="noreferrer" className="mt-2 inline-block">
-                        <img src={p.signed_url} alt="Signature" className="max-h-40 rounded-lg border border-slate-200" />
-                      </a>
-                    ) : null}
-                  </div>
-                  )
-                })}
-              </div>
+              <JobPhotoThumbGrid photos={photoGroups.waiver} />
             ) : (
               <p className="text-slate-500">No waiver signed yet.</p>
             )}
@@ -984,46 +968,7 @@ export default function JobTrackingPortalPage() {
           ].map(([key, title]) =>
             photoGroups[key]?.length ? (
               <Section key={key} title={title}>
-                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-                  {photoGroups[key].map((p) => {
-                    const meta = resolveJobPhotoDisplayMeta(p.metadata, p)
-                    return (
-                    <figure key={p.id} className="overflow-hidden rounded-xl border border-slate-100 bg-slate-50">
-                      {p.signed_url ? (
-                        <a href={p.signed_url} target="_blank" rel="noreferrer">
-                          <img src={p.signed_url} alt="" className="aspect-square w-full object-cover" />
-                        </a>
-                      ) : (
-                        <div className="flex aspect-square items-center justify-center text-xs text-slate-400">No preview</div>
-                      )}
-                      <figcaption className="space-y-0.5 p-2 text-[11px] text-slate-600">
-                        <div>{meta.capturedAtDisplay || (p.created_at ? formatDateTimeUK(p.created_at) : '')}</div>
-                        <div>{meta.displayTitle || String(p.photo_type || '').replace(/_/g, ' ')}</div>
-                        {meta.signerName ? <div className="font-semibold text-slate-800">Signed by {meta.signerName}</div> : null}
-                        {meta.capturedAtAddress ? (
-                          <div className="leading-snug text-slate-800" title={meta.capturedAtAddress}>
-                            Taken at: {meta.capturedAtAddress}
-                          </div>
-                        ) : meta.addressText ? (
-                          <div className="leading-snug text-slate-700" title={meta.addressText}>
-                            {meta.addressText}
-                          </div>
-                        ) : null}
-                        {meta.mapUrl ? (
-                          <a
-                            href={meta.mapUrl}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="font-semibold text-brand-700 hover:underline"
-                          >
-                            Open map
-                          </a>
-                        ) : null}
-                      </figcaption>
-                    </figure>
-                    )
-                  })}
-                </div>
+                <JobPhotoThumbGrid photos={photoGroups[key]} />
               </Section>
             ) : null,
           )}

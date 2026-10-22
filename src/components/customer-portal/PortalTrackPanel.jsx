@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import LiveDriverMap from '../tracking/LiveDriverMap'
+import JobPhotoThumbGrid from '../job-photos/JobPhotoThumbGrid'
 import { groupJobPhotos, trackingClient } from '../../lib/jobCustomerTracking'
-import { resolveJobPhotoDisplayMeta } from '../../lib/jobPhotoDisplayMeta'
 import {
   isTrackingGpsFresh,
   resolveTrackingDriverEta,
@@ -169,26 +169,8 @@ function JobPhotos({ groups }) {
       {visible.map(([key, title]) => (
         <div key={key}>
           <h3 className="text-sm font-bold text-slate-900">{title}</h3>
-          <div className="mt-2 grid grid-cols-3 gap-2">
-            {groups[key].map((photo) => {
-              const src = photo.signed_url || photo.signedUrl || ''
-              const id = photo.id || photo.storage_path || src
-              const meta = resolveJobPhotoDisplayMeta(photo.metadata, photo)
-              return (
-                <div key={id} className="overflow-hidden rounded-lg border border-slate-100">
-                  {src ? (
-                    <a href={src} target="_blank" rel="noreferrer" className="block">
-                      <img src={src} alt="" className="aspect-square w-full object-cover" />
-                    </a>
-                  ) : (
-                    <div className="flex aspect-square items-center justify-center bg-slate-50 text-[11px] text-slate-400">No preview</div>
-                  )}
-                  {meta.signerName ? (
-                    <p className="px-1 py-1 text-[10px] font-semibold leading-snug text-slate-800">Signed by {meta.signerName}</p>
-                  ) : null}
-                </div>
-              )
-            })}
+          <div className="mt-2">
+            <JobPhotoThumbGrid photos={groups[key]} />
           </div>
         </div>
       ))}
