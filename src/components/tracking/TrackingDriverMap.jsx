@@ -36,6 +36,21 @@ function ensureTrackingMarkerStyles() {
       position:relative; width:46px; height:46px; overflow:visible;
       pointer-events:none; user-select:none;
     }
+    .smh-van-labels {
+      position:absolute; left:50%; top:-18px; z-index:8;
+      display:flex; flex-direction:column; align-items:center; gap:2px;
+      transform:translate(-50%, -100%); pointer-events:none;
+    }
+    .smh-van-name-chip, .smh-van-ref-chip {
+      max-width:140px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+      padding:1px 6px; border-radius:8px; background:#fff; color:#0f172a;
+      border:1px solid rgba(15,23,42,0.1); box-shadow:0 1px 4px rgba(15,23,42,0.12);
+      font:700 10px Inter,Segoe UI,system-ui,sans-serif;
+    }
+    .smh-van-ref-chip {
+      font:600 9px ui-monospace,SFMono-Regular,Menlo,monospace;
+      color:#0369a1; background:#f0f9ff; border-color:#bae6fd;
+    }
     .smh-van-hit {
       pointer-events:auto; display:block; width:46px; height:46px; margin:0; padding:0;
       border:0; background:transparent; cursor:pointer;
@@ -209,6 +224,22 @@ function buildVanMarkerElement({ driverName = '', quoteRef = '', live = false } 
   wrap.className = 'smh-van-marker'
   wrap.style.zIndex = '6'
   wrap.setAttribute('aria-label', ref ? `Driver ${fullName}, booking ${ref}` : `Driver ${fullName}`)
+
+  const labels = document.createElement('div')
+  labels.className = 'smh-van-labels'
+  const nameChip = document.createElement('div')
+  nameChip.className = 'smh-van-name-chip'
+  const nameParts = fullName.split(' ').filter(Boolean)
+  const chipName = fullName === 'Your driver' ? fullName : (nameParts[0] || fullName)
+  nameChip.textContent = chipName.slice(0, 16)
+  labels.appendChild(nameChip)
+  if (ref) {
+    const refChip = document.createElement('div')
+    refChip.className = 'smh-van-ref-chip'
+    refChip.textContent = ref
+    labels.appendChild(refChip)
+  }
+  wrap.appendChild(labels)
 
   const arrow = document.createElement('div')
   arrow.className = 'smh-van-arrow'

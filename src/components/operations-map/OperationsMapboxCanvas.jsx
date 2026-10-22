@@ -662,7 +662,7 @@ export default function OperationsMapboxCanvas({
       if (!Number.isFinite(d.lng) || !Number.isFinite(d.lat)) continue
       const hi = String(focusedDriverId) === id
       let marker = driverMarkerElsRef.current[id]
-      const markerSig = `${d.activeJobRef || ''}|${d.waitingGps ? 1 : 0}|${d.stale ? 1 : 0}|${hi ? 1 : 0}|${d.online && !d.stale && !d.waitingGps ? 1 : 0}`
+      const markerSig = `${d.name || ''}|${d.activeJobRef || ''}|${d.waitingGps ? 1 : 0}|${d.stale ? 1 : 0}|${hi ? 1 : 0}|${d.online && !d.stale && !d.waitingGps ? 1 : 0}`
       if (marker && marker.getElement()?.dataset.markerSig !== markerSig) {
         try {
           marker.remove()
