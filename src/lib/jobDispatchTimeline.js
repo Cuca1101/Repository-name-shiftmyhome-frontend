@@ -67,6 +67,12 @@ function arrivalPhrase(place, row, at) {
     : `Arrived at ${place} · ${method}`
 }
 
+/** @param {string} label @param {string} at */
+function stageClockPhrase(label, at) {
+  const clock = formatTimeUK(at)
+  return clock ? `${label} · ${clock}` : label
+}
+
 const CONFIRMED_JOURNEY_LABELS = new Set([
   'Left for collection',
   'Arrived at collection',
@@ -258,6 +264,12 @@ export function buildAdminLiveStage(quote, historyRows = [], job = null, assignm
     : terminal
       ? 'Completed'
       : (LIVE_LABELS[activeId] || 'Not started')
+  if (!cancelled && !terminal && activeId === 'collection-start' && collectionStart) {
+    currentLabel = stageClockPhrase('Left for collection', collectionStart)
+  }
+  if (!cancelled && !terminal && activeId === 'delivery-start' && deliveryStart) {
+    currentLabel = stageClockPhrase('Left for delivery', deliveryStart)
+  }
   if (!cancelled && !terminal && activeId === 'collection-arrived' && collectionArrival) {
     currentLabel = arrivalPhrase('collection', collectionArrival, collectionArrived)
   }

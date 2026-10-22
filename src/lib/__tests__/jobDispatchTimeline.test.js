@@ -5,7 +5,7 @@ import { pathToFileURL } from 'node:url'
 
 register('./esm-extension-loader.mjs', pathToFileURL('./scripts/'))
 
-const { buildAdminLiveStage, liveStageFromPortalBooking, formatLoadDuration } = await import('../jobDispatchTimeline.js')
+const { buildAdminLiveStage, dispatchWorkflowBadge, liveStageFromPortalBooking, formatLoadDuration } = await import('../jobDispatchTimeline.js')
 const { formatDateTimeUK } = await import('../formatDateDisplay.js')
 
 const assigned = {
@@ -101,7 +101,7 @@ test('collection timer runs from arrival until collection complete, excluding tr
     { status: 'on_way', occurred_at: '2026-05-28T10:00:00Z' },
   ])
   assert.equal(travelling.collection.timer.running, false)
-  assert.equal(travelling.currentLabel, 'Left for collection')
+  assert.equal(travelling.currentLabel, 'Left for collection · 11:00')
 
   const onSite = buildAdminLiveStage(assigned, [
     { status: 'on_way', occurred_at: '2026-05-28T10:00:00Z' },
@@ -230,7 +230,7 @@ test('a loading row is not arrival, and GPS arrival before Start is ignored', ()
   assert.equal(loadingOnly.collection.start.at, '2026-10-21T22:03:09.993Z')
   assert.equal(loadingOnly.collection.arrived.at, '')
   assert.equal(loadingOnly.collection.timer.running, false)
-  assert.equal(loadingOnly.currentLabel, 'Left for collection')
+  assert.equal(loadingOnly.currentLabel, 'Left for collection · 23:03')
 
   const earlyGps = buildAdminLiveStage(assigned, [
     { status: 'arrived_pickup', occurred_at: '2026-05-28T08:00:00Z', source: 'gps' },
@@ -251,6 +251,29 @@ test('an earlier assignment does not advance the current one', async () => {
   assert.equal(stage.collection.start.at, '')
   assert.equal(stage.collection.arrived.at, '')
   assert.equal(stage.currentLabel, 'Accepted')
+})
+
+test('a saved on_way Start stays Left for collection with its UK time', () => {
+  const quote = {
+    ...assigned,
+    status: 'on_way',
+    operational_status: 'Left for collection',
+    marketplace_visibility: 'assigned',
+  }
+  const stage = buildAdminLiveStage(quote, [
+    { status: 'on_way', occurred_at: '2026-10-22T12:51:17.736Z', source: 'manual', stop_type: 'pickup' },
+  ])
+  assert.equal(stage.currentLabel, 'Left for collection · 13:51')
+  assert.equal(stage.collection.start.at, '2026-10-22T12:51:17.736Z')
+  assert.equal(dispatchWorkflowBadge(quote).label, 'Active')
+
+  const delivery = buildAdminLiveStage(quote, [
+    { status: 'on_way', occurred_at: '2026-10-22T12:51:17.736Z' },
+    { status: 'pickup_completed', occurred_at: '2026-10-22T13:10:00Z' },
+    { status: 'arrived_pickup', occurred_at: '2026-10-22T13:00:00Z', source: 'manual' },
+    { status: 'in_transit', occurred_at: '2026-10-22T13:20:00Z', source: 'manual' },
+  ])
+  assert.equal(delivery.currentLabel, 'Left for delivery · 14:20')
 })
 
 test('the same saved stamps rebuild after a fresh call', () => {

@@ -97,6 +97,16 @@ function titleCaseModeLabel(m) {
 
 const emptyFc = () => ({ type: 'FeatureCollection', features: [] })
 
+/** Saved stop coordinates are the same point the 100 m arrival check uses. */
+function savedMapPoint(quote, latKey, lngKey) {
+  const lat = Number(quote?.[latKey])
+  const lng = Number(quote?.[lngKey])
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null
+  if (Math.abs(lat) > 90 || Math.abs(lng) > 180) return null
+  if (lat === 0 && lng === 0) return null
+  return { lng, lat }
+}
+
 /**
  * @param {Record<string, unknown>[]} quotes
  * @param {string} token
@@ -119,8 +129,10 @@ async function geocodeQuotesBatch(quotes, token, onProgress, jobs = []) {
         let dlAddr = resolveQuoteDeliveryAddress(q, job)
         if (puAddr === '—') puAddr = ''
         if (dlAddr === '—') dlAddr = ''
-        const pickup = puAddr ? await geocodeAddressCached(puAddr, token) : null
-        const delivery = dlAddr ? await geocodeAddressCached(dlAddr, token) : null
+        const savedPickup = savedMapPoint(q, 'pickup_lat', 'pickup_lng')
+        const savedDelivery = savedMapPoint(q, 'delivery_lat', 'delivery_lng')
+        const pickup = savedPickup || (puAddr ? await geocodeAddressCached(puAddr, token) : null)
+        const delivery = savedDelivery || (dlAddr ? await geocodeAddressCached(dlAddr, token) : null)
         acc[id] = { pickup, delivery }
       }),
     )
