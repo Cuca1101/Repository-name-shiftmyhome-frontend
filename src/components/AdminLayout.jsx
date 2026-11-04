@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { isSupabaseConfigured, supabase } from '../lib/supabase'
-import { endAdminPresence, watchAdminPresence } from '../lib/adminPresence'
+import { ADMIN_PRESENCE_ONLINE_MS, endAdminPresence, watchAdminPresence } from '../lib/adminPresence'
 import { lockFinanceAccess } from '../lib/financeSession'
+import { lockPricingCatalog } from '../lib/pricingCatalogAccess'
 import { showDemoAdminUi } from '../lib/adminProductionMode'
 import {
   ensureSupportRequestNotificationPermission,
@@ -19,7 +20,6 @@ const mainSections = [
     items: [
       { to: '/admin', label: 'Dashboard', end: true, icon: 'layout' },
       { to: '/admin/analytics', label: 'Analytics', end: false, icon: 'chart' },
-      { to: '/admin/sessions', label: 'Admin sign-ins', end: false, icon: 'clock' },
     ],
   },
   {
@@ -77,6 +77,14 @@ const financeNavItem = {
   label: 'Finance & Profit',
   end: false,
   icon: 'wallet',
+}
+
+const sessionsNavItem = {
+  to: '/admin/sessions',
+  label: 'Admin sign-ins',
+  end: false,
+  icon: 'clock',
+  badgeKey: 'adminsOnline',
 }
 
 const legacySupportSection = {
@@ -331,10 +339,12 @@ function pathActive(pathname, item) {
   return pathname === item.to || pathname.startsWith(`${item.to}/`)
 }
 
-function AdminNavItem({ item, pathname, onNavigate, badgeCount, collapsed = false }) {
+function AdminNavItem({ item, pathname, onNavigate, badgeCount, badgeTone = 'alert', collapsed = false }) {
   const active = pathActive(pathname, item)
   const count = Number(badgeCount) > 0 ? Number(badgeCount) : 0
   const label = count > 0 ? `${item.label} (${count})` : item.label
+  const badgeClass = badgeTone === 'live' ? 'bg-emerald-500' : 'bg-red-500'
+  const dotClass = badgeTone === 'live' ? 'bg-emerald-400' : 'bg-red-500'
   return (
     <li>
       <NavLink
@@ -353,12 +363,12 @@ function AdminNavItem({ item, pathname, onNavigate, badgeCount, collapsed = fals
         <span className={`relative shrink-0 ${active ? 'text-emerald-400' : 'text-slate-500 group-hover:text-slate-300'}`}>
           <NavIcon name={item.icon} />
           {collapsed && count > 0 ? (
-            <span className="absolute -right-1 -top-1 hidden h-2 w-2 rounded-full bg-red-500 md:block" aria-hidden />
+            <span className={`absolute -right-1 -top-1 hidden h-2 w-2 rounded-full md:block ${dotClass}`} aria-hidden />
           ) : null}
         </span>
         <span className={`min-w-0 flex-1 truncate ${collapsed ? 'md:sr-only' : ''}`}>{label}</span>
         {count > 0 ? (
-          <span className={`ml-1 inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-red-500 px-1.5 text-[10px] font-bold text-white ${collapsed ? 'md:hidden' : ''}`}>
+          <span className={`ml-1 inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded-full px-1.5 text-[10px] font-bold text-white ${badgeClass} ${collapsed ? 'md:hidden' : ''}`}>
             {count > 99 ? '99+' : count}
           </span>
         ) : null}
@@ -384,6 +394,7 @@ export default function AdminLayout() {
   const [legacyOpen, setLegacyOpen] = useState(() => isLegacySupportPath(pathname))
   const [supportUnreadCount, setSupportUnreadCount] = useState(0)
   const [newLeadsCount, setNewLeadsCount] = useState(0)
+  const [adminsOnline, setAdminsOnline] = useState(0)
   const [supportToast, setSupportToast] = useState(null)
   const knownSupportIdsRef = useRef(new Set())
   const supportHydratedRef = useRef(false)
@@ -453,12 +464,35 @@ export default function AdminLayout() {
     }
   }, [])
 
+  const refreshAdminsOnline = useCallback(async () => {
+    if (!isSupabaseConfigured || !supabase) {
+      setAdminsOnline(0)
+      return
+    }
+    try {
+      const since = new Date(Date.now() - ADMIN_PRESENCE_ONLINE_MS).toISOString()
+      const { data, error } = await supabase
+        .from('admin_login_sessions')
+        .select('email')
+        .is('signed_out_at', null)
+        .gte('last_seen_at', since)
+      if (error) throw error
+      const emails = new Set(
+        (data || []).map((row) => String(row.email || '').trim().toLowerCase()).filter(Boolean),
+      )
+      setAdminsOnline(emails.size)
+    } catch {
+      setAdminsOnline(0)
+    }
+  }, [])
+
   useEffect(() => {
     ensureSupportRequestNotificationPermission()
     void unlockSupportRequestSound()
     void refreshSupportUnreadCount()
     void refreshNewLeadsCount()
-  }, [refreshSupportUnreadCount, refreshNewLeadsCount])
+    void refreshAdminsOnline()
+  }, [refreshSupportUnreadCount, refreshNewLeadsCount, refreshAdminsOnline])
 
   useEffect(() => {
     const onRead = () => {
@@ -467,12 +501,13 @@ export default function AdminLayout() {
     window.addEventListener('customer-leads-read', onRead)
     const timer = window.setInterval(() => {
       void refreshNewLeadsCount()
+      void refreshAdminsOnline()
     }, 30000)
     return () => {
       window.removeEventListener('customer-leads-read', onRead)
       window.clearInterval(timer)
     }
-  }, [refreshNewLeadsCount])
+  }, [refreshNewLeadsCount, refreshAdminsOnline])
 
   useEffect(() => {
     if (!isSupabaseConfigured || !supabase) return undefined
@@ -547,6 +582,7 @@ export default function AdminLayout() {
   }, [supportToast])
 
   async function handleLogout() {
+    lockPricingCatalog()
     await lockFinanceAccess()
     await endAdminPresence()
     if (supabase) await supabase.auth.signOut()
@@ -557,10 +593,15 @@ export default function AdminLayout() {
     ...mainSections.flatMap((s) => s.items),
     ...legacySupportSection.items,
     financeNavItem,
+    sessionsNavItem,
   ]
 
   const currentTitle = allNavItems.find((item) => pathActive(pathname, item))?.label ?? 'Admin'
-  const badgeCounts = { supportUnread: supportUnreadCount, newLeads: newLeadsCount }
+  const badgeCounts = {
+    supportUnread: supportUnreadCount,
+    newLeads: newLeadsCount,
+    adminsOnline,
+  }
   const financePage = pathname === '/admin/finance' || pathname.startsWith('/admin/finance/')
   const customerLeadsWide =
     pathname === '/admin/customer-leads' ||
@@ -630,6 +671,7 @@ export default function AdminLayout() {
                     pathname={pathname}
                     onNavigate={closeSidebar}
                     badgeCount={item.badgeKey ? badgeCounts[item.badgeKey] : 0}
+                    badgeTone={item.badgeKey === 'adminsOnline' ? 'live' : 'alert'}
                     collapsed={sidebarCollapsed}
                   />
                 ))}
@@ -716,6 +758,14 @@ export default function AdminLayout() {
                   <span className={`min-w-0 flex-1 truncate ${sidebarCollapsed ? 'md:sr-only' : ''}`}>Log out</span>
                 </button>
               </li>
+              <AdminNavItem
+                item={sessionsNavItem}
+                pathname={pathname}
+                onNavigate={closeSidebar}
+                badgeCount={adminsOnline}
+                badgeTone="live"
+                collapsed={sidebarCollapsed}
+              />
             </ul>
           </div>
         </nav>

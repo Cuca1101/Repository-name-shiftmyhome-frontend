@@ -67,3 +67,14 @@ export function quoteInRange(q, start, end) {
   const t = quoteRevenueTimestampMs(q)
   return t >= start.getTime() && t <= end.getTime()
 }
+
+/**
+ * The same length of time immediately before a range.
+ * @param {{ start: Date, end: Date, label?: string }} range
+ */
+export function previousAnalyticsRange(range) {
+  const span = Math.max(0, range.end.getTime() - range.start.getTime())
+  const end = new Date(range.start.getTime() - 1)
+  const start = new Date(end.getTime() - span)
+  return { start, end, label: 'Previous period' }
+}

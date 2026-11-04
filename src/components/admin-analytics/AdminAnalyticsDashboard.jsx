@@ -10,7 +10,7 @@ import {
   Activity,
   PieChart,
 } from 'lucide-react'
-import { analyticsDateRange } from '../../lib/adminAnalyticsDateRange'
+import { analyticsDateRange, previousAnalyticsRange } from '../../lib/adminAnalyticsDateRange'
 import {
   buildActivityFeed,
   buildAdminAnalyticsModel,
@@ -19,8 +19,11 @@ import {
   buildServiceBreakdown,
   buildTimeSeries,
   enrichDriverEarningsRows,
+  fillDailySeries,
+  analyticsServiceName,
   filterQuotesForAnalytics,
   money,
+  rollupSeries,
 } from '../../lib/adminAnalyticsCompute'
 import { filterProductionAdminQuotes } from '../../lib/adminProductionFilters'
 import { subscribeAdminDataRefresh } from '../../lib/adminDataRefresh'
@@ -46,6 +49,14 @@ const card =
 /**
  * @param {{ label: string, value: string, sub?: string, icon?: import('react').ReactNode, tone?: string }} props
  */
+function periodDelta(current, previous, asMoney) {
+  const diff = Number(current) - Number(previous)
+  if (!Number.isFinite(diff) || Math.abs(diff) < (asMoney ? 0.005 : 0.5)) return 'Same as the previous period'
+  const sign = diff > 0 ? '+' : '−'
+  const amount = asMoney ? money(Math.abs(diff)) : String(Math.round(Math.abs(diff)))
+  return `${sign}${amount} vs the previous period`
+}
+
 function KpiCard({ label, value, sub, icon, tone = 'slate' }) {
   const tones = {
     slate: 'text-slate-900',
@@ -104,32 +115,56 @@ export default function AdminAnalyticsDashboard() {
 
   useEffect(() => subscribeAdminDataRefresh(load), [load])
 
-  const baseModel = useMemo(
+  const liveModel = useMemo(
     () => buildAdminAnalyticsModel(quotes, jobs, driverCharges),
     [quotes, jobs, driverCharges],
   )
 
   const range = useMemo(() => analyticsDateRange(rangePreset), [rangePreset])
-
-  const filtered = useMemo(
-    () =>
-      filterQuotesForAnalytics(quotes, range, {
-        driver: driverFilter || undefined,
-        service: serviceFilter || undefined,
-        status: statusFilter || undefined,
-      }),
-    [quotes, range, driverFilter, serviceFilter, statusFilter],
+  const previousRange = useMemo(() => previousAnalyticsRange(range), [range])
+  const listFilters = useMemo(
+    () => ({
+      driver: driverFilter || undefined,
+      service: serviceFilter || undefined,
+      status: statusFilter || undefined,
+    }),
+    [driverFilter, serviceFilter, statusFilter],
   )
 
-  const series = useMemo(() => buildTimeSeries(filtered, driverCharges), [filtered, driverCharges])
-  const serviceRows = useMemo(() => buildServiceBreakdown(filtered), [filtered])
+  const filtered = useMemo(
+    () => filterQuotesForAnalytics(quotes, range, listFilters),
+    [quotes, range, listFilters],
+  )
+  const previousQuotes = useMemo(
+    () => filterQuotesForAnalytics(quotes, previousRange, listFilters),
+    [quotes, previousRange, listFilters],
+  )
+
+  const period = useMemo(
+    () => buildAdminAnalyticsModel(filtered, jobs, driverCharges),
+    [filtered, jobs, driverCharges],
+  )
+  const prior = useMemo(
+    () => buildAdminAnalyticsModel(previousQuotes, jobs, driverCharges),
+    [previousQuotes, jobs, driverCharges],
+  )
+
+  const chartBucket = rangePreset === 'year' ? 'month' : rangePreset === '90d' ? 'week' : 'day'
+  const series = useMemo(() => {
+    const daily = fillDailySeries(buildTimeSeries(filtered, driverCharges), range)
+    return rollupSeries(daily, chartBucket)
+  }, [filtered, driverCharges, range, chartBucket])
+  const serviceRows = useMemo(
+    () => buildServiceBreakdown(filtered, driverCharges),
+    [filtered, driverCharges],
+  )
   const locationRows = useMemo(() => buildLocationBreakdown(filtered), [filtered])
   const jobRows = useMemo(
     () => buildJobProfitabilityRows(filtered, 80, driverCharges),
     [filtered, driverCharges],
   )
-  const driverRows = useMemo(() => enrichDriverEarningsRows(baseModel.driverRows), [baseModel.driverRows])
-  const activity = useMemo(() => buildActivityFeed(quotes), [quotes])
+  const driverRows = useMemo(() => enrichDriverEarningsRows(period.driverRows), [period.driverRows])
+  const activity = useMemo(() => buildActivityFeed(filtered), [filtered])
 
   const driverOptions = useMemo(() => {
     const set = new Set()
@@ -145,36 +180,33 @@ export default function AdminAnalyticsDashboard() {
   const serviceOptions = useMemo(() => {
     const set = new Set()
     for (const q of quotes) {
-      const s = String(q.service || q.service_type || '').trim()
-      if (s) set.add(s)
+      const s = analyticsServiceName(q)
+      if (s && s !== 'Other') set.add(s)
     }
     return [...set].sort()
   }, [quotes])
 
-  const chartSlice = useMemo(() => {
-    const max = rangePreset === 'today' || rangePreset === '7d' ? 14 : 21
-    return series.slice(-max)
-  }, [series, rangePreset])
-
   const bookingStats = useMemo(() => {
-    let paid = 0
     let deposit = 0
     let full = 0
     let unpaid = 0
+    for (const q of filtered) {
+      const ps = String(q.payment_status || '')
+      if (ps === 'paid') full += 1
+      else if (ps === 'deposit_paid') deposit += 1
+    }
     for (const q of quotes) {
       const ps = String(q.payment_status || '')
-      if (ps === 'paid') {
-        paid += 1
-        full += 1
-      } else if (ps === 'deposit_paid') {
-        paid += 1
-        deposit += 1
-      } else unpaid += 1
+      if (ps === 'paid' || ps === 'deposit_paid') continue
+      const created = q.created_at ? new Date(String(q.created_at)).getTime() : NaN
+      if (Number.isFinite(created) && created >= range.start.getTime() && created <= range.end.getTime()) {
+        unpaid += 1
+      }
     }
-    return { paid, deposit, full, unpaid, cancelled: baseModel.cancelled.length }
-  }, [quotes, baseModel.cancelled.length])
+    return { deposit, full, unpaid, cancelled: period.kpis.cancelledJobs }
+  }, [filtered, quotes, range, period.kpis.cancelledJobs])
 
-  const { kpis } = baseModel
+  const { kpis } = period
 
   if (loading) {
     return (
@@ -194,8 +226,8 @@ export default function AdminAnalyticsDashboard() {
             Analytics
           </h2>
           <p className="mt-1 max-w-2xl text-sm text-slate-600">
-            Revenue, driver payouts, platform profit, and operations performance. Internal accounting fields
-            only — Stripe and customer totals are unchanged.
+            Figures follow the period you pick. Booked value is the customer price, including a price changed
+            by admin. Collected is the money already paid. Times are UK.
           </p>
         </div>
         <button
@@ -275,93 +307,98 @@ export default function AdminAnalyticsDashboard() {
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <KpiCard
-          label="Total customer revenue"
+          label="Booked value"
           value={money(kpis.totalRevenue)}
+          sub={periodDelta(kpis.totalRevenue, prior.kpis.totalRevenue, true)}
           icon={<PoundSterling className="h-4 w-4" />}
           tone="brand"
         />
-        <KpiCard label="Revenue today" value={money(kpis.revenueToday)} sub="Paid bookings" />
-        <KpiCard label="Revenue this week" value={money(kpis.revenueWeek)} />
-        <KpiCard label="Revenue this month" value={money(kpis.revenueMonth)} />
-        <KpiCard label="Total bookings" value={String(kpis.totalBookings)} icon={<TrendingUp className="h-4 w-4" />} />
-        <KpiCard label="Completed jobs" value={String(kpis.completedJobs)} tone="emerald" />
-        <KpiCard label="Active jobs" value={String(kpis.activeJobs)} icon={<Truck className="h-4 w-4" />} />
-        <KpiCard label="Avg booking value" value={money(kpis.avgBookingValue)} />
-        <KpiCard label="Deposit revenue" value={money(kpis.depositRevenue)} tone="amber" />
-        <KpiCard label="Outstanding balance" value={money(kpis.outstandingBalance)} tone="amber" />
         <KpiCard
-          label="Driver payouts (gross)"
-          value={money(kpis.totalDriverPayouts)}
-          icon={<Users className="h-4 w-4" />}
-        />
-        <KpiCard
-          label="Net driver payout"
-          value={money(kpis.totalDriverPayoutsNet)}
-          sub="After deductions"
+          label="Collected"
+          value={money(kpis.collected)}
+          sub={periodDelta(kpis.collected, prior.kpis.collected, true)}
           tone="emerald"
         />
         <KpiCard
-          label="Paid to drivers"
-          value={money(kpis.paidToDrivers)}
-          sub="Settlement recorded"
-          tone="brand"
-        />
-        <KpiCard
-          label="Pending driver payouts"
-          value={money(kpis.pendingDriverPayouts)}
-          sub="Net minus paid"
+          label="Still to collect"
+          value={money(kpis.outstandingBalance)}
+          sub="Left on these bookings"
           tone="amber"
         />
-        <KpiCard label="Partner payouts" value={money(kpis.totalPartnerPayouts)} tone="violet" />
+        <KpiCard
+          label="Platform profit"
+          value={money(kpis.platformAdjustedProfit)}
+          sub={periodDelta(kpis.platformAdjustedProfit, prior.kpis.platformAdjustedProfit, true)}
+          icon={<Wallet className="h-4 w-4" />}
+          tone="emerald"
+        />
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <KpiCard
+          label="Paid bookings"
+          value={String(kpis.totalBookings)}
+          sub={periodDelta(kpis.totalBookings, prior.kpis.totalBookings, false)}
+          icon={<TrendingUp className="h-4 w-4" />}
+        />
+        <KpiCard label="Finished" value={String(kpis.completedJobs)} sub="Of these bookings" tone="emerald" />
+        <KpiCard label="Still open" value={String(kpis.activeJobs)} sub="Of these bookings" icon={<Truck className="h-4 w-4" />} />
+        <KpiCard label="Average booking" value={money(kpis.avgBookingValue)} />
+        <KpiCard label="Fully paid" value={String(bookingStats.full)} />
+        <KpiCard label="Deposit only" value={String(bookingStats.deposit)} sub={money(kpis.depositRevenue)} tone="amber" />
+        <KpiCard label="Cancelled after payment" value={String(bookingStats.cancelled)} />
+        <KpiCard label="Quotes not paid" value={String(bookingStats.unpaid)} sub="Created in this period" />
+        <KpiCard
+          label="Net driver pay"
+          value={money(kpis.totalDriverPayoutsNet)}
+          sub={`Gross ${money(kpis.totalDriverPayouts)}`}
+          icon={<Users className="h-4 w-4" />}
+        />
+        <KpiCard label="Paid to drivers" value={money(kpis.paidToDrivers)} sub="Recorded payouts" tone="brand" />
+        <KpiCard label="Driver pay still due" value={money(kpis.pendingDriverPayouts)} tone="amber" />
+        <KpiCard label="Partner pay" value={money(kpis.totalPartnerPayouts)} tone="violet" />
         <KpiCard
           label="Driver charges"
           value={money(kpis.totalDriverCharges)}
-          sub={`${kpis.driverChargeCount ?? 0} records · damage ${money(kpis.totalDamageCharges)}`}
+          sub={`${kpis.driverChargeCount ?? 0} records · damage ${money(kpis.totalDamageCharges)} · cancel ${money(kpis.totalDeallocCancelCharges)}`}
           tone="amber"
         />
+        <KpiCard label="Average profit" value={money(kpis.avgProfitPerJob)} sub="After recovered charges" />
         <KpiCard
-          label="Dealloc / cancel charges"
-          value={money(kpis.totalDeallocCancelCharges)}
-          tone="amber"
-        />
-        <KpiCard
-          label="Platform gross profit"
-          value={money(kpis.platformGrossProfit)}
-          icon={<Wallet className="h-4 w-4" />}
-        />
-        <KpiCard
-          label="Adjusted platform profit"
-          value={money(kpis.platformAdjustedProfit)}
-          sub="Includes recovered driver charges"
-          icon={<Wallet className="h-4 w-4" />}
-          tone="emerald"
-        />
-        <KpiCard label="Avg profit / job" value={money(kpis.avgProfitPerJob)} />
-        <KpiCard
-          label="Top earning driver"
+          label="Top driver"
           value={kpis.topDriverName}
           sub={money(kpis.topDriverEarnings)}
           icon={<Users className="h-4 w-4" />}
         />
-        <KpiCard label="Awaiting assignment" value={String(kpis.awaitingAssignment)} tone="amber" />
+        <KpiCard
+          label="Live now"
+          value={String(liveModel.kpis.activeJobs)}
+          sub={`${liveModel.kpis.awaitingAssignment} waiting for a driver`}
+          tone="amber"
+        />
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
         <div className={card}>
-          <h3 className="text-sm font-bold text-slate-900">Revenue by day</h3>
+          <h3 className="text-sm font-bold text-slate-900">
+            Revenue by {chartBucket === 'month' ? 'month' : chartBucket === 'week' ? 'week' : 'day'}
+          </h3>
           <p className="mt-0.5 text-xs text-slate-500">{range.label} · {filtered.length} bookings</p>
           <div className="mt-4">
+            <div className="max-h-80 overflow-y-auto pr-1">
             <AdminMiniBarChart
-              data={chartSlice.map((d) => ({ label: d.label, value: d.revenue }))}
+              data={series.map((d) => ({ label: d.label, value: d.revenue }))}
               valueLabel="Revenue"
             />
+            </div>
           </div>
         </div>
         <div className={card}>
           <h3 className="text-sm font-bold text-slate-900">Revenue vs payouts</h3>
           <div className="mt-4">
+            <div className="max-h-80 overflow-y-auto pr-1">
             <AdminMiniBarChart
-              data={chartSlice.map((d) => ({
+              data={series.map((d) => ({
                 label: d.label,
                 value: d.revenue,
                 secondary: d.totalPayout,
@@ -369,22 +406,30 @@ export default function AdminAnalyticsDashboard() {
               valueLabel="Revenue"
               secondaryLabel="Payouts"
             />
+            </div>
           </div>
         </div>
         <div className={card}>
-          <h3 className="text-sm font-bold text-slate-900">Profit by day</h3>
+          <h3 className="text-sm font-bold text-slate-900">
+            Profit by {chartBucket === 'month' ? 'month' : chartBucket === 'week' ? 'week' : 'day'}
+          </h3>
           <div className="mt-4">
+            <div className="max-h-80 overflow-y-auto pr-1">
             <AdminMiniBarChart
-              data={chartSlice.map((d) => ({ label: d.label, value: Math.max(0, d.profit) }))}
+              data={series.map((d) => ({ label: d.label, value: d.profit }))}
               valueLabel="Profit"
             />
+            </div>
           </div>
         </div>
         <div className={card}>
           <h3 className="text-sm font-bold text-slate-900">Earnings by driver</h3>
           <div className="mt-4">
             <AdminMiniBarChart
-              data={driverRows.slice(0, 8).map((d) => ({ label: d.name.slice(0, 12), value: d.payout }))}
+              data={driverRows
+                .filter((d) => d.name !== 'Unassigned')
+                .slice(0, 8)
+                .map((d) => ({ label: d.name, value: d.payout }))}
               valueLabel="Paid out"
             />
           </div>
@@ -430,10 +475,10 @@ export default function AdminAnalyticsDashboard() {
           <dl className="mt-3 grid grid-cols-2 gap-3 text-sm">
             <div>
               <dt className="text-slate-500">Paid bookings</dt>
-              <dd className="font-bold text-slate-900">{bookingStats.paid}</dd>
+              <dd className="font-bold text-slate-900">{kpis.totalBookings}</dd>
             </div>
             <div>
-              <dt className="text-slate-500">Unpaid quotes</dt>
+              <dt className="text-slate-500">Quotes not paid</dt>
               <dd className="font-bold text-slate-900">{bookingStats.unpaid}</dd>
             </div>
             <div>
@@ -532,7 +577,7 @@ export default function AdminAnalyticsDashboard() {
                 <tr key={r.id} className="border-b border-slate-50 hover:bg-slate-50/50">
                   <td className="py-2 pr-2">
                     <Link
-                      to={`/admin/available-jobs/${r.id}`}
+                      to={r.href || `/admin/available-jobs/${r.id}`}
                       className="font-mono text-xs font-semibold text-brand-700 hover:underline"
                     >
                       {r.quoteRef}
@@ -580,6 +625,9 @@ export default function AdminAnalyticsDashboard() {
           Live activity
         </h3>
         <ul className="mt-3 max-h-80 space-y-2 overflow-y-auto">
+          {activity.length === 0 ? (
+            <li className="px-1 py-4 text-sm text-slate-500">Nothing recorded in this period.</li>
+          ) : null}
           {activity.map((ev) => (
             <li
               key={`${ev.type}-${ev.at}-${ev.quoteId}`}

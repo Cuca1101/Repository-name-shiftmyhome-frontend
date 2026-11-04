@@ -16,7 +16,10 @@ export default function AdminMiniBarChart({
     return <p className="py-8 text-center text-sm text-slate-500">No data in this period.</p>
   }
 
-  const max = Math.max(...data.map((d) => Math.max(d.value, d.secondary ?? 0)), 1)
+  const max = Math.max(
+    ...data.map((d) => Math.max(Math.abs(d.value), Math.abs(d.secondary ?? 0))),
+    1,
+  )
 
   return (
     <div className="space-y-3">
@@ -34,18 +37,20 @@ export default function AdminMiniBarChart({
       ) : null}
       <ul className="space-y-2">
         {data.map((row) => (
-          <li key={row.label} className="grid grid-cols-[3.5rem_1fr_auto] items-center gap-2 text-xs">
-            <span className="font-medium text-slate-600">{row.label}</span>
+          <li key={`${row.label}-${row.value}`} className="grid grid-cols-[minmax(4.5rem,7.5rem)_1fr_auto] items-center gap-2 text-xs">
+            <span className="truncate font-medium text-slate-600" title={row.label}>{row.label}</span>
             <div className="flex h-5 min-w-0 gap-0.5 overflow-hidden rounded-md bg-slate-100">
               <div
-                className="h-full bg-brand-600 transition-all"
-                style={{ width: `${Math.max(4, (row.value / max) * 100)}%` }}
+                className={`h-full transition-all ${row.value < 0 ? 'bg-red-500' : 'bg-brand-600'}`}
+                style={{ width: row.value === 0 ? '0%' : `${Math.max(2, (Math.abs(row.value) / max) * 100)}%` }}
                 title={`${valueLabel}: ${formatValue(row.value)}`}
               />
               {row.secondary != null ? (
                 <div
                   className="h-full bg-violet-400 transition-all"
-                  style={{ width: `${Math.max(2, (row.secondary / max) * 100)}%` }}
+                  style={{
+                    width: row.secondary === 0 ? '0%' : `${Math.max(2, (Math.abs(row.secondary) / max) * 100)}%`,
+                  }}
                   title={`${secondaryLabel}: ${formatValue(row.secondary)}`}
                 />
               ) : null}

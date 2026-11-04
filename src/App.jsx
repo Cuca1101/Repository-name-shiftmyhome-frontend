@@ -45,6 +45,7 @@ import JobHistoryAdmin from './components/JobHistoryAdmin'
 import JobCardDetails from './components/JobCardDetails'
 import PricingEngineAdmin from './components/PricingEngineAdmin'
 import ItemsLibraryAdmin from './components/ItemsLibraryAdmin'
+import PricingCatalogGate from './components/admin/PricingCatalogGate'
 import ReviewsAdmin from './components/ReviewsAdmin'
 import WebsiteCmsAdmin from './components/admin/WebsiteCmsAdmin'
 import PhoneBookingAdmin from './components/PhoneBookingAdmin'
@@ -312,8 +313,8 @@ export default function App() {
         <Route path="bookings" element={<BookingsAdmin />} />
         <Route path="job-history" element={<JobHistoryAdmin />} />
         <Route path="jobs/:id" element={<JobCardDetails />} />
-        <Route path="pricing" element={<PricingEngineAdmin />} />
-        <Route path="items" element={<ItemsLibraryAdmin />} />
+        <Route path="pricing" element={<PricingCatalogGate><PricingEngineAdmin /></PricingCatalogGate>} />
+        <Route path="items" element={<PricingCatalogGate><ItemsLibraryAdmin /></PricingCatalogGate>} />
         <Route path="reviews" element={<ReviewsAdmin />} />
         <Route path="website-cms" element={<WebsiteCmsAdmin />} />
         <Route path="seo" element={<SeoDashboardAdmin />} />

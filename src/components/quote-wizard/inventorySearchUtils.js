@@ -22,6 +22,8 @@ const SEARCH_FOLDS = [
   [/daybed/g, 'day bed'],
   [/beanbag/g, 'bean bag'],
   [/bunkbed/g, 'bunk bed'],
+  [/kalax/g, 'kallax'],
+  [/washingmachine/g, 'washing machine'],
   [/vacuumcleaner/g, 'vacuum cleaner'],
   [/crosstrainer/g, 'cross trainer'],
   [/dollhouse/g, 'doll house'],
