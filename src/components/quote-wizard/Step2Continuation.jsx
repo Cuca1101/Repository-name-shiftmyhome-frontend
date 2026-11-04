@@ -12,6 +12,7 @@ import DesktopFurnitureServicesSection from './DesktopFurnitureServicesSection'
 import InlineInventoryQtyControl from './InlineInventoryQtyControl'
 import JobDetailsContactSection from './JobDetailsContactSection'
 import PackingMaterialsSection from './PackingMaterialsSection'
+import DepotMileageTable from '../admin/DepotMileageTable'
 import QuoteRouteMap from './QuoteRouteMap'
 import QuoteSpecialInstructionsField from './QuoteSpecialInstructionsField'
 import { placeSummary } from './ReviewMoveSummaries'
@@ -70,8 +71,8 @@ export function Step2ContactCard({ lockMobile = false }) {
 }
 
 function Step2RouteMap() {
-  const { wizard, handleDistanceFromRoute } = useQuoteWizard()
-  return (
+  const { mode, wizard, handleDistanceFromRoute } = useQuoteWizard()
+  const map = (
     <QuoteRouteMap
       variant="review"
       shellClass="relative h-[220px] min-h-[220px] w-full min-w-0 overflow-hidden md:h-[260px] md:min-h-[260px]"
@@ -82,6 +83,20 @@ function Step2RouteMap() {
       distanceMiles={wizard?.distanceMiles}
       onDistanceFromRoute={handleDistanceFromRoute}
     />
+  )
+  if (mode !== 'admin') return map
+  return (
+    <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm [&_.quote-route-map]:rounded-none [&_.quote-route-map]:border-0 [&_.quote-route-map]:shadow-none">
+      {map}
+      <DepotMileageTable
+        pickupLng={wizard?.pickupLng}
+        pickupLat={wizard?.pickupLat}
+        deliveryLng={wizard?.deliveryLng}
+        deliveryLat={wizard?.deliveryLat}
+        pickupAddress={wizard?.pickupAddress}
+        deliveryAddress={wizard?.deliveryAddress}
+      />
+    </div>
   )
 }
 

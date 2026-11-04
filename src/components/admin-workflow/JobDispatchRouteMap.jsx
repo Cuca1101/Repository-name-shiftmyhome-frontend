@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import CustomerLeadRouteMap from '../admin/CustomerLeadRouteMap'
+import DepotMileageTable from '../admin/DepotMileageTable'
 import { isBritainOrIreland, persistMissingStopCoordinates, resolveQuoteRouteCoordinates } from '../../lib/quoteRouteCoordinates'
 import { isSupabaseConfigured, supabase } from '../../lib/supabase'
 import { isDriverLocationStale } from '../../lib/data/driverLivePositionsRepository'
@@ -182,6 +183,14 @@ export default function JobDispatchRouteMap({ q, job = null, liveTracking = fals
             driverLive={Boolean(driverFix?.live)}
             driverWaiting={false}
             driverName={showDriver ? driverName : ''}
+          />
+          <DepotMileageTable
+            pickupLng={coords.pickupLng}
+            pickupLat={coords.pickupLat}
+            deliveryLng={coords.deliveryLng}
+            deliveryLat={coords.deliveryLat}
+            pickupAddress={pickupAddress}
+            deliveryAddress={deliveryAddress}
           />
           {driveLabel || liveTracking ? (
             <p className="border-t border-slate-200 bg-white px-3 py-1.5 text-[11px] text-slate-600">

@@ -1,6 +1,8 @@
 import { applyInventoryLineQuantityDelta } from '../../lib/inventoryLineQuantity'
 import InlineInventoryQtyControl from './InlineInventoryQtyControl'
+import DepotMileageTable from '../admin/DepotMileageTable'
 import QuoteRouteMap from './QuoteRouteMap'
+import { useQuoteWizard } from './QuoteWizardContext'
 
 function formatLine(line) {
   const qty = Math.max(0, Number(line?.quantity) || 0)
@@ -23,6 +25,7 @@ export default function QuoteReviewMapInventory({
   onInventoryLinesChange,
   afterMap = null,
 }) {
+  const { mode } = useQuoteWizard()
   const lines = (Array.isArray(inventoryLines) ? inventoryLines : []).filter(
     (line) => Math.max(0, Number(line?.quantity) || 0) > 0,
   )
@@ -36,7 +39,13 @@ export default function QuoteReviewMapInventory({
 
   return (
     <div className="flex min-w-0 flex-col gap-4">
-      <div className="min-w-0">
+      <div
+        className={
+          mode === 'admin'
+            ? 'min-w-0 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm [&_.quote-route-map]:rounded-none [&_.quote-route-map]:border-0 [&_.quote-route-map]:shadow-none'
+            : 'min-w-0'
+        }
+      >
         <QuoteRouteMap
           variant="review"
           pickupLng={wizard?.pickupLng}
@@ -46,6 +55,16 @@ export default function QuoteReviewMapInventory({
           distanceMiles={wizard?.distanceMiles}
           onDistanceFromRoute={onDistanceFromRoute}
         />
+        {mode === 'admin' ? (
+          <DepotMileageTable
+            pickupLng={wizard?.pickupLng}
+            pickupLat={wizard?.pickupLat}
+            deliveryLng={wizard?.deliveryLng}
+            deliveryLat={wizard?.deliveryLat}
+            pickupAddress={wizard?.pickupAddress}
+            deliveryAddress={wizard?.deliveryAddress}
+          />
+        ) : null}
       </div>
       {afterMap}
       <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">

@@ -66,6 +66,7 @@ import { listSpecialistHeavyItemDetails } from '../lib/inventoryPricing'
 import { resolveCustomerLeadVolumeM3 } from '../lib/customerLeadCapture'
 import { resolveCustomerPaymentSummary } from '../lib/customerPaymentSummary'
 import CustomerLeadRouteMap from './admin/CustomerLeadRouteMap'
+import DepotMileageTable from './admin/DepotMileageTable'
 import CustomerLeadOffersSection from './admin/CustomerLeadOffersSection'
 
 function ScreenModal({ title, onClose, children, wide = false }) {
@@ -1044,6 +1045,14 @@ export default function CustomerLeadDetailAdmin() {
             deliveryLat={s1.deliveryLat}
             onDriveTime={setDriveSeconds}
             frameClass="relative h-[200px] min-h-[200px] w-full min-w-0 overflow-hidden sm:h-[220px] sm:min-h-[220px] lg:h-[240px] lg:min-h-[240px]"
+          />
+          <DepotMileageTable
+            pickupLng={s1.pickupLng}
+            pickupLat={s1.pickupLat}
+            deliveryLng={s1.deliveryLng}
+            deliveryLat={s1.deliveryLat}
+            pickupAddress={pickupAddress}
+            deliveryAddress={deliveryAddress}
           />
         </article>
 
