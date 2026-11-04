@@ -1,4 +1,5 @@
 import { formatDateShortUK } from './formatDateDisplay'
+import { getDriverLifecyclePhase } from './driverAdminLifecycle'
 
 /**
  * @param {string} address
@@ -39,4 +40,26 @@ export function driverVerificationBadges(types) {
     badges.push({ key: 'poa', label: 'Proof of address', tone: 'violet' })
   }
   return badges
+}
+
+/** Account badge. On Duty and Offline are separate and only apply to an active account. */
+export function driverAccountBadge(driver) {
+  const phase = getDriverLifecyclePhase(driver)
+  if (phase === 'archived') return 'Archived'
+  if (phase === 'suspended') return 'Suspended'
+  return 'Active'
+}
+
+/**
+ * @param {Record<string, unknown>} driver
+ * @param {Record<string, unknown> | null | undefined} liveRow
+ * @returns {'On Duty' | 'Offline' | null}
+ */
+export function driverDutyBadge(driver, liveRow) {
+  if (getDriverLifecyclePhase(driver) !== 'active') return null
+  const duty = String(driver?.dutyStatus || '').trim().toLowerCase()
+  const liveStatus = String(liveRow?.status || '').trim().toLowerCase()
+  const liveOn = Boolean(liveRow) && liveRow.stale === false && Boolean(liveStatus) && liveStatus !== 'off_duty'
+  if (duty === 'on_duty' || liveOn) return 'On Duty'
+  return 'Offline'
 }

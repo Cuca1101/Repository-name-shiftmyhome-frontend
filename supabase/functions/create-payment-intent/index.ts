@@ -324,16 +324,24 @@ function parseInventoryRows(inventoryText: string, inventoryRaw?: unknown) {
       const name = String(item.item_name ?? item.name ?? '').trim()
       if (!name) continue
       const q = Number(item.quantity ?? item.qty ?? 1)
-      const v = Number(item.line_volume_m3 ?? item.volume_m3 ?? item.volume ?? NaN)
+      const quantity = Number.isFinite(q) && q > 0 ? Math.round(q) : 1
+      const unit = Number(item.m3 ?? item.cubic_metres_per_unit ?? NaN)
+      const lineVol = Number(item.line_volume_m3 ?? item.volume_m3 ?? item.volume ?? NaN)
+      const volume = Number.isFinite(lineVol)
+        ? lineVol
+        : Number.isFinite(unit)
+          ? Math.round(unit * quantity * 100) / 100
+          : null
       rows.push({
         item_name: name,
-        quantity: Number.isFinite(q) && q > 0 ? Math.round(q) : 1,
-        volume_m3: Number.isFinite(v) ? v : null,
+        quantity,
+        volume_m3: volume,
         weight_category: item.weight_type ? String(item.weight_type) : null,
-        notes: [String(item.size_category ?? '').trim(), String(item.notes ?? '').trim()].filter(Boolean).join(' | ') || null,
+        notes: [String(item.category ?? item.size_category ?? '').trim(), String(item.notes ?? '').trim()].filter(Boolean).join(' | ') || null,
       })
     }
   }
+  if (rows.length) return rows
   const lines = normalizeSegments(inventoryText)
   for (const line of lines) {
     const parsed = parseSegment(line)

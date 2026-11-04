@@ -17,9 +17,10 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-/** Must match Notifee ANDROID_CHANNELS.jobs in the driver app. */
-const ANDROID_JOBS_CHANNEL = 'smh_jobs_v3'
-const ANDROID_DEFAULT_CHANNEL = 'smh_default_v3'
+/** Must match Notifee ANDROID_CHANNELS in the driver app. v3 is no longer created. */
+const ANDROID_JOBS_CHANNEL = 'smh_jobs_v4'
+const ANDROID_REMOVED_CHANNEL = 'smh_removed_v1'
+const ANDROID_DEFAULT_CHANNEL = 'smh_default_v4'
 
 type RequestBody = {
   driverId: string
@@ -98,9 +99,26 @@ Deno.serve(async (req) => {
 
     const eventType = body.type ?? 'new_job_assigned'
     const channelId =
-      eventType === 'new_job_assigned' || eventType === 'urgent_alert'
-        ? ANDROID_JOBS_CHANNEL
-        : ANDROID_DEFAULT_CHANNEL
+      eventType === 'job_removed'
+        ? ANDROID_REMOVED_CHANNEL
+        : eventType === 'new_job_assigned' || eventType === 'urgent_alert'
+          ? ANDROID_JOBS_CHANNEL
+          : ANDROID_DEFAULT_CHANNEL
+
+    let assignmentId = ''
+    let assignmentUpdatedAt = ''
+    if (body.quoteId && driver.id) {
+      const { data: assignment } = await admin
+        .from('job_assignments')
+        .select('id, updated_at')
+        .eq('quote_id', body.quoteId)
+        .eq('driver_id', driver.id)
+        .order('updated_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+      assignmentId = assignment?.id ? String(assignment.id) : ''
+      assignmentUpdatedAt = assignment?.updated_at ? String(assignment.updated_at) : ''
+    }
 
     const dataPayload: Record<string, string> = {
       type: eventType,
@@ -109,11 +127,14 @@ Deno.serve(async (req) => {
       quote_id: body.quoteId ?? '',
       quote_ref: body.quoteRef ?? '',
       stop_key: body.stopKey ?? '',
+      assignment_id: assignmentId,
+      assignment_updated_at: assignmentUpdatedAt,
       ...(body.data ?? {}),
     }
 
-    // notification + data: Android shows system tray with channel sound when
-    // the app is backgrounded/killed (JS may be suspended).
+    // Data-only + high priority wakes the driver app with the screen off.
+    // The app posts one Notifee alert on the loud channel. A system notification
+    // here as well played a second time, or stayed silent on this phone.
     const fcmRes = await fetch('https://fcm.googleapis.com/fcm/send', {
       method: 'POST',
       headers: {
@@ -124,22 +145,9 @@ Deno.serve(async (req) => {
         to: driver.push_token,
         priority: 'high',
         content_available: true,
-        notification: {
-          title,
-          body: messageBody ?? '',
-          sound: 'default',
-          android_channel_id: channelId,
+        data: {
+          ...dataPayload,
           channel_id: channelId,
-        },
-        data: dataPayload,
-        android: {
-          priority: 'high',
-          notification: {
-            channel_id: channelId,
-            sound: 'default',
-            default_vibrate_timings: true,
-            notification_priority: 'PRIORITY_MAX',
-          },
         },
       }),
     })

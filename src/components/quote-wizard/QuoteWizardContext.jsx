@@ -1047,6 +1047,7 @@ export function QuoteWizardProvider({
       distance_miles: Number(wizard.distanceMiles) || 0,
       crew_size: Number(wizard.crewSize) || null,
       vehicle_size: wizard.vehicleSize ? String(wizard.vehicleSize) : null,
+      inventoryLines: wizard.inventoryLines,
     }
 
     return { templateParams, extras, fullSummaryText, photoFileNames: files.map((f) => f.name) }

@@ -1,5 +1,3 @@
-import AvailableJobInventorySection from './AvailableJobInventorySection'
-import QuotePhotosAdminSection from './QuotePhotosAdminSection'
 import JobAcceptedPayoutSummaryPanel from './JobAcceptedPayoutSummaryPanel'
 
 function Panel({ title, children, className = '' }) {
@@ -32,19 +30,11 @@ export default function JobDispatchDetailExtras({
   onNotesDraftChange,
   onSaveNotes,
   onAddTimelineNote,
-  photoQuoteRef,
-  jobId,
-  linkedJob = null,
-  legacyPhotoFileNames = [],
   overrides,
   jobCharges = [],
 }) {
   return (
     <div className="grid gap-3 lg:grid-cols-2">
-      <div className="lg:col-span-2">
-        <AvailableJobInventorySection quote={q} />
-      </div>
-
       <Panel title="Internal notes">
         <textarea
           value={notesDraft}
@@ -77,16 +67,6 @@ export default function JobDispatchDetailExtras({
       </Panel>
 
       <JobAcceptedPayoutSummaryPanel q={q} charges={jobCharges} />
-
-      <Panel title="Photos" className="lg:col-span-2">
-        <QuotePhotosAdminSection
-          quoteRef={photoQuoteRef}
-          jobId={jobId}
-          quoteRow={q}
-          linkedJob={linkedJob}
-          legacyPhotoFileNames={legacyPhotoFileNames}
-        />
-      </Panel>
     </div>
   )
 }

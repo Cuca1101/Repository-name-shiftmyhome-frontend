@@ -110,11 +110,22 @@ function savedStop(record, latKey, lngKey) {
   return { lat, lng }
 }
 
+/** Britain and Ireland. A point outside this box is not a usable stop. */
+export function isBritainOrIreland(lat, lng) {
+  return lat >= 49 && lat <= 61.2 && lng >= -11 && lng <= 2.2
+}
+
+function usableStop(record, latKey, lngKey) {
+  const point = savedStop(record, latKey, lngKey)
+  if (!point || !isBritainOrIreland(point.lat, point.lng)) return null
+  return point
+}
+
 export async function resolveQuoteRouteCoordinates(q, job, token) {
   const pickupAddr = resolveQuoteCollectionAddress(q, job)
   const deliveryAddr = resolveQuoteDeliveryAddress(q, job)
-  const savedPickup = savedStop(q, 'pickup_lat', 'pickup_lng') || savedStop(job, 'pickup_lat', 'pickup_lng')
-  const savedDelivery = savedStop(q, 'delivery_lat', 'delivery_lng') || savedStop(job, 'delivery_lat', 'delivery_lng')
+  const savedPickup = usableStop(q, 'pickup_lat', 'pickup_lng') || usableStop(job, 'pickup_lat', 'pickup_lng')
+  const savedDelivery = usableStop(q, 'delivery_lat', 'delivery_lng') || usableStop(job, 'delivery_lat', 'delivery_lng')
   if (savedPickup && savedDelivery) {
     return {
       pickupLng: savedPickup.lng,
@@ -158,10 +169,12 @@ export async function resolveQuoteRouteCoordinates(q, job, token) {
     }
   }
 
-  const [pickup, delivery] = await Promise.all([
+  const [pickupHit, deliveryHit] = await Promise.all([
     savedPickup ? Promise.resolve(savedPickup) : geocodeStop(q, job, 'collection', token),
     savedDelivery ? Promise.resolve(savedDelivery) : geocodeStop(q, job, 'delivery', token),
   ])
+  const pickup = pickupHit && isBritainOrIreland(pickupHit.lat, pickupHit.lng) ? pickupHit : null
+  const delivery = deliveryHit && isBritainOrIreland(deliveryHit.lat, deliveryHit.lng) ? deliveryHit : null
 
   const parts = []
   if (!pickup) parts.push('pickup')
@@ -183,29 +196,35 @@ export async function resolveQuoteRouteCoordinates(q, job, token) {
 }
 
 /**
- * Keep the map point and the 100 m arrival point the same. Only fills
- * coordinates that are not already saved.
+ * Keep the map point and the 100 m arrival point the same. Fills empty
+ * coordinates and replaces a saved point that is outside Britain and Ireland.
  * @param {Record<string, unknown>} quote
  * @param {{ pickupLat?: number | null, pickupLng?: number | null, deliveryLat?: number | null, deliveryLng?: number | null }} result
  */
 export async function persistMissingStopCoordinates(quote, result) {
   if (!isSupabaseConfigured || !supabase || !quote?.id) return
   const patch = {}
+  const nextPickupLat = Number(result?.pickupLat)
+  const nextPickupLng = Number(result?.pickupLng)
   if (
-    !savedStop(quote, 'pickup_lat', 'pickup_lng')
-    && Number.isFinite(Number(result?.pickupLat))
-    && Number.isFinite(Number(result?.pickupLng))
+    (!usableStop(quote, 'pickup_lat', 'pickup_lng'))
+    && Number.isFinite(nextPickupLat)
+    && Number.isFinite(nextPickupLng)
+    && isBritainOrIreland(nextPickupLat, nextPickupLng)
   ) {
-    patch.pickup_lat = Number(result.pickupLat)
-    patch.pickup_lng = Number(result.pickupLng)
+    patch.pickup_lat = nextPickupLat
+    patch.pickup_lng = nextPickupLng
   }
+  const nextDeliveryLat = Number(result?.deliveryLat)
+  const nextDeliveryLng = Number(result?.deliveryLng)
   if (
-    !savedStop(quote, 'delivery_lat', 'delivery_lng')
-    && Number.isFinite(Number(result?.deliveryLat))
-    && Number.isFinite(Number(result?.deliveryLng))
+    (!usableStop(quote, 'delivery_lat', 'delivery_lng'))
+    && Number.isFinite(nextDeliveryLat)
+    && Number.isFinite(nextDeliveryLng)
+    && isBritainOrIreland(nextDeliveryLat, nextDeliveryLng)
   ) {
-    patch.delivery_lat = Number(result.deliveryLat)
-    patch.delivery_lng = Number(result.deliveryLng)
+    patch.delivery_lat = nextDeliveryLat
+    patch.delivery_lng = nextDeliveryLng
   }
   if (!Object.keys(patch).length) return
   const { error } = await supabase.from('quotes').update(patch).eq('id', String(quote.id))

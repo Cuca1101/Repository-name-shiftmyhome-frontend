@@ -13,11 +13,19 @@ import {
 import { DRIVER_DOCUMENT_SLOTS } from '../lib/data/driverDocumentConstants'
 import { loadFleetDriversForAdmin, setFleetDriversCache } from '../lib/adminFleetDrivers'
 import { loadAdminPartners } from '../lib/adminFleetLocalStore'
-import { countAssignedJobsForDriver, countCompletedJobsForDriver } from '../lib/adminDriverStats'
 import {
+  countAssignedJobsForDriver,
+  countCancelledJobsForDriver,
+  countCompletedJobsForDriver,
+  sumDriverEarnings,
+} from '../lib/adminDriverStats'
+import {
+  driverAccountBadge,
+  driverDutyBadge,
   driverVerificationBadges,
   formatDriverDateOfBirth,
 } from '../lib/driverDisplayHelpers'
+import { fetchLatestDriverLivePositionsMap } from '../lib/data/driverLivePositionsRepository'
 import { isSupabaseConfigured } from '../lib/supabase'
 import JobStatusBadge from './admin-workflow/JobStatusBadge'
 import DriverDocumentUpload from './admin/DriverDocumentUpload'
@@ -40,17 +48,48 @@ const fieldInput =
 const fieldLabel = 'text-xs font-semibold uppercase tracking-wide text-slate-500'
 
 const STATUS_FILTERS = [
+  { id: 'all', label: 'All' },
   { id: 'active', label: 'Active' },
+  { id: 'on_duty', label: 'On Duty' },
+  { id: 'offline', label: 'Offline' },
   { id: 'suspended', label: 'Suspended' },
   { id: 'archived', label: 'Archived' },
-  { id: 'all', label: 'All' },
 ]
 
 function statusTone(st) {
   if (st === 'Active') return 'emerald'
+  if (st === 'On Duty') return 'sky'
   if (st === 'Suspended') return 'rose'
   if (st === 'Archived') return 'violet'
   return 'slate'
+}
+
+function DriverAvatar({ name, photoUrl, className = 'h-16 w-16 rounded-2xl text-lg' }) {
+  const [failed, setFailed] = useState(false)
+  const photo = String(photoUrl || '').trim()
+  const parts = String(name || '')
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+  const initials =
+    parts.length >= 2
+      ? `${parts[0][0] || ''}${parts[1][0] || ''}`.toUpperCase()
+      : (parts[0]?.[0] || '?').toUpperCase()
+  if (photo && !failed) {
+    return (
+      <img
+        src={photo}
+        alt=""
+        className={`${className} object-cover ring-2 ring-white shadow-sm`}
+        onError={() => setFailed(true)}
+      />
+    )
+  }
+  return (
+    <div className={`flex shrink-0 items-center justify-center bg-brand-gradient font-bold text-white shadow-sm ${className}`} aria-hidden>
+      {initials}
+    </div>
+  )
 }
 
 function FormSection({ title, description, children }) {
@@ -128,7 +167,8 @@ export default function DriversAdmin() {
   const [pendingDocs, setPendingDocs] = useState(emptyPendingDocs)
   const [createAccountOpen, setCreateAccountOpen] = useState(false)
   const [createSuccessBanner, setCreateSuccessBanner] = useState('')
-  const [statusFilter, setStatusFilter] = useState('active')
+  const [statusFilter, setStatusFilter] = useState('all')
+  const [liveByDriver, setLiveByDriver] = useState(/** @type {Record<string, Record<string, unknown>>} */ ({}))
   const [deleteTarget, setDeleteTarget] = useState(/** @type {typeof drivers[0] | null} */ (null))
   const [deleteError, setDeleteError] = useState('')
 
@@ -144,9 +184,14 @@ export default function DriversAdmin() {
   const loadQuotesJobs = useCallback(async () => {
     setLoading(true)
     try {
-      const [q, j] = await Promise.all([fetchQuotesForAdmin('all', ''), fetchAllJobs()])
+      const [q, j, live] = await Promise.all([
+        fetchQuotesForAdmin('all', ''),
+        fetchAllJobs(),
+        fetchLatestDriverLivePositionsMap(),
+      ])
       setQuotes(q)
       setJobs(j)
+      setLiveByDriver(live.map || {})
     } catch {
       setQuotes([])
       setJobs([])
@@ -194,27 +239,37 @@ export default function DriversAdmin() {
   const filtered = useMemo(() => {
     const s = search.trim().toLowerCase()
     return drivers.filter((d) => {
-      if (!driverMatchesStatusFilter(d, statusFilter)) return false
+      const duty = driverDutyBadge(d, liveByDriver[String(d.id || '')])
+      if (statusFilter === 'on_duty' && duty !== 'On Duty') return false
+      if (statusFilter === 'offline' && duty !== 'Offline') return false
+      if (statusFilter !== 'on_duty' && statusFilter !== 'offline' && !driverMatchesStatusFilter(d, statusFilter)) {
+        return false
+      }
       if (!s) return true
       const blob = [d.name, d.email, d.phone, d.address]
         .map((x) => String(x || '').toLowerCase())
         .join(' ')
       return blob.includes(s)
     })
-  }, [drivers, search, statusFilter])
+  }, [drivers, liveByDriver, search, statusFilter])
 
   const statusFilterCounts = useMemo(() => {
     let active = 0
+    let onDuty = 0
+    let offline = 0
     let suspended = 0
     let archived = 0
     for (const d of drivers) {
       const phase = getDriverLifecyclePhase(d)
+      const duty = driverDutyBadge(d, liveByDriver[String(d.id || '')])
       if (phase === 'active') active += 1
       else if (phase === 'suspended') suspended += 1
       else if (phase === 'archived') archived += 1
+      if (duty === 'On Duty') onDuty += 1
+      if (duty === 'Offline') offline += 1
     }
-    return { active, suspended, archived, all: drivers.length }
-  }, [drivers])
+    return { active, onDuty, offline, suspended, archived, all: drivers.length }
+  }, [drivers, liveByDriver])
 
   function openCreate() {
     setDraft(emptyDriverDraft())
@@ -343,7 +398,7 @@ export default function DriversAdmin() {
 
   function requestDisableDriver(d) {
     const ok = window.confirm(
-      `Disable ${d.name}?\n\nThey will be hidden from Assign Driver and cannot sign in on the mobile app until you enable them again.`,
+      `Suspend ${d.name}?\n\nThey will be hidden from Assign Driver and cannot sign in on the mobile app until you activate them again.`,
     )
     if (ok) void disableDriver(d)
   }
@@ -369,10 +424,8 @@ export default function DriversAdmin() {
   }
 
   function requestReactivateDriver(d) {
-    const phase = getDriverLifecyclePhase(d)
-    const verb = phase === 'archived' ? 'Reactivate' : 'Enable'
     const ok = window.confirm(
-      `${verb} ${d.name}?\n\nStatus returns to Active. They can sign in on the Driver app and receive new assignments.`,
+      `Activate ${d.name}?\n\nStatus returns to Active. They can sign in on the Driver app and receive new assignments.`,
     )
     if (ok) void reactivateDriver(d)
   }
@@ -443,12 +496,11 @@ export default function DriversAdmin() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-bold text-slate-900">Drivers</h2>
-          <p className="mt-1 max-w-2xl text-sm text-slate-600">
-            Use <strong className="font-semibold text-slate-800">Add Driver</strong> to create Supabase Auth + a{' '}
-            <code className="rounded bg-slate-100 px-1">drivers</code> row linked by{' '}
-            <code className="rounded bg-slate-100 px-1">user_id</code>. Drivers sign in on the mobile app with email and
-            password. Assign jobs using <code className="rounded bg-slate-100 px-1">drivers.id</code>.
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-brand-700">Fleet</p>
+          <h2 className="mt-1 text-2xl font-bold tracking-tight text-slate-950 sm:text-3xl">Drivers</h2>
+          <p className="mt-1 max-w-2xl text-sm leading-relaxed text-slate-600">
+            Driver accounts, assignments, and payments stay on the same records. Add Driver creates the mobile login.
+            Profile only saves a fleet record without a password.
             {!isSupabaseConfigured ? ' Connect Supabase to persist fleet records.' : null}
           </p>
         </div>
@@ -481,17 +533,48 @@ export default function DriversAdmin() {
         </p>
       ) : null}
 
-      <div className="flex flex-col gap-3">
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
+        {[
+          ['Fleet', statusFilterCounts.all],
+          ['Active', statusFilterCounts.active],
+          ['On Duty', statusFilterCounts.onDuty],
+          ['Offline', statusFilterCounts.offline],
+          ['Suspended', statusFilterCounts.suspended],
+          ['Archived', statusFilterCounts.archived],
+        ].map(([label, count]) => (
+          <div key={label} className="rounded-2xl border border-slate-200/80 bg-white px-3 py-3 shadow-card">
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">{label}</p>
+            <p className="mt-1 text-xl font-bold tabular-nums text-slate-950">{count}</p>
+          </div>
+        ))}
+      </div>
+
+      <div className="rounded-2xl border border-slate-200/80 bg-white p-3 shadow-card sm:p-4">
+        <label className="relative block">
+          <span className="sr-only">Search drivers</span>
+          <input
+            type="search"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search by name, email, phone, or address"
+            className="w-full rounded-xl border border-slate-200 bg-slate-50 py-3 pl-4 pr-4 text-sm text-slate-900 shadow-sm focus:border-brand-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-500/20"
+          />
+        </label>
+        <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex flex-wrap gap-2" role="tablist" aria-label="Driver status filter">
           {STATUS_FILTERS.map((f) => {
             const count =
               f.id === 'active'
                 ? statusFilterCounts.active
-                : f.id === 'suspended'
-                  ? statusFilterCounts.suspended
-                  : f.id === 'archived'
-                    ? statusFilterCounts.archived
-                    : statusFilterCounts.all
+                : f.id === 'on_duty'
+                  ? statusFilterCounts.onDuty
+                  : f.id === 'offline'
+                    ? statusFilterCounts.offline
+                    : f.id === 'suspended'
+                      ? statusFilterCounts.suspended
+                      : f.id === 'archived'
+                        ? statusFilterCounts.archived
+                        : statusFilterCounts.all
             return (
               <button
                 key={f.id}
@@ -499,21 +582,29 @@ export default function DriversAdmin() {
                 role="tab"
                 aria-selected={statusFilter === f.id}
                 onClick={() => setStatusFilter(f.id)}
-                className={`min-h-[40px] rounded-xl px-4 py-2 text-sm font-semibold shadow-sm ring-1 transition ${
+                className={`min-h-10 rounded-full px-3.5 py-2 text-sm font-semibold transition ${
                   statusFilter === f.id
-                    ? 'bg-slate-900 text-white ring-slate-900'
-                    : 'bg-white text-slate-800 ring-slate-200 hover:bg-slate-50'
+                    ? 'bg-brand-600 text-white shadow-sm'
+                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
                 }`}
               >
                 {f.label}
-                {count > 0 ? ` (${count})` : ''}
+                <span className={statusFilter === f.id ? 'ml-1.5 text-white/80' : 'ml-1.5 text-slate-400'}>{count}</span>
               </button>
             )
           })}
         </div>
+          <button
+            type="button"
+            onClick={() => void loadQuotesJobs()}
+            className="min-h-10 shrink-0 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-800 shadow-sm hover:bg-slate-50"
+          >
+            Refresh
+          </button>
+        </div>
         {statusFilter === 'active' && statusFilterCounts.suspended > 0 ? (
-          <p className="text-sm text-amber-900">
-            {statusFilterCounts.suspended} disabled driver{statusFilterCounts.suspended === 1 ? '' : 's'} — open{' '}
+          <p className="mt-3 text-sm text-amber-900">
+            {statusFilterCounts.suspended} suspended driver{statusFilterCounts.suspended === 1 ? '' : 's'} — open{' '}
             <button
               type="button"
               className="font-semibold text-brand-700 underline hover:text-brand-800"
@@ -521,28 +612,9 @@ export default function DriversAdmin() {
             >
               Suspended
             </button>{' '}
-            to use <strong>Enable Driver</strong>.
+            to activate them.
           </p>
         ) : null}
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
-          <label className="min-w-0 flex-1 sm:max-w-md">
-            <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">Search</span>
-            <input
-              type="search"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Name, email, phone, or address"
-              className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/25"
-            />
-          </label>
-          <button
-            type="button"
-            onClick={() => void loadQuotesJobs()}
-            className="min-h-[48px] rounded-xl border border-slate-200 bg-white px-5 py-2.5 text-sm font-semibold text-slate-800 shadow-sm hover:bg-slate-50"
-          >
-            Refresh job stats
-          </button>
-        </div>
       </div>
 
       {err ? (
@@ -574,13 +646,17 @@ export default function DriversAdmin() {
           </p>
         </div>
       ) : (
-        <ul className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+        <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
           {filtered.map((d) => (
             <DriverFleetCard
               key={d.id}
               driver={d}
               assigned={countAssignedJobsForDriver(d, quotes, jobs)}
               completed={countCompletedJobsForDriver(d, quotes, jobs)}
+              cancelled={countCancelledJobsForDriver(d, quotes, jobs)}
+              earnings={sumDriverEarnings(d, quotes)}
+              accountStatus={driverAccountBadge(d)}
+              dutyStatus={driverDutyBadge(d, liveByDriver[String(d.id || '')])}
               badges={driverVerificationBadges(docTypesMap.get(d.id))}
               saving={saving}
               onView={() => openView(d)}
@@ -596,6 +672,7 @@ export default function DriversAdmin() {
 
       {modal === 'view' && draft ? (
         <ModalShell
+          wide
           title="Driver profile"
           onClose={() => setModal(null)}
           footer={
@@ -627,6 +704,53 @@ export default function DriversAdmin() {
             </>
           }
         >
+          <div className="mb-4 flex items-start gap-3 rounded-2xl border border-slate-200 bg-gradient-to-br from-brand-50/80 to-white p-4">
+            <DriverAvatar name={draft.name} photoUrl={draft.profilePhotoUrl} />
+            <div className="min-w-0">
+              <p className="truncate text-lg font-bold text-slate-950">{draft.name}</p>
+              <p className="truncate text-sm text-slate-500">{draft.email || 'No email'}</p>
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                <JobStatusBadge label={driverAccountBadge(draft)} tone={statusTone(driverAccountBadge(draft))} />
+                {driverDutyBadge(draft, liveByDriver[String(draft.id || '')]) ? (
+                  <JobStatusBadge
+                    label={driverDutyBadge(draft, liveByDriver[String(draft.id || '')])}
+                    tone={statusTone(driverDutyBadge(draft, liveByDriver[String(draft.id || '')]))}
+                  />
+                ) : null}
+              </div>
+            </div>
+          </div>
+          <div className="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-5">
+            {[
+              ['Assigned', countAssignedJobsForDriver(draft, quotes, jobs)],
+              ['Completed', countCompletedJobsForDriver(draft, quotes, jobs)],
+              ['Cancelled', countCancelledJobsForDriver(draft, quotes, jobs)],
+              ['Rating', draft.rating || '—'],
+              ['Earnings', (() => {
+                const earnings = sumDriverEarnings(draft, quotes)
+                return earnings == null ? '—' : `£${Number(earnings).toFixed(2)}`
+              })()],
+            ].map(([label, value]) => (
+              <div key={label} className="rounded-xl bg-slate-50 px-3 py-2">
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">{label}</p>
+                <p className="mt-0.5 text-sm font-bold tabular-nums text-slate-950">{value}</p>
+              </div>
+            ))}
+          </div>
+          <div className="mb-4 flex flex-wrap gap-2">
+            <Link
+              to={`/admin/driver-messages?driver=${encodeURIComponent(String(draft.id || ''))}`}
+              className="inline-flex min-h-10 items-center rounded-xl border border-slate-200 px-3 text-xs font-semibold text-slate-800 hover:bg-slate-50"
+            >
+              Message
+            </Link>
+            <Link
+              to={`/admin/driver-payments?driver=${encodeURIComponent(String(draft.id || ''))}`}
+              className="inline-flex min-h-10 items-center rounded-xl border border-slate-200 px-3 text-xs font-semibold text-slate-800 hover:bg-slate-50"
+            >
+              Payments
+            </Link>
+          </div>
           <dl className="space-y-3 text-sm">
             <div>
               <dt className={fieldLabel}>Name</dt>

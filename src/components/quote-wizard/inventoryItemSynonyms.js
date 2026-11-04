@@ -103,7 +103,7 @@ const INVENTORY_ITEM_SYNONYMS = {
   Armchair: ['arm chair', 'upholstered armchair', 'lounge armchair'],
   'Coffee table': ['lounge coffee table', 'low table', 'cocktail table'],
   'Console table': ['hallway table', 'hall table', 'entrance table', 'entryway table'],
-  'Corner sofa': ['L Shaped Sofas', 'L-shaped sofa', 'L shape sofa', 'L-shaped couch', 'corner couch', 'corner settee'],
+  'Corner sofa': ['L Shaped Sofas', 'L-shaped sofa', 'L shape sofa', 'L-shaped couch', 'corner couch', 'corner settee', 'couch', 'settee'],
   'Display cabinet': ['display case', 'glass display cabinet', 'display cupboard', 'china cabinet'],
   'Floor lamp': ['standing lamp', 'standard lamp', 'upright lamp'],
   'Footstool / ottoman': ['foot stool', 'footstool', 'ottoman', 'pouffe', 'pouf'],

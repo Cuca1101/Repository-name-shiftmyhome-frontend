@@ -7,6 +7,7 @@ import {
   deleteCustomerLeadById,
   dismissCustomerLeadCallback,
   fetchCustomerLeadsForAdmin,
+  markCustomerLeadsInboxRead,
   purgeCustomerLeadById,
   restoreCustomerLeadById,
 } from '../lib/data/customerLeadsRepository'
@@ -575,6 +576,7 @@ export default function CustomerLeadsAdmin() {
       // Always load the full search result so filter tabs can show live counts.
       const list = await fetchCustomerLeadsForAdmin({ filter: 'all', search: activeSearch })
       setAllRows(list)
+      void markCustomerLeadsInboxRead()
     } catch (e) {
       setError(e?.message || 'Failed to load customer leads.')
     } finally {

@@ -24,6 +24,8 @@ import {
 } from '../lib/customerPortalQuote'
 import { previousChargeableTotal, pricePortalBooking } from '../lib/customerPortalPricing'
 import { COMPANY_EMAIL, COMPANY_PHONE_DISPLAY, COMPANY_PHONE_TEL } from '../constants/companyContact'
+import InventorySearchDropdown, { InventorySearchDropdownEmpty } from '../components/quote-wizard/InventorySearchDropdown'
+import HighlightedInventoryName from '../components/quote-wizard/HighlightedInventoryName'
 import { filterAndSortInventorySearchResults } from '../components/quote-wizard/inventorySearchUtils'
 
 export default function CustomerPortalEditPage() {
@@ -294,12 +296,12 @@ export default function CustomerPortalEditPage() {
     }
   }
 
-  const matches = query.trim().length > 1
+  const searchOpen = query.trim().length > 0
+  const matches = searchOpen
     ? filterAndSortInventorySearchResults(
       catalogItems().map((item) => ({ item, categoryLabel: item.categoryLabel })),
       query,
-      20,
-    ).map((entry) => entry.item)
+    )
     : []
 
   return (
@@ -376,23 +378,31 @@ export default function CustomerPortalEditPage() {
                 </li>
               ))}
             </ul>
-            <input
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder="Add an item"
-              className="mt-3 min-h-12 w-full rounded-xl border border-slate-200 px-3 py-3 text-base"
-            />
-            {matches.length ? (
-              <ul className="mt-2 space-y-1">
-                {matches.map((item) => (
-                  <li key={item.id}>
-                    <button type="button" className="min-h-11 w-full rounded-lg px-2 py-2 text-left text-base hover:bg-slate-50" onClick={() => { addItem(item); setQuery('') }}>
-                      {item.name}
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            ) : null}
+            <div className="mt-3">
+              <InventorySearchDropdown value={query} onChange={setQuery} open={searchOpen}>
+                {matches.length === 0 ? (
+                  <InventorySearchDropdownEmpty />
+                ) : (
+                  <ul className="min-w-0 py-0.5">
+                    {matches.map((entry) => (
+                      <li key={entry.item.id} className="border-b border-slate-100 last:border-b-0">
+                        <button
+                          type="button"
+                          className="min-h-12 w-full px-3 py-2 text-left hover:bg-slate-50"
+                          onMouseDown={(event) => event.preventDefault()}
+                          onClick={() => { addItem(entry.item); setQuery('') }}
+                        >
+                          <span className="block text-base font-semibold text-slate-900">
+                            <HighlightedInventoryName name={entry.item.name} query={query.trim()} />
+                          </span>
+                          <span className="mt-0.5 block text-xs text-slate-500">{entry.categoryLabel}</span>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </InventorySearchDropdown>
+            </div>
           </section>
             </>
           )}

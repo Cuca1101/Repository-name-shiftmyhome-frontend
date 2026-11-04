@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react'
-import QuoteRouteMap from '../quote-wizard/QuoteRouteMap'
 import CustomerLeadRouteMap from '../admin/CustomerLeadRouteMap'
-import { persistMissingStopCoordinates, resolveQuoteRouteCoordinates } from '../../lib/quoteRouteCoordinates'
+import { isBritainOrIreland, persistMissingStopCoordinates, resolveQuoteRouteCoordinates } from '../../lib/quoteRouteCoordinates'
 import { isSupabaseConfigured, supabase } from '../../lib/supabase'
 import { isDriverLocationStale } from '../../lib/data/driverLivePositionsRepository'
 import { formatDateTimeUK } from '../../lib/formatDateDisplay'
@@ -9,10 +8,26 @@ import { formatDateTimeUK } from '../../lib/formatDateDisplay'
 const DISPATCH_MAP_PLACEHOLDER =
   'flex h-[220px] min-h-[220px] items-center justify-center text-xs text-slate-500 sm:h-[260px] sm:min-h-[260px] md:h-[280px] md:min-h-[280px] lg:h-[300px] lg:min-h-[300px] xl:h-[320px] xl:min-h-[320px]'
 const TRACKING_MAP_FRAME =
-  'relative block h-[220px] min-h-[220px] w-full min-w-0 overflow-hidden sm:h-[260px] sm:min-h-[260px] md:h-[280px] md:min-h-[280px] lg:h-[300px] lg:min-h-[300px] xl:h-[320px] xl:min-h-[320px]'
+  'h-[220px] min-h-[220px] w-full sm:h-[260px] md:h-[280px] lg:h-[300px] xl:h-[320px]'
+
+function formatDriveTime(seconds) {
+  const total = Math.round(Number(seconds) / 60)
+  if (!Number.isFinite(total) || total <= 0) return ''
+  const hours = Math.floor(total / 60)
+  const minutes = total % 60
+  if (hours <= 0) return `${minutes} min`
+  if (minutes === 0) return hours === 1 ? '1 hr' : `${hours} hr`
+  return `${hours} hr ${minutes} min`
+}
+
+function addressOrEmpty(value) {
+  const text = String(value || '').trim()
+  return text && text !== '—' ? text : ''
+}
 
 /**
- * Route map for Job Accepted / Available Job dispatch screen.
+ * Route map for Available Jobs, Job Accepted, and Completed Jobs.
+ * Uses the same traffic map, numbered pins, and driving route as Customer Leads.
  * @param {{ q: Record<string, unknown>, job?: Record<string, unknown> | null, liveTracking?: boolean }} props
  */
 export default function JobDispatchRouteMap({ q, job = null, liveTracking = false }) {
@@ -22,6 +37,7 @@ export default function JobDispatchRouteMap({ q, job = null, liveTracking = fals
   const [assignmentDriverId, setAssignmentDriverId] = useState('')
   const driverId = quoteDriverId || assignmentDriverId
   const [driverFix, setDriverFix] = useState(null)
+  const [driveSeconds, setDriveSeconds] = useState(null)
   const [coords, setCoords] = useState({
     pickupLng: null,
     pickupLat: null,
@@ -139,50 +155,52 @@ export default function JobDispatchRouteMap({ q, job = null, liveTracking = fals
     }
   }, [liveTracking, driverId])
 
-  const ready =
-    coords.pickupLng != null &&
-    coords.pickupLat != null &&
-    coords.deliveryLng != null &&
-    coords.deliveryLat != null
+  const pickupAddress = addressOrEmpty(coords.pickupAddress)
+  const deliveryAddress = addressOrEmpty(coords.deliveryAddress)
+  const canMap = Boolean(pickupAddress || deliveryAddress || (coords.pickupLng != null && coords.deliveryLng != null))
+  const driveLabel = formatDriveTime(driveSeconds)
+  const driverOnRoute = Boolean(driverFix && isBritainOrIreland(driverFix.lat, driverFix.lng))
+  const showDriver = Boolean(liveTracking && driverOnRoute)
 
   return (
     <div className="relative w-full bg-slate-100">
       {coords.loading ? (
         <div className={DISPATCH_MAP_PLACEHOLDER}>Loading route map…</div>
-      ) : ready && liveTracking ? (
+      ) : canMap ? (
         <>
           <CustomerLeadRouteMap
-            pickupAddress={coords.pickupAddress}
-            deliveryAddress={coords.deliveryAddress}
+            pickupAddress={pickupAddress}
+            deliveryAddress={deliveryAddress}
             pickupLng={coords.pickupLng}
             pickupLat={coords.pickupLat}
             deliveryLng={coords.deliveryLng}
             deliveryLat={coords.deliveryLat}
+            onDriveTime={setDriveSeconds}
             frameClass={TRACKING_MAP_FRAME}
-            driverLng={driverFix?.lng ?? (driverId ? coords.pickupLng : null)}
-            driverLat={driverFix?.lat ?? (driverId ? coords.pickupLat : null)}
+            driverLng={showDriver ? driverFix.lng : null}
+            driverLat={showDriver ? driverFix.lat : null}
             driverLive={Boolean(driverFix?.live)}
-            driverWaiting={Boolean(driverId) && !driverFix}
-            driverName={driverName}
+            driverWaiting={false}
+            driverName={showDriver ? driverName : ''}
           />
-          <p className="border-t border-slate-200 bg-white px-3 py-1.5 text-[11px] text-slate-600">
-            {!driverId
-              ? 'Assign a driver to track this job.'
-              : !driverFix
-                ? `On this job${driverName ? ` · ${driverName}` : ''} · waiting for live GPS`
-                : driverFix.live
-                  ? `Tracking${driverName ? ` ${driverName}` : ''} · live`
-                  : `Last location${driverName ? ` · ${driverName}` : ''}${driverFix.updatedAt ? ` · ${formatDateTimeUK(driverFix.updatedAt)}` : ''}`}
-          </p>
+          {driveLabel || liveTracking ? (
+            <p className="border-t border-slate-200 bg-white px-3 py-1.5 text-[11px] text-slate-600">
+              {driveLabel ? <span>{driveLabel} to delivery</span> : null}
+              {driveLabel && liveTracking ? <span className="text-slate-300"> · </span> : null}
+              {liveTracking ? (
+                <span>
+                  {!driverId
+                    ? 'Assign a driver to track this job.'
+                    : !driverFix
+                      ? `On this job${driverName ? ` · ${driverName}` : ''} · waiting for live GPS`
+                      : driverFix.live
+                        ? `Tracking${driverName ? ` ${driverName}` : ''} · live`
+                        : `Last location${driverName ? ` · ${driverName}` : ''}${driverFix.updatedAt ? ` · ${formatDateTimeUK(driverFix.updatedAt)}` : ''}`}
+                </span>
+              ) : null}
+            </p>
+          ) : null}
         </>
-      ) : ready ? (
-        <QuoteRouteMap
-          variant="dispatch"
-          pickupLng={coords.pickupLng}
-          pickupLat={coords.pickupLat}
-          deliveryLng={coords.deliveryLng}
-          deliveryLat={coords.deliveryLat}
-        />
       ) : (
         <div className={`${DISPATCH_MAP_PLACEHOLDER} flex-col gap-2 px-4 text-center`}>
           <p className="max-w-md font-medium text-slate-700">
@@ -193,16 +211,6 @@ export default function JobDispatchRouteMap({ q, job = null, liveTracking = fals
               Create <code className="rounded bg-amber-100 px-1">.env</code> with{' '}
               <code className="rounded bg-amber-100 px-1">VITE_MAPBOX_TOKEN=pk.…</code> then restart the dev
               server.
-            </p>
-          ) : null}
-          {coords.pickupAddress && coords.pickupAddress !== '—' ? (
-            <p className="text-[10px] text-slate-500">
-              <span className="font-semibold">From:</span> {coords.pickupAddress}
-            </p>
-          ) : null}
-          {coords.deliveryAddress && coords.deliveryAddress !== '—' ? (
-            <p className="text-[10px] text-slate-500">
-              <span className="font-semibold">To:</span> {coords.deliveryAddress}
             </p>
           ) : null}
         </div>

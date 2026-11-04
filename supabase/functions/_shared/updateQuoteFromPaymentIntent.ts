@@ -2,6 +2,7 @@ import type Stripe from 'npm:stripe@14.21.0'
 import type { SupabaseClient } from 'npm:@supabase/supabase-js@2'
 import { omitStatusIfQuoteCompleted } from './preserveCompletedQuoteStatus.ts'
 import { backfillRecoveryQuoteFromLead } from './recoveryQuoteBackfill.ts'
+import { applyBalancePayment } from './applyBalancePayment.ts'
 
 type PaymentEventKind = 'paid' | 'failed'
 
@@ -79,6 +80,16 @@ export async function updateQuoteFromPaymentIntent(
   const paymentType = asString(pi.metadata?.payment_type)
   if (paymentType === 'customer_booking_amendment') {
     return { ok: false, error: 'amendment_payment' }
+  }
+  if (paymentType === 'balance') {
+    if (eventKind !== 'paid') return { ok: true, quote_id: quoteId || null }
+    const received = Math.max(0, (typeof pi.amount_received === 'number' ? pi.amount_received : pi.amount ?? 0) / 100)
+    return applyBalancePayment(supabase, {
+      quoteId,
+      quoteRef,
+      paymentIntentId: pi.id,
+      amountGbp: received,
+    })
   }
   const resolvedPaymentType = paymentType === 'deposit' || paymentType === 'full' ? paymentType : 'full'
 

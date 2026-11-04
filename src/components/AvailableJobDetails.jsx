@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+
 import { Link, useLocation, useParams, useSearchParams } from 'react-router-dom'
 import {
   fetchAssignedByActor,
@@ -67,7 +68,6 @@ const WORKFLOW_STATUSES = ['New', 'Contacted', 'Quoted', 'Booked', 'Completed', 
 const TABS = [
   { id: 'overview', label: 'Dispatch' },
   { id: 'assignment', label: 'Marketplace' },
-  { id: 'details', label: 'Job details' },
   { id: 'pricing', label: 'Pricing & payments' },
   { id: 'emails', label: 'Customer email' },
   { id: 'notes', label: 'Notes & history' },
@@ -406,7 +406,7 @@ export default function AvailableJobDetails() {
   const marketplaceFinance = useMemo(() => (q ? getMarketplaceFinancePresentation(q) : null), [q])
 
   useEffect(() => {
-    if (tab === 'customer' || tab === 'move' || tab === 'inventory') setTab('details')
+    if (tab === 'customer' || tab === 'move' || tab === 'inventory' || tab === 'details') setTab('overview')
   }, [tab])
 
   const pricingParsed = useMemo(
@@ -684,6 +684,13 @@ export default function AvailableJobDetails() {
             onReload={load}
             onNotify={showToast}
           />
+          <AdminJobQuoteDetailsPanel
+            quote={q}
+            jobId={photoJobId}
+            photoQuoteRef={photoQuoteRef}
+            linkedJob={linkedJob}
+            legacyPhotoFileNames={legacyPhotoFileNames}
+          />
           {fullPageDispatch || tab === 'overview' ? (
             <ServicePackageAllowanceCard
               snapshot={q?.service_package_snapshot || q?.price_breakdown?.servicePackageSnapshot}
@@ -778,29 +785,6 @@ export default function AvailableJobDetails() {
             admin page.
           </p>
         </AdminCard>
-      ) : null}
-
-      {!fullPageDispatch && tab === 'details' ? (
-        <div className="space-y-4">
-          {!terminal ? (
-            <div className="flex flex-wrap justify-end">
-              <Link
-                to={`${isActiveJobDetailRoute ? '/admin/active-jobs' : '/admin/available-jobs'}/${q.id}/edit`}
-                className="inline-flex min-h-[40px] items-center rounded-xl bg-brand-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-brand-700"
-              >
-                Edit Booking
-              </Link>
-            </div>
-          ) : null}
-          <AdminJobQuoteDetailsPanel
-            quote={q}
-            jobId={photoJobId}
-            photoQuoteRef={photoQuoteRef}
-            quoteRow={q}
-            linkedJob={linkedJob}
-            legacyPhotoFileNames={legacyPhotoFileNames}
-          />
-        </div>
       ) : null}
 
       {!fullPageDispatch && tab === 'pricing' ? (

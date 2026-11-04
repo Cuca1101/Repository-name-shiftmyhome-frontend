@@ -21,6 +21,9 @@ const TABLE = 'drivers'
  *   date_of_birth: string | null,
  *   emergency_contact_name: string | null,
  *   emergency_contact_phone: string | null,
+ *   profile_photo_url?: string | null,
+ *   avatar_url?: string | null,
+ *   duty_status?: string | null,
  * }} FleetDriverRow
  */
 
@@ -56,6 +59,8 @@ export function fleetDriverToAdminRecord(row) {
     dateOfBirth: row.date_of_birth ? String(row.date_of_birth).slice(0, 10) : '',
     emergencyContactName: String(row.emergency_contact_name || '').trim(),
     emergencyContactPhone: String(row.emergency_contact_phone || '').trim(),
+    profilePhotoUrl: String(row.profile_photo_url || row.avatar_url || '').trim(),
+    dutyStatus: String(row.duty_status || '').trim().toLowerCase(),
   }
 }
 

@@ -2,6 +2,7 @@ import type Stripe from 'npm:stripe@14.21.0'
 import type { SupabaseClient } from 'npm:@supabase/supabase-js@2'
 import { omitStatusIfQuoteCompleted } from './preserveCompletedQuoteStatus.ts'
 import { backfillRecoveryQuoteFromLead } from './recoveryQuoteBackfill.ts'
+import { applyBalancePayment } from './applyBalancePayment.ts'
 
 type PaymentEventKind = 'paid' | 'failed'
 
@@ -55,6 +56,15 @@ export async function updateQuoteFromCheckoutSession(
   const quoteRef = asString(session.metadata?.quote_ref)
   const paymentType = asString(session.metadata?.payment_type)
   const paymentIntentId = normalizePaymentIntentId(session)
+  if (paymentType === 'balance') {
+    if (eventKind !== 'paid') return { ok: true, quote_id: quoteId || null }
+    return applyBalancePayment(supabase, {
+      quoteId,
+      quoteRef,
+      paymentIntentId: paymentIntentId || asString(session.id),
+      amountGbp: Math.max(0, (session.amount_total ?? 0) / 100),
+    })
+  }
 
   // Re-processing (webhook retry, verify, reconciliation) must keep the original payment time.
   let existingPaidAt: string | null = null

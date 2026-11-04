@@ -212,7 +212,7 @@ export default function CustomerLeadDetailAdmin() {
         setLead(null)
       } else {
         setLead(row)
-        if (!row.admin_read_at) void markCustomerLeadRead(String(row.id))
+        void markCustomerLeadRead(String(row.id))
         if (row.agreed_price != null && Number.isFinite(Number(row.agreed_price))) {
           setAgreedPriceInput(String(Number(row.agreed_price).toFixed(2)))
         }

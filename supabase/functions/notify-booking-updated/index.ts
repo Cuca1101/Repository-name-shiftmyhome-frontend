@@ -28,6 +28,20 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
+/** Customer-facing name. Legal “Ltd” stays on invoices via COMPANY_NAME. */
+const CUSTOMER_BRAND_NAME = 'ShiftMyHome'
+
+/**
+ * Official wordmark, exported as a real PNG (640×166).
+ * COMPANY_LOGO_URL is https://shiftmyhome.co.uk/logo.png — that apex host does not
+ * resolve, and www…/logo.png is a JPEG served as image/png with nosniff, so Gmail
+ * shows a broken image. This public object URL has no auth token and does not expire.
+ */
+const EMAIL_LOGO_URL =
+  'https://msjhkfdqogymkartariq.supabase.co/storage/v1/object/public/website/brand/shiftmyhome-email-logo.png'
+const EMAIL_LOGO_WIDTH = 240
+const EMAIL_LOGO_HEIGHT = 62
+
 function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
@@ -80,13 +94,11 @@ function buildBookingUpdatedEmail(params: {
   quoteRef: string
   changes: ChangeRow[]
   supportEmail: string
-  companyName: string
-  logoUrl: string
   websiteUrl: string
   portalUrl?: string
 }) {
-  const { firstName, quoteRef, changes, supportEmail, companyName, logoUrl, websiteUrl, portalUrl } = params
-  const subject = `[${companyName}] Your booking has been updated — ${quoteRef}`
+  const { firstName, quoteRef, changes, supportEmail, websiteUrl, portalUrl } = params
+  const subject = `[${CUSTOMER_BRAND_NAME}] Your booking has been updated — ${quoteRef}`
 
   const changeRowsHtml = changes
     .map(
@@ -109,18 +121,19 @@ function buildBookingUpdatedEmail(params: {
     .join('\n')
 
   const html = `<!doctype html>
-<html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>${esc(subject)}</title>
+</head>
 <body style="margin:0;background:#f8fafc;font-family:Inter,Segoe UI,Arial,sans-serif;color:#0f172a;">
-  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f8fafc;padding:24px 12px;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f8fafc;padding:24px 12px;">
     <tr><td align="center">
-      <table width="560" style="max-width:560px;width:100%;background:#ffffff;border:1px solid #e2e8f0;border-radius:14px;overflow:hidden;">
+      <table role="presentation" width="560" style="max-width:560px;width:100%;background:#ffffff;border:1px solid #e2e8f0;border-radius:14px;overflow:hidden;">
         <tr>
           <td style="padding:22px 24px 12px 24px;background:linear-gradient(180deg,#f0f9ff 0%,#ffffff 100%);border-bottom:1px solid #e2e8f0;">
-            ${
-              logoUrl
-                ? `<img src="${esc(logoUrl)}" alt="${esc(companyName)}" width="140" style="display:block;max-width:140px;height:auto;margin:0 0 14px 0;" />`
-                : `<div style="font-size:18px;font-weight:800;color:#0284c7;margin:0 0 10px 0;">${esc(companyName)}</div>`
-            }
+            <img src="${esc(EMAIL_LOGO_URL)}" alt="${CUSTOMER_BRAND_NAME}" width="${EMAIL_LOGO_WIDTH}" height="${EMAIL_LOGO_HEIGHT}" border="0" style="display:block;width:100%;max-width:${EMAIL_LOGO_WIDTH}px;height:auto;border:0;outline:none;text-decoration:none;margin:0 0 14px 0;" />
             <h1 style="margin:0;font-size:20px;line-height:1.3;color:#0f172a;">Your booking has been updated</h1>
           </td>
         </tr>
@@ -150,7 +163,7 @@ function buildBookingUpdatedEmail(params: {
         <tr>
           <td style="padding:8px 24px 22px 24px;">
             <p style="margin:0;font-size:13px;color:#94a3b8;">
-              ${esc(companyName)} · <a href="${esc(websiteUrl)}" style="color:#64748b;">${esc(websiteUrl.replace(/^https?:\/\//, ''))}</a>
+              ${CUSTOMER_BRAND_NAME} · <a href="${esc(websiteUrl)}" style="color:#64748b;">${esc(websiteUrl.replace(/^https?:\/\//, ''))}</a>
             </p>
           </td>
         </tr>
@@ -173,7 +186,7 @@ function buildBookingUpdatedEmail(params: {
     portalUrl ? '' : '',
     `If anything looks incorrect, contact us at ${supportEmail}.`,
     '',
-    companyName,
+    CUSTOMER_BRAND_NAME,
   ].join('\n')
 
   return { subject, html, text }
@@ -288,10 +301,8 @@ Deno.serve(async (req) => {
       )
     }
 
-    const companyName = (Deno.env.get('COMPANY_NAME') || 'ShiftMyHome').trim()
     const supportEmail = (Deno.env.get('SUPPORT_EMAIL') || 'bookings@shiftmyhome.co.uk').trim()
     const websiteUrl = (Deno.env.get('SITE_URL') || 'https://www.shiftmyhome.co.uk').replace(/\/$/, '')
-    const logoUrl = (Deno.env.get('COMPANY_LOGO_URL') || Deno.env.get('EMAIL_LOGO_URL') || '').trim()
     const quoteRef =
       (typeof body?.quote_ref === 'string' && body.quote_ref.trim()) ||
       String(quote.quote_ref || '').trim() ||
@@ -310,8 +321,6 @@ Deno.serve(async (req) => {
       quoteRef,
       changes,
       supportEmail,
-      companyName,
-      logoUrl,
       websiteUrl,
       portalUrl,
     })

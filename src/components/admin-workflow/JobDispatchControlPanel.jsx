@@ -14,6 +14,7 @@ import GenerateJobSheetButton from './GenerateJobSheetButton'
 import JobStatusBadge from './JobStatusBadge'
 import { resolveCustomerPaymentSummary } from '../../lib/customerPaymentSummary'
 import { CustomerIdentitySummary } from '../admin/CustomerKindBadge'
+import SendRemainingBalanceEmailButton from '../admin/SendRemainingBalanceEmailButton'
 
 function money(n) {
   if (n == null || n === '') return '—'
@@ -129,6 +130,13 @@ export default function JobDispatchControlPanel({
           Edit Booking
         </Link>
       ) : null}
+      {accepted ? null : (
+        <SendRemainingBalanceEmailButton
+          quote={q}
+          className={`${btn} border border-amber-300 bg-amber-50 text-amber-950 hover:bg-amber-100`}
+          onSent={(msg) => onNotify?.(msg)}
+        />
+      )}
     </div>
   )
 
@@ -171,6 +179,13 @@ export default function JobDispatchControlPanel({
                 {customerPayment.remaining != null ? money(customerPayment.remaining) : '—'}
               </p>
             </div>
+          </div>
+          <div className="mt-3">
+            <SendRemainingBalanceEmailButton
+              quote={q}
+              className={`${btn} border border-amber-300 bg-amber-50 text-amber-950 hover:bg-amber-100`}
+              onSent={(msg) => onNotify?.(msg)}
+            />
           </div>
           <div className="mt-3">{actions}</div>
         </div>

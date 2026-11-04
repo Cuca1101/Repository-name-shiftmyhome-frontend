@@ -159,6 +159,29 @@ function normalizeMoveDate(dateStr) {
  * @param {Record<string, unknown>} p
  * @returns {string}
  */
+/** Same item rows as a New phone booking, so admin job details show the chosen items. */
+function structuredInventoryFromWizardLines(lines) {
+  if (!Array.isArray(lines) || lines.length === 0) return null
+  const rows = []
+  for (const line of lines) {
+    const name = String(line?.name || '').trim()
+    if (!name) continue
+    const quantity = Math.max(1, Number(line.quantity) || 1)
+    const m3 = Number(line.m3)
+    const mult = Number(line.mult)
+    rows.push({
+      name,
+      quantity,
+      m3: Number.isFinite(m3) ? m3 : 0,
+      mult: Number.isFinite(mult) && mult > 0 ? mult : 1,
+      weight_type: line.weightType || line.weight_type || 'medium',
+      is_custom: Boolean(line.isCustom || line.is_custom),
+      category: line.categoryLabel || line.category || '',
+    })
+  }
+  return rows.length ? rows : null
+}
+
 function resolveIsoMoveDateFromParams(p) {
   const isoField = String(p.move_date_iso ?? '').trim()
   if (/^\d{4}-\d{2}-\d{2}$/.test(isoField)) return isoField
@@ -170,6 +193,7 @@ function resolveIsoMoveDateFromParams(p) {
 export function buildQuoteRowFromTemplateParams(templateParams, extras = {}, rowOverrides = {}) {
   const p = templateParams || {}
   const inv = p.inventory != null && String(p.inventory).trim() !== '' ? String(p.inventory) : null
+  const structuredInventory = structuredInventoryFromWizardLines(extras.inventoryLines)
   const serviceLabel = resolveServiceLabel(p.service)
   const base = {
     quote_ref: p.quote_ref?.trim() || null,
@@ -199,7 +223,7 @@ export function buildQuoteRowFromTemplateParams(templateParams, extras = {}, row
     details: p.details != null ? String(p.details) : null,
     pricing: p.pricing != null ? String(p.pricing) : null,
     inventory_text: inv,
-    inventory: inv ? [{ summary: inv }] : [],
+    inventory: structuredInventory || (inv ? [{ summary: inv }] : []),
     message: null,
     status: 'New',
     payment_status: 'unpaid',

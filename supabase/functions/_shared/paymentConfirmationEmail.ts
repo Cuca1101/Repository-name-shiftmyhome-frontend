@@ -627,6 +627,9 @@ export async function sendPaymentConfirmationWithPdfIfNeeded(params: {
   resendFromEmail: string
 }) {
   const { supabase, paymentIntent, updateResult, resendApiKey, resendFromEmail } = params
+  if (asText(paymentIntent.metadata?.payment_type) === 'balance') {
+    return { sent: false, reason: 'balance_payment' as const }
+  }
   const metadataQuoteRef = asText(paymentIntent.metadata?.quote_ref)
   const metadataQuoteId = asText(paymentIntent.metadata?.quote_id)
   console.log('[payment-email] start', {

@@ -1,6 +1,7 @@
 import { isSupabaseConfigured, supabase } from '../supabase'
 import { isSupabasePublicConfigured, supabasePublic } from '../supabasePublicClient'
 import { getWebsiteLeadSessionId } from '../websiteLeadSession'
+import { CONVERTED_LEAD_VISIBLE_MS } from '../customerLeadList'
 import {
   CUSTOMER_LEAD_STATUS_LABELS,
   effectiveCustomerLeadStatus,
@@ -167,17 +168,42 @@ export async function fetchCustomerLeadsForAdmin(opts = {}) {
 }
 
 /**
- * Leads an admin has not opened yet. Trashed leads are not counted.
+ * Same window as the Customer Leads list: converted leads leave after 12 hours.
+ * @param {import('@supabase/supabase-js').PostgrestFilterBuilder<any, any, any>} query
+ */
+function stillOnCustomerLeadsList(query) {
+  const cutoff = new Date(Date.now() - CONVERTED_LEAD_VISIBLE_MS).toISOString()
+  return query.or(`converted_at.is.null,converted_at.gte.${cutoff}`)
+}
+
+/**
+ * Leads still on the Customer Leads list that an admin has not opened.
+ * Trashed leads and converted leads that have already left the list are not counted.
  */
 export async function countUnreadCustomerLeads() {
   if (!isSupabaseConfigured || !supabase) return 0
-  const { count, error } = await supabase
-    .from(TABLE)
-    .select('id', { count: 'exact', head: true })
-    .is('admin_read_at', null)
-    .is('deleted_at', null)
+  const { count, error } = await stillOnCustomerLeadsList(
+    supabase.from(TABLE).select('id', { count: 'exact', head: true }).is('admin_read_at', null).is('deleted_at', null),
+  )
   if (error) return 0
   return Number(count) || 0
+}
+
+/**
+ * Opening Customer Leads, or any lead in it, clears the red nav count.
+ * Leads that have already left the list are left unchanged.
+ */
+export async function markCustomerLeadsInboxRead() {
+  if (!isSupabaseConfigured || !supabase) return
+  const { error } = await stillOnCustomerLeadsList(
+    supabase
+      .from(TABLE)
+      .update({ admin_read_at: new Date().toISOString() })
+      .is('admin_read_at', null)
+      .is('deleted_at', null),
+  )
+  if (error) return
+  window.dispatchEvent(new Event('customer-leads-read'))
 }
 
 /**
@@ -192,7 +218,7 @@ export async function markCustomerLeadRead(id) {
     .eq('id', id)
     .is('admin_read_at', null)
   if (error) return
-  window.dispatchEvent(new Event('customer-leads-read'))
+  await markCustomerLeadsInboxRead()
 }
 
 /**

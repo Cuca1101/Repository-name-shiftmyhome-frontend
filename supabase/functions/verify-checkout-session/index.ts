@@ -78,7 +78,12 @@ Deno.serve(async (req) => {
   }
 
   const metaPaymentType = String(session.metadata?.payment_type || '')
-  if (metaPaymentType && metaPaymentType !== 'full' && metaPaymentType !== 'deposit') {
+  if (
+    metaPaymentType &&
+    metaPaymentType !== 'full' &&
+    metaPaymentType !== 'deposit' &&
+    metaPaymentType !== 'balance'
+  ) {
     return jsonResponse({ ok: false, error: 'Not a booking payment session' }, 400)
   }
 

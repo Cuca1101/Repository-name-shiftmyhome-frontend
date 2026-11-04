@@ -32,7 +32,7 @@ export default function DriverLifecycleActions({
     ? 'flex flex-wrap gap-1.5'
     : 'mt-4 flex flex-wrap gap-2 border-t border-slate-100 pt-4'
   const btn = compact
-    ? 'inline-flex min-h-[36px] flex-1 items-center justify-center rounded-lg px-2 py-1.5 text-[11px] font-semibold disabled:cursor-not-allowed disabled:opacity-40'
+    ? 'inline-flex h-7 flex-1 items-center justify-center rounded-md px-2 text-[10px] font-semibold disabled:cursor-not-allowed disabled:opacity-40'
     : btnBase
 
   if (phase === 'archived') {
@@ -44,7 +44,7 @@ export default function DriverLifecycleActions({
           onClick={onReactivate}
           className={`${btn} border border-emerald-200 bg-emerald-50 text-emerald-900 hover:bg-emerald-100`}
         >
-          {saving ? 'Working…' : compact ? 'Enable' : 'Reactivate Driver'}
+          {saving ? 'Working…' : 'Activate'}
         </button>
         {showDelete && onDelete ? (
           <button
@@ -69,7 +69,7 @@ export default function DriverLifecycleActions({
           onClick={onReactivate}
           className={`${btn} border border-emerald-200 bg-emerald-50 text-emerald-900 hover:bg-emerald-100`}
         >
-          {saving ? 'Working…' : compact ? 'Enable' : 'Enable Driver'}
+          {saving ? 'Working…' : 'Activate'}
         </button>
         {showDelete && onDelete ? (
           <button
@@ -93,7 +93,7 @@ export default function DriverLifecycleActions({
         onClick={onDisable}
         className={`${btn} border border-red-200 bg-red-50 text-red-900 hover:bg-red-100`}
       >
-        {saving ? 'Working…' : compact ? 'Disable' : 'Disable Driver'}
+        {saving ? 'Working…' : 'Suspend'}
       </button>
       <button
         type="button"
@@ -101,7 +101,7 @@ export default function DriverLifecycleActions({
         onClick={onArchive}
         className={`${btn} border border-violet-200 bg-violet-50 text-violet-900 hover:bg-violet-100`}
       >
-        {compact ? 'Archive' : 'Archive Driver'}
+        Archive
       </button>
       {showDelete && onDelete ? (
         <button

@@ -54,39 +54,79 @@ function tokenVariants(token) {
   return variants
 }
 
-/** @param {string} token @param {string} hay */
-function tokenInHay(token, hay) {
-  return tokenVariants(token).some((variant) => variant && hay.includes(variant))
+/**
+ * `exact` = the token is a whole word (including a plural).
+ * `prefix` = the token starts a longer word, such as "bed" in "bedside".
+ * A token inside another word, such as "king" in "rocking", does not match.
+ * @param {string} word
+ * @param {string} token
+ * @returns {'exact' | 'prefix' | null}
+ */
+function wordMatchKind(word, token) {
+  for (const variant of tokenVariants(token)) {
+    if (!variant) continue
+    if (word === variant) return 'exact'
+    if (variant.length >= 3 && word.startsWith(variant) && word.length > variant.length) return 'prefix'
+  }
+  return null
 }
 
 /**
- * Match if every token appears in `name` (case, spaces, hyphens and a trailing plural).
+ * @param {string} nameKey
+ * @param {string} queryKey
+ * @returns {'exact' | 'leading' | 'words' | 'prefix' | 'none'}
+ */
+function queryMatchQuality(nameKey, queryKey) {
+  if (!queryKey || !nameKey) return 'none'
+  if (nameKey === queryKey) return 'exact'
+  const tokens = queryKey.split(' ').filter(Boolean)
+  const words = nameKey.split(' ').filter(Boolean)
+  if (!tokens.length || !words.length) return 'none'
+  let prefixOnly = false
+  for (const token of tokens) {
+    let exact = false
+    let prefix = false
+    for (const word of words) {
+      const kind = wordMatchKind(word, token)
+      if (kind === 'exact') exact = true
+      else if (kind === 'prefix') prefix = true
+    }
+    if (exact) continue
+    if (prefix) {
+      prefixOnly = true
+      continue
+    }
+    const compactQuery = tokens.join('')
+    const compactName = words.join('')
+    if (compactQuery.length >= 4 && compactName.includes(compactQuery) && tokens.length > 1) return 'words'
+    return 'none'
+  }
+  if (nameKey.startsWith(`${queryKey} `)) return prefixOnly ? 'prefix' : 'leading'
+  return prefixOnly ? 'prefix' : 'words'
+}
+
+/**
+ * Match if every token is a word or the start of a word.
  * @param {string} name
  * @param {string} query
  */
 export function matchesInventorySearch(name, query) {
   const q = searchKey(query)
   if (!q) return true
-  const hay = searchKey(name)
-  return q.split(' ').filter(Boolean).every((token) => tokenInHay(token, hay))
+  return queryMatchQuality(searchKey(name), q) !== 'none'
 }
 
-/** @param {string} nameKey @param {string} queryKey */
-function nameMatchesQuery(nameKey, queryKey) {
-  if (nameKey === queryKey || nameKey.includes(queryKey)) return true
-  const tokens = queryKey.split(' ').filter(Boolean)
-  if (tokens.every((token) => tokenInHay(token, nameKey))) return true
-  const compactQuery = queryKey.replace(/ /g, '')
-  return compactQuery.length >= 4 && nameKey.replace(/ /g, '').includes(compactQuery)
-}
-
-/** A synonym hits only as a whole phrase, so "crate" does not also select "dog crate". */
-function synonymMatchesQuery(queryKey, synonyms) {
-  return synonyms.some((synonym) => {
-    const key = searchKey(synonym)
-    if (!key) return false
-    return key === queryKey || (queryKey.includes(key) && key.length >= 4)
-  })
+/** Synonym words count. A short prefix inside a synonym does not. */
+function synonymMatchQuality(queryKey, synonyms) {
+  /** @type {'exact' | 'leading' | 'words' | 'prefix' | 'none'} */
+  let best = 'none'
+  const rank = { none: 0, prefix: 1, words: 2, leading: 3, exact: 4 }
+  for (const synonym of synonyms) {
+    const quality = queryMatchQuality(searchKey(synonym), queryKey)
+    if (quality === 'prefix' || quality === 'none') continue
+    if (rank[quality] > rank[best]) best = quality
+  }
+  return best
 }
 
 /**
@@ -99,8 +139,8 @@ export function matchesInventoryCatalogEntry(entry, query) {
   const q = searchKey(query)
   if (!q) return false
   const name = searchKey(canonicalItemName(entry.item?.name))
-  if (nameMatchesQuery(name, q)) return true
-  return synonymMatchesQuery(q, synonymsForItemName(entry.item?.name))
+  if (queryMatchQuality(name, q) !== 'none') return true
+  return synonymMatchQuality(q, synonymsForItemName(entry.item?.name)) !== 'none'
 }
 
 /**
@@ -170,18 +210,12 @@ export function inventorySearchMatchScore(entry, query) {
   const q = searchKey(query)
   if (!q) return 0
   const name = searchKey(canonicalItemName(entry.item?.name))
-  const synonyms = synonymsForItemName(entry.item?.name).map((synonym) => searchKey(synonym))
-  let score = 0
-  if (name === q) score += 100
-  else if (synonyms.some((synonym) => synonym === q)) score += 90
-  else if (name.startsWith(q)) score += 80
-  else if (name.includes(q)) score += 50
-  const tokens = q.split(' ').filter(Boolean)
-  for (const token of tokens) {
-    if (tokenInHay(token, name)) score += 12
-    const words = name.split(' ')
-    if (words.some((word) => word.startsWith(token))) score += 8
-  }
+  const synonyms = synonymsForItemName(entry.item?.name)
+  const qualityScore = { exact: 100, leading: 85, words: 70, prefix: 28, none: 0 }
+  const nameQuality = queryMatchQuality(name, q)
+  const synonymQuality = synonymMatchQuality(q, synonyms)
+  let score = qualityScore[nameQuality] || 0
+  if (!score) score = Math.max(0, (qualityScore[synonymQuality] || 0) - 20)
   for (const size of requestedSizes(q)) {
     if (nameHasSize(name, size)) score += 60
     else if (['single', 'double', 'king', 'super king', 'small double', '2 seater', '3 seater', '4 seater'].some((other) => other !== size && nameHasSize(name, other))) {
@@ -235,22 +269,22 @@ function mergeIntervals(intervals) {
  * @returns {{ text: string, hl: boolean }[]}
  */
 export function highlightInventorySegments(name, query) {
-  const q = query.trim()
+  const q = searchKey(query)
   if (!q) return [{ text: name, hl: false }]
-  const tokens = q.split(/\s+/).filter(Boolean)
+  const tokens = [...new Set(q.split(' ').filter(Boolean).flatMap((token) => tokenVariants(token)))]
+    .filter((token) => token.length >= 2)
   if (!tokens.length) return [{ text: name, hl: false }]
 
   const lower = name.toLowerCase()
   /** @type {[number, number][]} */
   let intervals = []
   for (const token of tokens) {
-    const t = token.toLowerCase()
-    if (!t) continue
     let pos = 0
     while (pos < name.length) {
-      const i = lower.indexOf(t, pos)
+      const i = lower.indexOf(token, pos)
       if (i === -1) break
-      intervals.push([i, i + t.length])
+      const before = i === 0 || !/[a-z0-9]/i.test(name[i - 1])
+      if (before) intervals.push([i, i + token.length])
       pos = i + 1
     }
   }

@@ -417,10 +417,10 @@ export function parseInventoryTableRows(inventoryText, details) {
     )
     if (m) {
       rows.push({
-        name: m[1].trim(),
+        name: m[1].trim().replace(/\s*\[[^\]]+\]/g, '').trim(),
         qty: parseInt(m[2], 10) || 0,
         volume: `${m[3]} m³`,
-        sizeType: (m[4] || '').trim() || '—',
+        sizeType: (m[4] || '').split(',')[0].trim() || '—',
       })
     }
   }
@@ -519,9 +519,27 @@ export function parseInventoryFallbackDisplayLines(raw) {
 }
 
 /**
+ * Admin price for this booking. A migrated remaining-balance copy is not the price.
+ * @param {Record<string, unknown>} q
+ * @returns {number | null}
+ */
+function resolveAdminAgreedTotalGbp(q) {
+  const reason = String(q.price_override_reason || '')
+  if (/^Migrated from remaining_balance/i.test(reason)) return null
+  const raw = q.agreed_price
+  if (raw == null || String(raw).trim() === '') return null
+  const agreed = Number(raw)
+  if (!Number.isFinite(agreed) || agreed <= 0) return null
+  return round2(agreed)
+}
+
+/**
+ * Customer price for this booking. An admin price change replaces the original quote.
  * @param {Record<string, unknown>} q
  */
 export function resolveCustomerTotalGbp(q) {
+  const agreed = resolveAdminAgreedTotalGbp(q)
+  if (agreed != null) return agreed
   const fromCol = num(q.estimated_total)
   if (fromCol > 0) return round2(fromCol)
   const { estimatedTotal } = parsePricingText(q.pricing)

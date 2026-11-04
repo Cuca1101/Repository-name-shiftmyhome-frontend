@@ -48,7 +48,8 @@ export function driverMatchesStatusFilter(driver, filterId) {
 
 /** @param {Record<string, unknown>} driver */
 export function driverReactivateButtonLabel(driver) {
-  return getDriverLifecyclePhase(driver) === 'archived' ? 'Reactivate Driver' : 'Enable Driver'
+  void driver
+  return 'Activate'
 }
 
 /**

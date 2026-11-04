@@ -15,26 +15,28 @@ function volumeText(v) {
 
 /**
  * Inventory block for Available Job Details only — table + summary cards.
- * @param {{ quote: Record<string, unknown> }} props
+ * @param {{ quote: Record<string, unknown>, compact?: boolean }} props
  */
-export default function AvailableJobInventorySection({ quote }) {
+export default function AvailableJobInventorySection({ quote, compact = false }) {
   const rows = useMemo(() => buildAvailableJobInventoryDisplayRows(quote), [quote])
   const summary = useMemo(() => summarizeAvailableJobInventory(rows), [rows])
 
   return (
-    <section className={cardShell}>
-      <div className="flex flex-col gap-3 border-b border-slate-100 bg-gradient-to-r from-slate-50 via-white to-slate-50/80 px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+    <section className={compact ? '' : cardShell}>
+      <div className={`flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between ${compact ? 'px-3 py-2.5 sm:px-4' : 'gap-3 border-b border-slate-100 bg-gradient-to-r from-slate-50 via-white to-slate-50/80 px-5 py-4 sm:px-6'}`}>
         <div className="flex items-center gap-3">
-          <InventoryIcon />
+          {compact ? null : <InventoryIcon />}
           <div>
-            <h3 className="text-xs font-bold uppercase tracking-wide text-slate-500">Inventory</h3>
-            <p className="mt-0.5 text-sm font-semibold text-slate-800">Items & cubic capacity</p>
+            <h3 className="text-[10px] font-bold uppercase tracking-wide text-slate-500">Inventory</h3>
+            {compact ? null : <p className="mt-0.5 text-sm font-semibold text-slate-800">Items & cubic capacity</p>}
           </div>
         </div>
-        <p className="text-xs text-slate-500 sm:text-right">Display only — stored quote data is unchanged.</p>
+        {compact ? null : (
+          <p className="text-xs text-slate-500 sm:text-right">Display only — stored quote data is unchanged.</p>
+        )}
       </div>
 
-      <div className="bg-slate-50/40 p-5 sm:p-6">
+      <div className={compact ? 'px-3 pb-3 sm:px-4' : 'bg-slate-50/40 p-5 sm:p-6'}>
         {rows.length === 0 ? (
           <p className="rounded-xl border border-slate-200/80 bg-white px-4 py-3 text-sm leading-relaxed text-slate-600">
             No inventory line items could be parsed for this job. Check Notes or raw debug if the customer pasted a
@@ -42,7 +44,7 @@ export default function AvailableJobInventorySection({ quote }) {
           </p>
         ) : (
           <>
-            <SummaryStrip summary={summary} />
+            <SummaryStrip summary={summary} compact={compact} />
             <InventoryTable rows={rows} />
           </>
         )}
@@ -59,8 +61,8 @@ function InventoryIcon() {
   )
 }
 
-/** @param {{ summary: { itemCount: number, qtyTotal: number, volumeLabel: string, missingVolumeRows: number } }} props */
-function SummaryStrip({ summary }) {
+/** @param {{ summary: { itemCount: number, qtyTotal: number, volumeLabel: string, missingVolumeRows: number }, compact?: boolean }} props */
+function SummaryStrip({ summary, compact = false }) {
   const missing = summary.missingVolumeRows
   const cards = [
     { label: 'Total items', value: summary.itemCount, note: '' },
@@ -76,14 +78,14 @@ function SummaryStrip({ summary }) {
   ]
 
   return (
-    <div className="mb-5 grid gap-3 sm:grid-cols-3">
+    <div className={`grid gap-2 sm:grid-cols-3 ${compact ? 'mb-3' : 'mb-5 gap-3'}`}>
       {cards.map((c) => (
         <div
           key={c.label}
-          className="rounded-xl border border-slate-200/90 bg-white px-4 py-3.5 shadow-sm ring-1 ring-slate-900/[0.03]"
+          className={`rounded-lg border border-slate-200/90 bg-white shadow-sm ${compact ? 'px-3 py-2' : 'rounded-xl px-4 py-3.5 ring-1 ring-slate-900/[0.03]'}`}
         >
           <p className="text-[10px] font-bold uppercase tracking-wide text-slate-500">{c.label}</p>
-          <p className="mt-1.5 text-2xl font-bold tabular-nums tracking-tight text-slate-900">{c.value}</p>
+          <p className={`font-bold tabular-nums tracking-tight text-slate-900 ${compact ? 'mt-0.5 text-sm' : 'mt-1.5 text-2xl'}`}>{c.value}</p>
           {c.note ? <p className="mt-1 text-xs text-amber-700">{c.note}</p> : null}
         </div>
       ))}

@@ -1,13 +1,16 @@
+import { useState } from 'react'
 import { Link } from 'react-router-dom'
+import { MessageSquare, Pencil, Phone, UserRound, Wallet } from 'lucide-react'
 import JobStatusBadge from '../admin-workflow/JobStatusBadge'
 import DriverLifecycleActions from './DriverLifecycleActions'
-import LeadCallButton from './LeadCallButton'
-import { getDriverDisplayStatus, getDriverLifecyclePhase } from '../../lib/driverAdminLifecycle'
+import { teamsCallLink } from '../../lib/teamsPhone'
 
-function statusTone(st) {
-  if (st === 'Active') return 'emerald'
-  if (st === 'Suspended') return 'rose'
-  if (st === 'Archived') return 'violet'
+function statusTone(label) {
+  if (label === 'Active') return 'emerald'
+  if (label === 'On Duty') return 'sky'
+  if (label === 'Suspended') return 'rose'
+  if (label === 'Archived') return 'violet'
+  if (label === 'Offline') return 'slate'
   return 'slate'
 }
 
@@ -18,9 +21,7 @@ function VerificationBadge({ label, tone }) {
     violet: 'bg-violet-50 text-violet-800 ring-violet-200/80',
   }
   return (
-    <span
-      className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold ring-1 ${tones[tone] || tones.emerald}`}
-    >
+    <span className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold ring-1 ${tones[tone] || tones.emerald}`}>
       {label}
     </span>
   )
@@ -35,11 +36,25 @@ function driverInitials(name) {
   return (parts[0]?.[0] || '?').toUpperCase()
 }
 
+function money(value) {
+  if (value == null || value === '') return '—'
+  const n = Number(value)
+  if (!Number.isFinite(n)) return '—'
+  return `£${n.toFixed(2)}`
+}
+
+const iconButton =
+  'inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 transition hover:border-brand-200 hover:bg-brand-50 hover:text-brand-800 disabled:cursor-not-allowed disabled:opacity-40'
+
 /**
  * @param {{
  *   driver: Record<string, unknown>,
  *   assigned: number,
  *   completed: number,
+ *   cancelled: number,
+ *   earnings: number | null,
+ *   accountStatus: string,
+ *   dutyStatus?: string | null,
  *   badges: { key: string, label: string, tone: string }[],
  *   saving?: boolean,
  *   onView: () => void,
@@ -54,6 +69,10 @@ export default function DriverFleetCard({
   driver: d,
   assigned,
   completed,
+  cancelled,
+  earnings,
+  accountStatus,
+  dutyStatus = null,
   badges,
   saving = false,
   onView,
@@ -63,105 +82,127 @@ export default function DriverFleetCard({
   onReactivate,
   onDelete,
 }) {
-  const rating = String(d.rating || '').trim() || '—'
+  const [photoFailed, setPhotoFailed] = useState(false)
+  const [callError, setCallError] = useState('')
+  const rating = String(d.rating || '').trim()
   const notes = String(d.notes || '').trim()
-  const lifecyclePhase = getDriverLifecyclePhase(d)
-  const displayStatus = getDriverDisplayStatus(d)
+  const phone = String(d.phone || '').trim()
+  const email = String(d.email || '').trim()
+  const photo = String(d.profilePhotoUrl || '').trim()
+  const showPhoto = Boolean(photo) && !photoFailed
+  const call = phone ? teamsCallLink(phone) : null
   const vehicleLine = d.vehicleRegistration
     ? `Reg ${d.vehicleRegistration}`
     : d.vehicleType
       ? String(d.vehicleType)
       : ''
+  const stats = [
+    { label: 'Assigned', value: String(assigned) },
+    { label: 'Completed', value: String(completed) },
+    { label: 'Cancelled', value: String(cancelled) },
+    { label: 'Rating', value: rating || '—' },
+    { label: 'Earnings', value: money(earnings) },
+  ]
 
   return (
-    <li className="flex flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-      <div className="border-b border-slate-100 bg-gradient-to-br from-slate-50 to-white px-4 py-3.5">
-        <div className="flex items-center gap-3">
+    <li
+      className="flex cursor-pointer flex-col overflow-hidden rounded-xl border border-slate-200/80 bg-white shadow-sm transition hover:border-brand-200 hover:shadow-card"
+      onClick={onView}
+    >
+      <div className="flex items-center gap-2.5 px-3 pt-3">
+        {showPhoto ? (
+          <img
+            src={photo}
+            alt=""
+            className="h-10 w-10 shrink-0 rounded-full object-cover ring-2 ring-white"
+            onError={() => setPhotoFailed(true)}
+          />
+        ) : (
           <div
-            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-slate-900 text-sm font-bold text-white"
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-gradient text-xs font-bold text-white"
             aria-hidden
           >
             {driverInitials(d.name)}
           </div>
-          <div className="min-w-0 flex-1">
-            <p className="truncate font-semibold text-slate-900">{d.name}</p>
-            <p className="truncate text-xs text-slate-500">{d.email || 'No email'}</p>
+        )}
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-1.5">
+            <p className="min-w-0 flex-1 truncate text-sm font-bold text-slate-950">{d.name}</p>
+            <JobStatusBadge label={accountStatus} tone={statusTone(accountStatus)} />
+            {dutyStatus ? <JobStatusBadge label={dutyStatus} tone={statusTone(dutyStatus)} /> : null}
           </div>
-          <JobStatusBadge label={displayStatus} tone={statusTone(displayStatus)} />
+          <p className="mt-0.5 truncate text-[11px] text-slate-500">
+            {[phone || 'No phone', email || 'No email', vehicleLine].filter(Boolean).join(' · ')}
+          </p>
         </div>
       </div>
 
-      <div className="flex flex-1 flex-col gap-3 p-4">
-        <div className="grid grid-cols-3 gap-2 text-center">
-          <div className="rounded-xl bg-slate-50 px-2 py-2.5">
-            <p className="text-lg font-bold tabular-nums text-slate-900">{assigned}</p>
-            <p className="text-[10px] font-medium uppercase tracking-wide text-slate-500">Assigned</p>
+      <dl className="mx-3 mt-2 grid grid-cols-5 gap-1 rounded-lg bg-slate-50 px-1.5 py-1.5">
+        {stats.map((stat) => (
+          <div key={stat.label} className="min-w-0 text-center">
+            <dd className="truncate text-xs font-bold tabular-nums text-slate-950">{stat.value}</dd>
+            <dt className="truncate text-[9px] font-semibold uppercase tracking-wide text-slate-400">{stat.label}</dt>
           </div>
-          <div className="rounded-xl bg-slate-50 px-2 py-2.5">
-            <p className="text-lg font-bold tabular-nums text-slate-900">{completed}</p>
-            <p className="text-[10px] font-medium uppercase tracking-wide text-slate-500">Done</p>
-          </div>
-          <div className="rounded-xl bg-slate-50 px-2 py-2.5">
-            <p className="truncate text-lg font-bold text-slate-900">{rating}</p>
-            <p className="text-[10px] font-medium uppercase tracking-wide text-slate-500">Rating</p>
-          </div>
+        ))}
+      </dl>
+
+      {badges.length > 0 || notes ? (
+        <div className="mx-3 mt-1.5 flex min-w-0 items-center gap-1">
+          {badges.map((b) => (
+            <VerificationBadge key={b.key} label={b.label} tone={b.tone} />
+          ))}
+          {notes ? (
+            <p className="min-w-0 flex-1 truncate text-[11px] text-slate-500" title={notes}>
+              {notes}
+            </p>
+          ) : null}
         </div>
+      ) : null}
 
-        <div className="space-y-1 text-xs text-slate-600">
-          {d.phone ? <LeadCallButton phone={String(d.phone)} /> : null}
-          {vehicleLine ? <p className="truncate text-slate-500">{vehicleLine}</p> : null}
-          <p
-            className={
-              d.hasLogin || d.userId
-                ? lifecyclePhase === 'active'
-                  ? 'font-medium text-emerald-700'
-                  : 'text-slate-500'
-                : 'font-medium text-amber-700'
-            }
-          >
-            {d.hasLogin || d.userId ? 'Mobile app login' : 'No mobile login'}
-            {lifecyclePhase === 'suspended' ? ' · disabled' : ''}
-            {lifecyclePhase === 'archived' ? ' · archived' : ''}
-          </p>
-        </div>
-
-        {badges.length > 0 ? (
-          <div className="flex flex-wrap gap-1">
-            {badges.map((b) => (
-              <VerificationBadge key={b.key} label={b.label} tone={b.tone} />
-            ))}
-          </div>
-        ) : null}
-
-        {notes ? (
-          <p className="line-clamp-2 text-xs leading-relaxed text-slate-500" title={notes}>
-            {notes}
-          </p>
-        ) : null}
-
-        <div className="mt-auto flex gap-2 border-t border-slate-100 pt-3">
-          <Link
-            to="/admin/driver-payments"
-            className="flex-1 rounded-lg border border-slate-200 bg-white py-2 text-center text-xs font-semibold text-slate-700 hover:bg-slate-50"
-          >
-            Payments
-          </Link>
+      <div className="mt-2 flex items-center gap-1 border-t border-slate-100 px-2 py-1.5" onClick={(event) => event.stopPropagation()}>
+        {call?.ok ? (
+          <a href={call.href} target="_blank" rel="noopener noreferrer" className={iconButton} title="Call" aria-label="Call">
+            <Phone className="h-3.5 w-3.5" aria-hidden />
+          </a>
+        ) : (
           <button
             type="button"
-            onClick={onView}
-            className="flex-1 rounded-lg border border-slate-200 bg-white py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+            className={iconButton}
+            title="Call"
+            aria-label="Call"
+            onClick={() => setCallError(call?.error || 'No phone number on this driver.')}
           >
-            View
+            <Phone className="h-3.5 w-3.5" aria-hidden />
           </button>
-          <button
-            type="button"
-            onClick={onEdit}
-            className="flex-1 rounded-lg bg-slate-900 py-2 text-xs font-semibold text-white hover:bg-slate-800"
-          >
-            Edit
-          </button>
-        </div>
-
+        )}
+        <Link
+          to={`/admin/driver-messages?driver=${encodeURIComponent(String(d.id || ''))}`}
+          className={iconButton}
+          title="Message"
+          aria-label="Message"
+        >
+          <MessageSquare className="h-3.5 w-3.5" aria-hidden />
+        </Link>
+        <button type="button" onClick={onView} className={iconButton} title="View profile" aria-label="View profile">
+          <UserRound className="h-3.5 w-3.5" aria-hidden />
+        </button>
+        <button type="button" onClick={onEdit} className={`${iconButton} text-slate-900`} title="Edit driver" aria-label="Edit driver">
+          <Pencil className="h-3.5 w-3.5" aria-hidden />
+        </button>
+        <Link
+          to={`/admin/driver-payments?driver=${encodeURIComponent(String(d.id || ''))}`}
+          className={iconButton}
+          title="Payments"
+          aria-label="Payments"
+        >
+          <Wallet className="h-3.5 w-3.5" aria-hidden />
+        </Link>
+        <span className={`ml-auto truncate text-[10px] font-medium ${d.hasLogin || d.userId ? 'text-emerald-700' : 'text-amber-700'}`}>
+          {d.hasLogin || d.userId ? 'App login' : 'No login'}
+        </span>
+      </div>
+      {callError ? <p className="px-3 pb-1 text-[11px] text-amber-900">{callError}</p> : null}
+      <div className="px-2 pb-2" onClick={(event) => event.stopPropagation()}>
         <DriverLifecycleActions
           driver={d}
           saving={saving}

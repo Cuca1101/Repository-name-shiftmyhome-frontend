@@ -120,13 +120,8 @@ export function shouldHideQuoteFromAdminInbox(q) {
   if (shouldHideArchivedTestDemoInProduction(q)) return true
   if (isQuoteGoLiveArchived(q)) return true
 
-  // Live Stripe customer bookings (not archived/demo) stay visible in workflow lists.
-  if (isRealCustomerBooking(q)) return false
-
-  const op = String(q.operational_status || '').trim().toLowerCase()
-  const mv = String(q.marketplace_visibility || '').trim().toLowerCase()
-  if (q.cancelled_at && (op === 'cancelled' || mv === 'cancelled')) return true
-
+  // Cancelled phone and cash bookings stay in Cancelled Jobs. Only archived,
+  // test, and demo rows are removed from the admin lists.
   return false
 }
 
