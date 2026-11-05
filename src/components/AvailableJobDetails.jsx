@@ -123,10 +123,9 @@ function DlItem({ label, value }) {
   )
 }
 
-function CustomerEmailsBlock({ q, adminEmailPreview, onOpenPreview, onClosePreview, onRefresh, forceOpen = false }) {
+function CustomerEmailsBlock({ q, adminEmailPreview, onOpenPreview, onClosePreview, forceOpen = false }) {
   return (
     <CustomerEmailsSection quote={q} forceOpen={forceOpen || Boolean(adminEmailPreview)}>
-      <AdminJobCustomerComms quote={q} onRefresh={onRefresh} compact />
       {adminEmailPreview ? (
         <div className="mb-4 border-b border-slate-100 pb-4">
           <p className="text-sm font-semibold text-slate-900">Email preview</p>
@@ -730,7 +729,6 @@ export default function AvailableJobDetails() {
           {fullPageDispatch && q?.id ? (
             <CustomerEmailsBlock
               q={q}
-              onRefresh={() => void load()}
               adminEmailPreview={adminEmailPreview}
               onOpenPreview={() => setAdminEmailPreview(buildAdminBookingEmailPreview(q).html)}
               onClosePreview={() => {
@@ -861,7 +859,6 @@ export default function AvailableJobDetails() {
         <CustomerEmailsBlock
           q={q}
           forceOpen
-          onRefresh={() => void load()}
           adminEmailPreview={adminEmailPreview}
           onOpenPreview={() => setAdminEmailPreview(buildAdminBookingEmailPreview(q).html)}
           onClosePreview={() => {

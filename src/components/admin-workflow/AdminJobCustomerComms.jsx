@@ -194,6 +194,15 @@ export default function AdminJobCustomerComms({ quote, onRefresh, compact = fals
 
   return (
     <div className="space-y-4">
+      <button
+        type="button"
+        disabled={Boolean(busy)}
+        onClick={() => void resend('booking_confirmed', 'Booking confirmation', { requirePaid: false, confirm: true })}
+        className="inline-flex min-h-[44px] items-center rounded-xl bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-50"
+      >
+        {busy === 'booking_confirmed' ? 'Sending…' : 'Resend confirmation'}
+      </button>
+      {msg ? <p className="text-sm text-slate-700">{msg}</p> : null}
       {!paid && phoneReleased ? (
         <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
           This booking is confirmed and still unpaid. The customer can pay by card from the confirmation email at any time, or pay the driver when they arrive. They can also track the job.
@@ -378,8 +387,6 @@ export default function AdminJobCustomerComms({ quote, onRefresh, compact = fals
           Ensure token
         </button>
       </div>
-
-      {msg ? <p className="text-sm text-slate-700">{msg}</p> : null}
 
       <AdminJobEmailsSentPanel quoteId={quoteId} refreshKey={notifications.length} />
     </div>
