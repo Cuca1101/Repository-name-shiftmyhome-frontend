@@ -355,14 +355,6 @@ export default function AdminJobCustomerComms({ quote, onRefresh, compact = fals
         </button>
         <button
           type="button"
-          disabled={Boolean(busy)}
-          onClick={() => void resend('booking_confirmed', 'Booking confirmation', { requirePaid: false, confirm: true })}
-          className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-800 disabled:opacity-50"
-        >
-          {busy === 'booking_confirmed' ? 'Sending…' : 'Resend confirmation'}
-        </button>
-        <button
-          type="button"
           disabled={Boolean(busy) || (!paid && !phoneReleased)}
           onClick={() => void resend('driver_assigned', 'Driver details email')}
           className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-800 disabled:opacity-50"
