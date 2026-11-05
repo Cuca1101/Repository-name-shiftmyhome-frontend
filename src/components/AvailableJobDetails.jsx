@@ -706,7 +706,10 @@ export default function AvailableJobDetails() {
           ) : null}
           {!fullPageDispatch && tab === 'overview' ? (
             <AdminCard title="Payment">
-              <JobAcceptedPayoutEditor q={q} onUpdated={load} />
+              <AdminJobCustomerComms quote={q} onRefresh={() => void load()} compact />
+              <div className="mt-4 border-t border-slate-100 pt-4">
+                <JobAcceptedPayoutEditor q={q} onUpdated={load} />
+              </div>
               {String(q.marketplace_visibility || '') === 'visible_in_marketplace' && marketplaceFinance ? (
                 <div className="mt-4 space-y-1 border-t border-slate-100 pt-3 text-xs text-slate-600">
                   <p>
@@ -724,6 +727,11 @@ export default function AvailableJobDetails() {
                   </p>
                 </div>
               ) : null}
+            </AdminCard>
+          ) : null}
+          {fullPageDispatch && q?.id ? (
+            <AdminCard title="Resend booking confirmation">
+              <AdminJobCustomerComms quote={q} onRefresh={() => void load()} compact />
             </AdminCard>
           ) : null}
           {fullPageDispatch && q?.id ? (
@@ -852,6 +860,12 @@ export default function AvailableJobDetails() {
               the Overview tab.
             </p>
           ) : null}
+        </AdminCard>
+      ) : null}
+
+      {!fullPageDispatch && tab === 'emails' && q?.id ? (
+        <AdminCard title="Resend booking confirmation">
+          <AdminJobCustomerComms quote={q} onRefresh={() => void load()} compact />
         </AdminCard>
       ) : null}
 

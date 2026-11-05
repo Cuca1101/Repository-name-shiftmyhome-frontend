@@ -16,9 +16,9 @@ import AdminJobEmailsSentPanel from './AdminJobEmailsSentPanel'
 
 /**
  * Admin: customer communication / tracking + completion follow-up for a booking.
- * @param {{ quote: Record<string, unknown>, onRefresh?: () => void }} props
+ * @param {{ quote: Record<string, unknown>, onRefresh?: () => void, compact?: boolean }} props
  */
-export default function AdminJobCustomerComms({ quote, onRefresh }) {
+export default function AdminJobCustomerComms({ quote, onRefresh, compact = false }) {
   const quoteId = String(quote?.id || '').trim()
   const [tokenRow, setTokenRow] = useState(null)
   const [notifications, setNotifications] = useState([])
@@ -170,6 +170,27 @@ export default function AdminJobCustomerComms({ quote, onRefresh }) {
 
   const trackingUrl = tokenRow?.token ? buildJobTrackingUrl(tokenRow.token) : null
   const locStale = isDriverLocationStale(driverLoc?.updated_at)
+
+  if (compact) {
+    return (
+      <div className="space-y-3">
+        {!paid && phoneReleased ? (
+          <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+            This booking is confirmed and still unpaid. Resend sends the customer a Pay by card button and the price set in admin.
+          </p>
+        ) : null}
+        <button
+          type="button"
+          disabled={Boolean(busy)}
+          onClick={() => void resend('booking_confirmed', 'Booking confirmation', { requirePaid: false, confirm: true })}
+          className="inline-flex min-h-[44px] items-center rounded-xl bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-50"
+        >
+          {busy === 'booking_confirmed' ? 'Sending…' : 'Resend confirmation'}
+        </button>
+        {msg ? <p className="text-sm text-slate-700">{msg}</p> : null}
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-4">
@@ -332,16 +353,14 @@ export default function AdminJobCustomerComms({ quote, onRefresh }) {
         >
           Copy tracking link
         </button>
-        {phoneReleased ? (
-          <button
-            type="button"
-            disabled={Boolean(busy)}
-            onClick={() => void resend('booking_confirmed', 'Booking confirmation', { requirePaid: false, confirm: true })}
-            className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-800 disabled:opacity-50"
-          >
-            Resend confirmation
-          </button>
-        ) : null}
+        <button
+          type="button"
+          disabled={Boolean(busy)}
+          onClick={() => void resend('booking_confirmed', 'Booking confirmation', { requirePaid: false, confirm: true })}
+          className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-800 disabled:opacity-50"
+        >
+          {busy === 'booking_confirmed' ? 'Sending…' : 'Resend confirmation'}
+        </button>
         <button
           type="button"
           disabled={Boolean(busy) || (!paid && !phoneReleased)}
