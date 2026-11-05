@@ -38,9 +38,23 @@ export function makeQuoteRef() {
   return `SMH-${y}-${n}`
 }
 
+/**
+ * @param {number | null | undefined} crewSize
+ */
+function crewStartingPriceEmailLabel(crewSize) {
+  const n = Math.round(Number(crewSize) || 0)
+  if (n === 1) return 'Starting price (1 man)'
+  if (n === 2) return 'Starting price (2 men)'
+  return 'Starting price'
+}
+
 export function formatQuoteBreakdownLines(b) {
   if (!b) return ''
   const lines = [
+    ...(b.serviceBasePrice > 0 ? [`Starting price: £${b.serviceBasePrice.toFixed(2)}`] : []),
+    ...(b.crewStartingPrice > 0
+      ? [`${crewStartingPriceEmailLabel(b.crewSizeUsedInPricing)}: £${b.crewStartingPrice.toFixed(2)}`]
+      : []),
     `Distance: £${b.distancePrice.toFixed(2)}`,
     `Volume: £${b.volumePrice.toFixed(2)} (total ${b.totalCubicMetres.toFixed(2)} m³)`,
   ]

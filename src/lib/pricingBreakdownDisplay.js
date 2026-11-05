@@ -10,6 +10,16 @@
 
 const money = (n) => (Number.isFinite(n) ? Math.round(n * 100) / 100 : 0)
 
+/**
+ * @param {number | null | undefined} crewSize
+ */
+function crewStartingPriceRowLabel(crewSize) {
+  const n = Math.round(Number(crewSize) || 0)
+  if (n === 1) return 'Starting price (1 man)'
+  if (n === 2) return 'Starting price (2 men)'
+  return 'Starting price'
+}
+
 
 
 /**
@@ -162,6 +172,12 @@ export function buildStandardPricingDisplayRows(b) {
 
   /** @type {{ label: string, amount: number, isDiscount?: boolean, isTotal?: boolean }[]} */
   const rows = [
+    ...(money(b.serviceBasePrice) > 0
+      ? [{ label: 'Starting price', amount: money(b.serviceBasePrice) }]
+      : []),
+    ...(money(b.crewStartingPrice) > 0
+      ? [{ label: crewStartingPriceRowLabel(b.crewSizeUsedInPricing), amount: money(b.crewStartingPrice) }]
+      : []),
     { label: 'Mileage Price', amount: money(b.distancePrice) },
     {
       label: 'Volume Price (raw m³)',
@@ -275,6 +291,12 @@ export function collectBreakdownDisplayLines(b) {
   /** @type {{ label: string, amount: number, isDiscount?: boolean }[]} */
 
   const rows = [
+
+    ...(b.serviceBasePrice > 0 ? [{ label: 'Starting price', amount: b.serviceBasePrice }] : []),
+
+    ...(b.crewStartingPrice > 0
+      ? [{ label: crewStartingPriceRowLabel(b.crewSizeUsedInPricing), amount: b.crewStartingPrice }]
+      : []),
 
     { label: 'Distance', amount: b.distancePrice },
 

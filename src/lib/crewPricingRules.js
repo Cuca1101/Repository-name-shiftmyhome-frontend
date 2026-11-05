@@ -144,8 +144,9 @@ export function computeCrewBaseFees(settings, crewSize) {
 }
 
 /**
- * Minimum operational threshold — service base + crew base fees (once per job; not added to subtotal).
- * `basePricePerMan` is ignored here so the admin toggle cannot inflate the threshold.
+ * Service starting price (`basePriceByService`) is always added in calculateQuote.
+ * Crew base fees stay a per-job floor and are not added when the quote is already higher.
+ * `basePricePerMan` is ignored — the starting price is once per job, never × crew size.
  * @param {import('./pricingCalculator.js').PricingSettings} settings
  * @param {string} serviceType
  * @param {number} crewSize
@@ -153,7 +154,7 @@ export function computeCrewBaseFees(settings, crewSize) {
 export function resolveMinimumBaseThreshold(settings, serviceType, crewSize) {
   const serviceBasePrice = Math.max(0, Number(settings.basePriceByService?.[serviceType]) || 0)
   const crewBaseFees = computeCrewBaseFees(settings, crewSize)
-  const minimumBaseThreshold = Math.round((serviceBasePrice + crewBaseFees.total) * 100) / 100
+  const minimumBaseThreshold = Math.round(crewBaseFees.total * 100) / 100
   return { serviceBasePrice, crewBaseFees, minimumBaseThreshold }
 }
 
@@ -330,6 +331,19 @@ export function isCrewLabourExtraLine(label) {
  * @param {import('./pricingCalculator.js').PricingSettings} settings
  * @param {number} crewSize
  */
+/**
+ * Added on every quote for the priced crew. 1 man and 2 men only.
+ * The crew job minimum still applies afterwards when the total is lower.
+ * @param {import('./pricingCalculator.js').PricingSettings} settings
+ * @param {number} crewSize
+ */
+export function resolveCrewStartingPrice(settings, crewSize) {
+  const n = Math.max(1, Math.min(4, Math.round(Number(crewSize) || 1)))
+  if (n === 1) return Math.max(0, Number(settings.crewStartingPriceOneMan) || 0)
+  if (n === 2) return Math.max(0, Number(settings.crewStartingPriceTwoMen) || 0)
+  return 0
+}
+
 export function resolveMinimumJobPriceForCrew(settings, crewSize) {
   const fallback = Math.max(0, Number(settings.minimumJobPrice) || 0)
   const n = Math.max(1, Math.min(4, Math.round(Number(crewSize) || 1)))

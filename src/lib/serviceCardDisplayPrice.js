@@ -3,7 +3,7 @@ import { SERVICE_PAGES } from '../constants/servicePages'
 /**
  * Homepage / service card "From £..." prices only — never used by the quote calculator.
  * Source of truth: pricing settings `displayPriceByService` (Admin: Homepage display price).
- * Never read `basePriceByService` (Admin: Minimum service threshold) here.
+ * Never read `basePriceByService` (Admin: Starting price) here.
  */
 
 /**

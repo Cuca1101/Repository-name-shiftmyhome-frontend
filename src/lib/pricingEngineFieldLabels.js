@@ -2,12 +2,14 @@
 
 /** @type {Record<string, string>} */
 export const PRICING_SETTING_FIELD_LABELS = {
-  basePriceByService: 'Minimum service threshold (per service)',
+  basePriceByService: 'Starting price (per service)',
   pricePerMile: 'Price per mile',
   pricePerCubicMetre: 'Price per cubic metre',
   minimumJobPrice: 'Minimum job price (fallback)',
   minimumJobPriceOneMan: 'Minimum — 1 Man',
   minimumJobPriceTwoMen: 'Minimum — 2 Men',
+  crewStartingPriceOneMan: 'Starting price — 1 Man',
+  crewStartingPriceTwoMen: 'Starting price — 2 Men',
   minimumJobPriceThreeMen: 'Minimum — 3+ Men',
   floorChargePerFloor: 'Floor charge per floor',
   noLiftCharge: 'No lift charge',

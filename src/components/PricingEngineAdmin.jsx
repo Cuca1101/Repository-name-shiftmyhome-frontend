@@ -212,16 +212,19 @@ export default function PricingEngineAdmin() {
             item estimates (volume/heavy portion).
           </p>
           <ol className="mt-3 list-decimal space-y-1 pl-5 text-sm text-emerald-950/90">
+            <li>Starting price for the service, once per job. Everything below is added on top.</li>
+            <li>Crew starting price for 1 man or for 2 men, added on top. The matching minimum still applies if that total is lower.</li>
             <li>Mileage × price/mile (fuel is optional and off by default — do not enable unless you want a second distance charge).</li>
             <li>
               Raw inventory m³ × £/m³, then volume-band multiplier on that volume £ (and optionally floors /
               no-lift when that toggle is on — never the whole quote).
             </li>
             <li>Access &amp; extras (floors, lift, stairs, parking, packing, etc.).</li>
-            <li>Crew hourly travel labour (Mapbox duration or miles ÷ fallback speed). Crew/service bases are floors only.</li>
-            <li>Date surcharge once (same-day / Saturday / Sunday / bank holiday).</li>
+            <li>Crew hourly travel labour (Mapbox duration or miles ÷ fallback speed). Crew base fees are floors only.</li>
+            <li>Date surcharge once (same-day / Saturday / Sunday / bank holiday), on that total.</li>
             <li>
-              Final = max(calculated, service+crew-base floor, crew job minimum). Minimums are never added on top.
+              If the result is still below the crew job minimum, use that minimum. Minimums are not added on top when
+              the quote is already higher.
             </li>
           </ol>
           <p className="mt-3 text-xs leading-relaxed text-emerald-900/80">
@@ -231,29 +234,11 @@ export default function PricingEngineAdmin() {
         </div>
 
         <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-card">
-          <h3 className="text-lg font-semibold text-slate-900">Minimum service threshold per service type</h3>
-          <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50/80 p-4">
-            <p className="text-sm font-semibold text-amber-950">Deprecated — unused in quotes</p>
-            <label className="mt-2 flex cursor-not-allowed items-start gap-3 opacity-70">
-              <input
-                type="checkbox"
-                disabled
-                className="mt-1 h-5 w-5 rounded border-slate-300"
-                checked={false}
-                readOnly
-              />
-              <span>
-                <span className="block text-sm font-semibold text-slate-900">Base price is per crew member</span>
-                <span className="mt-1 block text-xs leading-relaxed text-slate-600">
-                  Removed from the pricing engine. Service thresholds are always a per-job floor (never × crew size).
-                </span>
-              </span>
-            </label>
-          </div>
+          <h3 className="text-lg font-semibold text-slate-900">Starting price per service type</h3>
           <p className="mt-3 text-xs leading-relaxed text-slate-500">
             Homepage display prices only change the service card &ldquo;From £&hellip;&rdquo; text. They do not affect
-            quote calculations. Minimum service thresholds below are floors applied only when the calculated quote is
-            lower — they are never hard-added.
+            quote calculations. The starting price below is added to every quote for that service. Mileage, volume,
+            access, and labour are calculated on top. Crew job minimums still apply when that total is lower.
           </p>
           <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {SERVICE_TYPES.map((s) => (
@@ -263,9 +248,9 @@ export default function PricingEngineAdmin() {
               >
                 <p className="text-sm font-semibold text-slate-900">{s}</p>
                 <label className="mt-3 block">
-                  <span className="text-xs font-medium text-slate-700">Minimum service threshold</span>
+                  <span className="text-xs font-medium text-slate-700">Starting price</span>
                   <span className="mt-0.5 block text-[11px] text-slate-500">
-                    Floor for small jobs (with crew base thresholds) — not hard-added when quote is higher
+                    Added on every quote. Mileage, volume, access, and labour are calculated on top.
                   </span>
                   <div className="mt-1.5 flex items-center gap-2">
                     <span className="text-slate-500">£</span>
@@ -333,26 +318,60 @@ export default function PricingEngineAdmin() {
                 onChange={(e) => setNum('minimumJobPrice', e.target.value)}
               />
             </Field>
-            <Field label="Minimum — 1 Man (£)">
-              <input
-                type="number"
-                step="0.01"
-                min="0"
-                className={inputClass}
-                value={settings.minimumJobPriceOneMan ?? settings.minimumJobPrice ?? 0}
-                onChange={(e) => setNum('minimumJobPriceOneMan', e.target.value)}
-              />
-            </Field>
-            <Field label="Minimum — 2 Men (£)">
-              <input
-                type="number"
-                step="0.01"
-                min="0"
-                className={inputClass}
-                value={settings.minimumJobPriceTwoMen ?? settings.minimumJobPrice ?? 0}
-                onChange={(e) => setNum('minimumJobPriceTwoMen', e.target.value)}
-              />
-            </Field>
+            <div className="rounded-xl border border-slate-100 bg-slate-50/60 p-4">
+              <Field label="Minimum — 1 Man (£)" helper="Floor only. Used when the 1-man total is lower.">
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  className={inputClass}
+                  value={settings.minimumJobPriceOneMan ?? settings.minimumJobPrice ?? 0}
+                  onChange={(e) => setNum('minimumJobPriceOneMan', e.target.value)}
+                />
+              </Field>
+              <div className="mt-3">
+                <Field
+                  label="Starting price — 1 Man (£)"
+                  helper="Added on every 1-man quote. Cubes, miles and extras are on top. The minimum still applies if the total is lower."
+                >
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    className={inputClass}
+                    value={settings.crewStartingPriceOneMan ?? 0}
+                    onChange={(e) => setNum('crewStartingPriceOneMan', e.target.value)}
+                  />
+                </Field>
+              </div>
+            </div>
+            <div className="rounded-xl border border-slate-100 bg-slate-50/60 p-4">
+              <Field label="Minimum — 2 Men (£)" helper="Floor only. Used when the 2-man total is lower.">
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  className={inputClass}
+                  value={settings.minimumJobPriceTwoMen ?? settings.minimumJobPrice ?? 0}
+                  onChange={(e) => setNum('minimumJobPriceTwoMen', e.target.value)}
+                />
+              </Field>
+              <div className="mt-3">
+                <Field
+                  label="Starting price — 2 Men (£)"
+                  helper="Added on every 2-man quote. Cubes, miles and extras are on top. The minimum still applies if the total is lower."
+                >
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    className={inputClass}
+                    value={settings.crewStartingPriceTwoMen ?? 0}
+                    onChange={(e) => setNum('crewStartingPriceTwoMen', e.target.value)}
+                  />
+                </Field>
+              </div>
+            </div>
             <Field label="Minimum — 3+ Men (£)">
               <input
                 type="number"
@@ -365,8 +384,8 @@ export default function PricingEngineAdmin() {
             </Field>
           </div>
           <p className="mt-2 text-xs text-slate-600">
-            Per-crew minimums prevent 1 Man and 2 Men collapsing to the same price on short jobs. Mileage and fuel are
-            never multiplied by crew size.
+            The crew starting price is added on every quote. The minimum is still a floor: if the total is lower, the
+            customer pays the minimum. Mileage and fuel are never multiplied by crew size.
           </p>
           <div className="mt-6 border-t border-slate-100 pt-6">
             <h4 className="text-sm font-semibold text-slate-900">Fuel surcharge (optional — off by default)</h4>
@@ -1013,7 +1032,7 @@ export default function PricingEngineAdmin() {
             </Field>
             <Field
               label="First man — base fee (£)"
-              helper="Contributes to the minimum job floor only — never hard-added to the calculated subtotal. Prefer £0 and use hourly rates + service floor."
+              helper="Contributes to the minimum job floor only — never hard-added to the calculated subtotal. Prefer £0 and use hourly rates plus the service starting price."
             >
               <input
                 type="number"

@@ -8,7 +8,7 @@ import { defaultServicePackages } from './servicePackages.js'
 export function getDefaultPricingSettings() {
   const basePriceByService = Object.fromEntries(
     SERVICE_TYPES.map((s) => {
-      // Floors only — never hard-added. Keep at/below crew job mins so mins dominate for MWV.
+      // Starting price added on every quote. £0 means mileage, volume, and labour start from zero.
       if (s === 'Man with Van') return [s, 0]
       if (s === 'Furniture Delivery') return [s, 0]
       if (s === 'Office Moves') return [s, 90]
@@ -27,8 +27,12 @@ export function getDefaultPricingSettings() {
     pricePerCubicMetre: 10,
     minimumJobPrice: 50,
     minimumJobPriceOneMan: 50,
+    /** Added on top when the job is priced as 1 man. The 1-man minimum still applies if the total is lower. */
+    crewStartingPriceOneMan: 0,
     /** £70 keeps a typical small 2-man local job (e.g. fridge / ~6 mi / Sat) in the £65–£75 band. */
     minimumJobPriceTwoMen: 70,
+    /** Added on top when the job is priced as 2 men. The 2-man minimum still applies if the total is lower. */
+    crewStartingPriceTwoMen: 0,
     minimumJobPriceThreeMen: 90,
     floorChargePerFloor: 13,
     noLiftCharge: 30,

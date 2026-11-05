@@ -204,12 +204,127 @@ const tiny = quote({
 assert(tiny.estimatedTotal === Math.max(tiny.scaledSubtotal, tiny.minimumBaseThreshold, tiny.minimumJobPrice), 'final is max(subtotal, floors)')
 assert(
   tiny.estimatedTotal < tiny.scaledSubtotal + tiny.minimumJobPrice - 0.01 || tiny.minimumApplied > 0,
-  'minimum acts as floor uplift only when needed',
+  'crew job minimum acts as floor uplift only when needed',
 )
-// Prove we never hard-add service base into subtotal
+assert(tiny.serviceBasePrice === 0, 'default Man with Van starting price is £0')
 assert(
-  Math.abs(tiny.subtotalBeforeSurcharges - (tiny.distancePrice + tiny.volumePrice + tiny.accessTotal + tiny.extrasTotal)) < 0.02,
-  'subtotal excludes service base hard-add',
+  Math.abs(
+    tiny.subtotalBeforeSurcharges -
+      (tiny.serviceBasePrice + tiny.distancePrice + tiny.volumePrice + tiny.accessTotal + tiny.extrasTotal),
+  ) < 0.02,
+  'subtotal includes the service starting price',
+)
+
+console.log('\n=== Starting price is added, then the rest ===')
+const startSettings = {
+  ...settings,
+  basePriceByService: { ...settings.basePriceByService, 'Man with Van': 20 },
+}
+function quoteWithStart(partial) {
+  return calculateQuote(startSettings, {
+    serviceType: 'Man with Van',
+    access: baseAccess,
+    extras: {},
+    lineItems: FRIDGE,
+    ...partial,
+  })
+}
+const aboveFloor = quote({
+  distanceMiles: 10,
+  crewSize: 2,
+  moveDate: '2026-09-18',
+  lineItems: [{ name: 'Load', quantity: 1, volumePerUnitM3: 5, weightType: 'large', handlingMultiplier: 1 }],
+})
+const aboveFloorPlusStart = quoteWithStart({
+  distanceMiles: 10,
+  crewSize: 2,
+  moveDate: '2026-09-18',
+  lineItems: [{ name: 'Load', quantity: 1, volumePerUnitM3: 5, weightType: 'large', handlingMultiplier: 1 }],
+})
+assert(aboveFloorPlusStart.serviceBasePrice === 20, '£20 starting price is read for Man with Van')
+assert(
+  Math.abs(aboveFloorPlusStart.estimatedTotal - (aboveFloor.estimatedTotal + 20)) < 0.02,
+  '£20 is added on top when the quote is already above the crew minimum',
+)
+assert(aboveFloorPlusStart.crewSizeUsedInPricing === 2, '2-man job still prices as 2 men')
+assert(
+  aboveFloorPlusStart.serviceBasePrice === 20,
+  'starting price is once per job, not × crew size',
+)
+const belowFloor = quoteWithStart({
+  distanceMiles: 0.5,
+  crewSize: 2,
+  moveDate: '2026-09-18',
+  lineItems: [{ name: 'Box', quantity: 1, volumePerUnitM3: 0.1, weightType: 'small', handlingMultiplier: 1 }],
+})
+assert(
+  belowFloor.estimatedTotal === settings.minimumJobPriceTwoMen,
+  'crew job minimum still wins when starting price plus the rest is lower',
+)
+assert(
+  Math.abs(
+    aboveFloorPlusStart.subtotalBeforeSurcharges -
+      (20 +
+        aboveFloorPlusStart.distancePrice +
+        aboveFloorPlusStart.volumePrice +
+        aboveFloorPlusStart.accessTotal +
+        aboveFloorPlusStart.extrasTotal),
+  ) < 0.02,
+  'subtotal is £20 plus mileage, volume, access, and labour',
+)
+
+console.log('\n=== Crew starting price is added, then the minimum still floors ===')
+const crewBaseSettings = { ...settings, oneManLabourDiscountPercent: 0 }
+const crewStart = {
+  ...crewBaseSettings,
+  crewStartingPriceOneMan: 20,
+  crewStartingPriceTwoMen: 20,
+}
+const oneManBase = calculateQuote(crewBaseSettings, {
+  serviceType: 'Man with Van',
+  distanceMiles: 10,
+  crewSize: 1,
+  moveDate: '2026-09-18',
+  lineItems: [{ name: 'Load', quantity: 1, volumePerUnitM3: 5, weightType: 'large', handlingMultiplier: 1 }],
+  access: baseAccess,
+  extras: {},
+})
+const oneManPlus = calculateQuote(crewStart, {
+  serviceType: 'Man with Van',
+  distanceMiles: 10,
+  crewSize: 1,
+  moveDate: '2026-09-18',
+  lineItems: [{ name: 'Load', quantity: 1, volumePerUnitM3: 5, weightType: 'large', handlingMultiplier: 1 }],
+  access: baseAccess,
+  extras: {},
+})
+assert(oneManPlus.crewStartingPrice === 20, '1 man starting price is £20')
+assert(
+  Math.abs(oneManPlus.estimatedTotal - (oneManBase.estimatedTotal + 20)) < 0.05,
+  '1 man quote rises by £20 when it is already above the minimum',
+)
+const twoManPlus = calculateQuote(crewStart, {
+  serviceType: 'Man with Van',
+  distanceMiles: 10,
+  crewSize: 2,
+  moveDate: '2026-09-18',
+  lineItems: [{ name: 'Load', quantity: 1, volumePerUnitM3: 5, weightType: 'large', handlingMultiplier: 1 }],
+  access: baseAccess,
+  extras: {},
+})
+assert(twoManPlus.crewStartingPrice === 20, '2 men starting price is £20')
+const tinyOne = calculateQuote(crewStart, {
+  serviceType: 'Man with Van',
+  distanceMiles: 0.5,
+  crewSize: 1,
+  moveDate: '2026-09-18',
+  lineItems: [{ name: 'Box', quantity: 1, volumePerUnitM3: 0.1, weightType: 'small', handlingMultiplier: 1 }],
+  access: baseAccess,
+  extras: {},
+})
+assert(
+  tinyOne.estimatedTotal === settings.minimumJobPriceOneMan,
+  '1 man minimum still wins when £20 plus the rest is lower',
 )
 
 console.log('\n=== Volume band on inventory only (new upper bands) ===')
@@ -247,7 +362,14 @@ const house = calculateQuote(settings, {
   extras: {},
 })
 assert(house.estimatedTotal > F.estimatedTotal, 'House Removals large job prices above MWV F')
-assert(house.serviceBasePrice >= 100, 'House Removals service floor stays elevated')
+assert(house.serviceBasePrice >= 100, 'House Removals starting price stays elevated')
+assert(
+  Math.abs(
+    house.subtotalBeforeSurcharges -
+      (house.serviceBasePrice + house.distancePrice + house.volumePrice + house.accessTotal + house.extrasTotal),
+  ) < 0.02,
+  'House Removals starting price is included before mileage and volume',
+)
 
 console.log('\n=== Extra-charge path parity (volume + specialist heavy) ===')
 const extraFridge = calculateExtraItemsCharge(settings, FRIDGE)

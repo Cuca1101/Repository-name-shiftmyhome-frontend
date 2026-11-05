@@ -23,6 +23,8 @@ const CORE_PRICING_KEYS = [
   'minimumJobPriceOneMan',
   'minimumJobPriceTwoMen',
   'minimumJobPriceThreeMen',
+  'crewStartingPriceOneMan',
+  'crewStartingPriceTwoMen',
   'floorChargePerFloor',
   'noLiftCharge',
   'applyVolumeMultiplierToAccessCharges',
@@ -154,8 +156,10 @@ export function mergePricingSettingsWithDefaults(raw, opts = {}) {
     merged[key] = Number.isFinite(n) && n >= 1 ? n : defaults[key]
   }
 
-  // Service base is always a floor, never × crew.
+  // Starting price is once per job, never × crew.
   merged.basePricePerMan = false
+  merged.crewStartingPriceOneMan = Math.max(0, Number(merged.crewStartingPriceOneMan) || 0)
+  merged.crewStartingPriceTwoMen = Math.max(0, Number(merged.crewStartingPriceTwoMen) || 0)
   merged.applyVolumeMultiplierToAccessCharges = Boolean(merged.applyVolumeMultiplierToAccessCharges)
   {
     const pct = Number(merged.withLiftAccessPercentOfNoLift)

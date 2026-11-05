@@ -227,7 +227,7 @@ export function buildPricingDebugDetail(breakdown, ctx) {
       minimumBaseThreshold: money(ctx.minimumBaseThreshold ?? breakdown.minimumBaseThreshold ?? 0),
       minimumBaseAdjustment: money(breakdown.minimumBaseAdjustment ?? 0),
       baseThresholdApplied: Boolean(breakdown.baseThresholdApplied),
-      note: 'Threshold only — applied when calculated quote subtotal (after volume scaling) is below this floor. Not hard-added when subtotal is higher.',
+      note: 'Starting price is always added once per job. Crew base fees below stay a floor and are not added when the quote is already higher.',
     },
     labour: {
       loadingHours: null,

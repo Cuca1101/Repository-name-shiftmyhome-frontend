@@ -66,7 +66,7 @@ export function useServiceGridCards() {
         .map((c) => {
           const serviceType = serviceTypeForPath(c.route_path) || ''
           // Always use Admin homepageDisplayPrice (`displayPriceByService`) — never CMS starting_price
-          // or quote minimumServiceThreshold (`basePriceByService`).
+          // or the quote starting price (`basePriceByService`).
           const price =
             formatServiceCardDisplayPrice(settings, serviceType) ||
             priceBySlug[c.slug] ||

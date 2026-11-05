@@ -87,8 +87,8 @@ function DetailedDebugSections({ detail }) {
         ) : null}
       </DebugSection>
 
-      <DebugSection title="3. Minimum base threshold" defaultOpen>
-        <DebugRow label="Service base threshold" value={formatGbp(detail.minimumBase?.serviceBaseThreshold)} />
+      <DebugSection title="3. Starting price and crew base floor" defaultOpen>
+        <DebugRow label="Starting price" value={formatGbp(detail.minimumBase?.serviceBaseThreshold)} />
         <DebugRow label="First man base threshold" value={formatGbp(detail.minimumBase?.firstManBaseThreshold)} />
         <DebugRow label="Second man base threshold" value={formatGbp(detail.minimumBase?.secondManBaseThreshold)} />
         <DebugRow label="Third man base threshold" value={formatGbp(detail.minimumBase?.thirdManBaseThreshold)} />

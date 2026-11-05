@@ -7,6 +7,7 @@ import {
   getMinimumCrewForQuote,
   isCrewLabourExtraLine,
   isLabourAccessLine,
+  resolveCrewStartingPrice,
   resolveMinimumBaseThreshold,
   resolveMinimumJobPriceForCrew,
   resolveTravelHoursForCrewLabour,
@@ -63,6 +64,8 @@ export {
  * @property {number} [minimumJobPriceOneMan]
  * @property {number} [minimumJobPriceTwoMen]
  * @property {number} [minimumJobPriceThreeMen]
+ * @property {number} [crewStartingPriceOneMan] — added when the job is priced as 1 man
+ * @property {number} [crewStartingPriceTwoMen] — added when the job is priced as 2 men
  * @property {number} [secondManLabourFee]
  * @property {number} [thirdManLabourFee]
  * @property {number} [fourthManLabourFee]
@@ -105,7 +108,7 @@ export {
  * @property {number} heavyItemHandlingCharge
  * @property {number} exactArrivalPremiumGbp — fixed fee for exact arrival time option
  * @property {CustomSizeM3} customSizeM3
- * @property {boolean} [basePricePerMan] — when true, `basePriceByService` is **per man** and multiplied by crew size
+ * @property {boolean} [basePricePerMan] — ignored; starting price is once per job, never × crew size
  * @property {number} [oneManLabourDiscountPercent] — flat-base: % off labour when 1 man selected (default 20)
  * @property {boolean} [fuelSurchargeEnabled]
  * @property {number} [fuelSurchargePerMile]
@@ -197,7 +200,7 @@ export {
 
 /**
  * @typedef {Object} PriceBreakdown
- * @property {number} basePrice — minimum base threshold (service + crew bases); not hard-added to subtotal
+ * @property {number} basePrice — crew-base floor only; service starting price is in the subtotal
  * @property {number} [minimumBaseThreshold]
  * @property {number} [minimumBaseAdjustment]
  * @property {number} [minimumJobAdjustment]
@@ -245,7 +248,8 @@ export {
  * @property {number} [mapboxRouteDurationSeconds]
  * @property {number} [crewLabourTotal]
  * @property {number} [fuelSurchargeAmount]
- * @property {number} [serviceBasePrice] — service-type base (once per job)
+ * @property {number} [serviceBasePrice] — service starting price, always added once per job
+ * @property {number} [crewStartingPrice] — 1-man or 2-man starting price, added before the crew minimum
  * @property {{ firstManBase: number, secondManBase: number, thirdManBase: number, fourthManBase: number, total: number, lines: { role: string, label: string, amount: number }[] }} [crewBaseFees]
  * @property {ReturnType<typeof buildPricingDebugDetail>} [pricingDebugDetail]
  * @property {{ label: string, amount: number, isDiscount?: boolean, isTotal?: boolean }[]} [standardDisplayRows]
@@ -718,8 +722,13 @@ export function calculateQuote(settings, input) {
 
   const extrasTotal = money(extrasLines.reduce((sum, l) => sum + l.amount, 0))
 
+  /** Always included. Mileage, volume, access, and labour are calculated on top. */
+  const serviceStartingPrice = money(serviceBasePrice)
+  /** Added for the priced crew, then the crew minimum can still lift the total. */
+  const crewStartingPrice = money(resolveCrewStartingPrice(s, effectiveCrewSize))
+
   const calculatedSubtotalBeforeSurcharges = money(
-    distancePrice + volumePrice + accessTotal + extrasTotal,
+    serviceStartingPrice + crewStartingPrice + distancePrice + volumePrice + accessTotal + extrasTotal,
   )
 
   // Date surcharges are applied after the minimum floor so each calendar day
@@ -931,6 +940,7 @@ export function calculateQuote(settings, input) {
     crewLabourTotal,
     fuelSurchargeAmount,
     serviceBasePrice: money(serviceBasePrice),
+    crewStartingPrice,
     crewBaseFees,
   }
 
@@ -961,10 +971,24 @@ export function calculateQuote(settings, input) {
 }
 
 /**
+ * @param {number | null | undefined} crewSize
+ */
+export function crewStartingPriceLabel(crewSize) {
+  const n = Math.round(Number(crewSize) || 0)
+  if (n === 1) return 'Starting price (1 man)'
+  if (n === 2) return 'Starting price (2 men)'
+  return 'Starting price'
+}
+
+/**
  * @param {PriceBreakdown} b
  */
 export function breakdownToFlatRows(b) {
   const rows = [
+    ...(b.serviceBasePrice > 0 ? [{ label: 'Starting price', amount: b.serviceBasePrice }] : []),
+    ...(b.crewStartingPrice > 0
+      ? [{ label: crewStartingPriceLabel(b.crewSizeUsedInPricing), amount: b.crewStartingPrice }]
+      : []),
     { label: 'Distance', amount: b.distancePrice },
     { label: 'Inventory (volume)', amount: b.volumePrice },
   ]
