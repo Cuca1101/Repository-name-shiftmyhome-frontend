@@ -134,3 +134,25 @@ export async function lookupSnapPostcode(postcode) {
     .filter((item) => item.place.formattedAddress)
     .sort((a, b) => doorSortValue(a) - doorSortValue(b) || a.main.localeCompare(b.main))
 }
+
+/**
+ * Royal Mail lines for a full postcode. Snap first, then Ideal Postcodes.
+ * An empty list means the quote form should fall through to Google.
+ * @param {string} postcode
+ */
+export async function lookupDirectoryPostcode(postcode) {
+  const text = String(postcode || '').trim()
+  if (!isUkPostcodeQuery(text)) return []
+  try {
+    const snap = await lookupSnapPostcode(text)
+    if (snap.length) return snap
+  } catch {
+    // Snap can be out of credit. The street list still comes from Google.
+  }
+  if (!hasIdealPostcodesKey()) return []
+  try {
+    return await lookupUkPostcode(text)
+  } catch {
+    return []
+  }
+}

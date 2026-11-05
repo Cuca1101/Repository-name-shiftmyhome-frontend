@@ -634,7 +634,4 @@ function resultText(item) {
   if (full) return full
   if (item.main) return [item.door, item.main, item.secondary].filter(Boolean).join(', ')
   return [main, prediction?.secondaryText?.text].filter(Boolean).join(', ') || 'Address'
-  }
-  if (next && current && !current.toLowerCase().startsWith(next.toLowerCase())) return `${next} ${current}`
-  return next || current
 }
