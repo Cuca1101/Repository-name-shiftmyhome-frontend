@@ -474,7 +474,12 @@ function PaymentCard({ booking, total, paid, balance, openChange }) {
           <dd className="text-lg font-extrabold text-slate-900">{formatGbp(balance)}</dd>
         </div>
       </dl>
-      {balance >= 0.3 || openChange?.status === 'pending_payment' ? (
+      {!['paid', 'deposit_paid'].includes(String(booking?.payment_status || '').toLowerCase()) &&
+      openChange?.status !== 'pending_payment' ? (
+        <p className="mt-4 rounded-xl bg-amber-50 px-3 py-3 text-sm leading-5 text-amber-950">
+          This booking is confirmed. You can pay by card whenever you like from the button in your confirmation email, or pay your driver when they arrive.
+        </p>
+      ) : balance >= 0.3 || openChange?.status === 'pending_payment' ? (
         <button
           type="button"
           onClick={pay}

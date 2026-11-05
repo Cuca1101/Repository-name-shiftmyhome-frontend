@@ -31,6 +31,11 @@ export default function AdminJobCustomerComms({ quote, onRefresh }) {
   const paid =
     String(quote?.payment_status || '').toLowerCase() === 'paid' ||
     String(quote?.payment_status || '').toLowerCase() === 'deposit_paid'
+  const source = String(quote?.source || '').toLowerCase()
+  const operational = String(quote?.operational_status || '').toLowerCase()
+  const phoneReleased =
+    (source === 'phone_booking' || source === 'admin_phone_booking') &&
+    operational !== 'phone_booking_pending'
 
   const isCompleted =
     String(quote?.operational_status || '').toLowerCase() === 'completed' ||
@@ -143,7 +148,9 @@ export default function AdminJobCustomerComms({ quote, onRefresh }) {
     setBusy(eventKey)
     setMsg('')
     try {
-      if (requirePaid && !paid) throw new Error('Booking must be paid before sending customer emails.')
+      if (requirePaid && !paid && !phoneReleased) {
+        throw new Error('Booking must be paid before sending customer emails.')
+      }
       if (confirm) {
         const ok = window.confirm(
           `Resend “${label}” to the customer?\n\nOnly resend if needed — customers can receive duplicate emails.`,
@@ -166,7 +173,11 @@ export default function AdminJobCustomerComms({ quote, onRefresh }) {
 
   return (
     <div className="space-y-4">
-      {!paid ? (
+      {!paid && phoneReleased ? (
+        <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+          This booking is confirmed and still unpaid. The customer can pay by card from the confirmation email at any time, or pay the driver when they arrive. They can also track the job.
+        </p>
+      ) : !paid ? (
         <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
           Live tracking emails (driver assigned / on the way) send after card payment. Completion
           thank-you emails also send for unpaid phone bookings when the job is marked Completed.
@@ -321,9 +332,19 @@ export default function AdminJobCustomerComms({ quote, onRefresh }) {
         >
           Copy tracking link
         </button>
+        {phoneReleased ? (
+          <button
+            type="button"
+            disabled={Boolean(busy)}
+            onClick={() => void resend('booking_confirmed', 'Booking confirmation', { requirePaid: false, confirm: true })}
+            className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-800 disabled:opacity-50"
+          >
+            Resend confirmation
+          </button>
+        ) : null}
         <button
           type="button"
-          disabled={Boolean(busy) || !paid}
+          disabled={Boolean(busy) || (!paid && !phoneReleased)}
           onClick={() => void resend('driver_assigned', 'Driver details email')}
           className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-800 disabled:opacity-50"
         >
@@ -331,7 +352,7 @@ export default function AdminJobCustomerComms({ quote, onRefresh }) {
         </button>
         <button
           type="button"
-          disabled={Boolean(busy) || !paid}
+          disabled={Boolean(busy) || (!paid && !phoneReleased)}
           onClick={() => void resend('status_on_way', 'Tracking email')}
           className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-800 disabled:opacity-50"
         >

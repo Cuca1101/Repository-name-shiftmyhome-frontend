@@ -9,9 +9,13 @@ import {
   emptyAddressPlacePatch,
   findUkAddressByText,
   hasGoogleMapsKey,
+  isUkPostcodeQuery,
   placeFromPrediction,
   suggestUkPlaces,
+  withPlaceCoordinates,
+  withPostcodeStreets,
 } from '../../lib/googlePlaces'
+import { lookupDirectoryPostcode } from '../../lib/snapAddress'
 import { applyWizardPatch } from '../../lib/wizardStateUpdate'
 
 const PROPERTY_TYPES = ['House', 'Flat / apartment', 'Bungalow', 'Commercial', 'Other']
@@ -29,11 +33,23 @@ function addressPrefix(addressKey) {
   return String(addressKey).startsWith('delivery') ? 'delivery' : 'pickup'
 }
 
+function directoryResult(item) {
+  return item?.source === 'snap' || item?.source === 'ideal'
+}
+
 function suggestionLines(item) {
+  if (directoryResult(item)) {
+    const formatted = String(item.place?.formattedAddress || item.main || '').trim()
+    if (formatted) return { main: formatted, secondary: '' }
+  }
   const prediction = item?.prediction
-  const main = prediction?.mainText?.text || item?.label || ''
-  const secondary = prediction?.secondaryText?.text || ''
-  return { main, secondary }
+  const full = String(prediction?.text?.text || item?.label || '')
+    .replace(/,\s*(United Kingdom|UK)\s*$/i, '')
+    .trim()
+  const main = prediction?.mainText?.text || item?.main || ''
+  const secondary = prediction?.secondaryText?.text || item?.secondary || ''
+  if (isUkPostcodeQuery(main) && full.length > main.length) return { main: full, secondary: '' }
+  return { main: main || full, secondary }
 }
 
 function composeAddressWithApartment(base, apartment) {
@@ -62,8 +78,8 @@ function stripLeadingHouseNumber(line, houseNumber) {
   const text = String(line || '').trim()
   const door = String(houseNumber || '').trim()
   if (!door || !text) return text
-  const pattern = new RegExp(`^${escapeRegExp(door)}(?=\\s|,|$)`, 'i')
-  return pattern.test(text) ? text.replace(pattern, '').replace(/^[, ]+/, '').trim() : text
+  const pattern = new RegExp(`(^|,\\s*)${escapeRegExp(door)}\\s+`, 'i')
+  return text.replace(pattern, '$1').replace(/^,\s*/, '').replace(/,\s*,/g, ', ').trim()
 }
 
 function composeStreetAddress(base, houseNumber) {
@@ -246,7 +262,7 @@ export default function QuoteStepAddressCard({
 
   async function runGoogleSearch(typed) {
     const text = String(typed || '').trim()
-    if (!hasGoogleMapsKey() || text.length < GOOGLE_ADDRESS_MIN_QUERY) {
+    if (text.length < GOOGLE_ADDRESS_MIN_QUERY) {
       setResults([])
       setOpen(false)
       setSearching(false)
@@ -262,9 +278,25 @@ export default function QuoteStepAddressCard({
     requestRef.current = requestId
     setSearching(true)
     try {
+      const directory = await lookupDirectoryPostcode(text)
+      if (requestRef.current !== requestId) return
+      if (directory.length > 0) {
+        lastQueryRef.current = text
+        setResults(directory)
+        setOpen(true)
+        setNotice('')
+        return
+      }
+      if (!hasGoogleMapsKey()) {
+        setResults([])
+        setOpen(false)
+        setNotice('Type a postcode or street, then press Find my address.')
+        return
+      }
       const token = await ensureSession()
       if (requestRef.current !== requestId) return
-      const list = await suggestUkPlaces(text, token)
+      const found = await suggestUkPlaces(text, token)
+      const list = isUkPostcodeQuery(text) ? await withPostcodeStreets(text, found) : found
       if (requestRef.current !== requestId) return
       lastQueryRef.current = text
       setResults(list)
@@ -336,7 +368,9 @@ export default function QuoteStepAddressCard({
     setSearching(true)
     setNotice('')
     try {
-      const place = await placeFromPrediction(item.prediction)
+      const place = directoryResult(item)
+        ? await withPlaceCoordinates(item.place)
+        : await placeFromPrediction(item.prediction)
       endSession()
       applyPlace(place)
     } catch {
@@ -611,7 +645,11 @@ export default function QuoteStepAddressCard({
                 )
               })}
               <div className="flex justify-end border-t border-slate-100 bg-white px-3 py-1.5">
-                <img src={GOOGLE_ATTRIBUTION_SRC} alt="Powered by Google" className="h-4 w-auto" />
+                {directoryResult(results[0]) ? (
+                  <span className="text-[10px] leading-none text-slate-400">© Royal Mail</span>
+                ) : (
+                  <img src={GOOGLE_ATTRIBUTION_SRC} alt="Powered by Google" className="h-4 w-auto" />
+                )}
               </div>
             </div>
           ) : null}

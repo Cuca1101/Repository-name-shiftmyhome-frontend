@@ -9,10 +9,12 @@ import {
   customerStatusLabel,
   JOB_NOTIFY_EVENT_LABELS,
   resolveGoogleReviewUrl,
+  siteBaseUrl,
   tipUrl,
   trackingUrl,
   type JobNotifyEventKey,
 } from '../_shared/jobCustomerNotify.ts'
+import { phoneQuoteFinalTotal } from '../_shared/phoneQuotePaymentRules.ts'
 import {
   isUniqueViolation,
   notificationClaimDecision,
@@ -56,6 +58,62 @@ function authorized(req: Request) {
 function isPaid(paymentStatus: unknown) {
   const s = String(paymentStatus || '').toLowerCase()
   return s === 'paid' || s === 'deposit_paid'
+}
+
+function isReleasedPhoneBooking(quote: Record<string, unknown>) {
+  const source = String(quote.source || '').toLowerCase()
+  const operational = String(quote.operational_status || '').toLowerCase()
+  return (
+    (source === 'phone_booking' || source === 'admin_phone_booking') &&
+    operational !== 'phone_booking_pending' &&
+    operational !== 'cancelled'
+  )
+}
+
+/** The price the admin set for this booking. Never the higher calculator figure. */
+function bookingPriceLabel(quote: Record<string, unknown>) {
+  const total = phoneQuoteFinalTotal(quote)
+  if (total == null) return ''
+  return `£${total.toFixed(2)}`
+}
+
+function newPayToken() {
+  const bytes = new Uint8Array(24)
+  crypto.getRandomValues(bytes)
+  return btoa(String.fromCharCode(...bytes)).replaceAll('+', '-').replaceAll('/', '_').replaceAll('=', '')
+}
+
+/** Card payment page for this booking. Creates the pay link the first time it is needed. */
+async function cardPayUrl(
+  // deno-lint-ignore no-explicit-any
+  supabase: any,
+  quote: Record<string, unknown>,
+) {
+  let token = String(quote.quote_pay_token || '').trim()
+  if (!token) {
+    token = newPayToken()
+    const { data, error } = await supabase
+      .from('quotes')
+      .update({ quote_pay_token: token })
+      .eq('id', quote.id)
+      .is('quote_pay_token', null)
+      .select('quote_pay_token')
+      .maybeSingle()
+    token = String(data?.quote_pay_token || '').trim()
+    if (error || !token) {
+      const { data: existing } = await supabase.from('quotes').select('quote_pay_token').eq('id', quote.id).maybeSingle()
+      token = String(existing?.quote_pay_token || '').trim()
+    }
+    if (token) quote.quote_pay_token = token
+  }
+  if (!token) return ''
+  return `${siteBaseUrl()}/quote/view/${encodeURIComponent(token)}?pay=full`
+}
+
+function customerEmailAddress(quote: Record<string, unknown>) {
+  const email = String(quote.email || '').trim()
+  if (!email || email.toLowerCase() === 'phone-booking@shiftmyhome.local') return ''
+  return email
 }
 
 function formatDateTimeUK(iso: unknown) {
@@ -174,13 +232,19 @@ async function sendEventEmail(
   if (!bundle) return { ok: false, error: 'quote_not_found' }
 
   const { quote, driver, token } = bundle
-  // Status updates (except completion) still require card payment.
+  // Website quotes still need card payment before status emails.
+  // A phone booking released to Available Jobs can be tracked and emailed while unpaid.
   // Completion thank-you also covers unpaid phone bookings (pay driver / office).
-  if (!isPaid(quote.payment_status) && eventKey !== 'status_completed' && eventKey !== 'tip_received') {
+  if (
+    !isPaid(quote.payment_status) &&
+    eventKey !== 'status_completed' &&
+    eventKey !== 'tip_received' &&
+    !isReleasedPhoneBooking(quote)
+  ) {
     return { ok: false, error: 'not_paid' }
   }
 
-  const email = String(quote.email || '').trim()
+  const email = customerEmailAddress(quote)
   if (!email) return { ok: false, error: 'missing_email' }
   if (!token) return { ok: false, error: 'missing_tracking_token' }
 
@@ -216,16 +280,50 @@ async function sendEventEmail(
   let subject = `[ShiftMyHome] ${title} (${quoteRef})`
   let primary = { label: 'View My Booking', url: track }
   let secondary: Array<{ label: string; url: string }> = []
+  let footerNote = 'This link is private to your booking. Do not share it publicly.'
   const rows: Array<{ label: string; value: string }> = [
     { label: 'Booking reference', value: quoteRef },
   ]
+  const unpaid = !isPaid(quote.payment_status)
 
-  if (eventKey === 'driver_assigned' || eventKey === 'driver_reassigned') {
+  if (eventKey === 'booking_confirmed') {
+    title = 'Your booking is confirmed'
+    const priceLabel = bookingPriceLabel(quote)
+    const payUrl = unpaid && priceLabel ? await cardPayUrl(supabase, quote) : ''
+    intro = unpaid
+      ? `Hi ${name}, your booking is confirmed. Payment has not been taken yet. You can pay by card at any time, or pay your driver when they arrive. You can also follow the job from the link below.`
+      : `Hi ${name}, your booking is confirmed. You can follow the job from the link below.`
+    subject = `[ShiftMyHome] Booking confirmed — ${quoteRef}`
+    primary = payUrl
+      ? { label: 'Pay by card', url: payUrl }
+      : { label: 'Track my booking', url: track }
+    secondary = payUrl ? [{ label: 'Track my booking', url: track }] : []
+    footerNote = unpaid
+      ? 'Pay by card whenever you like, or pay your driver when they arrive. These links are private to your booking.'
+      : 'This tracking link is private to your booking.'
+    rows.push(
+      { label: 'Move date', value: formatDateUK(quote.move_date) },
+      { label: 'Arrival window', value: String(quote.arrival_window || '').trim() },
+      { label: 'Pickup', value: String(quote.pickup_address || '').trim() },
+      { label: 'Delivery', value: String(quote.delivery_address || '').trim() },
+      { label: 'Price', value: priceLabel },
+      {
+        label: 'Payment',
+        value: unpaid
+          ? 'Not paid yet — pay by card anytime, or pay the driver on arrival'
+          : String(quote.payment_status || '').toLowerCase() === 'deposit_paid'
+            ? 'Deposit paid'
+            : 'Paid',
+      },
+    )
+  } else if (eventKey === 'driver_assigned' || eventKey === 'driver_reassigned') {
     title = eventKey === 'driver_reassigned' ? 'Your driver has been updated' : 'Your driver has been assigned'
     intro =
       eventKey === 'driver_reassigned'
         ? `Hi ${name}, we’ve assigned a new driver to your booking.`
-        : `Hi ${name}, a driver has been assigned to your paid booking.`
+        : unpaid
+          ? `Hi ${name}, a driver has been assigned to your booking. Please pay the driver when they arrive.`
+          : `Hi ${name}, a driver has been assigned to your paid booking.`
     subject = `[ShiftMyHome] Driver assigned — ${quoteRef}`
     primary = { label: 'View My Booking', url: track }
     rows.push(
@@ -288,7 +386,7 @@ async function sendEventEmail(
           rows,
           primaryCta: primary,
           secondaryCtas: secondary,
-          footerNote: 'This link is private to your booking. Do not share it publicly.',
+          footerNote,
         })
 
   const text =

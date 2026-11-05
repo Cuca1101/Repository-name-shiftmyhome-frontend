@@ -114,15 +114,60 @@ export function phoneQuotePaymentOptions({
   }
 }
 
+const PHONE_BOOKING_SNAPSHOT_START = '---SMH_PHONE_BOOKING_WIZARD_JSON---'
+const PHONE_BOOKING_SNAPSHOT_END = '---END_SMH_PHONE_BOOKING_WIZARD_JSON---'
+
+function positiveGbp(value) {
+  const n = Number(value)
+  if (!Number.isFinite(n) || n <= 0) return null
+  return roundGbp(n)
+}
+
+/** Custom final price typed by admin on a phone booking. Calculated mode returns null. */
+function adminCustomPriceFromDetails(details) {
+  const text = String(details || '')
+  const start = text.indexOf(PHONE_BOOKING_SNAPSHOT_START)
+  const end = text.indexOf(PHONE_BOOKING_SNAPSHOT_END, start)
+  if (start < 0 || end < 0) return null
+  try {
+    const parsed = JSON.parse(text.slice(start + PHONE_BOOKING_SNAPSHOT_START.length, end).trim())
+    if (!parsed || parsed.useCalculatedPrice !== false) return null
+    return positiveGbp(parsed.finalPriceOverride)
+  } catch {
+    return null
+  }
+}
+
 /**
- * Final price the customer pays: admin-agreed price first, then the calculated estimate.
+ * Price the customer pays. The admin price wins over the calculator, even when the calculator is higher.
  * @param {Record<string, unknown>} q
  */
 export function phoneQuoteFinalTotal(q) {
   const agreed = Number(q?.agreed_price)
-  if (Number.isFinite(agreed) && agreed > 0) return roundGbp(agreed)
-  const est = Number(q?.estimated_total)
-  return Number.isFinite(est) && est > 0 ? roundGbp(est) : null
+  const remaining = Number(q?.remaining_balance)
+  const migratedBalance =
+    /^Migrated from remaining_balance/i.test(String(q?.price_override_reason || '')) &&
+    Number.isFinite(agreed) &&
+    Number.isFinite(remaining) &&
+    Math.abs(agreed - remaining) < 0.01
+  if (!migratedBalance) {
+    const agreedPrice = positiveGbp(q?.agreed_price)
+    if (agreedPrice != null) return agreedPrice
+  }
+
+  const custom = adminCustomPriceFromDetails(q?.details)
+  if (custom != null) return custom
+
+  const estimated = positiveGbp(q?.estimated_total)
+  const paid = Number(q?.amount_paid)
+  const unpaid = !(Number.isFinite(paid) && paid > 0)
+  const remainingPrice = positiveGbp(q?.remaining_balance)
+  if (unpaid && remainingPrice != null && (estimated == null || Math.abs(remainingPrice - estimated) > 0.009)) {
+    return remainingPrice
+  }
+
+  if (estimated != null) return estimated
+  return positiveGbp(q?.calculated_total)
 }
 
 /**

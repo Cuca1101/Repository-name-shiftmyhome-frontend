@@ -85,6 +85,52 @@ test('final total uses the admin agreed price first', () => {
   assert.equal(phoneQuoteFinalTotal({}), null)
 })
 
+test('final total keeps the admin price when the calculator is higher', () => {
+  assert.equal(
+    phoneQuoteFinalTotal({
+      agreed_price: 150,
+      estimated_total: 197.88,
+      calculated_total: 197.88,
+      remaining_balance: 150,
+    }),
+    150,
+  )
+  assert.equal(
+    phoneQuoteFinalTotal({
+      agreed_price: null,
+      estimated_total: 197.88,
+      calculated_total: 197.88,
+      remaining_balance: 160,
+      amount_paid: 0,
+    }),
+    160,
+  )
+  const details = [
+    'Phone booking',
+    '---SMH_PHONE_BOOKING_WIZARD_JSON---',
+    JSON.stringify({ useCalculatedPrice: false, finalPriceOverride: '175.00' }),
+    '---END_SMH_PHONE_BOOKING_WIZARD_JSON---',
+  ].join('\n')
+  assert.equal(
+    phoneQuoteFinalTotal({
+      agreed_price: null,
+      estimated_total: 197.88,
+      calculated_total: 197.88,
+      details,
+    }),
+    175,
+  )
+  assert.equal(
+    phoneQuoteFinalTotal({
+      agreed_price: null,
+      estimated_total: 197.88,
+      calculated_total: 197.88,
+      remaining_balance: 197.88,
+    }),
+    197.88,
+  )
+})
+
 test('admin status keeps deposit paid separate from paid in full', () => {
   assert.equal(phoneQuoteAdminStatus({ payment_status: 'unpaid' }).label, 'Draft')
   assert.equal(phoneQuoteAdminStatus({ payment_status: 'unpaid', quote_sent_at: '2026-10-14T10:00:00Z' }).label, 'Quote sent')

@@ -640,6 +640,12 @@ export default function JobTrackingPortalPage() {
         </header>
 
         <main className="mx-auto mt-4 flex min-w-0 max-w-[880px] flex-col gap-4 overflow-x-hidden px-4 sm:mt-5 sm:gap-5 sm:px-6">
+          {!['paid', 'deposit_paid'].includes(String(data?.payment_status || '').toLowerCase()) ? (
+            <section className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+              <p className="font-bold">Booking confirmed</p>
+              <p className="mt-1">You can pay by card whenever you like from the button in your confirmation email, or pay your driver when they arrive.</p>
+            </section>
+          ) : null}
           {!completed ? (
             <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-[0_2px_12px_rgba(15,23,42,0.06)] sm:p-5">
               {showMap ? (

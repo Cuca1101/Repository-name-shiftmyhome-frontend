@@ -176,6 +176,74 @@ export async function suggestUkPlaces(input, sessionToken) {
   return fetchAddressSuggestions(query, sessionToken)
 }
 
+const STREET_WORD =
+  /\b(street|st|road|rd|drive|dr|grove|groves|avenue|ave|lane|ln|close|crescent|cres|place|pl|terrace|way|walk|court|ct|gardens|garden|row|park|hill|view|parade|square|circus|mews|rise|gate|green|yard|wharf|quay|boulevard|highway|path|brae|wynd|loan)\b/i
+
+function suggestionLabel(item) {
+  return String(item?.label || item?.prediction?.text?.text || '').trim()
+}
+
+function suggestionShowsStreet(item) {
+  const types = item?.prediction?.types || []
+  if (types.some((type) => type === 'route' || ADDRESS_RESULT_TYPES.includes(type))) return true
+  return STREET_WORD.test(suggestionLabel(item))
+}
+
+function labelHasRoadAndPostcode(label, road, postcode) {
+  const text = String(label || '')
+  const compact = text.replace(/\s+/g, '').toLowerCase()
+  const wanted = String(postcode || '').replace(/\s+/g, '').toLowerCase()
+  const roadText = String(road || '').trim().toLowerCase()
+  return Boolean(roadText) && text.toLowerCase().includes(roadText) && compact.includes(wanted)
+}
+
+/** Closest named roads. Used only when a postcode result has no street. */
+async function nearestRoadNames(lat, lng) {
+  const response = await fetch(
+    `https://router.project-osrm.org/nearest/v1/driving/${lng},${lat}?number=8`,
+  )
+  if (!response.ok) return []
+  const data = await response.json()
+  const names = []
+  for (const point of data.waypoints || []) {
+    const name = String(point.name || '').trim()
+    if (!name || names.some((existing) => existing.toLowerCase() === name.toLowerCase())) continue
+    names.push(name)
+    if (names.length === 3) break
+  }
+  return names
+}
+
+/**
+ * Some postcodes, such as G72 8FN, come back as the town only.
+ * The nearest road that Google ties to that postcode is shown instead.
+ * @param {string} postcode
+ * @param {Array<{ label?: string, prediction?: { types?: string[], text?: { text?: string } } }>} suggestions
+ */
+export async function withPostcodeStreets(postcode, suggestions) {
+  const query = String(postcode || '').trim()
+  if (!isUkPostcodeQuery(query) || !Array.isArray(suggestions) || suggestions.length === 0) return suggestions
+  if (suggestions.some(suggestionShowsStreet) || !hasGoogleMapsKey()) return suggestions
+  try {
+    const place = await findUkAddressByText(`${query}, United Kingdom`)
+    if (place?.lat == null || place?.lng == null) return suggestions
+    const roads = await nearestRoadNames(place.lat, place.lng)
+    const matches = []
+    for (const road of roads) {
+      const token = await createAddressSessionToken()
+      const found = await suggestUkPlaces(`${road}, ${query}`, token)
+      const hit = found.find((item) => labelHasRoadAndPostcode(suggestionLabel(item), road, query))
+      if (!hit) continue
+      const label = suggestionLabel(hit).toLowerCase()
+      if (matches.some((item) => suggestionLabel(item).toLowerCase() === label)) continue
+      matches.push(hit)
+    }
+    return matches.length > 0 ? matches : suggestions
+  } catch {
+    return suggestions
+  }
+}
+
 /** Street matches, including ones with no door number. The form asks for that number. */
 export async function suggestUkStreets(input, sessionToken) {
   const query = String(input || '').trim()
@@ -231,6 +299,38 @@ export async function placeFromPrediction(prediction) {
   const place = prediction.toPlace()
   await place.fetchFields({ fields: PLACE_FIELDS })
   return parseGooglePlace(place)
+}
+
+/**
+ * Royal Mail rows have the street, but not coordinates. Fill lat/lng without replacing that street.
+ * @param {ReturnType<typeof parseGooglePlace> | null | undefined} place
+ */
+export async function withPlaceCoordinates(place) {
+  if (!place || (place.lng != null && place.lat != null)) return place
+  if (!hasGoogleMapsKey()) return place
+  const queries = [
+    place.formattedAddress,
+    [place.houseNumber, place.street, place.town, place.postcode].filter(Boolean).join(', '),
+    [place.street, place.postcode].filter(Boolean).join(', '),
+  ]
+    .map((query) => String(query || '').trim())
+    .filter((query, index, all) => query.length >= MIN_QUERY_LENGTH && all.indexOf(query) === index)
+  for (const query of queries) {
+    const hit = await findUkAddressByText(query)
+    if (hit?.lng == null || hit?.lat == null) continue
+    return {
+      ...place,
+      lng: hit.lng,
+      lat: hit.lat,
+      placeId: place.placeId || hit.placeId,
+      town: place.town || hit.town,
+      postcode: place.postcode || hit.postcode,
+      street: place.street || hit.street,
+      houseNumber: place.houseNumber || hit.houseNumber,
+      formattedAddress: place.formattedAddress || hit.formattedAddress,
+    }
+  }
+  return place
 }
 
 /**

@@ -7,6 +7,7 @@ import {
 import { isSupabaseConfigured } from '../../lib/supabase'
 
 const EVENT_LABELS = {
+  booking_confirmed: 'Booking confirmed',
   driver_assigned: 'Driver assigned',
   driver_reassigned: 'Driver reassigned',
   status_on_way: 'Left for collection',

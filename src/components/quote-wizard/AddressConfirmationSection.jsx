@@ -15,9 +15,13 @@ import {
   emptyAddressPlacePatch,
   hasGoogleMapsKey,
   GOOGLE_ADDRESS_MIN_QUERY,
+  isUkPostcodeQuery,
   placeFromPrediction,
   suggestUkPlaces,
+  withPlaceCoordinates,
+  withPostcodeStreets,
 } from '../../lib/googlePlaces'
+import { lookupDirectoryPostcode } from '../../lib/snapAddress'
 import {
   contactDetailsComplete,
   isDropoffSameAsPickup,
@@ -417,18 +421,27 @@ function PlaceSearch({ side, data, onChange, confirmed }) {
       setNotice(EMPTY_MESSAGE)
       return
     }
-    if (!hasGoogleMapsKey() || typed.length < GOOGLE_ADDRESS_MIN_QUERY) {
-      setResults([])
-      setNotice(EMPTY_MESSAGE)
-      return
-    }
     const requestId = requestRef.current + 1
     requestRef.current = requestId
     setSearching(true)
     try {
+      const directory = await lookupDirectoryPostcode(typed)
+      if (requestRef.current !== requestId) return
+      if (directory.length > 0) {
+        sessionRef.current = null
+        setResults(directory)
+        setNotice('')
+        return
+      }
+      if (!hasGoogleMapsKey() || typed.length < GOOGLE_ADDRESS_MIN_QUERY) {
+        setResults([])
+        setNotice(EMPTY_MESSAGE)
+        return
+      }
       if (!sessionRef.current) sessionRef.current = await createAddressSessionToken()
       if (requestRef.current !== requestId) return
-      const list = await suggestUkPlaces(typed, sessionRef.current)
+      const found = await suggestUkPlaces(typed, sessionRef.current)
+      const list = isUkPostcodeQuery(typed) ? await withPostcodeStreets(typed, found) : found
       if (requestRef.current !== requestId) return
       setResults(list)
       setNotice(list.length ? '' : EMPTY_MESSAGE)
@@ -446,14 +459,19 @@ function PlaceSearch({ side, data, onChange, confirmed }) {
     setSearching(true)
     setNotice('')
     try {
-      const place = item.prediction ? await placeFromPrediction(item.prediction) : item.place
+      const directory = item.source === 'snap' || item.source === 'ideal'
+      const place = directory ? await withPlaceCoordinates(item.place) : await placeFromPrediction(item.prediction)
       sessionRef.current = null
       if (!place?.formattedAddress) {
         setNotice(EMPTY_MESSAGE)
         return
       }
       patch({
-        ...addressPlacePatch(side, place),
+        ...addressPlacePatch(
+          side,
+          place,
+          directory ? { keepTypedAddress: true, typedAddress: place.formattedAddress } : undefined,
+        ),
         [`${side}Lng`]: place.lng,
         [`${side}Lat`]: place.lat,
       })
@@ -541,6 +559,13 @@ function PlaceSearch({ side, data, onChange, confirmed }) {
               {resultText(item)}
             </button>
           ))}
+          <div className="flex justify-end border-t border-slate-100 bg-white px-3 py-1.5">
+            {results[0]?.source === 'snap' || results[0]?.source === 'ideal' ? (
+              <span className="text-[10px] leading-none text-slate-400">© Royal Mail</span>
+            ) : (
+              <img src={GOOGLE_ATTRIBUTION_SRC} alt="Powered by Google" className="h-4 w-auto" />
+            )}
+          </div>
         </div>
       ) : null}
 
@@ -597,19 +622,18 @@ function PlaceSearch({ side, data, onChange, confirmed }) {
 }
 
 function resultText(item) {
-  if (item.place?.formattedAddress) return item.place.formattedAddress
-  if (item.label) return item.label
-  if (item.main) return [item.door, item.main, item.secondary].filter(Boolean).join(', ')
+  if (item.source === 'snap' || item.source === 'ideal') {
+    return item.place?.formattedAddress || item.main || 'Address'
+  }
   const prediction = item.prediction
-  return [prediction?.mainText?.text, prediction?.secondaryText?.text].filter(Boolean).join(', ') || 'Address'
-}
-
-function replaceLeadingHouseNumber(address, previousHouse, nextHouse) {
-  const current = String(address || '').trim()
-  const prev = String(previousHouse || '').trim()
-  const next = String(nextHouse || '').trim()
-  if (prev && current.toLowerCase().startsWith(prev.toLowerCase())) {
-    return `${next}${current.slice(prev.length)}`.replace(/\s+,/g, ',').trim()
+  const full = String(prediction?.text?.text || item.label || '')
+    .replace(/,\s*(United Kingdom|UK)\s*$/i, '')
+    .trim()
+  const main = prediction?.mainText?.text || ''
+  if (isUkPostcodeQuery(main) && full.length > main.length) return full
+  if (full) return full
+  if (item.main) return [item.door, item.main, item.secondary].filter(Boolean).join(', ')
+  return [main, prediction?.secondaryText?.text].filter(Boolean).join(', ') || 'Address'
   }
   if (next && current && !current.toLowerCase().startsWith(next.toLowerCase())) return `${next} ${current}`
   return next || current

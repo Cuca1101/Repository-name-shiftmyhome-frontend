@@ -249,9 +249,11 @@ export default function CustomerPortalBookingPage() {
 
           {payload?.tracking_token ? <PortalTrackPanel token={payload.tracking_token} /> : (
             <section className="rounded-2xl border border-slate-200 bg-white p-4 text-sm text-slate-600">
-              {booking.assigned_driver_name
-                ? 'Your driver has not started towards collection yet.'
-                : 'A driver has not been assigned yet.'}
+              {!['paid', 'deposit_paid'].includes(String(booking.payment_status || '').toLowerCase())
+                ? 'Your booking is confirmed. You can pay by card whenever you like from the button in your confirmation email, or pay your driver when they arrive.'
+                : booking.assigned_driver_name
+                  ? 'Your driver has not started towards collection yet.'
+                  : 'A driver has not been assigned yet.'}
             </section>
           )}
 

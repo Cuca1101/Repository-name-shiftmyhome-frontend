@@ -13,6 +13,8 @@ import {
   quoteShowsOnNewPhoneBookingSentTab,
 } from '../adminJobListRules'
 import { notifyAdminDataRefresh } from '../adminDataRefresh'
+import { sendJobCustomerNotify } from '../jobCustomerTracking'
+import { usableCustomerEmail } from '../phoneBookingCustomerStatus'
 import { filterProductionAdminQuotes } from '../adminProductionFilters'
 import {
   ADMIN_PHONE_BOOKING_SOURCE,
@@ -589,9 +591,37 @@ export async function fetchSentAdminPhoneBookings(searchTerm = '') {
 }
 
 /**
+ * Email the customer once a phone booking is in Available Jobs.
+ * A missing address or a mail failure does not undo the release.
+ *
+ * @param {Record<string, unknown>} quote
+ */
+async function notifyReleasedPhoneBookingCustomer(quote) {
+  const quoteId = String(quote?.id || '').trim()
+  const paymentStatus = quote?.payment_status || ''
+  if (!quoteId) return { emailed: false, emailReason: 'missing_quote', paymentStatus }
+  if (!usableCustomerEmail(quote?.email)) {
+    return { emailed: false, emailReason: 'missing_email', paymentStatus }
+  }
+  try {
+    const data = await sendJobCustomerNotify(quoteId, 'booking_confirmed')
+    if (data?.skipped) return { emailed: false, emailReason: 'already_sent', paymentStatus }
+    return { emailed: true, emailReason: '', paymentStatus }
+  } catch (error) {
+    return {
+      emailed: false,
+      emailReason: error?.message || 'email_failed',
+      paymentStatus,
+    }
+  }
+}
+
+/**
  * Send a staged phone booking to Available Jobs.
+ * The customer is emailed a confirmation and a tracking link.
  *
  * @param {string} id quote UUID
+ * @returns {Promise<{ emailed: boolean, emailReason: string, paymentStatus: unknown }>}
  */
 export async function releaseAdminPhoneBookingToAvailableJobs(id) {
   if (!isSupabaseConfigured || !supabase) {
@@ -624,6 +654,7 @@ export async function releaseAdminPhoneBookingToAvailableJobs(id) {
   }
 
   notifyAdminDataRefresh({ source: 'phone_booking_release' })
+  return notifyReleasedPhoneBookingCustomer(updated)
 }
 
 /**
@@ -706,6 +737,8 @@ export async function convertAdminPhoneBookingToCashJob(id) {
   }
 
   notifyAdminDataRefresh({ source: 'phone_booking_cash' })
+  if (!pending) return { emailed: false, emailReason: 'already_released', paymentStatus: updated.payment_status }
+  return notifyReleasedPhoneBookingCustomer(updated)
 }
 
 /**

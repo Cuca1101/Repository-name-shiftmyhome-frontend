@@ -2,6 +2,8 @@
  * UK postcode lookup via SnapAddress. The API key stays in the Supabase secret
  * SNAPADDRESS_API_KEY and is never sent to the browser.
  */
+import { isUkPostcodeQuery } from './googlePlaces'
+import { hasIdealPostcodesKey, lookupUkPostcode } from './idealPostcodes'
 import { supabase } from './supabaseClient'
 
 function compactPostcode(value) {

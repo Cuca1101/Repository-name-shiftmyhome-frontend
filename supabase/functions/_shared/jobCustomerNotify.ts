@@ -3,6 +3,7 @@
  */
 
 export type JobNotifyEventKey =
+  | 'booking_confirmed'
   | 'driver_assigned'
   | 'driver_reassigned'
   | 'status_on_way'
