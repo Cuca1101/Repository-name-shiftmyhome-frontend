@@ -205,6 +205,10 @@ export async function evaluateCustomerEdit(
     proposed.pickupAddress = routed.wizard.pickupAddress
     proposed.deliveryAddress = routed.wizard.deliveryAddress
     proposed.distanceMiles = Number(routed.wizard.distanceMiles) || 0
+    proposed.pickupLat = routed.wizard.pickupLat
+    proposed.pickupLng = routed.wizard.pickupLng
+    proposed.deliveryLat = routed.wizard.deliveryLat
+    proposed.deliveryLng = routed.wizard.deliveryLng
   }
 
   return { ok: true as const, decision, changes, proposed }

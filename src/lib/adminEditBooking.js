@@ -35,6 +35,7 @@ import {
 } from './adminEditBookingDiff'
 import { parseDetailsKeyValues, parseWizardStructured, mergeDetailSections } from './quoteJobAdminModel'
 import { buildAvailableJobInventoryDisplayRows } from './availableJobInventoryDisplay'
+import { geocodeAddress } from './mapboxRouteApi'
 
 const QUOTES_TABLE = 'quotes'
 
@@ -636,6 +637,39 @@ export function computeAdminEditBookingChanges({
   return diffCustomerFacingBooking(before, after)
 }
 
+function normalAddress(value) {
+  return String(value || '').trim().toLowerCase().replace(/\s+/g, ' ')
+}
+
+function britainPoint(lat, lng) {
+  const latitude = Number(lat)
+  const longitude = Number(lng)
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return null
+  if (latitude < 49 || latitude > 61.2 || longitude < -11 || longitude > 2.2) return null
+  return { lat: latitude, lng: longitude }
+}
+
+function metresApart(a, b) {
+  const earth = 6371000
+  const lat1 = (a.lat * Math.PI) / 180
+  const lat2 = (b.lat * Math.PI) / 180
+  const dLat = ((b.lat - a.lat) * Math.PI) / 180
+  const dLng = ((b.lng - a.lng) * Math.PI) / 180
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2
+  return 2 * earth * Math.asin(Math.min(1, Math.sqrt(h)))
+}
+
+/** New coordinates for an edited address. Returns null when the address text is unchanged. */
+async function pinForChangedAddress(existingAddress, nextAddress, existingLat, existingLng, wizardLat, wizardLng, token) {
+  if (normalAddress(existingAddress) === normalAddress(nextAddress)) return null
+  const fromWizard = britainPoint(wizardLat, wizardLng)
+  const previous = britainPoint(existingLat, existingLng)
+  if (fromWizard && (!previous || metresApart(fromWizard, previous) > 80)) return fromWizard
+  if (!token || !String(nextAddress || '').trim()) return null
+  const hit = await geocodeAddress(String(nextAddress), token)
+  return hit ? britainPoint(hit.lat, hit.lng) : null
+}
+
 /**
  * @param {Parameters<typeof buildAdminEditBookingPatch>[0] & { quoteId: string }} form
  */
@@ -685,6 +719,34 @@ export async function updateAdminBookingFromWizard(form) {
     adminNote: form.adminNote || '',
     editedBy: form.editedBy || '',
   })
+
+  const mapToken = String(import.meta.env.VITE_MAPBOX_TOKEN || '').trim()
+  const pickupPin = await pinForChangedAddress(
+    existing.pickup_address,
+    patch.pickup_address,
+    existing.pickup_lat,
+    existing.pickup_lng,
+    form.wizard?.pickupLat,
+    form.wizard?.pickupLng,
+    mapToken,
+  )
+  const deliveryPin = await pinForChangedAddress(
+    existing.delivery_address,
+    patch.delivery_address,
+    existing.delivery_lat,
+    existing.delivery_lng,
+    form.wizard?.deliveryLat,
+    form.wizard?.deliveryLng,
+    mapToken,
+  )
+  if (pickupPin) {
+    patch.pickup_lat = pickupPin.lat
+    patch.pickup_lng = pickupPin.lng
+  }
+  if (deliveryPin) {
+    patch.delivery_lat = deliveryPin.lat
+    patch.delivery_lng = deliveryPin.lng
+  }
 
   const { data, error } = await supabase
     .from(QUOTES_TABLE)

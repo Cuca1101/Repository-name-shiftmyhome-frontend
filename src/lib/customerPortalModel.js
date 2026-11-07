@@ -317,6 +317,14 @@ export function decideCustomerAmendment(input) {
   return { ...base, outcome: 'apply', reason: 'confirmed' }
 }
 
+function britainStop(lat, lng) {
+  const latitude = Number(lat)
+  const longitude = Number(lng)
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return null
+  if (latitude < 49 || latitude > 61.2 || longitude < -11 || longitude > 2.2) return null
+  return { lat: latitude, lng: longitude }
+}
+
 /**
  * Quote columns written when a change is confirmed.
  * Does not include status, operational_status, or completed_at.
@@ -352,6 +360,16 @@ export function buildAppliedQuotePatch({
     if (proposed.deliveryAddress) patch.delivery_address = proposed.deliveryAddress
     const miles = Number(proposed.distanceMiles)
     if (Number.isFinite(miles) && miles > 0) patch.distance_miles = miles
+    const pickup = britainStop(proposed.pickupLat, proposed.pickupLng)
+    const delivery = britainStop(proposed.deliveryLat, proposed.deliveryLng)
+    if (pickup) {
+      patch.pickup_lat = pickup.lat
+      patch.pickup_lng = pickup.lng
+    }
+    if (delivery) {
+      patch.delivery_lat = delivery.lat
+      patch.delivery_lng = delivery.lng
+    }
   }
   return patch
 }

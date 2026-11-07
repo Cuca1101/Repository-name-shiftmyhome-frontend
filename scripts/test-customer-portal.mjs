@@ -220,6 +220,10 @@ const addressPatch = model.buildAppliedQuotePatch({
     pickupAddress: '12 Buchanan Street, Glasgow, G1 2FF',
     deliveryAddress: '10 Queen Street, Glasgow, G1 3DX',
     distanceMiles: 4.1,
+    pickupLat: 55.8642,
+    pickupLng: -4.2518,
+    deliveryLat: 55.858,
+    deliveryLng: -4.251,
   },
   amountPaid: 150,
   paymentDelta: 30,
@@ -231,6 +235,9 @@ assert(addressPatch.distance_miles === 4.1, 'the server route distance is stored
 assert(addressPatch.amount_paid === 180, 'address payment adds only the difference')
 assert(!model.quotePatchTouchesCompletion(addressPatch), 'an address update does not complete the job')
 assert(!('status' in addressPatch), 'address update does not rewrite booking status')
+assert(!('operational_status' in addressPatch), 'address update does not rewrite the job stage')
+assert(addressPatch.pickup_lat === 55.8642 && addressPatch.pickup_lng === -4.2518, 'the new collection pin is stored')
+assert(addressPatch.delivery_lat === 55.858 && addressPatch.delivery_lng === -4.251, 'the new delivery pin is stored')
 const flatPatch = model.buildAppliedQuotePatch({
   proposed: {
     ...addressPatch && {
