@@ -61,6 +61,15 @@ function parseInventoryJsonFromQuoteRow(inv) {
       defaultM3: Number(line.m3) || 0.1,
       mult: Number.isFinite(Number(line.mult)) && Number(line.mult) > 0 ? Number(line.mult) : 1,
       weightType: line.weight_type || 'medium',
+      heavyFee: line.heavy_fee ?? line.heavyFee,
+      handlingFeeOverride:
+        line.handling_fee_override != null && line.handling_fee_override !== ''
+          ? Number(line.handling_fee_override)
+          : line.handlingFeeOverride ?? null,
+      specialStairFeePerFloor:
+        line.special_stair_fee_per_floor != null && line.special_stair_fee_per_floor !== ''
+          ? Number(line.special_stair_fee_per_floor)
+          : line.specialStairFeePerFloor ?? null,
       isCustom: Boolean(line.is_custom),
     }))
 }
@@ -424,6 +433,8 @@ export function buildAdminEditBookingPatch({
     weightType: l.weightType,
     heavyFee: l.heavyFee,
     appliesHeavyHandlingFee: l.heavyFee,
+    handlingFeeOverride: l.handlingFeeOverride ?? null,
+    specialStairFeePerFloor: l.specialStairFeePerFloor ?? null,
     isCustom: l.isCustom,
     categoryLabel: l.categoryLabel,
     customSizeBand: l.customSizeBand,
@@ -535,6 +546,8 @@ export function buildAdminEditBookingPatch({
       weight_type: l.weightType,
       is_custom: Boolean(l.isCustom),
       category: l.categoryLabel,
+      handling_fee_override: l.handlingFeeOverride ?? null,
+      special_stair_fee_per_floor: l.specialStairFeePerFloor ?? null,
     }
   })
 

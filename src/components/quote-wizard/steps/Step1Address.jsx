@@ -9,6 +9,7 @@ import MobileStepTitleWithRef from '../MobileStepTitleWithRef'
 import QuoteReferenceCard from '../QuoteReferenceCard'
 import MobileStep1AddressCards from '../MobileStep1AddressCards'
 import QuoteAccessFields from '../QuoteAccessFields'
+import SpecialItemLiftSuitability from '../SpecialItemLiftSuitability'
 import Step1ArrivalFields from '../Step1ArrivalFields'
 import QuoteMoveDateCalendar from '../QuoteMoveDateCalendar'
 import useMobileQuoteLayout from '../../../hooks/useMobileQuoteLayout'
@@ -109,18 +110,46 @@ export default function Step1Address({
 
   function setPickupFloor(v) {
     if (floorNeedsLiftQuestion(v)) {
-      set('pickupFloor', v)
+      applyWizardPatch(onChange, {
+        pickupFloor: v,
+        pickupLiftSuitableForSpecialItems: null,
+      })
       return
     }
-    applyWizardPatch(onChange, { pickupFloor: v, pickupLift: null })
+    applyWizardPatch(onChange, {
+      pickupFloor: v,
+      pickupLift: null,
+      pickupLiftSuitableForSpecialItems: null,
+    })
   }
 
   function setDeliveryFloor(v) {
     if (floorNeedsLiftQuestion(v)) {
-      set('deliveryFloor', v)
+      applyWizardPatch(onChange, {
+        deliveryFloor: v,
+        deliveryLiftSuitableForSpecialItems: null,
+      })
       return
     }
-    applyWizardPatch(onChange, { deliveryFloor: v, deliveryLift: null })
+    applyWizardPatch(onChange, {
+      deliveryFloor: v,
+      deliveryLift: null,
+      deliveryLiftSuitableForSpecialItems: null,
+    })
+  }
+
+  function setPickupLift(v) {
+    applyWizardPatch(onChange, {
+      pickupLift: v,
+      pickupLiftSuitableForSpecialItems: v === true ? data.pickupLiftSuitableForSpecialItems : null,
+    })
+  }
+
+  function setDeliveryLift(v) {
+    applyWizardPatch(onChange, {
+      deliveryLift: v,
+      deliveryLiftSuitableForSpecialItems: v === true ? data.deliveryLiftSuitableForSpecialItems : null,
+    })
   }
 
   const showPickupLift = floorNeedsLiftQuestion(data.pickupFloor)
@@ -242,10 +271,13 @@ export default function Step1Address({
                   showLift={showPickupLift}
                   liftId="pickup-lift"
                   liftValue={data.pickupLift}
-                  onLiftSelect={(v) => set('pickupLift', v)}
+                  onLiftSelect={setPickupLift}
                 />
               ) : null}
             </QuoteStepAddressCard>
+            {quotePage ? (
+              <SpecialItemLiftSuitability data={data} onChange={onChange} side="pickup" className="mt-3" />
+            ) : null}
             {quotePage ? null : (
             <>
             <div className={field} data-quote-field="pickup-access">
@@ -261,10 +293,11 @@ export default function Step1Address({
                   legend="Lift at pickup"
                   name="pickupLift"
                   value={data.pickupLift}
-                  onSelect={(v) => set('pickupLift', v)}
+                  onSelect={setPickupLift}
                 />
               </div>
             ) : null}
+            <SpecialItemLiftSuitability data={data} onChange={onChange} side="pickup" />
             </>
             )}
             </div>
@@ -295,10 +328,13 @@ export default function Step1Address({
                   showLift={showDeliveryLift}
                   liftId="delivery-lift"
                   liftValue={data.deliveryLift}
-                  onLiftSelect={(v) => set('deliveryLift', v)}
+                  onLiftSelect={setDeliveryLift}
                 />
               ) : null}
             </QuoteStepAddressCard>
+            {quotePage ? (
+              <SpecialItemLiftSuitability data={data} onChange={onChange} side="delivery" className="mt-3" />
+            ) : null}
             {quotePage ? null : (
             <>
             <div className={field} data-quote-field="delivery-access">
@@ -314,10 +350,11 @@ export default function Step1Address({
                   legend="Lift at delivery"
                   name="deliveryLift"
                   value={data.deliveryLift}
-                  onSelect={(v) => set('deliveryLift', v)}
+                  onSelect={setDeliveryLift}
                 />
               </div>
             ) : null}
+            <SpecialItemLiftSuitability data={data} onChange={onChange} side="delivery" />
             </>
             )}
             {quotePage ? <QuoteReferenceCard quoteRef={quoteRef} className="lg:hidden" /> : null}
@@ -455,20 +492,22 @@ export default function Step1Address({
               legend="Lift at pickup"
               name="pickupLift"
               value={data.pickupLift}
-              onSelect={(v) => set('pickupLift', v)}
+              onSelect={setPickupLift}
             />
           </div>
         ) : null}
+        <SpecialItemLiftSuitability data={data} onChange={onChange} side="pickup" />
         {showDeliveryLift ? (
           <div className={field} data-quote-field="delivery-lift">
             <LiftYesNoField
               legend="Lift at delivery"
               name="deliveryLift"
               value={data.deliveryLift}
-              onSelect={(v) => set('deliveryLift', v)}
+              onSelect={setDeliveryLift}
             />
           </div>
         ) : null}
+        <SpecialItemLiftSuitability data={data} onChange={onChange} side="delivery" />
           </>
         ) : null}
 

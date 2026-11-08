@@ -7,6 +7,7 @@ import {
   ReviewGroup,
 } from '../QuoteReviewAccordion'
 import AddressConfirmationSection, { PickupPersonFields } from '../AddressConfirmationSection'
+import SpecialItemLiftSuitability from '../SpecialItemLiftSuitability'
 import QuoteSpecialInstructionsField from '../QuoteSpecialInstructionsField'
 import PackingMaterialsSection from '../PackingMaterialsSection'
 import DesktopFurnitureServicesSection from '../DesktopFurnitureServicesSection'
@@ -219,6 +220,10 @@ export default function Step3Details({
         variant="desktop"
         fieldErrors={fieldErrors}
       />
+      <div className="mt-3 space-y-3">
+        <SpecialItemLiftSuitability data={data} onChange={onChange} side="pickup" />
+        <SpecialItemLiftSuitability data={data} onChange={onChange} side="delivery" />
+      </div>
       </ReviewGroup>
 
       <ReviewGroup

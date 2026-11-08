@@ -29,6 +29,14 @@ export function buildPriceAffectingFingerprint({ serviceType, wizard }) {
         mult: Number(l?.mult) || 1,
         weightType: String(l?.weightType ?? ''),
         heavyFee: Boolean(l?.heavyFee),
+        handlingFeeOverride:
+          l?.handlingFeeOverride == null || l?.handlingFeeOverride === ''
+            ? null
+            : Number(l.handlingFeeOverride),
+        specialStairFeePerFloor:
+          l?.specialStairFeePerFloor == null || l?.specialStairFeePerFloor === ''
+            ? null
+            : Number(l.specialStairFeePerFloor),
         isCustom: Boolean(l?.isCustom),
       }))
     : []
@@ -47,6 +55,14 @@ export function buildPriceAffectingFingerprint({ serviceType, wizard }) {
     deliveryFloor: normFloor(w.deliveryFloor),
     pickupLift: w.pickupLift == null || w.pickupLift === '' ? null : Boolean(w.pickupLift),
     deliveryLift: w.deliveryLift == null || w.deliveryLift === '' ? null : Boolean(w.deliveryLift),
+    pickupLiftSuitableForSpecialItems:
+      w.pickupLiftSuitableForSpecialItems == null || w.pickupLiftSuitableForSpecialItems === ''
+        ? null
+        : Boolean(w.pickupLiftSuitableForSpecialItems),
+    deliveryLiftSuitableForSpecialItems:
+      w.deliveryLiftSuitableForSpecialItems == null || w.deliveryLiftSuitableForSpecialItems === ''
+        ? null
+        : Boolean(w.deliveryLiftSuitableForSpecialItems),
     parkingDistance: String(w.parkingDistance ?? ''),
     walkingDistance: String(w.walkingDistance ?? ''),
     stairsFlights: Number(w.stairsFlights) || 0,

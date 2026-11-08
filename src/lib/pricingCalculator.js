@@ -34,9 +34,13 @@ import {
 } from './packingMaterialsCatalog.js'
 import { getBankHolidayName, isBankHolidayDate } from './ukBankHolidays.js'
 import {
+  buildSpecialItemAccessLines,
   countHeavyItemsForCrew,
   countSpecialistHeavyItems,
+  inventoryHasOnlySpecialStairItems,
+  inventoryHasSpecialStairItems,
   sumInventoryVolumeRaw,
+  sumStandardAccessInventoryVolume,
 } from './inventoryPricing.js'
 
 export {
@@ -44,6 +48,10 @@ export {
   countHeavyItemsForCrew,
   countSpecialistHeavyItems,
   lineItemAppliesHeavyHandlingFee,
+  lineItemHandlingFeeOverride,
+  lineItemSpecialStairFeePerFloor,
+  lineItemHasSpecialStairFee,
+  resolveItemHandlingFeeGbp,
 } from './inventoryPricing.js'
 
 /**
@@ -156,6 +164,10 @@ export {
  * @property {number} [handlingMultiplier]
  * @property {'small'|'medium'|'large'|'heavy'|string} [weightType]
  * @property {boolean} [isCustom]
+ * @property {boolean} [heavyFee]
+ * @property {boolean} [appliesHeavyHandlingFee]
+ * @property {number|null} [handlingFeeOverride] — £ per unit; null = global Heavy fee; 0 = no fee
+ * @property {number|null} [specialStairFeePerFloor] — £ per floor per unit; null = standard stairs
  */
 
 /**
@@ -165,6 +177,8 @@ export {
  * @property {boolean} [hasLift] — legacy single flag; used for **both** ends when `pickupLift` / `deliveryLift` are omitted
  * @property {boolean} [pickupLift] — lift available at collection (waives no-lift supplement only; floor charges still apply above ground)
  * @property {boolean} [deliveryLift] — lift available at delivery
+ * @property {boolean|null} [pickupLiftSuitableForSpecialItems] — lift confirmed suitable for special-stair item size/weight at collection
+ * @property {boolean|null} [deliveryLiftSuitableForSpecialItems] — lift confirmed suitable at delivery
  * @property {boolean} [longWalk]
  * @property {boolean} [parking]
  * @property {number} [stairsFlights]
@@ -417,7 +431,17 @@ export function calculateQuote(settings, input) {
   /** Volume band applies to inventory £; optionally also floors / no-lift when admin toggle is on. */
   const volumePrice = money(baseVolumePrice * volumeMultiplier)
   const volumeScalingAmount = money(volumePrice - baseVolumePrice)
-  const accessVolScale = resolveAccessVolumeScale(s, volumeMultiplier, totalCubicMetres)
+
+  const hasSpecialStairItems = inventoryHasSpecialStairItems(lineItems)
+  const specialStairOnlyJob = inventoryHasOnlySpecialStairItems(lineItems)
+  /** Special-stair catalogue items are excluded from volume used for floor/no-lift multipliers. */
+  const standardAccessCubicMetres = hasSpecialStairItems
+    ? sumStandardAccessInventoryVolume(lineItems)
+    : totalCubicMetres
+  const accessBandMultiplier = hasSpecialStairItems
+    ? resolveVolumePricingMultiplier(s, standardAccessCubicMetres).multiplier
+    : volumeMultiplier
+  const accessVolScale = resolveAccessVolumeScale(s, accessBandMultiplier, standardAccessCubicMetres)
   const applyVolumeMultToAccess = accessVolScale.enabled
   const accessVolumeMultiplier = accessVolScale.scale
   const volAccessSuffix =
@@ -473,7 +497,7 @@ export function calculateQuote(settings, input) {
   const deliveryLift = deliveryLiftExplicit ? Boolean(access.deliveryLift) : legacyHasLift
 
   const stairsFlights = Math.max(0, Number(access.stairsFlights) || 0)
-  /** Specialist heavy fee only — ordinary fridge freezer etc. excluded. */
+  /** Aggregated specialist heavy only — excludes per-item override / special-stair catalogue rows. */
   const specialistHeavyCount = countSpecialistHeavyItems(lineItems)
 
   /** @type {BreakdownLine[]} */
@@ -539,20 +563,34 @@ export function calculateQuote(settings, input) {
     }
   }
 
-  pushStairsAccessForEnd(
-    'collection',
-    pickupFloor,
-    pickupNeedsLiftAccess,
-    pickupLiftExplicit,
-    pickupLift,
-  )
-  pushStairsAccessForEnd(
-    'delivery',
-    deliveryFloor,
-    deliveryNeedsLiftAccess,
-    deliveryLiftExplicit,
-    deliveryLift,
-  )
+  /** Piano-only (etc.): standard floor/no-lift/stairs omitted — special tariff only. */
+  if (!specialStairOnlyJob) {
+    pushStairsAccessForEnd(
+      'collection',
+      pickupFloor,
+      pickupNeedsLiftAccess,
+      pickupLiftExplicit,
+      pickupLift,
+    )
+    pushStairsAccessForEnd(
+      'delivery',
+      deliveryFloor,
+      deliveryNeedsLiftAccess,
+      deliveryLiftExplicit,
+      deliveryLift,
+    )
+
+    if (stairsFlights > 0) {
+      const per = Number(s.stairsChargePerFlight) || 0
+      const stairsAmt = money(stairsFlights * per)
+      if (stairsAmt > 0) {
+        accessLines.push({
+          label: `Stairs (${stairsFlights} flight${stairsFlights === 1 ? '' : 's'})`,
+          amount: stairsAmt,
+        })
+      }
+    }
+  }
 
   if (access.longWalk) {
     const w = Number(s.longWalkingDistanceCharge) || 0
@@ -564,17 +602,6 @@ export function calculateQuote(settings, input) {
     if (p > 0) accessLines.push({ label: 'Parking / access', amount: money(p) })
   }
 
-  if (stairsFlights > 0) {
-    const per = Number(s.stairsChargePerFlight) || 0
-    const stairsAmt = money(stairsFlights * per)
-    if (stairsAmt > 0) {
-      accessLines.push({
-        label: `Stairs (${stairsFlights} flight${stairsFlights === 1 ? '' : 's'})`,
-        amount: stairsAmt,
-      })
-    }
-  }
-
   if (specialistHeavyCount > 0) {
     const perH = Number(s.heavyItemHandlingCharge) || 0
     const hAmt = money(specialistHeavyCount * perH)
@@ -584,6 +611,22 @@ export function calculateQuote(settings, input) {
         amount: hAmt,
       })
     }
+  }
+
+  const specialItemLines = buildSpecialItemAccessLines(lineItems, {
+    globalHeavyRate: Number(s.heavyItemHandlingCharge) || 0,
+    pickupFloorLevels: pickupFloor,
+    deliveryFloorLevels: deliveryFloor,
+    pickupLiftExplicit,
+    deliveryLiftExplicit,
+    pickupLift,
+    deliveryLift,
+    pickupLiftSuitableForSpecialItems: access.pickupLiftSuitableForSpecialItems,
+    deliveryLiftSuitableForSpecialItems: access.deliveryLiftSuitableForSpecialItems,
+    stairsFlights,
+  })
+  for (const line of specialItemLines) {
+    accessLines.push(line)
   }
 
   const accessTotal = money(accessLines.reduce((sum, l) => sum + l.amount, 0))

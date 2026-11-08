@@ -5,6 +5,8 @@
 import {
   countSpecialistHeavyItems,
   lineItemAppliesHeavyHandlingFee,
+  lineItemUsesCustomHandlingLine,
+  resolveItemHandlingFeeGbp,
   sumInventoryVolumeRaw,
 } from './inventoryPricing'
 import { resolveVolumePricingMultiplier } from './volumePricingMultiplier'
@@ -65,7 +67,22 @@ export function calculateExtraItemsCharge(settings, lineItems) {
     })
   }
 
-  const estimatedAmount = money(scaledVolumePrice + heavyTotal)
+  let customHandlingTotal = 0
+  for (const row of items) {
+    if (!lineItemUsesCustomHandlingLine(row)) continue
+    const qty = Math.max(0, Number(row.quantity) || 0)
+    if (qty <= 0) continue
+    const perUnit = resolveItemHandlingFeeGbp(row, heavyRate)
+    const amt = money(qty * perUnit)
+    if (amt <= 0) continue
+    customHandlingTotal = money(customHandlingTotal + amt)
+    breakdownLines.push({
+      label: `${String(row.name || 'Item').trim() || 'Item'} – specialist handling`,
+      amount: amt,
+    })
+  }
+
+  const estimatedAmount = money(scaledVolumePrice + heavyTotal + customHandlingTotal)
 
   const itemLines = items.map((row) => {
     const qty = Math.max(0, Number(row.quantity) || 0)
@@ -78,7 +95,7 @@ export function calculateExtraItemsCharge(settings, lineItems) {
       quantity: qty,
       lineVolumeM3,
       lineAmountGbp,
-      specialistHeavy: lineItemAppliesHeavyHandlingFee(row),
+      specialistHeavy: lineItemAppliesHeavyHandlingFee(row) || lineItemUsesCustomHandlingLine(row),
     }
   })
 

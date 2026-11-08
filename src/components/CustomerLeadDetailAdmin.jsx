@@ -327,6 +327,8 @@ export default function CustomerLeadDetailAdmin() {
       weightType: l.weightType,
       heavyFee: l.heavyFee,
       appliesHeavyHandlingFee: l.heavyFee,
+      handlingFeeOverride: l.handlingFeeOverride ?? null,
+      specialStairFeePerFloor: l.specialStairFeePerFloor ?? null,
       isCustom: l.isCustom,
     }))
   }, [leadWizard])

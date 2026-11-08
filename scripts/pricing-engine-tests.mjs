@@ -609,6 +609,163 @@ const blocked = applyServicePackageToQuote({
 })
 assert(blocked.packageId === 'standard' && blocked.blocked, 'platinum is blocked when the reserve exceeds van capacity')
 
+console.log('\n=== Upright piano special handling / stairs ===')
+const PIANO = [
+  {
+    name: 'Upright piano',
+    quantity: 1,
+    volumePerUnitM3: 1.5,
+    weightType: 'heavy',
+    heavyFee: true,
+    handlingFeeOverride: 120,
+    specialStairFeePerFloor: 40,
+  },
+]
+const pianoSettings = { ...settings, heavyItemHandlingCharge: 20 }
+
+function pianoQuote(partial) {
+  return calculateQuote(pianoSettings, {
+    serviceType: 'Man with Van',
+    distanceMiles: 0,
+    crewSize: 2,
+    moveDate: '2026-09-18',
+    lineItems: PIANO,
+    access: { ...baseAccess, ...partial },
+    extras: {},
+  })
+}
+
+const pianoGG = pianoQuote({ pickupFloor: 0, deliveryFloor: 0 })
+approx(
+  pianoGG.accessLines.find((l) => /Upright piano – specialist handling/i.test(l.label))?.amount ?? 0,
+  120,
+  0.02,
+  'piano ground→ground specialist handling £120',
+)
+assert(
+  !pianoGG.accessLines.some((l) => /Upright piano – stairs/i.test(l.label)),
+  'piano ground→ground has no stairs line',
+)
+assert(
+  !pianoGG.accessLines.some(
+    (l) => /^Floor\/access/i.test(l.label) || /^No lift/i.test(l.label) || /^Stairs \(/i.test(l.label),
+  ),
+  'piano-only skips standard floor/no-lift/stairs',
+)
+assert(
+  !pianoGG.accessLines.some((l) => /^Specialist heavy handling/i.test(l.label)),
+  'piano override is not double-counted in aggregated heavy fee',
+)
+
+const piano1G = pianoQuote({ pickupFloor: 1, deliveryFloor: 0 })
+approx(
+  (piano1G.accessLines.find((l) => /specialist handling/i.test(l.label))?.amount ?? 0) +
+    (piano1G.accessLines.find((l) => /Upright piano – stairs/i.test(l.label))?.amount ?? 0),
+  160,
+  0.02,
+  'piano floor1→ground = £160 total special fees',
+)
+
+const piano11 = pianoQuote({ pickupFloor: 1, deliveryFloor: 1 })
+approx(
+  (piano11.accessLines.find((l) => /specialist handling/i.test(l.label))?.amount ?? 0) +
+    (piano11.accessLines.find((l) => /Upright piano – stairs/i.test(l.label))?.amount ?? 0),
+  200,
+  0.02,
+  'piano floor1→floor1 = £200 total special fees',
+)
+
+const piano21 = pianoQuote({ pickupFloor: 2, deliveryFloor: 1 })
+approx(
+  (piano21.accessLines.find((l) => /specialist handling/i.test(l.label))?.amount ?? 0) +
+    (piano21.accessLines.find((l) => /Upright piano – stairs/i.test(l.label))?.amount ?? 0),
+  240,
+  0.02,
+  'piano floor2→floor1 = £240 total special fees',
+)
+
+const pianoLiftOnly = pianoQuote({
+  pickupFloor: 1,
+  deliveryFloor: 0,
+  pickupLift: true,
+})
+approx(
+  (pianoLiftOnly.accessLines.find((l) => /specialist handling/i.test(l.label))?.amount ?? 0) +
+    (pianoLiftOnly.accessLines.find((l) => /Upright piano – stairs/i.test(l.label))?.amount ?? 0),
+  160,
+  0.02,
+  'lift Yes alone does not waive piano stair floors',
+)
+
+const pianoLiftSuitable = pianoQuote({
+  pickupFloor: 1,
+  deliveryFloor: 0,
+  pickupLift: true,
+  pickupLiftSuitableForSpecialItems: true,
+})
+approx(
+  pianoLiftSuitable.accessLines.find((l) => /specialist handling/i.test(l.label))?.amount ?? 0,
+  120,
+  0.02,
+  'suitable lift waives pickup floors — handling only £120',
+)
+assert(
+  !pianoLiftSuitable.accessLines.some((l) => /Upright piano – stairs/i.test(l.label)),
+  'suitable lift + no extra flights → no piano stairs line',
+)
+
+const mixed = calculateQuote(pianoSettings, {
+  serviceType: 'Man with Van',
+  distanceMiles: 0,
+  crewSize: 2,
+  moveDate: '2026-09-18',
+  lineItems: [
+    ...PIANO,
+    { name: '2-seater sofa', quantity: 1, volumePerUnitM3: 1.2, weightType: 'large' },
+  ],
+  access: {
+    ...baseAccess,
+    pickupFloor: 1,
+    deliveryFloor: 0,
+    pickupLift: false,
+  },
+  extras: {},
+})
+assert(
+  mixed.accessLines.some((l) => /^Floor\/access \(collection\)/i.test(l.label)),
+  'mixed order keeps standard floor charges for ordinary furniture',
+)
+assert(
+  mixed.accessLines.some((l) => /Upright piano – specialist handling/i.test(l.label)),
+  'mixed order still bills piano specialist handling separately',
+)
+assert(
+  mixed.accessLines.some((l) => /Upright piano – stairs/i.test(l.label)),
+  'mixed order bills piano stairs separately',
+)
+
+const overrideZero = calculateQuote(pianoSettings, {
+  serviceType: 'Man with Van',
+  distanceMiles: 0,
+  crewSize: 2,
+  moveDate: '2026-09-18',
+  lineItems: [
+    {
+      name: 'Heavy with zero handling',
+      quantity: 1,
+      volumePerUnitM3: 0.5,
+      weightType: 'heavy',
+      handlingFeeOverride: 0,
+    },
+  ],
+  access: baseAccess,
+  extras: {},
+})
+assert(
+  !overrideZero.accessLines.some((l) => /specialist|heavy/i.test(l.label)),
+  'handlingFeeOverride 0 means no handling fee',
+)
+
 if (failed > 0) {
   console.error(`\n${failed} assertion(s) failed`)
   process.exit(1)

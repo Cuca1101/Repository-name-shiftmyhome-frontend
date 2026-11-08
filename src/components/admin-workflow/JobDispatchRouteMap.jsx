@@ -50,14 +50,26 @@ export default function JobDispatchRouteMap({ q, job = null, liveTracking = fals
     deliveryAddress: '',
   })
 
+  const quoteId = String(q?.id || '')
+  const jobId = String(job?.id || '')
+  const pickupKey = String(q?.pickup_address || q?.collection_address || '')
+  const deliveryKey = String(q?.delivery_address || '')
+  const pickupCoordKey = `${q?.pickup_lat ?? ''},${q?.pickup_lng ?? ''}`
+  const deliveryCoordKey = `${q?.delivery_lat ?? ''},${q?.delivery_lng ?? ''}`
+
   useEffect(() => {
     let cancelled = false
-    setCoords((c) => ({ ...c, loading: true, error: '' }))
+    // Keep the existing map mounted while refreshing — toggling loading unmounts Mapbox and jumps the page.
+    setCoords((c) => ({
+      ...c,
+      loading: c.pickupLng == null && c.deliveryLng == null,
+      error: '',
+    }))
 
     void (async () => {
       try {
         const result = await resolveQuoteRouteCoordinates(q, job, token)
-        if (!cancelled && result.coordinateSource !== 'saved') {
+        if (!cancelled && (result.coordinateSource !== 'saved' || result.pickupMoved || result.deliveryMoved)) {
           void persistMissingStopCoordinates(q, result)
         }
         if (cancelled) return
@@ -85,7 +97,9 @@ export default function JobDispatchRouteMap({ q, job = null, liveTracking = fals
     return () => {
       cancelled = true
     }
-  }, [q, job, token])
+    // Intentionally key off address/coord identity — parent often passes a new `q` object each render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- stable route keys above
+  }, [quoteId, jobId, pickupKey, deliveryKey, pickupCoordKey, deliveryCoordKey, token])
 
   useEffect(() => {
     if (!liveTracking || quoteDriverId || !q?.id || !isSupabaseConfigured || !supabase) {

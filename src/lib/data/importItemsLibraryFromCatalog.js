@@ -52,6 +52,17 @@ export function mapCatalogItemToLibraryRow(item, categoryLabel) {
   const handling_multiplier =
     Number.isFinite(multRaw) && multRaw > 0 ? multRaw : 1
 
+  const handlingOverrideRaw = item.handlingFeeOverride ?? item.handling_fee_override
+  const stairFeeRaw = item.specialStairFeePerFloor ?? item.special_stair_fee_per_floor
+  const handling_fee_override =
+    handlingOverrideRaw === undefined || handlingOverrideRaw === null || handlingOverrideRaw === ''
+      ? null
+      : Number(handlingOverrideRaw)
+  const special_stair_fee_per_floor =
+    stairFeeRaw === undefined || stairFeeRaw === null || stairFeeRaw === ''
+      ? null
+      : Number(stairFeeRaw)
+
   return {
     name,
     category,
@@ -59,6 +70,14 @@ export function mapCatalogItemToLibraryRow(item, categoryLabel) {
     weight_type: toLibraryWeightType(item.weightType),
     handling_multiplier,
     default_quantity: 1,
+    handling_fee_override:
+      handling_fee_override != null && Number.isFinite(handling_fee_override)
+        ? handling_fee_override
+        : null,
+    special_stair_fee_per_floor:
+      special_stair_fee_per_floor != null && Number.isFinite(special_stair_fee_per_floor)
+        ? special_stair_fee_per_floor
+        : null,
   }
 }
 
@@ -180,4 +199,51 @@ export async function importMissingCatalogToItemsLibrary(existingItems) {
     storage: purge.storage,
     validDisplayed: validExisting.length + toImport.length,
   }
+}
+
+/**
+ * Push catalogue volume / weight / fee fields onto matching library rows by name+category.
+ * Used so Upright piano (and any future configured fees) update without creating duplicates.
+ *
+ * @param {Array<{ id?: string, name?: string, category?: string, cubic_metres?: unknown, weight_type?: string, handling_fee_override?: unknown, special_stair_fee_per_floor?: unknown }>} existingItems
+ */
+export async function syncCatalogConfiguredFeesToLibrary(existingItems) {
+  const { updateLibraryItem } = await import('./itemsLibraryRepository.js')
+  const catalog = catalogRowsForItemsLibrary()
+  const byKey = new Map(
+    catalog.map((row) => [normalizeItemsLibraryKey(row.name, row.category), row]),
+  )
+  let updated = 0
+  for (const existing of existingItems || []) {
+    if (!isValidLibraryRow(existing) || !existing.id) continue
+    const key = normalizeItemsLibraryKey(existing.name, existing.category)
+    const catalogRow = byKey.get(key)
+    if (!catalogRow) continue
+    const hasConfiguredFees =
+      catalogRow.handling_fee_override != null || catalogRow.special_stair_fee_per_floor != null
+    if (!hasConfiguredFees) continue
+
+    const nextCubic = Number(catalogRow.cubic_metres)
+    const nextWeight = catalogRow.weight_type
+    const nextHandling = catalogRow.handling_fee_override
+    const nextStair = catalogRow.special_stair_fee_per_floor
+    const sameCubic = Number(existing.cubic_metres) === nextCubic
+    const sameWeight = String(existing.weight_type || '') === String(nextWeight || '')
+    const sameHandling = Number(existing.handling_fee_override) === Number(nextHandling) ||
+      (existing.handling_fee_override == null && nextHandling == null)
+    const sameStair =
+      Number(existing.special_stair_fee_per_floor) === Number(nextStair) ||
+      (existing.special_stair_fee_per_floor == null && nextStair == null)
+    if (sameCubic && sameWeight && sameHandling && sameStair) continue
+
+    await updateLibraryItem(String(existing.id), {
+      cubic_metres: nextCubic,
+      weight_type: nextWeight,
+      handling_multiplier: 1,
+      handling_fee_override: nextHandling,
+      special_stair_fee_per_floor: nextStair,
+    })
+    updated += 1
+  }
+  return { updated }
 }

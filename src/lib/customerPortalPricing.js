@@ -27,6 +27,8 @@ export function wizardLinesToEngineItems(lines) {
       weightType: line.weightType || 'medium',
       heavyFee: line.heavyFee,
       appliesHeavyHandlingFee: line.heavyFee,
+      handlingFeeOverride: line.handlingFeeOverride ?? null,
+      specialStairFeePerFloor: line.specialStairFeePerFloor ?? null,
       isCustom: Boolean(line.isCustom),
     }))
 }

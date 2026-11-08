@@ -18,6 +18,8 @@ function uuid() {
  * @property {'small'|'medium'|'large'|'heavy'} weight_type
  * @property {number} handling_multiplier
  * @property {number} default_quantity
+ * @property {number|null} [handling_fee_override]
+ * @property {number|null} [special_stair_fee_per_floor]
  * @property {string} [created_at]
  */
 

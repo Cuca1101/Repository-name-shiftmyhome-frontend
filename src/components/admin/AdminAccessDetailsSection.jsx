@@ -1,5 +1,6 @@
 import { PARKING_LABELS, WALKING_LABELS } from '../../lib/emailQuotePayload'
 import { applyWizardPatch } from '../../lib/wizardStateUpdate'
+import SpecialItemLiftSuitability from '../quote-wizard/SpecialItemLiftSuitability'
 
 const input =
   'mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 shadow-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/25'
@@ -54,6 +55,10 @@ export default function AdminAccessDetailsSection({ data, onChange }) {
           onChange={(e) => set('stairsFlights', Math.max(0, Number(e.target.value) || 0))}
         />
       </label>
+      <div className="sm:col-span-2 space-y-3">
+        <SpecialItemLiftSuitability data={data} onChange={onChange} side="pickup" />
+        <SpecialItemLiftSuitability data={data} onChange={onChange} side="delivery" />
+      </div>
       <label className="block sm:col-span-2">
         <span className={label}>Heavy / awkward items notes</span>
         <textarea

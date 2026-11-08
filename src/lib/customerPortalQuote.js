@@ -52,6 +52,15 @@ export function inventoryLinesFromJson(inventory) {
       m3: Number(line.m3) || Number(line.volume_m3) || 0.1,
       mult: Number(line.mult) > 0 ? Number(line.mult) : 1,
       weightType: line.weight_type || line.weightType || 'medium',
+      heavyFee: line.heavy_fee ?? line.heavyFee,
+      handlingFeeOverride:
+        line.handling_fee_override != null && line.handling_fee_override !== ''
+          ? Number(line.handling_fee_override)
+          : line.handlingFeeOverride ?? null,
+      specialStairFeePerFloor:
+        line.special_stair_fee_per_floor != null && line.special_stair_fee_per_floor !== ''
+          ? Number(line.special_stair_fee_per_floor)
+          : line.specialStairFeePerFloor ?? null,
       isCustom: Boolean(line.is_custom || line.isCustom),
       categoryLabel: line.category || line.categoryLabel || '',
       catalogId: line.catalogId || null,
@@ -288,6 +297,8 @@ function mergeInventory(existingLines, proposedLines) {
       mult: Number(cat.mult) > 0 ? Number(cat.mult) : 1,
       weightType: cat.weightType || 'medium',
       heavyFee: cat.heavyFee,
+      handlingFeeOverride: cat.handlingFeeOverride ?? null,
+      specialStairFeePerFloor: cat.specialStairFeePerFloor ?? null,
       isCustom: false,
       categoryLabel: cat.categoryLabel || '',
     })
@@ -328,6 +339,8 @@ export function inventoryJsonFromLines(lines) {
     weight_type: line.weightType || 'medium',
     is_custom: Boolean(line.isCustom),
     category: line.categoryLabel || '',
+    handling_fee_override: line.handlingFeeOverride ?? null,
+    special_stair_fee_per_floor: line.specialStairFeePerFloor ?? null,
   }))
 }
 

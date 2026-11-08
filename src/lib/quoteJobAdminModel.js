@@ -148,6 +148,8 @@ export function collectInventoryRowsForHeavyFee(sources = {}) {
         weightType: row.weight_type ?? row.weightType ?? row.size_category ?? row.size_type,
         heavyFee: row.heavyFee ?? row.heavy_fee,
         appliesHeavyHandlingFee: row.appliesHeavyHandlingFee ?? row.applies_heavy_handling_fee,
+        handlingFeeOverride: row.handling_fee_override ?? row.handlingFeeOverride,
+        specialStairFeePerFloor: row.special_stair_fee_per_floor ?? row.specialStairFeePerFloor,
       })
     }
     return out
@@ -161,6 +163,8 @@ export function collectInventoryRowsForHeavyFee(sources = {}) {
         weightType: row.weightType,
         heavyFee: row.heavyFee,
         appliesHeavyHandlingFee: row.appliesHeavyHandlingFee ?? row.heavyFee,
+        handlingFeeOverride: row.handlingFeeOverride,
+        specialStairFeePerFloor: row.specialStairFeePerFloor,
       })
     }
     return out

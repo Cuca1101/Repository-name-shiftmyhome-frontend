@@ -234,6 +234,8 @@ export default function AdminEditBookingForm({
         weightType: l.weightType,
         heavyFee: l.heavyFee,
         appliesHeavyHandlingFee: l.heavyFee,
+        handlingFeeOverride: l.handlingFeeOverride ?? null,
+        specialStairFeePerFloor: l.specialStairFeePerFloor ?? null,
         isCustom: l.isCustom,
       })),
     [wizard.inventoryLines],

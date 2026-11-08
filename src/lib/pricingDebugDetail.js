@@ -182,14 +182,15 @@ export function buildPricingDebugDetail(breakdown, ctx) {
       stairs * Number(s.stairsChargePerFlight),
     )
   }
-  const heavy = Math.max(0, Number(access.heavyItemCount) || 0)
-  if (heavy > 0 && Number(s.heavyItemHandlingCharge) > 0) {
-    pushAccess(
-      'heavy',
-      'job',
-      `${heavy} heavy item(s) × £${Number(s.heavyItemHandlingCharge).toFixed(2)}`,
-      heavy * Number(s.heavyItemHandlingCharge),
-    )
+  for (const line of breakdown.accessLines || []) {
+    if (
+      /^Specialist heavy handling/i.test(line.label) ||
+      /– specialist handling$/i.test(line.label) ||
+      /– stairs$/i.test(line.label)
+    ) {
+      const type = /– stairs$/i.test(line.label) ? 'special_stairs' : 'heavy'
+      pushAccess(type, 'job', line.label, line.amount)
+    }
   }
 
   const extras = ctx.extrasInput || {}

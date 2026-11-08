@@ -2,9 +2,87 @@
  * Mapbox Geocoding + Directions (REST). All functions fail soft (return null / empty / catch).
  */
 
+const UK_POSTCODE_IN_TEXT = /\b([A-Z]{1,2}\d[A-Z\d]?\s*\d[A-Z]{2})\b/i
+/** Reject street matches that land far from the stated UK postcode (e.g. "29 Carnoustie DD7…" → London). */
+const POSTCODE_ANCHOR_MAX_METRES = 40000
+
 export function metersToMiles(meters) {
   if (typeof meters !== 'number' || Number.isNaN(meters)) return 0
   return Math.round(meters * 0.000621371 * 10) / 10
+}
+
+/**
+ * @param {unknown} text
+ * @returns {string} normalised "AB12 3CD" or ""
+ */
+export function extractUkPostcode(text) {
+  const m = String(text || '').match(UK_POSTCODE_IN_TEXT)
+  if (!m) return ''
+  const compact = m[1].replace(/\s+/g, '').toUpperCase()
+  if (compact.length < 5) return ''
+  return `${compact.slice(0, -3)} ${compact.slice(-3)}`
+}
+
+function metresBetweenPoints(a, b) {
+  const earth = 6371000
+  const lat1 = (a.lat * Math.PI) / 180
+  const lat2 = (b.lat * Math.PI) / 180
+  const dLat = ((b.lat - a.lat) * Math.PI) / 180
+  const dLng = ((b.lng - a.lng) * Math.PI) / 180
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2
+  return 2 * earth * Math.asin(Math.min(1, Math.sqrt(h)))
+}
+
+/**
+ * @param {string} query
+ * @param {string} token
+ * @param {{ proximity?: { lng: number, lat: number } | null, types?: string, limit?: number }} [opts]
+ * @returns {Promise<Array<{ lng: number, lat: number, placeName: string, types: string[] }>>}
+ */
+async function fetchGeocodeFeatures(query, token, opts = {}) {
+  if (!query?.trim() || !token) return []
+  try {
+    const path = encodeURIComponent(query.trim())
+    const url = new URL(`https://api.mapbox.com/geocoding/v5/mapbox.places/${path}.json`)
+    url.searchParams.set('access_token', token)
+    url.searchParams.set('limit', String(Math.max(1, Math.min(10, Number(opts.limit) || 5))))
+    url.searchParams.set('country', 'gb')
+    if (opts.types) url.searchParams.set('types', opts.types)
+    if (opts.proximity && Number.isFinite(opts.proximity.lng) && Number.isFinite(opts.proximity.lat)) {
+      url.searchParams.set('proximity', `${opts.proximity.lng},${opts.proximity.lat}`)
+    }
+    const res = await fetch(url.toString(), { signal: AbortSignal.timeout(8000) })
+    if (!res.ok) return []
+    const data = await res.json()
+    return (data.features || [])
+      .map((f) => {
+        const c = f.center
+        if (!Array.isArray(c) || c.length < 2) return null
+        return {
+          lng: c[0],
+          lat: c[1],
+          placeName: String(f.place_name || f.text || ''),
+          types: Array.isArray(f.place_type) ? f.place_type.map(String) : [],
+        }
+      })
+      .filter(Boolean)
+  } catch {
+    return []
+  }
+}
+
+/**
+ * @param {string} postcode
+ * @param {string} token
+ * @returns {Promise<{ lng: number, lat: number, placeName: string } | null>}
+ */
+async function geocodeUkPostcodeAnchor(postcode, token) {
+  const pc = extractUkPostcode(postcode) || String(postcode || '').trim()
+  if (!pc) return null
+  const features = await fetchGeocodeFeatures(pc, token, { types: 'postcode', limit: 1 })
+  const hit = features[0]
+  if (!hit) return null
+  return { lng: hit.lng, lat: hit.lat, placeName: hit.placeName }
 }
 
 /**
@@ -47,27 +125,53 @@ export async function searchGeocodingSuggestions(query, token) {
 }
 
 /**
+ * UK-aware geocode. When the query includes a postcode, that postcode anchors the result
+ * so incomplete lines like "29 Carnoustie DD7 7DQ" do not snap to "Carnoustie Drive, London".
+ *
  * @param {string} query
  * @param {string} token
+ * @param {{ proximity?: { lng: number, lat: number } | null }} [opts]
  * @returns {Promise<{ lng: number, lat: number } | null>}
  */
-export async function geocodeAddress(query, token) {
-  if (!query?.trim() || !token) return null
-  try {
-    const path = encodeURIComponent(query.trim())
-    const url = new URL(`https://api.mapbox.com/geocoding/v5/mapbox.places/${path}.json`)
-    url.searchParams.set('access_token', token)
-    url.searchParams.set('limit', '1')
-    url.searchParams.set('country', 'gb')
-    const res = await fetch(url.toString(), { signal: AbortSignal.timeout(8000) })
-    if (!res.ok) return null
-    const data = await res.json()
-    const c = data.features?.[0]?.center
-    if (!Array.isArray(c) || c.length < 2) return null
-    return { lng: c[0], lat: c[1] }
-  } catch {
-    return null
+export async function geocodeAddress(query, token, opts = {}) {
+  const text = String(query || '').trim()
+  if (!text || !token) return null
+
+  const postcode = extractUkPostcode(text)
+  const proximityHint =
+    opts.proximity && Number.isFinite(opts.proximity.lng) && Number.isFinite(opts.proximity.lat)
+      ? { lng: opts.proximity.lng, lat: opts.proximity.lat, placeName: '' }
+      : null
+
+  // Parallel: postcode anchor + street query (filters reject London namesakes of Scottish streets).
+  const [anchorFromPostcode, features] = await Promise.all([
+    postcode ? geocodeUkPostcodeAnchor(postcode, token) : Promise.resolve(null),
+    fetchGeocodeFeatures(text, token, {
+      proximity: proximityHint,
+      limit: postcode ? 5 : 1,
+    }),
+  ])
+  const anchor = anchorFromPostcode || proximityHint
+
+  if (postcode && anchor) {
+    const compactPc = postcode.replace(/\s+/g, '')
+    const near = features.filter(
+      (f) => metresBetweenPoints(f, anchor) <= POSTCODE_ANCHOR_MAX_METRES,
+    )
+    const matchingName = near.find((f) =>
+      f.placeName.replace(/\s+/g, '').toUpperCase().includes(compactPc),
+    )
+    const preferred =
+      matchingName ||
+      near.find((f) => f.types.includes('address')) ||
+      near[0]
+    if (preferred) return { lng: preferred.lng, lat: preferred.lat }
+    // Street match was nowhere near the postcode (classic London false positive) — use postcode.
+    return { lng: anchor.lng, lat: anchor.lat }
   }
+
+  const first = features[0]
+  return first ? { lng: first.lng, lat: first.lat } : null
 }
 
 /**

@@ -98,9 +98,26 @@ export function mergeFallbackCatalogGaps(inventoryByCategory) {
 }
 
 /**
- * @typedef {{ id: string, name: string, m3: number, weightType: string, mult?: number, defaultQty?: number }} CatalogItem
+ * @typedef {{
+ *   id: string,
+ *   name: string,
+ *   m3: number,
+ *   weightType: string,
+ *   mult?: number,
+ *   defaultQty?: number,
+ *   heavyFee?: boolean,
+ *   handlingFeeOverride?: number | null,
+ *   specialStairFeePerFloor?: number | null,
+ * }} CatalogItem
  * @typedef {{ label: string, items: CatalogItem[] }} CatalogCategory
  */
+
+/** @param {unknown} value */
+function optionalMoneyOrNull(value) {
+  if (value === undefined || value === null || value === '') return null
+  const n = Number(value)
+  return Number.isFinite(n) ? n : null
+}
 
 /**
  * @param {string} label
@@ -128,7 +145,7 @@ export function categoryKeyForLabel(label) {
 }
 
 /**
- * @param {Array<{ id: string, name: string, category?: string, cubic_metres?: number, weight_type?: string, handling_multiplier?: number, default_quantity?: number }>} rows
+ * @param {Array<{ id: string, name: string, category?: string, cubic_metres?: number, weight_type?: string, handling_multiplier?: number, default_quantity?: number, handling_fee_override?: number | null, special_stair_fee_per_floor?: number | null }>} rows
  * @returns {{ categoryOrder: string[], inventoryByCategory: Record<string, CatalogCategory>, source: 'library' } | null}
  */
 export function buildQuoteInventoryCatalogFromLibrary(rows) {
@@ -150,14 +167,18 @@ export function buildQuoteInventoryCatalogFromLibrary(rows) {
     const bucket = byKey.get(key)
     const nameKey = normalizeCatalogName(row.name)
     if (bucket.items.some((item) => normalizeCatalogName(item.name) === nameKey)) continue
+    const handlingFeeOverride = optionalMoneyOrNull(row.handling_fee_override)
+    const specialStairFeePerFloor = optionalMoneyOrNull(row.special_stair_fee_per_floor)
     bucket.items.push({
       id: String(row.id),
       name: String(row.name),
       m3: Math.max(0.01, Number(row.cubic_metres) || 0),
       weightType: row.weight_type || 'medium',
       mult: 1,
-      /** Weight type Heavy in Items Library = charge specialist heavy fee. */
+      /** Weight type Heavy in Items Library = charge specialist heavy fee (unless override set). */
       heavyFee: String(row.weight_type || '').toLowerCase() === 'heavy',
+      handlingFeeOverride,
+      specialStairFeePerFloor,
       defaultQty,
     })
   }

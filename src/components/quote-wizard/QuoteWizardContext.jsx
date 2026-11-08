@@ -469,6 +469,8 @@ export function QuoteWizardProvider({
         weightType: l.weightType,
         heavyFee: l.heavyFee,
         appliesHeavyHandlingFee: l.heavyFee,
+        handlingFeeOverride: l.handlingFeeOverride ?? null,
+        specialStairFeePerFloor: l.specialStairFeePerFloor ?? null,
         isCustom: l.isCustom,
       })),
     [wizard.inventoryLines],
@@ -1020,6 +1022,8 @@ export function QuoteWizardProvider({
       weightType: l.weightType,
       heavyFee: l.heavyFee,
       appliesHeavyHandlingFee: l.heavyFee,
+      handlingFeeOverride: l.handlingFeeOverride ?? null,
+      specialStairFeePerFloor: l.specialStairFeePerFloor ?? null,
       isCustom: l.isCustom,
       categoryLabel: l.categoryLabel,
       customSizeBand: l.customSizeBand,
@@ -1276,6 +1280,8 @@ export function QuoteWizardProvider({
         line_volume_m3: Math.round(lineVol * 100) / 100,
         is_custom: Boolean(row.isCustom),
         weight_type: row.weightType,
+        handling_fee_override: row.handlingFeeOverride ?? null,
+        special_stair_fee_per_floor: row.specialStairFeePerFloor ?? null,
       }
     })
 

@@ -177,6 +177,10 @@ function structuredInventoryFromWizardLines(lines) {
       weight_type: line.weightType || line.weight_type || 'medium',
       is_custom: Boolean(line.isCustom || line.is_custom),
       category: line.categoryLabel || line.category || '',
+      handling_fee_override:
+        line.handlingFeeOverride ?? line.handling_fee_override ?? null,
+      special_stair_fee_per_floor:
+        line.specialStairFeePerFloor ?? line.special_stair_fee_per_floor ?? null,
     })
   }
   return rows.length ? rows : null

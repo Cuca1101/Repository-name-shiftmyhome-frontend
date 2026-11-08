@@ -6,6 +6,7 @@ import {
 import MobileStepTitleWithRef from './MobileStepTitleWithRef'
 import { reassemblySameAsDismantlingPatch } from '../../lib/quoteWizardReassembly'
 import AddressConfirmationSection, { PickupPersonFields } from './AddressConfirmationSection'
+import SpecialItemLiftSuitability from './SpecialItemLiftSuitability'
 import QuoteSpecialInstructionsField from './QuoteSpecialInstructionsField'
 import PackingMaterialsSection from './PackingMaterialsSection'
 import { applyWizardPatch } from '../../lib/wizardStateUpdate'
@@ -283,6 +284,10 @@ export default function MobileStep3Details({
         variant="mobile"
         fieldErrors={fieldErrors}
       />
+      <div className="mt-3 space-y-3">
+        <SpecialItemLiftSuitability data={data} onChange={onChange} side="pickup" />
+        <SpecialItemLiftSuitability data={data} onChange={onChange} side="delivery" />
+      </div>
       </ReviewGroup>
 
       <ReviewGroup

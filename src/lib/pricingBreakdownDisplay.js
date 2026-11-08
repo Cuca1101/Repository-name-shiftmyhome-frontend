@@ -76,7 +76,16 @@ export function buildStandardPricingDisplayRows(b) {
 
   const heavyCharges = sumLineAmounts(
     access,
-    (l) => /^Heavy item/i.test(l.label) || /^Specialist heavy/i.test(l.label),
+    (l) =>
+      /^Heavy item/i.test(l.label) ||
+      /^Specialist heavy/i.test(l.label) ||
+      /– specialist handling$/i.test(l.label) ||
+      /- specialist handling$/i.test(l.label),
+  )
+
+  const specialStairCharges = sumLineAmounts(
+    access,
+    (l) => /– stairs$/i.test(l.label) || /- stairs$/i.test(l.label),
   )
 
   const accessCharges = sumLineAmounts(
@@ -91,7 +100,17 @@ export function buildStandardPricingDisplayRows(b) {
 
       !/^Lift access charge/i.test(l.label) &&
 
-      !/^Heavy item/i.test(l.label),
+      !/^Heavy item/i.test(l.label) &&
+
+      !/^Specialist heavy/i.test(l.label) &&
+
+      !/– specialist handling$/i.test(l.label) &&
+
+      !/- specialist handling$/i.test(l.label) &&
+
+      !/– stairs$/i.test(l.label) &&
+
+      !/- stairs$/i.test(l.label),
 
   )
 
@@ -199,6 +218,9 @@ export function buildStandardPricingDisplayRows(b) {
     { label: 'Floor Charges', amount: floorCharges },
     { label: 'No-lift / Lift Charges', amount: liftCharges },
     { label: 'Heavy Item Charges', amount: heavyCharges },
+    ...(specialStairCharges > 0
+      ? [{ label: 'Special Stair Charges', amount: specialStairCharges }]
+      : []),
     { label: 'Waiting Time', amount: waitingTime },
     { label: 'Packing', amount: packing },
     { label: 'Dismantling', amount: dismantling },

@@ -107,5 +107,17 @@ export function liftClearPatchForWizard(wizard) {
   if (!floorNeedsLiftQuestion(wizard?.deliveryFloor) && wizard?.deliveryLift != null) {
     patch.deliveryLift = null
   }
+  if (
+    (!floorNeedsLiftQuestion(wizard?.pickupFloor) || wizard?.pickupLift !== true) &&
+    wizard?.pickupLiftSuitableForSpecialItems != null
+  ) {
+    patch.pickupLiftSuitableForSpecialItems = null
+  }
+  if (
+    (!floorNeedsLiftQuestion(wizard?.deliveryFloor) || wizard?.deliveryLift !== true) &&
+    wizard?.deliveryLiftSuitableForSpecialItems != null
+  ) {
+    patch.deliveryLiftSuitableForSpecialItems = null
+  }
   return Object.keys(patch).length > 0 ? patch : null
 }

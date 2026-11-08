@@ -46,6 +46,14 @@ export function buildQuoteEngineInput({
           : undefined,
       pickupLift: liftValueForFloor(wizard.pickupFloor, wizard.pickupLift) ?? undefined,
       deliveryLift: liftValueForFloor(wizard.deliveryFloor, wizard.deliveryLift) ?? undefined,
+      pickupLiftSuitableForSpecialItems:
+        wizard.pickupLiftSuitableForSpecialItems == null
+          ? undefined
+          : Boolean(wizard.pickupLiftSuitableForSpecialItems),
+      deliveryLiftSuitableForSpecialItems:
+        wizard.deliveryLiftSuitableForSpecialItems == null
+          ? undefined
+          : Boolean(wizard.deliveryLiftSuitableForSpecialItems),
       longWalk: wizard.walkingDistance === 'long',
       parking: wizard.parkingDistance === 'long',
       stairsFlights: wizard.stairsFlights,

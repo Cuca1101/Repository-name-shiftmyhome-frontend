@@ -141,6 +141,8 @@ export default function Step2Inventory({
         weightType: item.weightType,
         mult: item.mult ?? 1,
         heavyFee: item.heavyFee,
+        handlingFeeOverride: item.handlingFeeOverride ?? null,
+        specialStairFeePerFloor: item.specialStairFeePerFloor ?? null,
         isCustom: false,
       },
     ])

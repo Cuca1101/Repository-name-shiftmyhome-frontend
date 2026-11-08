@@ -9,6 +9,7 @@ import { liftClearPatchForWizard } from '../../lib/floorAccess'
 import MobileStep1ArrivalWindow from './MobileStep1ArrivalWindow'
 import MobileOptionBottomSheet from './MobileOptionBottomSheet'
 import QuoteAccessFields from './QuoteAccessFields'
+import SpecialItemLiftSuitability from './SpecialItemLiftSuitability'
 import QuoteReferenceCard from './QuoteReferenceCard'
 
 const PROPERTY_TYPES = ['House', 'Flat / apartment', 'Bungalow', 'Commercial', 'Other']
@@ -224,9 +225,16 @@ export default function MobileStep1AddressCards({
 
   function onPickupFloorChange(v) {
     if (floorNeedsLiftQuestion(v)) {
-      set('pickupFloor', v)
+      applyWizardPatch(onChange, {
+        pickupFloor: v,
+        pickupLiftSuitableForSpecialItems: null,
+      })
     } else {
-      applyWizardPatch(onChange, { pickupFloor: v, pickupLift: null })
+      applyWizardPatch(onChange, {
+        pickupFloor: v,
+        pickupLift: null,
+        pickupLiftSuitableForSpecialItems: null,
+      })
     }
     closeDropdowns()
     if (floorNeedsLiftQuestion(v)) {
@@ -244,7 +252,10 @@ export default function MobileStep1AddressCards({
   }
 
   function onPickupLiftSelect(v) {
-    set('pickupLift', v)
+    applyWizardPatch(onChange, {
+      pickupLift: v,
+      pickupLiftSuitableForSpecialItems: v === true ? data.pickupLiftSuitableForSpecialItems : null,
+    })
     unlock(SECTION.DELIVERY_ADDRESS)
     focusById(hasMapbox ? 'deliveryAddress' : 'quote-mobile-delivery-address-fallback')
   }
@@ -270,9 +281,16 @@ export default function MobileStep1AddressCards({
 
   function onDeliveryFloorChange(v) {
     if (floorNeedsLiftQuestion(v)) {
-      set('deliveryFloor', v)
+      applyWizardPatch(onChange, {
+        deliveryFloor: v,
+        deliveryLiftSuitableForSpecialItems: null,
+      })
     } else {
-      applyWizardPatch(onChange, { deliveryFloor: v, deliveryLift: null })
+      applyWizardPatch(onChange, {
+        deliveryFloor: v,
+        deliveryLift: null,
+        deliveryLiftSuitableForSpecialItems: null,
+      })
     }
     closeDropdowns()
     if (floorNeedsLiftQuestion(v)) {
@@ -290,7 +308,10 @@ export default function MobileStep1AddressCards({
   }
 
   function onDeliveryLiftSelect(v) {
-    set('deliveryLift', v)
+    applyWizardPatch(onChange, {
+      deliveryLift: v,
+      deliveryLiftSuitableForSpecialItems: v === true ? data.deliveryLiftSuitableForSpecialItems : null,
+    })
     unlock(SECTION.MOVE_DATE)
     focusById('quote-mobile-move-date')
   }
@@ -434,6 +455,13 @@ export default function MobileStep1AddressCards({
           </MobileCardRow>
         ) : null}
 
+        <SpecialItemLiftSuitability
+          data={data}
+          onChange={onChange}
+          side="pickup"
+          className={`mx-3 mb-2 ${quotePage ? 'mx-0' : ''}`}
+        />
+
         <MobileCardRow className={quotePage ? '!px-0 pt-1 pb-1' : ''}>
           {customerAddressCards ? (
             <QuoteStepAddressCard
@@ -564,6 +592,13 @@ export default function MobileStep1AddressCards({
               </div>
             </MobileCardRow>
           ) : null}
+
+          <SpecialItemLiftSuitability
+            data={data}
+            onChange={onChange}
+            side="delivery"
+            className={`mx-3 mb-2 ${quotePage ? 'mx-0' : ''}`}
+          />
 
       {show.moveDate ? (
         <MobileCardRow>

@@ -244,6 +244,8 @@ export function buildAdminPhoneBookingQuoteRow({
     weightType: l.weightType,
     heavyFee: l.heavyFee,
     appliesHeavyHandlingFee: l.heavyFee,
+    handlingFeeOverride: l.handlingFeeOverride ?? null,
+    specialStairFeePerFloor: l.specialStairFeePerFloor ?? null,
     isCustom: l.isCustom,
     categoryLabel: l.categoryLabel,
     customSizeBand: l.customSizeBand,
@@ -320,6 +322,8 @@ export function buildAdminPhoneBookingQuoteRow({
     m3: l.m3,
     mult: l.mult ?? 1,
     weight_type: l.weightType,
+    handling_fee_override: l.handlingFeeOverride ?? null,
+    special_stair_fee_per_floor: l.specialStairFeePerFloor ?? null,
     is_custom: Boolean(l.isCustom),
     category: l.categoryLabel,
   }))
@@ -509,6 +513,15 @@ function parseInventoryJsonFromQuoteRow(inv) {
       defaultM3: Number(line.m3) || 0.1,
       mult: Number(line.mult) ?? 1,
       weightType: line.weight_type || 'medium',
+      heavyFee: line.heavy_fee ?? line.heavyFee,
+      handlingFeeOverride:
+        line.handling_fee_override != null && line.handling_fee_override !== ''
+          ? Number(line.handling_fee_override)
+          : line.handlingFeeOverride ?? null,
+      specialStairFeePerFloor:
+        line.special_stair_fee_per_floor != null && line.special_stair_fee_per_floor !== ''
+          ? Number(line.special_stair_fee_per_floor)
+          : line.specialStairFeePerFloor ?? null,
       isCustom: Boolean(line.is_custom),
     }))
 }

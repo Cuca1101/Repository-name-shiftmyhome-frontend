@@ -1,4 +1,5 @@
 import { geocodeAddressCached } from './operationsMapGeocodeCache'
+import { extractUkPostcode } from './mapboxRouteApi'
 import { isSupabaseConfigured, supabase } from './supabase'
 import {
   resolveQuoteCollectionAddress,
@@ -71,18 +72,21 @@ async function geocodeStop(q, job, kind, token) {
     kind === 'collection'
       ? resolveQuoteCollectionAddress(q, job)
       : resolveQuoteDeliveryAddress(q, job)
-  const postcode = resolveQuotePostcode(q, job, kind)
+  const postcode =
+    resolveQuotePostcode(q, job, kind) ||
+    (addr && addr !== '—' ? (addr.match(/\b([A-Z]{1,2}\d[A-Z\d]?\s*\d[A-Z]{2})\b/i)?.[1] || '') : '')
   const queries = []
 
+  // Full address first — geocodeAddress is UK-postcode-aware and rejects London false matches.
   if (addr && addr !== '—') {
     if (looksLikeFullAddress(addr)) queries.push(addr)
     else if (!isRegionOnlyLabel(addr)) queries.push(`${addr}, United Kingdom`)
   }
   if (postcode) {
-    queries.push(`${postcode}, United Kingdom`)
-    if (addr && addr !== '—' && !queries.includes(addr)) {
+    if (addr && addr !== '—' && looksLikeFullAddress(addr)) {
       queries.push(`${addr}, ${postcode}, United Kingdom`)
     }
+    queries.push(`${postcode}, United Kingdom`)
   }
 
   const seen = new Set()
@@ -123,6 +127,11 @@ function usableStop(record, latKey, lngKey) {
 
 /** A new address this far from the saved pin replaces it. The job status is left alone. */
 const ADDRESS_PIN_MOVE_METRES = 250
+/**
+ * Saved pin farther than this from the address postcode is treated as stale
+ * (classic “Carnoustie Drive, London” false match left on a DD7 job).
+ */
+const SAVED_PIN_POSTCODE_MAX_METRES = 40000
 
 function metresBetween(a, b) {
   const earth = 6371000
@@ -135,17 +144,40 @@ function metresBetween(a, b) {
 }
 
 /**
+ * Drop saved coordinates that clearly belong to another region than the address postcode.
+ * @param {{ lat: number, lng: number } | null} saved
+ * @param {string} addressText
+ * @param {string} postcode
+ * @param {string} token
+ */
+async function savedStopMatchingAddress(saved, addressText, postcode, token) {
+  if (!saved) return null
+  const pc = extractUkPostcode(postcode) || extractUkPostcode(addressText)
+  if (!pc || !token) return saved
+  const anchor = await geocodeAddressCached(pc, token)
+  if (!anchor || !isBritainOrIreland(anchor.lat, anchor.lng)) return saved
+  if (metresBetween(saved, anchor) > SAVED_PIN_POSTCODE_MAX_METRES) return null
+  return saved
+}
+
+/**
  * Saved pins stay while they still match the address.
  * An edited address moves the pin to the new place.
  */
 async function resolveStopPin(saved, q, job, kind, token) {
   if (!token) return { point: saved, moved: false }
+  const addr =
+    kind === 'collection'
+      ? resolveQuoteCollectionAddress(q, job)
+      : resolveQuoteDeliveryAddress(q, job)
+  const postcode = resolveQuotePostcode(q, job, kind)
+  const trustedSaved = await savedStopMatchingAddress(saved, addr, postcode, token)
   const hit = await geocodeStop(q, job, kind, token)
   const next = hit && isBritainOrIreland(hit.lat, hit.lng) ? hit : null
-  if (!next) return { point: saved, moved: false }
-  if (!saved) return { point: next, moved: true }
-  if (metresBetween(saved, next) > ADDRESS_PIN_MOVE_METRES) return { point: next, moved: true }
-  return { point: saved, moved: false }
+  if (!next) return { point: trustedSaved, moved: Boolean(saved && !trustedSaved) }
+  if (!trustedSaved) return { point: next, moved: true }
+  if (metresBetween(trustedSaved, next) > ADDRESS_PIN_MOVE_METRES) return { point: next, moved: true }
+  return { point: trustedSaved, moved: Boolean(saved && !trustedSaved) }
 }
 
 export async function resolveQuoteRouteCoordinates(q, job, token) {

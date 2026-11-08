@@ -35,6 +35,9 @@ export function initialWizardState() {
     deliveryFloor: null,
     pickupLift: null,
     deliveryLift: null,
+    /** Confirmed lift fit for special-stair items (e.g. piano); lift Yes alone is not enough. */
+    pickupLiftSuitableForSpecialItems: null,
+    deliveryLiftSuitableForSpecialItems: null,
     distanceMiles: 0,
     /** Mapbox Directions API `route.duration` (seconds) for crew labour pricing. */
     mapboxRouteDurationSeconds: null,

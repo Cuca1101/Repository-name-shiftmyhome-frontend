@@ -20,8 +20,10 @@ import {
   isBrokenLibraryRow,
   isValidLibraryRow,
   planCatalogImport,
+  syncCatalogConfiguredFeesToLibrary,
 } from '../lib/data/importItemsLibraryFromCatalog'
 import { WEIGHT_TYPES } from '../constants/weightTypes'
+import { parseOptionalMoneyField } from '../lib/inventoryPricing'
 
 const CATEGORY_LABEL_ORDER = new Map(
   CATEGORY_ORDER.map((key, index) => [INVENTORY_BY_CATEGORY[key]?.label, index]),
@@ -75,6 +77,8 @@ export default function ItemsLibraryAdmin() {
     weight_type: 'medium',
     handling_multiplier: 1,
     default_quantity: 0,
+    handling_fee_override: '',
+    special_stair_fee_per_floor: '',
   })
   const [saving, setSaving] = useState(false)
   const [importing, setImporting] = useState(false)
@@ -116,6 +120,23 @@ export default function ItemsLibraryAdmin() {
         if (import.meta.env.DEV) {
           // eslint-disable-next-line no-console
           console.warn('[ItemsLibrary] catalogue sync skipped', syncErr?.message || syncErr)
+        }
+      }
+      // Push configured handling / stair fees (e.g. Upright piano) onto matching rows.
+      try {
+        const feeSync = await syncCatalogConfiguredFeesToLibrary(data)
+        if (feeSync.updated > 0) {
+          data = await fetchItemsLibrary()
+          setImportMessage((prev) =>
+            prev
+              ? `${prev} Updated ${feeSync.updated} item fee configuration(s).`
+              : `Updated ${feeSync.updated} item fee configuration(s) from catalogue.`,
+          )
+        }
+      } catch (feeErr) {
+        if (import.meta.env.DEV) {
+          // eslint-disable-next-line no-console
+          console.warn('[ItemsLibrary] fee sync skipped', feeErr?.message || feeErr)
         }
       }
       if (import.meta.env.DEV) {
@@ -207,6 +228,8 @@ export default function ItemsLibraryAdmin() {
       weight_type: 'medium',
       handling_multiplier: 1,
       default_quantity: 0,
+      handling_fee_override: '',
+      special_stair_fee_per_floor: '',
     })
   }
 
@@ -214,6 +237,8 @@ export default function ItemsLibraryAdmin() {
     const category = normalizeFormCategory(row.category)
     setSessionCategory(category)
     setEditingId(row.id)
+    const handlingOverride = parseOptionalMoneyField(row.handling_fee_override)
+    const stairFee = parseOptionalMoneyField(row.special_stair_fee_per_floor)
     setForm({
       name: row.name,
       category,
@@ -221,6 +246,8 @@ export default function ItemsLibraryAdmin() {
       weight_type: row.weight_type,
       handling_multiplier: row.handling_multiplier,
       default_quantity: row.default_quantity ?? 0,
+      handling_fee_override: handlingOverride == null ? '' : String(handlingOverride),
+      special_stair_fee_per_floor: stairFee == null ? '' : String(stairFee),
     })
   }
 
@@ -234,9 +261,14 @@ export default function ItemsLibraryAdmin() {
     setError('')
     try {
       const payload = {
-        ...form,
+        name: form.name,
         category: normalizeFormCategory(form.category),
+        cubic_metres: form.cubic_metres,
+        weight_type: form.weight_type,
         handling_multiplier: 1,
+        default_quantity: form.default_quantity,
+        handling_fee_override: parseOptionalMoneyField(form.handling_fee_override),
+        special_stair_fee_per_floor: parseOptionalMoneyField(form.special_stair_fee_per_floor),
       }
       if (editingId === 'new') {
         await insertLibraryItem(payload)
@@ -496,7 +528,42 @@ export default function ItemsLibraryAdmin() {
               </select>
               <p className="mt-1 text-xs text-slate-500">
                 Choose <strong>heavy</strong> only for items that should add the Pricing Engine specialist heavy fee
-                (e.g. £35). Normal fridge / washing machine → use <strong>large</strong>, not heavy.
+                (global rate, unless an override below is set). Normal fridge / washing machine → use{' '}
+                <strong>large</strong>, not heavy.
+              </p>
+            </label>
+            <label className="block">
+              <span className="text-sm font-medium text-slate-700">Handling fee override (£)</span>
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                className={`mt-1 ${inputClass}`}
+                value={form.handling_fee_override}
+                onChange={(e) => setForm((f) => ({ ...f, handling_fee_override: e.target.value }))}
+                placeholder="Blank = global Heavy fee"
+              />
+              <p className="mt-1 text-xs text-slate-500">
+                Leave blank to use the Pricing Engine specialist heavy rate for Heavy items. Enter{' '}
+                <strong>0</strong> for no handling fee.
+              </p>
+            </label>
+            <label className="block">
+              <span className="text-sm font-medium text-slate-700">Special stair fee per floor (£)</span>
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                className={`mt-1 ${inputClass}`}
+                value={form.special_stair_fee_per_floor}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, special_stair_fee_per_floor: e.target.value }))
+                }
+                placeholder="Blank = standard stairs"
+              />
+              <p className="mt-1 text-xs text-slate-500">
+                Leave blank for standard floor / no-lift stairs. Any value activates this item&apos;s special
+                stair tariff and excludes it from standard stairs volume.
               </p>
             </label>
             <label className="block">
@@ -579,7 +646,14 @@ export default function ItemsLibraryAdmin() {
                     <p className="font-medium text-slate-900">{row.name}</p>
                     <p className="mt-1 text-sm text-slate-600">
                       {formatLibraryNumber(row.cubic_metres)} m³ · {row.weight_type}
-                      {String(row.weight_type).toLowerCase() === 'heavy' ? ' · +heavy fee' : ''}
+                      {parseOptionalMoneyField(row.handling_fee_override) != null
+                        ? ` · handling £${formatLibraryNumber(row.handling_fee_override)}`
+                        : String(row.weight_type).toLowerCase() === 'heavy'
+                          ? ' · +heavy fee'
+                          : ''}
+                      {parseOptionalMoneyField(row.special_stair_fee_per_floor) != null
+                        ? ` · stairs £${formatLibraryNumber(row.special_stair_fee_per_floor)}/floor`
+                        : ''}
                     </p>
                     <div className="mt-3 flex flex-wrap gap-2">
                       <button
@@ -617,7 +691,14 @@ export default function ItemsLibraryAdmin() {
                         <td className="px-4 py-3 tabular-nums">{formatLibraryNumber(row.cubic_metres)}</td>
                         <td className="px-4 py-3 capitalize">
                           {row.weight_type}
-                          {String(row.weight_type).toLowerCase() === 'heavy' ? ' (+fee)' : ''}
+                          {parseOptionalMoneyField(row.handling_fee_override) != null
+                            ? ` · £${formatLibraryNumber(row.handling_fee_override)}`
+                            : String(row.weight_type).toLowerCase() === 'heavy'
+                              ? ' (+fee)'
+                              : ''}
+                          {parseOptionalMoneyField(row.special_stair_fee_per_floor) != null
+                            ? ` · stairs £${formatLibraryNumber(row.special_stair_fee_per_floor)}`
+                            : ''}
                         </td>
                         <td className="px-4 py-3 text-right">
                           <button

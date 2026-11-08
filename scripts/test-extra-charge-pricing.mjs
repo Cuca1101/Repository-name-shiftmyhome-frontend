@@ -10,7 +10,8 @@ const { getDefaultPricingSettings } = await import('../src/lib/defaultPricingSet
 const settings = getDefaultPricingSettings()
 const library = [
   { id: '1', name: 'Double Bed', cubic_metres: 1.2, weight_type: 'medium', handling_multiplier: 1 },
-  { id: '2', name: 'Wardrobe', cubic_metres: 1.5, weight_type: 'heavy', handling_multiplier: 1.1 },
+  // Ordinary wardrobe → Large (not Heavy); Heavy would charge specialist handling.
+  { id: '2', name: 'Wardrobe', cubic_metres: 1.5, weight_type: 'large', handling_multiplier: 1.1 },
 ]
 
 const driverItems = [

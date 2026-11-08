@@ -131,52 +131,125 @@ function LeadTrafficMap({
 }) {
   const hostRef = useRef(null)
   const mapRef = useRef(null)
+  const stopMarkersRef = useRef([])
   const driverMarkerRef = useRef(null)
+  const routeRequestRef = useRef(0)
   const [mapReady, setMapReady] = useState(0)
   const onDriveTimeRef = useRef(onDriveTime)
   onDriveTimeRef.current = onDriveTime
 
+  // Create the map once per token/host — recreating it on every coord tweak jumps the page.
   useEffect(() => {
     const host = hostRef.current
     if (!host || !token) return undefined
     let cancelled = false
-    const markers = []
     let map = null
     let timers = []
     let observer
+    let sizeObserver
 
     const start = () => {
       if (cancelled || map) return
       const box = host.getBoundingClientRect()
       if (box.width < 2 || box.height < 2) return
 
-    mapboxgl.accessToken = token
-    map = new mapboxgl.Map({
-      container: host,
-      style: 'mapbox://styles/mapbox/streets-v12',
-      center: [pickupLng, pickupLat],
-      zoom: 11,
-      attributionControl: true,
-    })
-    mapRef.current = map
-    setMapReady((n) => n + 1)
-    map.addControl(new mapboxgl.NavigationControl({ visualizePitch: false }), 'top-right')
+      mapboxgl.accessToken = token
+      map = new mapboxgl.Map({
+        container: host,
+        style: 'mapbox://styles/mapbox/streets-v12',
+        center: [pickupLng, pickupLat],
+        zoom: 11,
+        attributionControl: true,
+      })
+      mapRef.current = map
+      setMapReady((n) => n + 1)
+      map.addControl(new mapboxgl.NavigationControl({ visualizePitch: false }), 'top-right')
 
-    const collection = new mapboxgl.Marker({ element: stopPin(1, '#ea580c', 'Collection'), anchor: 'bottom' })
-      .setLngLat([pickupLng, pickupLat])
-      .addTo(map)
-    const delivery = new mapboxgl.Marker({ element: stopPin(2, '#059669', 'Delivery'), anchor: 'bottom' })
-      .setLngLat([deliveryLng, deliveryLat])
-      .addTo(map)
-    markers.push(collection, delivery)
+      const collection = new mapboxgl.Marker({
+        element: stopPin(1, '#ea580c', 'Collection'),
+        anchor: 'bottom',
+      })
+        .setLngLat([pickupLng, pickupLat])
+        .addTo(map)
+      const delivery = new mapboxgl.Marker({
+        element: stopPin(2, '#059669', 'Delivery'),
+        anchor: 'bottom',
+      })
+        .setLngLat([deliveryLng, deliveryLat])
+        .addTo(map)
+      stopMarkersRef.current = [collection, delivery]
+
+      const resize = () => {
+        try {
+          map.resize()
+        } catch {
+          /* ignore */
+        }
+      }
+      const onLoad = () => {
+        resize()
+        try {
+          addLiveTraffic(map)
+        } catch {
+          /* traffic tiles are optional */
+        }
+      }
+      if (map.isStyleLoaded()) onLoad()
+      else map.once('load', onLoad)
+      map.on('webglcontextrestored', resize)
+      resize()
+      timers = [80, 250].map((ms) => window.setTimeout(resize, ms))
+      if (typeof ResizeObserver !== 'undefined') {
+        observer = new ResizeObserver(() => resize())
+        observer.observe(host)
+      }
+    }
+
+    start()
+    if (!map && typeof ResizeObserver !== 'undefined') {
+      sizeObserver = new ResizeObserver(() => start())
+      sizeObserver.observe(host)
+    }
+
+    return () => {
+      cancelled = true
+      sizeObserver?.disconnect()
+      timers.forEach((id) => window.clearTimeout(id))
+      observer?.disconnect()
+      stopMarkersRef.current.forEach((marker) => {
+        try {
+          marker.remove()
+        } catch {
+          /* ignore */
+        }
+      })
+      stopMarkersRef.current = []
+      try {
+        map?.remove()
+      } catch {
+        /* ignore */
+      }
+      driverMarkerRef.current = null
+      mapRef.current = null
+    }
+    // Intentionally mount once — route updates happen in the effect below.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- stable map instance
+  }, [token])
+
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !mapReady) return undefined
+    let cancelled = false
+    const requestId = ++routeRequestRef.current
+    const [collection, delivery] = stopMarkersRef.current
+    try {
+      collection?.setLngLat([pickupLng, pickupLat])
+      delivery?.setLngLat([deliveryLng, deliveryLat])
+    } catch {
+      /* ignore */
+    }
 
     const draw = async () => {
-      if (cancelled) return
-      try {
-        addLiveTraffic(map)
-      } catch {
-        /* traffic tiles are optional; the route still draws */
-      }
       let route = null
       try {
         route = await fetchMapboxDrivingRoute(
@@ -188,10 +261,14 @@ function LeadTrafficMap({
       } catch {
         route = null
       }
-      if (cancelled || !mapRef.current) return
-      const coordinates = route?.coordinates?.length >= 2
-        ? route.coordinates
-        : [[pickupLng, pickupLat], [deliveryLng, deliveryLat]]
+      if (cancelled || requestId !== routeRequestRef.current || !mapRef.current) return
+      const coordinates =
+        route?.coordinates?.length >= 2
+          ? route.coordinates
+          : [
+              [pickupLng, pickupLat],
+              [deliveryLng, deliveryLat],
+            ]
       try {
         addRoute(map, coordinates)
         const bounds = coordinates.reduce(
@@ -205,57 +282,16 @@ function LeadTrafficMap({
       onDriveTimeRef.current?.(Number.isFinite(route?.durationSeconds) ? route.durationSeconds : null)
     }
 
-    const resize = () => {
-      try {
-        map.resize()
-      } catch {
-        /* ignore */
-      }
-    }
-    const onLoad = () => {
-      resize()
-      void draw()
-    }
-    if (map.isStyleLoaded()) onLoad()
-    else map.once('load', onLoad)
-    map.on('webglcontextrestored', resize)
-    resize()
-    timers = [80, 250, 600].map((ms) => window.setTimeout(resize, ms))
-    if (typeof ResizeObserver !== 'undefined') {
-      observer = new ResizeObserver(() => resize())
-      observer.observe(host)
-    }
-
-    }
-
-    start()
-    let sizeObserver
-    if (!map && typeof ResizeObserver !== 'undefined') {
-      sizeObserver = new ResizeObserver(() => start())
-      sizeObserver.observe(host)
-    }
+    const styleReady = () => (typeof map.isStyleLoaded === 'function' ? map.isStyleLoaded() : true)
+    if (styleReady()) void draw()
+    else map.once('load', () => {
+      if (!cancelled) void draw()
+    })
 
     return () => {
       cancelled = true
-      sizeObserver?.disconnect()
-      timers.forEach((id) => window.clearTimeout(id))
-      observer?.disconnect()
-      markers.forEach((marker) => {
-        try {
-          marker.remove()
-        } catch {
-          /* ignore */
-        }
-      })
-      try {
-        map.remove()
-      } catch {
-        /* ignore */
-      }
-      driverMarkerRef.current = null
-      mapRef.current = null
     }
-  }, [pickupLng, pickupLat, deliveryLng, deliveryLat, token])
+  }, [mapReady, pickupLng, pickupLat, deliveryLng, deliveryLat, token])
 
   useEffect(() => {
     const map = mapRef.current
@@ -324,6 +360,22 @@ function LeadTrafficMap({
  *   driverName?: string,
  * }} props
  */
+function initialLeadCoords(pickupLng, pickupLat, deliveryLng, deliveryLat) {
+  const plng = finiteCoord(pickupLng)
+  const plat = finiteCoord(pickupLat)
+  const dlng = finiteCoord(deliveryLng)
+  const dlat = finiteCoord(deliveryLat)
+  const ready = plng != null && plat != null && dlng != null && dlat != null
+  return {
+    pickupLng: plng,
+    pickupLat: plat,
+    deliveryLng: dlng,
+    deliveryLat: dlat,
+    loading: !ready,
+    error: '',
+  }
+}
+
 export default function CustomerLeadRouteMap({
   pickupAddress = '',
   deliveryAddress = '',
@@ -340,14 +392,9 @@ export default function CustomerLeadRouteMap({
   driverName = '',
 }) {
   const token = (import.meta.env.VITE_MAPBOX_TOKEN || '').trim()
-  const [coords, setCoords] = useState({
-    pickupLng: null,
-    pickupLat: null,
-    deliveryLng: null,
-    deliveryLat: null,
-    loading: true,
-    error: '',
-  })
+  const [coords, setCoords] = useState(() =>
+    initialLeadCoords(pickupLng, pickupLat, deliveryLng, deliveryLat),
+  )
 
   useEffect(() => {
     let cancelled = false
@@ -357,8 +404,31 @@ export default function CustomerLeadRouteMap({
     const savedDeliveryLat = finiteCoord(deliveryLat)
     const pickup = String(pickupAddress || '').trim()
     const delivery = String(deliveryAddress || '').trim()
+    const haveSavedPair =
+      savedPickupLng != null &&
+      savedPickupLat != null &&
+      savedDeliveryLng != null &&
+      savedDeliveryLat != null
 
-    setCoords((current) => ({ ...current, loading: true, error: '' }))
+    // Prefer keeping the current map visible. Only flash loading when we have nothing to show yet.
+    setCoords((current) => {
+      if (haveSavedPair) {
+        return {
+          pickupLng: savedPickupLng,
+          pickupLat: savedPickupLat,
+          deliveryLng: savedDeliveryLng,
+          deliveryLat: savedDeliveryLat,
+          loading: false,
+          error: '',
+        }
+      }
+      const hasVisible =
+        current.pickupLng != null &&
+        current.pickupLat != null &&
+        current.deliveryLng != null &&
+        current.deliveryLat != null
+      return { ...current, loading: !hasVisible, error: '' }
+    })
 
     void (async () => {
       if (!pickup && !delivery && savedPickupLng == null && savedDeliveryLng == null) {
