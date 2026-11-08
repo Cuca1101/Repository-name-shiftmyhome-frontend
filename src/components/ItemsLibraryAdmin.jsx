@@ -70,6 +70,7 @@ export default function ItemsLibraryAdmin() {
   const [editingId, setEditingId] = useState(null)
   const [sessionCategory, setSessionCategory] = useState(DEFAULT_LIBRARY_CATEGORY)
   const [activeCategory, setActiveCategory] = useState('all')
+  const [searchQuery, setSearchQuery] = useState('')
   const [form, setForm] = useState({
     name: '',
     category: DEFAULT_LIBRARY_CATEGORY,
@@ -180,13 +181,32 @@ export default function ItemsLibraryAdmin() {
 
   const legacyCleanupPlan = useMemo(() => planLegacyCategoryCleanup(items), [items])
 
+  const searchNeedle = searchQuery.trim().toLowerCase()
+
+  const filteredItems = useMemo(() => {
+    if (!searchNeedle) return validItems
+    return validItems.filter((row) => {
+      const name = String(row.name ?? '').toLowerCase()
+      const category = String(row.category ?? '').toLowerCase()
+      const weight = String(row.weight_type ?? '').toLowerCase()
+      return (
+        name.includes(searchNeedle) ||
+        category.includes(searchNeedle) ||
+        weight.includes(searchNeedle)
+      )
+    })
+  }, [validItems, searchNeedle])
+
   const grouped = useMemo(() => {
     const m = new Map()
-    for (const row of validItems) {
+    for (const row of filteredItems) {
       const c = String(row.category ?? '').trim()
       if (!isValidCategoryLabel(c)) continue
       if (!m.has(c)) m.set(c, [])
       m.get(c).push(row)
+    }
+    for (const rows of m.values()) {
+      rows.sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')))
     }
     return [...m.entries()].sort(([a], [b]) => {
       const ia = CATEGORY_LABEL_ORDER.has(a) ? CATEGORY_LABEL_ORDER.get(a) : 999
@@ -194,7 +214,7 @@ export default function ItemsLibraryAdmin() {
       if (ia !== ib) return ia - ib
       return a.localeCompare(b)
     })
-  }, [validItems])
+  }, [filteredItems])
 
   const categoryCounts = useMemo(() => {
     const counts = new Map(LIBRARY_CATEGORY_OPTIONS.map((cat) => [cat, 0]))
@@ -211,6 +231,7 @@ export default function ItemsLibraryAdmin() {
   )
   const visibleGroups =
     activeCategory === 'all' ? grouped : grouped.filter(([category]) => category === activeCategory)
+  const visibleItemCount = visibleGroups.reduce((sum, [, rows]) => sum + rows.length, 0)
 
   function setFormCategory(category) {
     const normalized = normalizeFormCategory(category)
@@ -600,10 +621,44 @@ export default function ItemsLibraryAdmin() {
 
       <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-card sm:p-5">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <h3 className="text-sm font-semibold text-slate-900">Category</h3>
+          <h3 className="text-sm font-semibold text-slate-900">Find items</h3>
           <p className="text-sm font-semibold text-slate-700">
-            Total <span className="tabular-nums text-slate-900">{validItems.length}</span>
+            {searchNeedle ? (
+              <>
+                Showing <span className="tabular-nums text-slate-900">{visibleItemCount}</span> of{' '}
+                <span className="tabular-nums text-slate-900">{validItems.length}</span>
+              </>
+            ) : (
+              <>
+                Total <span className="tabular-nums text-slate-900">{validItems.length}</span>
+              </>
+            )}
           </p>
+        </div>
+        <label className="mt-3 block">
+          <span className="sr-only">Search items</span>
+          <div className="relative">
+            <input
+              type="search"
+              className={`${inputClass} pr-20`}
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search items, e.g. sofa, piano, fridge"
+              autoComplete="off"
+            />
+            {searchQuery ? (
+              <button
+                type="button"
+                onClick={() => setSearchQuery('')}
+                className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md px-2 py-1 text-xs font-semibold text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+              >
+                Clear
+              </button>
+            ) : null}
+          </div>
+        </label>
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-2">
+          <h3 className="text-sm font-semibold text-slate-900">Category</h3>
         </div>
         <div className="mt-3 flex flex-wrap gap-1.5" role="group" aria-label="Filter by category">
           <button
@@ -723,7 +778,13 @@ export default function ItemsLibraryAdmin() {
               </div>
             </div>
           ))}
-          {activeCategory !== 'all' && visibleGroups.length === 0 ? (
+          {searchNeedle && visibleGroups.length === 0 && validItems.length > 0 ? (
+            <p className="rounded-2xl border border-dashed border-slate-200 bg-white p-8 text-center text-slate-600">
+              No items match “{searchQuery.trim()}”
+              {activeCategory !== 'all' ? ` in ${activeCategory}` : ''}.
+            </p>
+          ) : null}
+          {!searchNeedle && activeCategory !== 'all' && visibleGroups.length === 0 ? (
             <p className="rounded-2xl border border-dashed border-slate-200 bg-white p-8 text-center text-slate-600">
               No items in {activeCategory}.
             </p>

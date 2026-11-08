@@ -149,10 +149,15 @@ export default function AdminEditBookingForm({
       message: '',
     }),
   )
-  const pristineRef = useRef(true)
+  const baselineSyncRef = useRef(true)
+  const errorBannerRef = useRef(/** @type {HTMLParagraphElement | null} */ (null))
 
   function markEdited() {
-    pristineRef.current = false
+    baselineSyncRef.current = false
+    setSaveResult((prev) => (prev ? null : prev))
+    setEmailStatus((prev) =>
+      prev.state === 'idle' ? prev : { state: 'idle', message: '' },
+    )
   }
 
   const patchWizard = useCallback((patch) => {
@@ -160,12 +165,19 @@ export default function AdminEditBookingForm({
     applyWizardPatch(setWizard, patch)
   }, [])
 
+  function showOpenConfirmBlocker(message) {
+    setError(message)
+    window.requestAnimationFrame(() => {
+      errorBannerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    })
+  }
+
   useEffect(() => {
     let cancelled = false
     ;(async () => {
       setLoadingEdit(true)
       setError('')
-      pristineRef.current = true
+      baselineSyncRef.current = true
       try {
         const loaded = await fetchBookingForAdminEdit(quoteId)
         if (cancelled) return
@@ -189,7 +201,7 @@ export default function AdminEditBookingForm({
         setConfirmOpen(false)
         setSaveResult(null)
         setEmailStatus({ state: 'idle', message: '' })
-        pristineRef.current = true
+        baselineSyncRef.current = true
       } catch (err) {
         if (!cancelled) setError(err?.message || 'Could not load booking for edit.')
       } finally {
@@ -312,17 +324,9 @@ export default function AdminEditBookingForm({
   )
 
   useEffect(() => {
-    if (!saveResult) return
-    if (changePreview.hasChanges) {
-      setSaveResult(null)
-      setEmailStatus({ state: 'idle', message: '' })
-    }
-  }, [changePreview.hasChanges, saveResult])
-
-  useEffect(() => {
-    if (loadingEdit || !pristineRef.current || !settings) return
-    // Keep wizard baseline in sync with auto-hydration, but never replace the
-    // stored booking total with a live engine recalculation (paid jobs especially).
+    if (loadingEdit || !baselineSyncRef.current || !settings) return
+    // Keep wizard baseline in sync with auto-hydration only until the admin edits.
+    // Never replace the stored booking total with a live engine recalculation.
     setBaselineWizard(cloneWizard(wizard))
     setBaselineServiceType(serviceType)
 
@@ -356,20 +360,20 @@ export default function AdminEditBookingForm({
     const validationErrorList = collectEditBookingFieldErrors(wizard, baselineWizard)
     if (validationErrorList.length) {
       setFieldErrors(adminPhoneBookingErrorsByField(validationErrorList))
-      setError(validationErrorList[0].message)
+      showOpenConfirmBlocker(validationErrorList[0].message)
       return
     }
     setFieldErrors({})
     if (!breakdown) {
-      setError('Pricing is not ready yet.')
+      showOpenConfirmBlocker('Pricing is not ready yet.')
       return
     }
     if (priceResolution.invalid) {
-      setError('Enter a valid final price override, or use the calculated price.')
+      showOpenConfirmBlocker('Enter a valid final price override, or use the calculated price.')
       return
     }
     if (!changePreview.hasChanges) {
-      setError('No changes to save. Update a field first.')
+      showOpenConfirmBlocker('No changes to save. Update a field first.')
       return
     }
     setConfirmOpen(true)
@@ -518,7 +522,11 @@ export default function AdminEditBookingForm({
       ) : null}
 
       {error ? (
-        <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-900" role="alert">
+        <p
+          ref={errorBannerRef}
+          className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-900"
+          role="alert"
+        >
           {error}
         </p>
       ) : null}
@@ -1120,7 +1128,7 @@ export default function AdminEditBookingForm({
         {!confirmOpen ? (
           <button
             type="button"
-            disabled={loadingSettings || Boolean(saveResult)}
+            disabled={loadingSettings || submitting}
             onClick={openConfirm}
             className="inline-flex min-h-[48px] items-center rounded-xl bg-brand-600 px-6 py-2.5 text-sm font-bold text-white shadow-md hover:bg-brand-700 disabled:opacity-60"
           >
@@ -1131,6 +1139,11 @@ export default function AdminEditBookingForm({
           <p className="w-full text-xs text-slate-500 sm:w-auto">
             {changePreview.changes.length} pending change
             {changePreview.changes.length === 1 ? '' : 's'}
+          </p>
+        ) : null}
+        {error && !confirmOpen ? (
+          <p className="w-full text-sm font-medium text-red-700 sm:w-auto" role="status">
+            {error}
           </p>
         ) : null}
       </div>

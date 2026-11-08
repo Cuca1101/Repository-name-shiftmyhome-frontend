@@ -62,12 +62,16 @@ export function buildCustomerFacingBookingSnapshot(wizard, extras = {}) {
     }))
     .sort((a, b) => a.name.localeCompare(b.name) || a.quantity - b.quantity)
 
+  const distanceRaw = Number(wizard.distanceMiles)
+  const distanceMiles = Number.isFinite(distanceRaw) && distanceRaw > 0 ? round2(distanceRaw) : 0
+
   return {
     fullName: normStr(wizard.fullName),
     email: normStr(wizard.email),
     phone: normStr(wizard.phone),
     pickupAddress: normStr(wizard.pickupAddress),
     deliveryAddress: normStr(wizard.deliveryAddress),
+    distanceMiles,
     moveDate: normStr(wizard.moveDate),
     arrival: formatWizardArrivalSummary(wizard),
     pickupFloor: floorLabel(wizard.pickupFloor),
@@ -185,6 +189,13 @@ export function diffCustomerFacingBooking(before, after) {
   pushScalarChange(changes, 'Arrival time', before.arrival, after.arrival, 'arrival')
   pushScalarChange(changes, 'Collection address', before.pickupAddress, after.pickupAddress, 'address')
   pushScalarChange(changes, 'Delivery address', before.deliveryAddress, after.deliveryAddress, 'address')
+  pushScalarChange(
+    changes,
+    'Distance',
+    before.distanceMiles > 0 ? `${before.distanceMiles} miles` : '—',
+    after.distanceMiles > 0 ? `${after.distanceMiles} miles` : '—',
+    'distance',
+  )
   pushScalarChange(changes, 'Customer name', before.fullName, after.fullName, 'customer')
   pushScalarChange(changes, 'Email', before.email, after.email, 'customer')
   pushScalarChange(changes, 'Phone', before.phone, after.phone, 'customer')
