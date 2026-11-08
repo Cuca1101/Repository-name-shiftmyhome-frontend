@@ -20,7 +20,6 @@ import {
   isBrokenLibraryRow,
   isValidLibraryRow,
   planCatalogImport,
-  syncCatalogConfiguredFeesToLibrary,
 } from '../lib/data/importItemsLibraryFromCatalog'
 import { WEIGHT_TYPES } from '../constants/weightTypes'
 import { parseOptionalMoneyField } from '../lib/inventoryPricing'
@@ -121,23 +120,6 @@ export default function ItemsLibraryAdmin() {
         if (import.meta.env.DEV) {
           // eslint-disable-next-line no-console
           console.warn('[ItemsLibrary] catalogue sync skipped', syncErr?.message || syncErr)
-        }
-      }
-      // Push configured handling / stair fees (e.g. Upright piano) onto matching rows.
-      try {
-        const feeSync = await syncCatalogConfiguredFeesToLibrary(data)
-        if (feeSync.updated > 0) {
-          data = await fetchItemsLibrary()
-          setImportMessage((prev) =>
-            prev
-              ? `${prev} Updated ${feeSync.updated} item fee configuration(s).`
-              : `Updated ${feeSync.updated} item fee configuration(s) from catalogue.`,
-          )
-        }
-      } catch (feeErr) {
-        if (import.meta.env.DEV) {
-          // eslint-disable-next-line no-console
-          console.warn('[ItemsLibrary] fee sync skipped', feeErr?.message || feeErr)
         }
       }
       if (import.meta.env.DEV) {

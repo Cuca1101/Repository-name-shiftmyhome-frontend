@@ -202,48 +202,15 @@ export async function importMissingCatalogToItemsLibrary(existingItems) {
 }
 
 /**
- * Push catalogue volume / weight / fee fields onto matching library rows by name+category.
- * Used so Upright piano (and any future configured fees) update without creating duplicates.
+ * Previously forced catalogue fees (e.g. Upright piano £120) onto library rows on every
+ * Items Library load, which wiped admin price edits right after Save.
  *
- * @param {Array<{ id?: string, name?: string, category?: string, cubic_metres?: unknown, weight_type?: string, handling_fee_override?: unknown, special_stair_fee_per_floor?: unknown }>} existingItems
+ * Items Library is now the source of truth. Catalogue defaults still apply when importing
+ * missing rows via `catalogRowsForItemsLibrary` / `importMissingCatalogToItemsLibrary`.
+ *
+ * @param {unknown} [_existingItems]
+ * @returns {Promise<{ updated: number }>}
  */
-export async function syncCatalogConfiguredFeesToLibrary(existingItems) {
-  const { updateLibraryItem } = await import('./itemsLibraryRepository.js')
-  const catalog = catalogRowsForItemsLibrary()
-  const byKey = new Map(
-    catalog.map((row) => [normalizeItemsLibraryKey(row.name, row.category), row]),
-  )
-  let updated = 0
-  for (const existing of existingItems || []) {
-    if (!isValidLibraryRow(existing) || !existing.id) continue
-    const key = normalizeItemsLibraryKey(existing.name, existing.category)
-    const catalogRow = byKey.get(key)
-    if (!catalogRow) continue
-    const hasConfiguredFees =
-      catalogRow.handling_fee_override != null || catalogRow.special_stair_fee_per_floor != null
-    if (!hasConfiguredFees) continue
-
-    const nextCubic = Number(catalogRow.cubic_metres)
-    const nextWeight = catalogRow.weight_type
-    const nextHandling = catalogRow.handling_fee_override
-    const nextStair = catalogRow.special_stair_fee_per_floor
-    const sameCubic = Number(existing.cubic_metres) === nextCubic
-    const sameWeight = String(existing.weight_type || '') === String(nextWeight || '')
-    const sameHandling = Number(existing.handling_fee_override) === Number(nextHandling) ||
-      (existing.handling_fee_override == null && nextHandling == null)
-    const sameStair =
-      Number(existing.special_stair_fee_per_floor) === Number(nextStair) ||
-      (existing.special_stair_fee_per_floor == null && nextStair == null)
-    if (sameCubic && sameWeight && sameHandling && sameStair) continue
-
-    await updateLibraryItem(String(existing.id), {
-      cubic_metres: nextCubic,
-      weight_type: nextWeight,
-      handling_multiplier: 1,
-      handling_fee_override: nextHandling,
-      special_stair_fee_per_floor: nextStair,
-    })
-    updated += 1
-  }
-  return { updated }
+export async function syncCatalogConfiguredFeesToLibrary(_existingItems) {
+  return { updated: 0 }
 }
