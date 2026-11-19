@@ -17,11 +17,11 @@ function RadioIndicator({ selected }) {
   return (
     <span
       className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 ${
-        selected ? 'border-brand-600 bg-brand-600' : 'border-slate-300 bg-white'
+        selected ? 'border-white bg-white' : 'border-slate-300 bg-white'
       }`}
       aria-hidden
     >
-      {selected ? <span className="h-2 w-2 rounded-full bg-white" /> : null}
+      {selected ? <span className="h-2 w-2 rounded-full bg-blue-600" /> : null}
     </span>
   )
 }
@@ -36,7 +36,7 @@ function OptionButtons({ options, value, onPick }) {
         role="option"
         aria-selected={isSelected}
         onClick={() => onPick(opt.value)}
-        className={`${optionRow} ${isSelected ? 'bg-brand-50 font-medium text-brand-900' : 'text-slate-900'}`}
+        className={`${optionRow} ${isSelected ? 'bg-blue-600 font-medium text-white active:bg-blue-600' : 'text-slate-900'}`}
       >
         <span className="min-w-0 flex-1">{opt.label}</span>
         <RadioIndicator selected={isSelected} />

@@ -1,5 +1,5 @@
 import { useRef } from 'react'
-import { ChevronRight, PackagePlus } from 'lucide-react'
+import { PackagePlus } from 'lucide-react'
 import CrewSizeField from './CrewSizeField'
 import MobileStepRefBadge from './MobileStepRefBadge'
 import MobileStepTitleWithRef from './MobileStepTitleWithRef'
@@ -8,7 +8,11 @@ import InventorySearchDropdown, {
 } from './InventorySearchDropdown'
 import InlineInventoryQtyControl from './InlineInventoryQtyControl'
 import { CategoryLucideIcon } from './inventoryLucideIcons'
-import { categoryCardClassNameMobile } from './inventoryCategoryCardStyles'
+import {
+  categoryIconButtonClassName,
+  categoryIconCircleClassName,
+  categoryIconLabelClassName,
+} from './inventoryCategoryCardStyles'
 import { quoteMobileHelper } from '../../lib/quoteMobileUiClasses'
 
 const card = 'box-border min-w-0 w-full rounded-lg border border-slate-200 bg-white shadow-sm md:rounded-xl'
@@ -30,6 +34,7 @@ export default function MobileStep2Inventory({
   crewSettings,
   crewRestrictions,
   crewFieldId,
+  crewAppearance = 'bar',
   validationMessage,
   searchId,
   searchQuery,
@@ -90,6 +95,7 @@ export default function MobileStep2Inventory({
         crewSettings={crewSettings}
         invalid={Boolean(validationMessage && /crew size/i.test(validationMessage))}
         lockMobile={matchTablet}
+        appearance={crewAppearance}
       />
 
       {validationMessage ? (
@@ -120,7 +126,7 @@ export default function MobileStep2Inventory({
           )}
         </InventorySearchDropdown>
         <h3 className="mb-2 mt-4 text-sm font-bold text-slate-900">Browse categories</h3>
-        <div className="grid grid-cols-2 items-stretch gap-2">
+        <div className="grid grid-cols-3 gap-x-2 gap-y-4 md:grid-cols-4 md:gap-x-3 lg:grid-cols-6 lg:gap-x-4">
           {categoryOrder.map((key) => {
             const c = inventoryByCategory[key]
             if (!c) return null
@@ -130,6 +136,7 @@ export default function MobileStep2Inventory({
                 key={key}
                 type="button"
                 aria-expanded={isOpen}
+                aria-pressed={isOpen}
                 onClick={() => onCategoryToggle(key)}
                 onKeyDown={(event) => {
                   if (event.key === 'Enter' || event.key === ' ') {
@@ -137,17 +144,12 @@ export default function MobileStep2Inventory({
                     onCategoryToggle(key)
                   }
                 }}
-                className={categoryCardClassNameMobile(isOpen)}
+                className={categoryIconButtonClassName()}
               >
-                <CategoryLucideIcon
-                  categoryKey={key}
-                  className="h-[1.125rem] w-[1.125rem] shrink-0 text-blue-600"
-                />
-                <span className="quote-inventory-item-name min-w-0 flex-1 leading-snug">{c.label}</span>
-                <ChevronRight
-                  className={`h-4 w-4 shrink-0 text-slate-400 transition-transform ${isOpen ? 'rotate-90 text-blue-600' : ''}`}
-                  aria-hidden
-                />
+                <span className={categoryIconCircleClassName(isOpen)}>
+                  <CategoryLucideIcon categoryKey={key} className="h-7 w-7 sm:h-8 sm:w-8" />
+                </span>
+                <span className={categoryIconLabelClassName(isOpen)}>{c.label}</span>
               </button>
             )
           })}

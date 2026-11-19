@@ -153,8 +153,10 @@ export default function FloorSelect({
                   type="button"
                   role="option"
                   aria-selected={isSelected}
-                  className={`flex min-h-11 w-full cursor-pointer items-center px-3 py-2 text-left text-sm text-slate-800 transition hover:bg-slate-50 active:bg-brand-50 sm:min-h-0 sm:px-4 sm:py-2.5 ${
-                    isSelected ? 'bg-brand-50 font-medium text-brand-900' : ''
+                  className={`flex min-h-11 w-full cursor-pointer items-center px-3 py-2 text-left text-sm transition sm:min-h-0 sm:px-4 sm:py-2.5 ${
+                    isSelected
+                      ? 'bg-blue-600 font-medium text-white hover:bg-blue-600'
+                      : 'text-slate-800 hover:bg-blue-50 active:bg-blue-50'
                   }`}
                   onPointerDown={(e) => {
                     e.preventDefault()

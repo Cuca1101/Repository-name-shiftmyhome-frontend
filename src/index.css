@@ -1027,6 +1027,15 @@
   display: none;
 }
 
+/* Quote form only: header stays in normal flow (page on /quote and service pages;
+   #seo-quote under 768px; .quote-flow-main from 768px in the quote modal).
+   It scrolls away and comes back only at the top. Other pages keep sticky nav. */
+.quote-header-scrolls [data-site-nav],
+.quote-header-scrolls [data-site-nav] > header {
+  position: static;
+  top: auto;
+}
+
 /* Quote wizard — page scroll only; no nested form scrollbars (mobile + desktop). */
 .quote-flow-main,
 .quote-flow-scope .quote-wizard-form-card,
@@ -1166,21 +1175,9 @@
 
 .quote-inventory-category-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  align-items: stretch;
-  gap: 0.5rem;
-}
-
-@container quote-inventory (min-width: 40rem) {
-  .quote-inventory-category-grid {
-    gap: 0.75rem;
-  }
-}
-
-@container quote-inventory (max-width: 22rem) {
-  .quote-inventory-category-grid {
-    grid-template-columns: minmax(0, 1fr);
-  }
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  align-items: start;
+  gap: 1rem 0.75rem;
 }
 
 .quote-inventory-item-grid {

@@ -68,7 +68,7 @@ function wordMatchKind(word, token) {
   for (const variant of tokenVariants(token)) {
     if (!variant) continue
     if (word === variant) return 'exact'
-    if (variant.length >= 3 && word.startsWith(variant) && word.length > variant.length) return 'prefix'
+    if (variant.length >= 1 && word.startsWith(variant) && word.length > variant.length) return 'prefix'
   }
   return null
 }
@@ -274,7 +274,7 @@ export function highlightInventorySegments(name, query) {
   const q = searchKey(query)
   if (!q) return [{ text: name, hl: false }]
   const tokens = [...new Set(q.split(' ').filter(Boolean).flatMap((token) => tokenVariants(token)))]
-    .filter((token) => token.length >= 2)
+    .filter((token) => token.length >= 1)
   if (!tokens.length) return [{ text: name, hl: false }]
 
   const lower = name.toLowerCase()

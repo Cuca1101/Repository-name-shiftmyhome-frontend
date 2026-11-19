@@ -5,7 +5,6 @@ import SeoFaqAccordion from '../components/seo/SeoFaqAccordion'
 import SeoInternalLinks from '../components/seo/SeoInternalLinks'
 import SeoExpandableLinkGrid from '../components/seo/SeoExpandableLinkGrid'
 import SeoCityContentSections from '../components/seo/SeoCityContentSections'
-import SeoQuickBookSteps from '../components/seo/SeoQuickBookSteps'
 import SeoCityMap from '../components/seo/SeoCityMap'
 import SupportCTASection from '../components/SupportCTASection'
 import RecentMovesGallerySection from '../components/RecentMovesGallerySection'
@@ -160,8 +159,6 @@ function SeoLandingPageContent({ page, routePath, heroImage, faqs, areasWeCover,
           </div>
         </div>
       </header>
-
-      <SeoQuickBookSteps cityName={page.cityName} />
 
       <SeoCityMap cityName={page.cityName} />
 

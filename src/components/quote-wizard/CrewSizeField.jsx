@@ -1,4 +1,4 @@
-import { User, Users } from 'lucide-react'
+import { Check, User, Users } from 'lucide-react'
 
 const labelCls =
   'mb-1 block text-xs font-medium leading-snug text-slate-700 md:mb-1.5 md:text-sm'
@@ -28,13 +28,13 @@ function buildCrewOptions(crewSettings) {
 /**
  * @param {{ count: number, selected: boolean }} props
  */
-function CrewPeopleIcon({ count, selected }) {
-  const tone = selected ? 'text-blue-600' : 'text-slate-600'
+function CrewPeopleIcon({ count, selected, compact = false }) {
+  const tone = compact ? 'text-current' : selected ? 'text-blue-600' : 'text-slate-600'
   if (count === 1) {
-    return <User className={`h-7 w-7 ${tone}`} strokeWidth={2} aria-hidden />
+    return <User className={`${compact ? 'h-4 w-4' : 'h-7 w-7'} ${tone}`} strokeWidth={2} aria-hidden />
   }
   if (count === 2) {
-    return <Users className={`h-7 w-7 ${tone}`} strokeWidth={2} aria-hidden />
+    return <Users className={`${compact ? 'h-4 w-4' : 'h-7 w-7'} ${tone}`} strokeWidth={2} aria-hidden />
   }
   const n = Math.min(4, Math.max(3, count))
   return (
@@ -42,11 +42,58 @@ function CrewPeopleIcon({ count, selected }) {
       {Array.from({ length: n }, (_, i) => (
         <User
           key={i}
-          className={`h-5 w-5 ${i > 0 ? '-ml-2.5' : ''}`}
+          className={`${compact ? 'h-3.5 w-3.5' : 'h-5 w-5'} ${i > 0 ? (compact ? '-ml-1.5' : '-ml-2.5') : ''}`}
           strokeWidth={2}
         />
       ))}
     </span>
+  )
+}
+
+function barGridCols(count) {
+  if (count >= 4) return 'grid-cols-4'
+  if (count === 3) return 'grid-cols-3'
+  if (count === 2) return 'grid-cols-2'
+  return 'grid-cols-1'
+}
+
+function CrewOptionBar({ option, selected, recommended, onSelect }) {
+  return (
+    <div className="min-w-0">
+      <button
+        type="button"
+        role="radio"
+        aria-checked={selected}
+        aria-label={recommended ? `${option.label}, Recommended` : undefined}
+        onClick={() => onSelect(option.value)}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault()
+            onSelect(option.value)
+          }
+        }}
+        className={`relative flex h-11 w-full min-w-0 items-center justify-center gap-1 overflow-hidden rounded-lg border pl-1 pr-4 text-xs font-semibold leading-none transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40 sm:gap-1.5 sm:pl-2 sm:text-sm ${
+          selected
+            ? 'border-blue-600 bg-blue-600 text-white'
+            : 'border-slate-200 bg-white text-slate-800 hover:border-slate-300'
+        }`}
+      >
+        {option.value === 1 ? (
+          <User className="h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4" strokeWidth={2} aria-hidden />
+        ) : (
+          <Users className="h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4" strokeWidth={2} aria-hidden />
+        )}
+        <span className="whitespace-nowrap">{option.label}</span>
+        <Check
+          className={`pointer-events-none absolute right-1 h-3 w-3 sm:h-3.5 sm:w-3.5 ${selected ? '' : 'invisible'}`}
+          strokeWidth={2.5}
+          aria-hidden
+        />
+      </button>
+      {recommended ? (
+        <p className="mt-1 text-center text-[10px] font-medium leading-none text-slate-400">Recommended</p>
+      ) : null}
+    </div>
   )
 }
 
@@ -145,6 +192,7 @@ export default function CrewSizeField({
   crewSettings,
   invalid = false,
   lockMobile = false,
+  appearance = 'cards',
 }) {
   const finalCrewOptions = buildCrewOptions(crewSettings)
   const fallbackOptions = [{ value: 2, label: '2 Men', enabled: true }]
@@ -157,6 +205,48 @@ export default function CrewSizeField({
       : displayOptions.length === 2
         ? 'grid-cols-2'
         : 'grid-cols-3'
+
+  if (appearance === 'bar') {
+    return (
+      <div
+        data-quote-field="crew-size"
+        aria-invalid={invalid || undefined}
+        className={`box-border w-full min-w-0 rounded-lg border bg-white px-2 py-2 ${
+          invalid ? 'border-red-300 ring-1 ring-red-200/80' : 'border-slate-200'
+        }`}
+      >
+        <span className="mb-1.5 block text-[11px] font-medium leading-none text-slate-500" id={labelId}>
+          Choose your crew
+        </span>
+        <div className={lockMobile ? '' : 'lg:hidden'} role="radiogroup" aria-labelledby={labelId}>
+          <div className={`grid items-start gap-1.5 ${barGridCols(mobileCrewOptions.length)}`}>
+            {mobileCrewOptions.map((o) => (
+              <CrewOptionBar
+                key={o.value}
+                option={o}
+                selected={Number(value) === o.value}
+                recommended={(MOBILE_CREW_META[o.value]?.hint || '') === 'Recommended'}
+                onSelect={onChange}
+              />
+            ))}
+          </div>
+        </div>
+        <div className={lockMobile ? 'hidden' : 'hidden lg:block'} role="radiogroup" aria-labelledby={labelId}>
+          <div className={`grid items-start gap-2 ${barGridCols(displayOptions.length)}`}>
+            {displayOptions.map((o) => (
+              <CrewOptionBar
+                key={o.value}
+                option={o}
+                selected={Number(value) === o.value}
+                recommended={(DESKTOP_CREW_META[o.value]?.hint || '') === 'Recommended'}
+                onSelect={onChange}
+              />
+            ))}
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div

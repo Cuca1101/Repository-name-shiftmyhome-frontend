@@ -14,7 +14,7 @@ export default function ServiceQuoteLayout({ children }) {
     <CoverageModalProvider>
       <WebsiteCmsProvider>
         <SeoSettingsProvider>
-        <div className="quote-flow-layout flex min-h-screen min-w-0 w-full max-w-full flex-col" data-quote-flow>
+        <div className="quote-flow-layout quote-header-scrolls flex min-h-screen min-w-0 w-full max-w-full flex-col" data-quote-flow>
           <WebsiteAnnouncementBar />
           <Navbar />
           <main className="quote-flow-main box-border min-w-0 flex-1 w-full max-w-full">

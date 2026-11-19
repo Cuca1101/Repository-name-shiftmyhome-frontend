@@ -5,7 +5,6 @@ import { mergeServicePageConfig } from '../lib/seoSettingsMerge'
 import SeoHead from '../components/seo/SeoHead'
 import SeoServiceJsonLd from '../components/seo/SeoServiceJsonLd'
 import ServicePageSeoSections from '../components/seo/ServicePageSeoSections'
-import SeoQuickBookSteps from '../components/seo/SeoQuickBookSteps'
 import QuoteWizard from '../components/quote-wizard/QuoteWizard'
 import { normalizePublicPath } from '../lib/normalizePublicPath'
 import { normalizeSeoFaqs } from '../lib/seoStructuredData'
@@ -77,8 +76,6 @@ export default function ServiceQuotePage() {
           </p>
         </div>
       </section>
-
-      <SeoQuickBookSteps cityName="Scotland" />
 
       <section
         id="service-quote"

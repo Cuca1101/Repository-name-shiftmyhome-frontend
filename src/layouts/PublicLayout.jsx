@@ -16,13 +16,14 @@ import ContinueQuoteBanner from '../components/ContinueQuoteBanner'
 export default function PublicLayout({ children }) {
   const { pathname } = useLocation()
   const quoteFlow = pathname === '/quote' || pathname.startsWith('/quote/')
+  const quoteFormActive = pathname === '/quote' || pathname === '/quote/'
   const paymentFlow = pathname.startsWith('/payment')
   const showQuoteModal = pathUsesPublicQuoteModal(pathname)
 
   const hideFooter = paymentFlow
 
   const layoutBody = (
-    <div className="flex min-h-screen min-w-0 w-full max-w-full flex-col">
+    <div className={`flex min-h-screen min-w-0 w-full max-w-full flex-col${quoteFormActive ? ' quote-header-scrolls' : ''}`}>
       <HomeHashScroll />
       <HomePageSeo />
       <WebsiteAnnouncementBar />

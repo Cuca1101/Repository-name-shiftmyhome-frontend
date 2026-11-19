@@ -38,26 +38,22 @@ export default function SeoQuoteWizardModal({ open, onClose, serviceType = '', s
   const modal = (
     <div
       id="seo-quote"
-      className="quote-flow-layout quote-page-shell fixed inset-0 z-[220] flex min-h-0 min-w-0 flex-col overflow-hidden bg-[#e7eef6]"
+      className="quote-flow-layout quote-header-scrolls quote-page-shell fixed inset-0 z-[220] flex min-h-0 min-w-0 flex-col overflow-hidden bg-[#e7eef6]"
       data-quote-flow
       role="dialog"
       aria-modal="true"
       aria-labelledby="seo-quote-flow-title"
     >
-      <div className="shrink-0">
+      <div className="quote-flow-main quote-page-shell min-h-0 flex-1 overflow-y-auto overscroll-contain">
         <Navbar showSlogan onLogoClick={onClose} />
-        <div className="bg-[#e7eef6] px-3 pt-1.5 sm:px-4">
+        <div className="px-3 pb-24 pt-1.5 sm:px-4 sm:pb-8">
           <button
             type="button"
             onClick={onClose}
-            className="inline-flex items-center gap-1 text-sm font-semibold text-slate-600 hover:text-slate-900"
+            className="mb-1 inline-flex items-center gap-1 text-sm font-semibold text-slate-600 hover:text-slate-900"
           >
             <span aria-hidden>←</span> Back to page
           </button>
-        </div>
-      </div>
-
-      <div className="quote-flow-main quote-page-shell min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 pb-24 pt-1 sm:px-4 sm:pb-8">
         <QuoteWizard
           key={sessionKey}
           serviceType={resolvedServiceType}
@@ -67,6 +63,7 @@ export default function SeoQuoteWizardModal({ open, onClose, serviceType = '', s
           showStep1Back={false}
           titleId="seo-quote-flow-title"
         />
+        </div>
       </div>
       <WhatsAppButton variant="quote-flow" />
     </div>

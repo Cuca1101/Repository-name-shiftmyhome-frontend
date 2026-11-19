@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Box, Calendar, ChevronDown, Clock, FileText, Info, MapPin, Package, Route, User, Users } from 'lucide-react'
 import { applyInventoryLineQuantityDelta } from '../../lib/inventoryLineQuantity'
 import { formatCrewSizeLabel } from '../../lib/crewPricingRules'
@@ -140,12 +140,25 @@ export default function Step2Continuation({ columnsLayout = false, hideExtras = 
   const [routeOpen, setRouteOpen] = useState(false)
   const [moveOpen, setMoveOpen] = useState(true)
   const [notesOpen, setNotesOpen] = useState(false)
+  const itemsRef = useRef(null)
+  const unitsBeforeRef = useRef(null)
   const lines = (Array.isArray(wizard?.inventoryLines) ? wizard.inventoryLines : []).filter(
     (line) => Math.max(0, Number(line?.quantity) || 0) > 0,
   )
   const units = lines.reduce((sum, line) => sum + Math.max(0, Number(line.quantity) || 0), 0)
   const volume = Number(totalM3)
   const volumeLabel = Number.isFinite(volume) ? volume.toFixed(2) : '0.00'
+
+  useEffect(() => {
+    const previous = unitsBeforeRef.current
+    unitsBeforeRef.current = units
+    if (previous == null || units <= previous) return
+    setItemsOpen(true)
+    const frame = window.requestAnimationFrame(() => {
+      itemsRef.current?.scrollIntoView({ block: 'nearest' })
+    })
+    return () => window.cancelAnimationFrame(frame)
+  }, [units])
 
   function bumpLine(lineId, delta) {
     setWizard((current) => ({
@@ -157,7 +170,7 @@ export default function Step2Continuation({ columnsLayout = false, hideExtras = 
   return (
     <div className="flex min-w-0 flex-col gap-3">
       {columnsLayout ? <Step2RouteMap /> : null}
-      <section className={card}>
+      <section ref={itemsRef} className={card}>
         <div className="flex items-start justify-between gap-3">
           <h2 className="flex items-center gap-2 text-base font-bold text-slate-900">
             <Box className="h-5 w-5 text-blue-600" aria-hidden />

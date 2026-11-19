@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Check, ChevronDown, Loader2, MapPin, Search } from 'lucide-react'
+import { Check, Loader2, MapPin } from 'lucide-react'
 import { MIN_MANUAL_ADDRESS_LENGTH } from '../../lib/addressConfirmation'
 import {
   ADDRESS_SEARCH_PAUSE_MS,
@@ -35,6 +35,16 @@ function addressPrefix(addressKey) {
 
 function directoryResult(item) {
   return item?.source === 'snap' || item?.source === 'ideal'
+}
+
+/** A bare postcode is a step, not a finished address. A street line that includes one is selectable. */
+function postcodeStage(item) {
+  if (item?.source === 'snap-group') {
+    const code = String(item.postcode || '').trim()
+    return isUkPostcodeQuery(code) ? code : ''
+  }
+  const shown = String(suggestionLines(item).main || '').trim()
+  return isUkPostcodeQuery(shown) ? shown : ''
 }
 
 function suggestionLines(item) {
@@ -162,6 +172,8 @@ export default function QuoteStepAddressCard({
   const selected = (lng != null && lat != null) || (accepted && Boolean(String(address || '').trim()))
   const [query, setQuery] = useState(() => (selected ? '' : addressBase(address, apartment, houseNumber)))
   const [manual, setManual] = useState(false)
+  const [detailsOpen, setDetailsOpen] = useState(false)
+  const [activeIndex, setActiveIndex] = useState(-1)
   const [searching, setSearching] = useState(false)
   const [open, setOpen] = useState(false)
   const [results, setResults] = useState([])
@@ -172,6 +184,7 @@ export default function QuoteStepAddressCard({
   const resultsRef = useRef([])
   const timerRef = useRef(0)
   const inputRef = useRef(null)
+  const houseInputRef = useRef(null)
   const menuRef = useRef(null)
   const baseAddressRef = useRef(addressBase(address, apartment, houseNumber))
   const manualGeocodeRef = useRef(0)
@@ -187,9 +200,6 @@ export default function QuoteStepAddressCard({
   const focusRing = quotePage || isPickup
     ? 'focus:border-blue-500 focus:ring-blue-500/25'
     : 'focus:border-emerald-500 focus:ring-emerald-500/25'
-  const buttonClass = quotePage || isPickup
-    ? 'bg-blue-600 hover:bg-blue-700 focus-visible:ring-blue-500/30'
-    : 'bg-emerald-600 hover:bg-emerald-700 focus-visible:ring-emerald-500/30'
 
   function patch(next) {
     applyWizardPatch(onChange, next)
@@ -254,7 +264,7 @@ export default function QuoteStepAddressCard({
       setResults([])
       setOpen(false)
       setSearching(false)
-      setNotice('Type a postcode or street, then press Find my address.')
+      setNotice('Type a postcode, street or full address.')
       return
     }
     void runGoogleSearch(text)
@@ -266,7 +276,7 @@ export default function QuoteStepAddressCard({
       setResults([])
       setOpen(false)
       setSearching(false)
-      setNotice('Type a postcode or street, then press Find my address.')
+      setNotice('Type a postcode, street or full address.')
       return
     }
     if (text === lastQueryRef.current && resultsRef.current.length > 0) {
@@ -283,6 +293,7 @@ export default function QuoteStepAddressCard({
       if (directory.length > 0) {
         lastQueryRef.current = text
         setResults(directory)
+        setActiveIndex(0)
         setOpen(true)
         setNotice('')
         return
@@ -290,7 +301,7 @@ export default function QuoteStepAddressCard({
       if (!hasGoogleMapsKey()) {
         setResults([])
         setOpen(false)
-        setNotice('Type a postcode or street, then press Find my address.')
+        setNotice('Type a postcode, street or full address.')
         return
       }
       const token = await ensureSession()
@@ -300,6 +311,7 @@ export default function QuoteStepAddressCard({
       if (requestRef.current !== requestId) return
       lastQueryRef.current = text
       setResults(list)
+      setActiveIndex(list.length > 0 ? 0 : -1)
       setOpen(list.length > 0)
       setNotice(list.length ? '' : EMPTY_MESSAGE)
     } catch {
@@ -319,6 +331,7 @@ export default function QuoteStepAddressCard({
     if (trimmed.length < GOOGLE_ADDRESS_MIN_QUERY) {
       lastQueryRef.current = ''
       setResults([])
+      setActiveIndex(-1)
       setOpen(false)
       setSearching(false)
       setNotice('')
@@ -333,8 +346,19 @@ export default function QuoteStepAddressCard({
     }, ADDRESS_SEARCH_PAUSE_MS)
   }
 
-  function applyPlace(place) {
-    const base = placeStreetLine(place)
+  function applyPlace(place, shownLabel = '') {
+    if (!place) {
+      setNotice(EMPTY_MESSAGE)
+      return false
+    }
+    const shown = String(shownLabel || '').trim()
+    let base = placeStreetLine(place)
+    if ((!base || isUkPostcodeQuery(base)) && shown && !isUkPostcodeQuery(shown)) base = shown
+    if (isUkPostcodeQuery(base)) {
+      setQuery(base)
+      void runGoogleSearch(base)
+      return false
+    }
     if (!base || place.lng == null || place.lat == null) {
       setNotice(EMPTY_MESSAGE)
       return false
@@ -359,20 +383,38 @@ export default function QuoteStepAddressCard({
     setManual(false)
     setNotice('')
     lastQueryRef.current = ''
+    if (!String(door || '').trim()) {
+      setDetailsOpen(true)
+      window.requestAnimationFrame(() => houseInputRef.current?.focus())
+    } else {
+      setDetailsOpen(false)
+    }
     onAddressSelected?.()
     return true
   }
 
   async function choose(item) {
+    const postcode = postcodeStage(item)
+    if (postcode) {
+      window.clearTimeout(timerRef.current)
+      setQuery(postcode)
+      setNotice('')
+      await runGoogleSearch(postcode)
+      return
+    }
     window.clearTimeout(timerRef.current)
     setSearching(true)
     setNotice('')
+    const shown = String(suggestionLines(item).main || '').trim()
     try {
-      const place = directoryResult(item)
+      let place = directoryResult(item)
         ? await withPlaceCoordinates(item.place)
         : await placeFromPrediction(item.prediction)
+      if (place && (place.lng == null || place.lat == null) && shown && !isUkPostcodeQuery(shown)) {
+        place = await withPlaceCoordinates({ ...place, formattedAddress: place.formattedAddress || shown })
+      }
       endSession()
-      applyPlace(place)
+      applyPlace(place, shown)
     } catch {
       endSession()
       setNotice(EMPTY_MESSAGE)
@@ -422,6 +464,7 @@ export default function QuoteStepAddressCard({
     endSession()
     lastQueryRef.current = ''
     setManual(true)
+    setDetailsOpen(true)
     setOpen(false)
     setResults([])
     setNotice('')
@@ -460,7 +503,8 @@ export default function QuoteStepAddressCard({
     'box-border h-[52px] w-full min-w-0 rounded-xl border border-slate-200 bg-white px-3.5 text-base text-slate-900 shadow-sm outline-none transition focus:ring-2'
   const panelClass = 'border-slate-200 bg-white shadow-sm'
   const shownAddress = composedAddress(currentBase()) || address
-  const houseNumberMissing = selected && !String(houseNumber || '').trim()
+  const houseNumberMissing = selected && !manual && !String(houseNumber || '').trim()
+  const showDetails = manual || detailsOpen || houseNumberMissing
   const houseNumberErrorId = `${addressKey}-house-number-error`
   const houseControl = houseNumberMissing
     ? 'box-border h-[52px] w-full min-w-0 rounded-xl border border-red-500 bg-white px-3.5 text-base text-slate-900 shadow-sm outline-none transition focus:border-red-500 focus:ring-2 focus:ring-red-500/25'
@@ -472,6 +516,7 @@ export default function QuoteStepAddressCard({
         <label className="block">
           <span className="mb-1.5 block text-xs font-medium leading-snug text-slate-600">House number</span>
           <input
+            ref={houseInputRef}
             type="text"
             value={houseNumber}
             autoComplete="off"
@@ -486,7 +531,7 @@ export default function QuoteStepAddressCard({
         </label>
         {houseNumberMissing ? (
           <p id={houseNumberErrorId} className="mt-1 text-xs font-medium text-red-600" role="alert">
-            Select a number
+            Enter the house number
           </p>
         ) : null}
       </div>
@@ -552,12 +597,11 @@ export default function QuoteStepAddressCard({
           className={`${control} mt-3 h-auto min-h-[52px] resize-none py-3 ${focusRing}`}
         />
       ) : (
-        <div className="relative mt-3">
+        <div ref={menuRef} className="relative mt-3">
           {quotePage ? (
             <span className="mb-1 block text-xs font-medium text-slate-600">Postcode, street or full address</span>
           ) : null}
-          <div className="flex flex-col gap-2">
-            <div className="quote-address-search flex flex-col gap-2">
+          <div className="relative">
             <input
               ref={inputRef}
               id={addressKey}
@@ -568,73 +612,62 @@ export default function QuoteStepAddressCard({
               placeholder={placeholder}
               role="combobox"
               aria-autocomplete="list"
-              aria-expanded={results.length > 0}
+              aria-expanded={open && results.length > 0}
               aria-controls={`${addressKey}-results`}
-              className={`${control} min-w-0 w-full ${focusRing}`}
+              aria-activedescendant={open && activeIndex >= 0 ? `${addressKey}-option-${activeIndex}` : undefined}
+              className={`${control} min-w-0 w-full pr-10 ${focusRing}`}
               onChange={(e) => {
                 const next = e.target.value
                 setQuery(next)
                 setNotice('')
                 scheduleSearch(next)
               }}
+              onFocus={() => {
+                if (resultsRef.current.length > 0) setOpen(true)
+              }}
               onKeyDown={(e) => {
+                if (e.key === 'ArrowDown' && resultsRef.current.length > 0) {
+                  e.preventDefault()
+                  setOpen(true)
+                  setActiveIndex((index) => Math.min(resultsRef.current.length - 1, Math.max(0, index) + (index < 0 ? 0 : 1)))
+                  return
+                }
+                if (e.key === 'ArrowUp' && resultsRef.current.length > 0) {
+                  e.preventDefault()
+                  setOpen(true)
+                  setActiveIndex((index) => Math.max(0, index - 1))
+                  return
+                }
                 if (e.key === 'Enter') {
                   e.preventDefault()
-                  findAddress(e.currentTarget.value)
+                  const picked = open ? resultsRef.current[activeIndex] : null
+                  if (picked) void choose(picked)
+                  else findAddress(e.currentTarget.value)
                 }
               }}
             />
-            <button
-              type="button"
-              disabled={searching}
-              onClick={() => findAddress()}
-              className={`quote-address-find inline-flex h-[52px] w-full shrink-0 items-center justify-center gap-2 px-4 text-sm font-semibold text-white shadow-sm transition focus-visible:outline-none focus-visible:ring-2 disabled:cursor-wait disabled:opacity-70 ${quotePage ? 'rounded-xl' : 'rounded-2xl'} ${buttonClass}`}
-            >
-              {searching ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : quotePage ? <Search className="h-4 w-4" aria-hidden /> : null}
-              Find my address
-            </button>
-            </div>
+            {searching ? (
+              <Loader2 className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-slate-400" aria-hidden />
+            ) : null}
           </div>
-        </div>
-      )}
-
-      {numberFields}
-
-      {!selected && !manual ? (
-        <div ref={menuRef} className="relative mt-3">
-          {quotePage ? (
-            <button
-              type="button"
-              aria-expanded={open && results.length > 0}
-              aria-controls={`${addressKey}-results`}
-              onClick={() => {
-                if (results.length > 0) {
-                  setOpen((current) => !current)
-                  return
-                }
-                findAddress()
-              }}
-              className={`${control} flex items-center justify-between gap-2 text-left text-slate-500 ${focusRing}`}
-            >
-              <span>Select your address</span>
-              <ChevronDown className={`h-4 w-4 shrink-0 text-slate-400 transition ${open && results.length > 0 ? 'rotate-180' : ''}`} aria-hidden />
-            </button>
-          ) : null}
           {open && results.length > 0 ? (
             <div
               id={`${addressKey}-results`}
               role="listbox"
-              aria-label="Select your address"
+              aria-label="Address suggestions"
               className="absolute left-0 right-0 top-full z-40 mt-1 max-h-72 overflow-y-auto rounded-xl border border-slate-200 bg-white shadow-lg"
             >
-              {results.map((item) => {
+              {results.map((item, index) => {
                 const lines = suggestionLines(item)
                 return (
                   <button
                     key={item.id}
+                    id={`${addressKey}-option-${index}`}
                     type="button"
                     role="option"
-                    className="block min-h-12 w-full whitespace-normal break-words border-b border-slate-100 px-3.5 py-3 text-left last:border-b-0 hover:bg-blue-50"
+                    aria-selected={index === activeIndex}
+                    className={`block min-h-12 w-full whitespace-normal break-words border-b border-slate-100 px-3.5 py-3 text-left last:border-b-0 hover:bg-blue-50 ${index === activeIndex ? 'bg-blue-50' : ''}`}
+                    onMouseDown={(event) => event.preventDefault()}
                     onClick={() => void choose(item)}
                   >
                     <span className="block text-sm font-semibold leading-snug text-slate-900">{lines.main}</span>
@@ -659,35 +692,48 @@ export default function QuoteStepAddressCard({
             </p>
           ) : null}
         </div>
+      )}
+
+      {showDetails ? numberFields : null}
+
+      {selected && !manual && !houseNumberMissing ? (
+        <button
+          type="button"
+          onClick={() => setDetailsOpen((current) => !current)}
+          className="mt-2 text-xs font-semibold text-slate-500 underline-offset-2 hover:text-slate-800 hover:underline"
+        >
+          {detailsOpen ? 'Hide address details' : 'Add / edit address details'}
+        </button>
       ) : null}
 
       <button
         type="button"
         onClick={manual ? () => setManual(false) : startManual}
-        className={`mt-2 text-sm font-medium underline-offset-2 hover:underline ${
-          quotePage ? 'text-blue-600 hover:text-blue-800' : 'text-xs font-semibold text-slate-500 hover:text-slate-800'
-        }`}
+        className="mt-2 block text-xs font-medium text-slate-500 underline-offset-2 hover:text-slate-800 hover:underline"
       >
         {manual ? 'Search for an address' : 'Enter address manually'}
       </button>
 
-      <label className="mt-3 block">
-        <span className="mb-1 block text-xs font-medium text-slate-600">Property type</span>
-        <select
-          id={propertySelectId}
-          value={propertyValue}
-          onChange={(e) => onPropertyChange(e.target.value)}
-          className={`${control} ${focusRing}`}
-        >
-          {PROPERTY_TYPES.map((type) => (
-            <option key={type} value={type}>
-              {type}
-            </option>
-          ))}
-        </select>
-      </label>
-
-      {children}
+      {selected ? (
+        <>
+          <label className="mt-3 block">
+            <span className="mb-1 block text-xs font-medium text-slate-600">Property type</span>
+            <select
+              id={propertySelectId}
+              value={propertyValue}
+              onChange={(e) => onPropertyChange(e.target.value)}
+              className={`${control} ${focusRing}`}
+            >
+              {PROPERTY_TYPES.map((type) => (
+                <option key={type} value={type}>
+                  {type}
+                </option>
+              ))}
+            </select>
+          </label>
+          {children}
+        </>
+      ) : null}
     </section>
   )
 }

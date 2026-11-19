@@ -1,5 +1,5 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
-import { ChevronRight, PackagePlus } from 'lucide-react'
+import { PackagePlus } from 'lucide-react'
 import { useQuoteInventoryCatalog } from '../useQuoteInventoryCatalog'
 import InlineInventoryQtyControl from '../InlineInventoryQtyControl'
 import HighlightedInventoryName from '../HighlightedInventoryName'
@@ -20,7 +20,11 @@ import {
   CategoryLucideIcon,
   ITEM_VOLUME_HINT,
 } from '../inventoryLucideIcons'
-import { categoryCardClassName } from '../inventoryCategoryCardStyles'
+import {
+  categoryIconButtonClassName,
+  categoryIconCircleClassName,
+  categoryIconLabelClassName,
+} from '../inventoryCategoryCardStyles'
 
 function newLineId() {
   if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID()
@@ -362,6 +366,7 @@ export default function Step2Inventory({
         crewSettings={crewSettings}
         crewRestrictions={crewRestrictions}
         crewFieldId={crewFieldId}
+        crewAppearance={isAdminLayout ? 'cards' : 'bar'}
         validationMessage={validationMessage}
         searchId={searchId}
         searchQuery={searchQuery}
@@ -430,6 +435,7 @@ export default function Step2Inventory({
         onChange={onCrewSizeChange}
         crewSettings={crewSettings}
         invalid={Boolean(validationMessage && /crew size/i.test(validationMessage))}
+        appearance={isAdminLayout ? 'cards' : 'bar'}
       />
 
       {validationMessage ? (
@@ -478,17 +484,12 @@ export default function Step2Inventory({
                   toggleCategory(key)
                 }
               }}
-              className={categoryCardClassName(isOpen)}
+              className={categoryIconButtonClassName()}
             >
-              <CategoryLucideIcon
-                categoryKey={key}
-                className="h-5 w-5 shrink-0 text-blue-600"
-              />
-              <span className="quote-inventory-item-name min-w-0 flex-1 leading-snug">{c.label}</span>
-              <ChevronRight
-                className={`h-5 w-5 shrink-0 text-slate-400 transition-transform ${isOpen ? 'rotate-90 text-blue-600' : ''}`}
-                aria-hidden
-              />
+              <span className={categoryIconCircleClassName(isOpen)}>
+                <CategoryLucideIcon categoryKey={key} className="h-7 w-7 sm:h-8 sm:w-8" />
+              </span>
+              <span className={categoryIconLabelClassName(isOpen)}>{c.label}</span>
             </button>
           )
         })}
