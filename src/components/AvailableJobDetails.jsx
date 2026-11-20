@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
+const REOPEN_JOB_PIN = '1987'
+
 import { Link, useLocation, useParams, useSearchParams } from 'react-router-dom'
 import {
   fetchAssignedByActor,
@@ -190,6 +192,9 @@ export default function AvailableJobDetails() {
   )
   const [resetBusy, setResetBusy] = useState(false)
   const [reopenBusy, setReopenBusy] = useState(false)
+  const [reopenPinKind, setReopenPinKind] = useState(/** @type {null | 'same' | 'other'} */ (null))
+  const [reopenPin, setReopenPin] = useState('')
+  const [reopenPinError, setReopenPinError] = useState('')
   const [jobStatusHistory, setJobStatusHistory] = useState(
     /** @type {Array<{ status: string, created_at: string }>} */ ([]),
   )
@@ -371,15 +376,39 @@ export default function AvailableJobDetails() {
     [jobStatusHistory, q?.workflow_version],
   )
 
+  function askReopenPin(kind) {
+    if (!reopenAvailable || reopenBusy) return
+    setReopenPinKind(kind)
+    setReopenPin('')
+    setReopenPinError('')
+  }
+
+  function closeReopenPin() {
+    if (reopenBusy) return
+    setReopenPinKind(null)
+    setReopenPin('')
+    setReopenPinError('')
+  }
+
+  function submitReopenPin(event) {
+    event.preventDefault()
+    if (reopenPin.trim() !== REOPEN_JOB_PIN) {
+      setReopenPinError('Incorrect PIN.')
+      return
+    }
+    const kind = reopenPinKind
+    setReopenPinKind(null)
+    setReopenPin('')
+    setReopenPinError('')
+    if (kind === 'same') void reopenWithSameDriver()
+    if (kind === 'other') overrideActionsRef.current?.openReopenDriver?.()
+  }
+
   async function reopenWithSameDriver() {
     if (!q?.id || !reopenAvailable || reopenBusy) return
     const driverId = String(q.assigned_driver_id || '').trim()
     const driverName = String(q.assigned_driver_name || '').trim()
     if (!driverId || !driverName) return
-    const confirmed = window.confirm(
-      `Put this job back with ${driverName}? The driver starts again. The booking, payment and earlier history stay. A completion email already sent is left as it is.`,
-    )
-    if (!confirmed) return
     setReopenBusy(true)
     try {
       const actor = await fetchAssignedByActor()
@@ -709,8 +738,8 @@ export default function AvailableJobDetails() {
             resetBusy={resetBusy}
             reopenAvailable={reopenAvailable}
             reopenBusy={reopenBusy}
-            onReopenSameDriver={() => void reopenWithSameDriver()}
-            onReopenOtherDriver={() => overrideActionsRef.current?.openReopenDriver?.()}
+            onReopenSameDriver={() => askReopenPin('same')}
+            onReopenOtherDriver={() => askReopenPin('other')}
             onReload={load}
             onNotify={showToast}
           />
@@ -971,8 +1000,8 @@ export default function AvailableJobDetails() {
             resetBusy={resetBusy}
             reopenAvailable={reopenAvailable}
             reopenBusy={reopenBusy}
-            onReopenSameDriver={() => void reopenWithSameDriver()}
-            onReopenOtherDriver={() => overrideActionsRef.current?.openReopenDriver?.()}
+            onReopenSameDriver={() => askReopenPin('same')}
+            onReopenOtherDriver={() => askReopenPin('other')}
           />
         ) : null}
       </div>
@@ -984,6 +1013,68 @@ export default function AvailableJobDetails() {
         onApplied={() => void load()}
         showTriggerButtons={false}
       />
+
+      {reopenPinKind ? (
+        <div
+          className="fixed inset-0 z-[80] flex items-end justify-center bg-slate-900/50 p-4 sm:items-center"
+          role="presentation"
+          onClick={closeReopenPin}
+        >
+          <form
+            className="w-full max-w-sm rounded-2xl border border-slate-200 bg-white p-5 shadow-xl"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="reopen-pin-title"
+            onClick={(event) => event.stopPropagation()}
+            onSubmit={submitReopenPin}
+          >
+            <h3 id="reopen-pin-title" className="text-base font-semibold text-slate-900">
+              {reopenPinKind === 'same' ? 'Put the job back with this driver' : 'Give this job to another driver'}
+            </h3>
+            <p className="mt-2 text-sm text-slate-600">
+              {reopenPinKind === 'same'
+                ? `The driver starts again. The booking, payment and earlier history stay. Enter the PIN to continue.`
+                : 'The job leaves Completed and goes to the driver you pick. Enter the PIN to continue.'}
+            </p>
+            <label className="mt-4 block text-sm font-medium text-slate-700" htmlFor="reopen-job-pin">
+              PIN
+            </label>
+            <input
+              id="reopen-job-pin"
+              type="password"
+              inputMode="numeric"
+              autoComplete="off"
+              autoFocus
+              value={reopenPin}
+              onChange={(event) => {
+                setReopenPin(event.target.value)
+                if (reopenPinError) setReopenPinError('')
+              }}
+              className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-400"
+            />
+            {reopenPinError ? (
+              <p className="mt-2 text-sm font-medium text-red-700" role="alert">
+                {reopenPinError}
+              </p>
+            ) : null}
+            <div className="mt-4 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={closeReopenPin}
+                className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-800 hover:bg-slate-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800"
+              >
+                Continue
+              </button>
+            </div>
+          </form>
+        </div>
+      ) : null}
 
     </div>
   )
