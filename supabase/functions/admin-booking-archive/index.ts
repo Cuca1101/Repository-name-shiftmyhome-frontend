@@ -2,6 +2,7 @@ import 'jsr:@supabase/functions-js/edge-runtime.d.ts'
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import { assertAdminCaller } from '../_shared/verifyAdminCaller.ts'
 import { BOOKING_INVOICE_BUCKET } from '../_shared/customerEmailArchive.ts'
+import { buildCurrentInvoicePdf } from '../_shared/cashPaidInvoice.ts'
 
 /**
  * Read a PDF that was stored when the email was sent.
@@ -113,7 +114,12 @@ Deno.serve(async (req) => {
   const allowed = await assertAdminCaller(admin, userData.user)
   if (!allowed.ok) return jsonResponse({ ok: false, error: 'forbidden' }, 403)
 
-  const body = (await req.json().catch(() => ({}))) as { archiveId?: string; quoteId?: string; sync?: boolean }
+  const body = (await req.json().catch(() => ({}))) as {
+    archiveId?: string
+    quoteId?: string
+    sync?: boolean
+    download?: boolean
+  }
   const archiveId = String(body.archiveId || '').trim()
   const quoteId = String(body.quoteId || '').trim()
 
@@ -137,7 +143,14 @@ Deno.serve(async (req) => {
   const path = String(row?.invoice_path || '').trim()
   const bucket = String(row?.invoice_bucket || BOOKING_INVOICE_BUCKET).trim()
   if (!row || !path || path.includes('..') || bucket !== BOOKING_INVOICE_BUCKET) {
-    return jsonResponse({ ok: false, reason: 'not_stored' })
+    if (!quoteId || !body.download) return jsonResponse({ ok: false, reason: 'not_stored' })
+    const built = await buildCurrentInvoicePdf(admin, quoteId)
+    if (!built?.bytes?.length) return jsonResponse({ ok: false, reason: 'not_stored' })
+    return jsonResponse({
+      ok: true,
+      filename: built.filename,
+      contentBase64: bytesToBase64(built.bytes),
+    })
   }
 
   const downloaded = await admin.storage.from(bucket).download(path)

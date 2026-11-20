@@ -5,6 +5,8 @@
 
 export const CASH_INVOICE_EVENT = 'cash_paid_invoice'
 export const CASH_INVOICE_FILE_KEY = 'cash-paid'
+export const PAID_INVOICE_EVENT = 'paid_invoice'
+export const PAID_INVOICE_FILE_KEY = 'paid'
 export const CASH_PAID_MARK = 'PAID - Cash'
 
 const PHONE_BOOKING_SNAPSHOT_START = '---SMH_PHONE_BOOKING_WIZARD_JSON---'
@@ -71,19 +73,100 @@ export function customerInvoiceEmail(quote) {
   return email
 }
 
+function collectedMethod(row) {
+  return String(row?.method || '').toLowerCase()
+}
+
+export function invoiceKind(quote, collections) {
+  const rows = collections || []
+  const type = String(quote?.payment_type || '').toLowerCase()
+  if (rows.some((row) => collectedMethod(row) === 'cash') || type === 'cash') return 'cash'
+  if (rows.some((row) => collectedMethod(row) === 'card') || type === 'card') return 'card'
+  if (rows.some((row) => collectedMethod(row) === 'bank_transfer') || type === 'bank_transfer') return 'bank_transfer'
+  return 'paid'
+}
+
+export function invoiceEventKey(kind) {
+  return kind === 'cash' ? CASH_INVOICE_EVENT : PAID_INVOICE_EVENT
+}
+
+export function invoiceFileKey(kind) {
+  return kind === 'cash' ? CASH_INVOICE_FILE_KEY : PAID_INVOICE_FILE_KEY
+}
+
+export function invoiceStoragePath(quoteId, kind) {
+  return `${String(quoteId || '').trim()}/${invoiceFileKey(kind || 'cash')}.pdf`
+}
+
+export function invoicePaidMark(kind) {
+  if (kind === 'cash') return CASH_PAID_MARK
+  if (kind === 'card') return 'PAID - Card'
+  if (kind === 'bank_transfer') return 'PAID - Bank transfer'
+  return 'PAID'
+}
+
+export function invoicePaymentTypeLabel(kind) {
+  if (kind === 'cash') return 'Cash'
+  if (kind === 'card') return 'Card'
+  if (kind === 'bank_transfer') return 'Bank transfer'
+  return 'Paid'
+}
+
+export function amountRecorded(quote, collections) {
+  const paid = Number(quote?.amount_paid)
+  const fromQuote = Number.isFinite(paid) && paid > 0 ? roundGbp(paid) : 0
+  const fromRows = roundGbp((collections || []).reduce((sum, row) => sum + (Number(row?.amount) || 0), 0))
+  return roundGbp(Math.max(fromQuote, fromRows))
+}
+
 export function cashInvoiceEligibility(quote, collections) {
   if (!balanceIsSettled(quote?.remaining_balance)) return { ok: false, reason: 'balance_remaining' }
-  const cashRows = (collections || []).filter((row) => String(row?.method || '').toLowerCase() === 'cash')
+  const cashRows = (collections || []).filter((row) => collectedMethod(row) === 'cash')
   const type = String(quote?.payment_type || '').toLowerCase()
   if (cashRows.length === 0 && type !== 'cash') return { ok: false, reason: 'not_cash' }
-  return { ok: true, cashRows }
+  return { ok: true, cashRows, kind: 'cash' }
+}
+
+/** Cash invoice when the driver has marked the job completed and the cash balance is cleared. */
+export function completionInvoiceEligibility(quote, collections) {
+  const completed =
+    Boolean(quote?.completed_at) ||
+    String(quote?.status || '').toLowerCase() === 'completed' ||
+    String(quote?.operational_status || '').toLowerCase() === 'completed'
+  if (!completed) return { ok: false, reason: 'not_completed' }
+  if (!balanceIsSettled(quote?.remaining_balance)) return { ok: false, reason: 'balance_remaining' }
+  if (invoiceKind(quote, collections) !== 'cash') return { ok: false, reason: 'not_cash' }
+  return { ok: true, kind: 'cash' }
+}
+
+/** Card invoice once the balance is zero. A Stripe receipt already sent is not sent again. */
+export function cardSettledInvoiceEligibility(quote, collections) {
+  if (!balanceIsSettled(quote?.remaining_balance)) return { ok: false, reason: 'balance_remaining' }
+  if (quote?.payment_confirmation_email_sent_at) return { ok: false, reason: 'already_sent' }
+  const kind = invoiceKind(quote, collections)
+  if (kind === 'cash' || kind === 'bank_transfer') return { ok: false, reason: 'not_card' }
+  const card =
+    kind === 'card' ||
+    String(quote?.payment_type || '').toLowerCase() === 'full' ||
+    Boolean(String(quote?.stripe_payment_intent_id || '').trim())
+  if (!card) return { ok: false, reason: 'not_card' }
+  if (amountRecorded(quote, collections) <= 0) return { ok: false, reason: 'not_paid' }
+  return { ok: true, kind: 'card' }
+}
+
+/** Admin button. A settled cash, card, or bank payment can be invoiced. */
+export function manualInvoiceEligibility(quote, collections) {
+  if (!balanceIsSettled(quote?.remaining_balance)) return { ok: false, reason: 'balance_remaining' }
+  const kind = invoiceKind(quote, collections)
+  if (kind !== 'cash' && amountRecorded(quote, collections) <= 0) return { ok: false, reason: 'not_paid' }
+  return { ok: true, kind }
 }
 
 export function discountNotes(pricing) {
   return String(pricing || '')
     .split(/\r?\n/)
     .map((line) => line.trim())
-    .filter((line) => /discount|promo code|best price/i.test(line))
+    .filter((line) => /discount|promo code/i.test(line) && !/best price/i.test(line))
     .slice(0, 4)
 }
 
@@ -112,7 +195,42 @@ export function cashInvoiceFigures(quote, collections) {
 }
 
 export function cashInvoiceStoragePath(quoteId) {
-  return `${String(quoteId || '').trim()}/${CASH_INVOICE_FILE_KEY}.pdf`
+  return invoiceStoragePath(quoteId, 'cash')
+}
+
+export function settledInvoiceFigures(quote, collections) {
+  const kind = invoiceKind(quote, collections)
+  const base = cashInvoiceFigures(quote, collections)
+  if (kind === 'cash') return { ...base, kind }
+  const paid = amountRecorded(quote, collections)
+  const saved = savedFinalPrice(quote)
+  return {
+    kind,
+    total: saved ?? paid,
+    paid,
+    cash: 0,
+    advance: 0,
+    remaining: 0,
+    discounts: discountNotes(quote?.pricing),
+    paidAt:
+      quote?.paid_at ||
+      (collections || [])
+        .map((row) => String(row?.collected_at || ''))
+        .filter(Boolean)
+        .sort()
+        .at(-1) ||
+      null,
+  }
+}
+
+export function invoiceSummaryLines(figures) {
+  if (figures?.kind === 'cash') {
+    return [
+      ...(figures.advance > 0 ? [`Advance paid: GBP ${Number(figures.advance).toFixed(2)}`] : []),
+      `Cash received: GBP ${Number(figures.cash).toFixed(2)}`,
+    ]
+  }
+  return [`Amount paid: GBP ${Number(figures?.paid || 0).toFixed(2)}`]
 }
 
 /**
@@ -136,31 +254,37 @@ export async function deliverCashPaidInvoice(ctx) {
   if (!quote) return { ok: false, skipped: true, error: 'quote_not_found' }
 
   const collections = await ctx.loadCollections()
-  const eligibility = cashInvoiceEligibility(quote, collections)
+  const eligibility = ctx.onCompleted
+    ? completionInvoiceEligibility(quote, collections)
+    : ctx.onCardSettled
+      ? cardSettledInvoiceEligibility(quote, collections)
+      : ctx.manual
+        ? manualInvoiceEligibility(quote, collections)
+        : cashInvoiceEligibility(quote, collections)
   if (!eligibility.ok) return { ok: false, skipped: true, error: eligibility.reason }
 
   const email = customerInvoiceEmail(quote)
   if (!email) return { ok: false, skipped: true, error: 'missing_email' }
 
-  const existing = await ctx.loadNotification()
+  const figures = settledInvoiceFigures(quote, collections)
+  const existing = await ctx.loadNotification(figures)
   if (String(existing?.delivery_status || '') === 'sent') {
-    await ctx.repairArchive()
+    await ctx.repairArchive(figures)
     return { ok: true, skipped: true, error: 'already_sent' }
   }
 
-  const figures = cashInvoiceFigures(quote, collections)
-  let pdf = await ctx.readStoredPdf()
+  let pdf = await ctx.readStoredPdf(figures)
   if (!pdf?.length) {
     pdf = await ctx.buildPdf({ quote, figures })
     if (!pdf?.length) return { ok: false, error: 'pdf_failed' }
-    const stored = await ctx.storePdf(pdf)
+    const stored = await ctx.storePdf(pdf, figures)
     if (!stored) return { ok: false, error: 'pdf_store_failed' }
   }
 
-  const claim = await ctx.claim()
+  const claim = await ctx.claim(figures)
   if (!claim?.claimed) {
     if (claim?.reason === 'already_sent') {
-      await ctx.repairArchive()
+      await ctx.repairArchive(figures)
       return { ok: true, skipped: true, error: 'already_sent' }
     }
     return { ok: false, error: claim?.reason || 'claim_failed' }

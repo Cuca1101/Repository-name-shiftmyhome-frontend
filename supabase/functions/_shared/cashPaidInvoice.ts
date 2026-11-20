@@ -6,11 +6,16 @@ import { renderTransactionalEmailTemplate } from './transactionalEmailTemplates.
 import { buildPortalMagicUrl } from './customerPortalMagicLink.ts'
 import { isUniqueViolation, notificationClaimDecision } from './deliveryRetryPolicy.js'
 import {
-  CASH_INVOICE_EVENT,
-  CASH_INVOICE_FILE_KEY,
-  CASH_PAID_MARK,
-  cashInvoiceStoragePath,
   deliverCashPaidInvoice,
+  amountRecorded,
+  invoiceEventKey,
+  invoiceFileKey,
+  invoiceKind,
+  invoicePaidMark,
+  invoicePaymentTypeLabel,
+  invoiceStoragePath,
+  invoiceSummaryLines,
+  savedFinalPrice,
 } from './cashPaidInvoicePolicy.js'
 
 function envOrDefault(key: string, fallback: string) {
@@ -31,15 +36,21 @@ function quoteRefOf(quote: Record<string, unknown>) {
   return String(quote.quote_ref || '').trim() || 'SMH-BOOKING'
 }
 
+function invoiceLabel(kind: string) {
+  return kind === 'cash' ? 'Cash invoice' : 'Invoice'
+}
+
 async function claimCashInvoice(
   // deno-lint-ignore no-explicit-any
   supabase: any,
   quoteId: string,
+  eventKey: string,
+  label: string,
 ) {
   const insert = await supabase.from('job_customer_notifications').insert({
     quote_id: quoteId,
-    event_key: CASH_INVOICE_EVENT,
-    event_label: 'Cash invoice',
+    event_key: eventKey,
+    event_label: label,
     delivery_status: 'pending',
   })
   if (!insert.error) return { claimed: true as const }
@@ -49,7 +60,7 @@ async function claimCashInvoice(
     .from('job_customer_notifications')
     .select('delivery_status, created_at')
     .eq('quote_id', quoteId)
-    .eq('event_key', CASH_INVOICE_EVENT)
+    .eq('event_key', eventKey)
     .maybeSingle()
 
   const decision = notificationClaimDecision(existing)
@@ -60,13 +71,13 @@ async function claimCashInvoice(
     .from('job_customer_notifications')
     .delete()
     .eq('quote_id', quoteId)
-    .eq('event_key', CASH_INVOICE_EVENT)
+    .eq('event_key', eventKey)
     .in('delivery_status', ['failed', 'pending'])
 
   const retry = await supabase.from('job_customer_notifications').insert({
     quote_id: quoteId,
-    event_key: CASH_INVOICE_EVENT,
-    event_label: 'Cash invoice',
+    event_key: eventKey,
+    event_label: label,
     delivery_status: 'pending',
   })
   if (!retry.error) return { claimed: true as const }
@@ -79,44 +90,103 @@ async function repairCashArchive(
   supabase: any,
   quoteId: string,
   quote: Record<string, unknown>,
+  figures: Record<string, unknown> | null,
 ) {
+  const kind = String(figures?.kind || 'cash')
+  const eventKey = invoiceEventKey(kind)
+  const path = invoiceStoragePath(quoteId, kind)
+  const mark = invoicePaidMark(kind)
+  const filename = kind === 'cash' ? `Invoice-${quoteRefOf(quote)}-cash.pdf` : `Invoice-${quoteRefOf(quote)}.pdf`
   const { data: archived } = await supabase
     .from('customer_email_archive')
     .select('id')
     .eq('quote_id', quoteId)
-    .eq('invoice_path', cashInvoiceStoragePath(quoteId))
+    .eq('invoice_path', path)
     .limit(1)
   if (archived?.length) return
   const { data: note } = await supabase
     .from('job_customer_notifications')
     .select('id, recipient_email, provider_message_id, sent_at')
     .eq('quote_id', quoteId)
-    .eq('event_key', CASH_INVOICE_EVENT)
+    .eq('event_key', eventKey)
     .maybeSingle()
   await saveCustomerEmailArchive(supabase, {
     quoteId,
     notificationId: note?.id || null,
-    eventKey: CASH_INVOICE_EVENT,
+    eventKey,
     subject: `[ShiftMyHome] Payment received (${quoteRefOf(quote)})`,
     recipientEmail: String(note?.recipient_email || quote.email || ''),
-    html: `<p>Invoice ${CASH_PAID_MARK} for booking ${quoteRefOf(quote)}.</p>`,
-    text: `Invoice ${CASH_PAID_MARK} for booking ${quoteRefOf(quote)}.`,
+    html: `<p>Invoice ${mark} for booking ${quoteRefOf(quote)}.</p>`,
+    text: `Invoice ${mark} for booking ${quoteRefOf(quote)}.`,
     providerMessageId: note?.provider_message_id || null,
     providerStatus: 'sent',
     invoiceBucket: 'booking-invoices',
-    invoicePath: cashInvoiceStoragePath(quoteId),
-    invoiceFilename: `Invoice-${quoteRefOf(quote)}-cash.pdf`,
+    invoicePath: path,
+    invoiceFilename: filename,
     sentAt: note?.sent_at || new Date().toISOString(),
   })
+}
+
+export async function buildCurrentInvoicePdf(
+  // deno-lint-ignore no-explicit-any
+  supabase: any,
+  quoteId: string,
+) {
+  const { data: quote } = await supabase.from('quotes').select('*').eq('id', quoteId).maybeSingle()
+  if (!quote) return null
+  const [{ data: stops }, { data: items }, { data: collections }] = await Promise.all([
+    supabase
+      .from('quote_stops')
+      .select('stop_type, address_line_1, floor, lift_available, parking_type, access_notes')
+      .eq('quote_id', quoteId),
+    supabase.from('quote_inventory_items').select('item_name, quantity').eq('quote_id', quoteId),
+    supabase.from('driver_collected_payments').select('method, amount, collected_at').eq('quote_id', quoteId),
+  ])
+  const kind = invoiceKind(quote, collections || [])
+  const stripeCard =
+    Boolean(String(quote.stripe_payment_intent_id || '').trim()) ||
+    String(quote.payment_type || '').toLowerCase() === 'full'
+  const labelKind = kind === 'paid' && stripeCard ? 'card' : kind
+  const total = savedFinalPrice(quote)
+  const paid = amountRecorded(quote, collections || [])
+  const remaining = Number(quote.remaining_balance)
+  const ref = quoteRefOf(quote)
+  const bytes = await buildBookingConfirmationPdf({
+    quote,
+    stops: stops || [],
+    inventoryItems: items || [],
+    requirements: [],
+    pricing: null,
+    invoiceNumber: labelKind === 'cash' ? `SMH-INV-${ref}-CASH` : `SMH-INV-${ref}`,
+    quoteRef: ref,
+    paymentStatusLabel: invoicePaidMark(labelKind),
+    amountPaidGbp: paid,
+    estimatedTotalGbp: total,
+    remainingBalanceGbp: Number.isFinite(remaining) ? Math.max(0, remaining) : null,
+    paymentType: labelKind === 'cash' ? 'cash' : labelKind === 'card' ? 'card' : labelKind === 'bank_transfer' ? 'bank_transfer' : '',
+    paymentTypeLabel: paid > 0.009 ? invoicePaymentTypeLabel(labelKind) : '',
+  })
+  if (!bytes?.length) return null
+  return { bytes, filename: `Invoice-${ref}.pdf` }
 }
 
 export async function sendCashPaidInvoice(
   // deno-lint-ignore no-explicit-any
   supabase: any,
   quoteId: string,
+  options: { manual?: boolean; onCompleted?: boolean; onCardSettled?: boolean } = {},
 ) {
-  const path = cashInvoiceStoragePath(quoteId)
+  const manual = Boolean(options.manual)
+  let activeKind = 'cash'
+  const useKind = (figures?: { kind?: unknown }) => {
+    const kind = String(figures?.kind || '')
+    if (kind) activeKind = kind
+    return activeKind
+  }
   return deliverCashPaidInvoice({
+    manual,
+    onCompleted: Boolean(options.onCompleted),
+    onCardSettled: Boolean(options.onCardSettled),
     async loadQuote() {
       const { data } = await supabase.from('quotes').select('*').eq('id', quoteId).maybeSingle()
       return data || null
@@ -128,21 +198,21 @@ export async function sendCashPaidInvoice(
         .eq('quote_id', quoteId)
       return data || []
     },
-    async loadNotification() {
+    async loadNotification(figures) {
       const { data } = await supabase
         .from('job_customer_notifications')
         .select('delivery_status')
         .eq('quote_id', quoteId)
-        .eq('event_key', CASH_INVOICE_EVENT)
+        .eq('event_key', invoiceEventKey(useKind(figures)))
         .maybeSingle()
       return data || null
     },
-    async repairArchive() {
+    async repairArchive(figures) {
       const { data } = await supabase.from('quotes').select('*').eq('id', quoteId).maybeSingle()
-      if (data) await repairCashArchive(supabase, quoteId, data)
+      if (data) await repairCashArchive(supabase, quoteId, data, figures || { kind: activeKind })
     },
-    async readStoredPdf() {
-      const downloaded = await supabase.storage.from('booking-invoices').download(path)
+    async readStoredPdf(figures) {
+      const downloaded = await supabase.storage.from('booking-invoices').download(invoiceStoragePath(quoteId, useKind(figures)))
       if (downloaded.error || !downloaded.data) return null
       const bytes = new Uint8Array(await downloaded.data.arrayBuffer())
       return bytes.length ? bytes : null
@@ -159,11 +229,8 @@ export async function sendCashPaidInvoice(
           .eq('quote_id', quoteId),
         supabase.from('quote_requirements').select('requirement_type, description').eq('quote_id', quoteId),
       ])
-      const lines = [
-        ...(figures.advance > 0 ? [`Advance paid: GBP ${Number(figures.advance).toFixed(2)}`] : []),
-        `Cash received: GBP ${Number(figures.cash).toFixed(2)}`,
-        ...(figures.discounts || []),
-      ]
+      const kind = useKind(figures)
+      const mark = invoicePaidMark(kind)
       const paidAt = figures.paidAt || new Date().toISOString()
       try {
       return await buildBookingConfirmationPdf({
@@ -172,35 +239,35 @@ export async function sendCashPaidInvoice(
         inventoryItems: items || [],
         requirements: requirements || [],
         pricing: null,
-        invoiceNumber: `SMH-INV-${quoteRefOf(quote)}-CASH`,
+        invoiceNumber: kind === 'cash' ? `SMH-INV-${quoteRefOf(quote)}-CASH` : `SMH-INV-${quoteRefOf(quote)}`,
         quoteRef: quoteRefOf(quote),
-        paymentStatusLabel: CASH_PAID_MARK,
-        amountPaidGbp: figures.paid,
+        paymentStatusLabel: mark,
+        amountPaidGbp: Number(figures.paid) || 0,
         estimatedTotalGbp: figures.total,
         remainingBalanceGbp: 0,
-        paymentType: 'cash',
-        statusBadge: CASH_PAID_MARK,
-        paymentTypeLabel: 'Cash',
+        paymentType: kind === 'cash' ? 'cash' : 'full',
+        statusBadge: mark,
+        paymentTypeLabel: invoicePaymentTypeLabel(kind),
         totalCaption: 'Final price',
-        extraSummaryLines: lines,
+        extraSummaryLines: invoiceSummaryLines(figures),
       })
       } catch (error) {
         console.error('[cash-invoice] pdf failed', error)
         return null
       }
     },
-    async storePdf(bytes) {
+    async storePdf(bytes, figures) {
       const stored = await storeSentInvoicePdf(
         supabase,
         quoteId,
-        CASH_INVOICE_FILE_KEY,
+        invoiceFileKey(useKind(figures)),
         bytes,
         `Invoice-${quoteId}.pdf`,
       )
       return Boolean(stored?.path)
     },
-    claim: () => claimCashInvoice(supabase, quoteId),
-    async sendEmail({ pdf, email, quote }) {
+    claim: (figures) => claimCashInvoice(supabase, quoteId, invoiceEventKey(useKind(figures)), invoiceLabel(useKind(figures))),
+    async sendEmail({ pdf, email, quote, figures }) {
       const apiKey = (Deno.env.get('RESEND_API_KEY') || '').trim()
       if (!apiKey) return { ok: false, error: 'email_failed' }
       const from = envOrDefault('RESEND_FROM_EMAIL', 'ShiftMyHome <onboarding@resend.dev>')
@@ -213,6 +280,8 @@ export async function sendCashPaidInvoice(
       } catch {
         portalUrl = ''
       }
+      const kind = useKind(figures)
+      const filename = kind === 'cash' ? `Invoice-${quoteRefOf(quote)}-cash.pdf` : `Invoice-${quoteRefOf(quote)}.pdf`
       const rendered = renderTransactionalEmailTemplate({
         kind: 'payment_received',
         brand: {
@@ -228,7 +297,7 @@ export async function sendCashPaidInvoice(
         },
         paymentPayload: {
           quoteRef: quoteRefOf(quote),
-          paymentStatus: 'PAID – Cash',
+          paymentStatus: invoicePaidMark(kind),
           collectionSummary: String(quote.pickup_address || '-'),
           deliverySummary: String(quote.delivery_address || '-'),
           portalUrl,
@@ -242,7 +311,7 @@ export async function sendCashPaidInvoice(
         subject: rendered.subject,
         html: rendered.html,
         text: rendered.text,
-        attachments: [{ filename: `Invoice-${quoteRefOf(quote)}-cash.pdf`, content: bytesToBase64(pdf) }],
+        attachments: [{ filename, content: bytesToBase64(pdf) }],
       })
       if (!result.ok) return { ok: false, error: 'email_failed' }
       return {
@@ -252,7 +321,8 @@ export async function sendCashPaidInvoice(
         html: rendered.html,
         text: rendered.text,
         email,
-        invoiceFilename: `Invoice-${quoteRefOf(quote)}-cash.pdf`,
+        invoiceFilename: filename,
+        kind,
       }
     },
     async markFailed(error) {
@@ -260,7 +330,7 @@ export async function sendCashPaidInvoice(
         .from('job_customer_notifications')
         .update({ delivery_status: 'failed', provider_status: 'failed', payload: { error } })
         .eq('quote_id', quoteId)
-        .eq('event_key', CASH_INVOICE_EVENT)
+        .eq('event_key', invoiceEventKey(activeKind))
     },
     async markSent(sent) {
       await supabase
@@ -273,20 +343,21 @@ export async function sendCashPaidInvoice(
           sent_at: new Date().toISOString(),
         })
         .eq('quote_id', quoteId)
-        .eq('event_key', CASH_INVOICE_EVENT)
+        .eq('event_key', invoiceEventKey(String(sent.kind || activeKind)))
     },
     async archive(sent) {
       try {
+      const kind = String(sent.kind || activeKind)
       const { data: note } = await supabase
         .from('job_customer_notifications')
         .select('id')
         .eq('quote_id', quoteId)
-        .eq('event_key', CASH_INVOICE_EVENT)
+        .eq('event_key', invoiceEventKey(kind))
         .maybeSingle()
       await saveCustomerEmailArchive(supabase, {
         quoteId,
         notificationId: note?.id || null,
-        eventKey: CASH_INVOICE_EVENT,
+        eventKey: invoiceEventKey(kind),
         subject: String(sent.subject || ''),
         recipientEmail: String(sent.email || ''),
         html: String(sent.html || ''),
@@ -294,8 +365,8 @@ export async function sendCashPaidInvoice(
         providerMessageId: sent.resendId || null,
         providerStatus: 'sent',
         invoiceBucket: 'booking-invoices',
-        invoicePath: path,
-        invoiceFilename: String(sent.invoiceFilename || 'invoice-cash.pdf'),
+        invoicePath: invoiceStoragePath(quoteId, kind),
+        invoiceFilename: String(sent.invoiceFilename || 'invoice.pdf'),
         sentAt: new Date().toISOString(),
       })
       } catch (error) {

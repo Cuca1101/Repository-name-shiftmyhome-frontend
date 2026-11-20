@@ -1,8 +1,13 @@
 import {
   CASH_PAID_MARK,
+  cardSettledInvoiceEligibility,
   cashInvoiceEligibility,
   cashInvoiceFigures,
+  completionInvoiceEligibility,
   deliverCashPaidInvoice,
+  invoiceSummaryLines,
+  manualInvoiceEligibility,
+  settledInvoiceFigures,
 } from '../supabase/functions/_shared/cashPaidInvoicePolicy.js'
 import { cashInvoiceSendAvailable } from '../src/lib/customerEmailArchive.js'
 
@@ -66,7 +71,56 @@ assert(
 )
 assert(
   !cashInvoiceSendAvailable({ remaining_balance: 0, payment_type: 'card', payment_status: 'paid' }, null),
-  'admin does not offer a cash invoice for a card booking',
+  'a card booking with no recorded amount is not offered an invoice',
+)
+const paidOneSeventy = {
+  remaining_balance: 0,
+  payment_type: 'card',
+  payment_status: 'unpaid',
+  amount_paid: 170,
+  agreed_price: 170,
+  quote_ref: 'SMH-2026-304234',
+  email: 'customer@example.com',
+}
+assert(
+  cashInvoiceSendAvailable(paidOneSeventy, null),
+  'a settled card payment with no saved invoice can be sent from the button',
+)
+const bankPaid = {
+  remaining_balance: 0,
+  payment_type: 'bank_transfer',
+  payment_status: 'unpaid',
+  amount_paid: 170,
+  agreed_price: 170,
+  email: 'customer@example.com',
+  quote_ref: 'SMH-2026-304234',
+}
+const bankRows = [{ method: 'bank_transfer', amount: 170, collected_at: '2026-11-16T21:28:24.338Z' }]
+assert(cashInvoiceSendAvailable(bankPaid, null, bankRows), 'the £170 bank transfer shows the send button')
+assert(
+  !cashInvoiceSendAvailable(bankPaid, { invoice_path: 'booking/paid.pdf' }, bankRows),
+  'a saved bank invoice is not sent again',
+)
+const bankFigures = settledInvoiceFigures(bankPaid, bankRows)
+assert(bankFigures.kind === 'bank_transfer' && bankFigures.paid === 170 && bankFigures.total === 170, 'the invoice is for the £170 bank transfer')
+assert(bankFigures.paidAt === '2026-11-16T21:28:24.338Z', 'the invoice date follows the bank collection')
+assert(invoiceSummaryLines(bankFigures)[0] === 'Amount paid: GBP 170.00', 'the invoice line is the amount paid')
+assert(manualInvoiceEligibility(bankPaid, bankRows).ok, 'the admin button can email the bank transfer invoice')
+const cardFigures = settledInvoiceFigures(paidOneSeventy, [{ method: 'card', amount: 170 }])
+assert(cardFigures.kind === 'card' && cardFigures.paid === 170 && cardFigures.total === 170, 'card figures still record the amount paid')
+assert(invoiceSummaryLines(cardFigures)[0] === 'Amount paid: GBP 170.00', 'a card figure is not labelled as cash received')
+assert(manualInvoiceEligibility(paidOneSeventy, [{ method: 'card', amount: 170 }]).ok, 'the admin button can email a settled card payment')
+assert(
+  cashInvoiceEligibility(paidOneSeventy, [{ method: 'card', amount: 170 }]).reason === 'not_cash',
+  'an automatic cash run still ignores a card payment',
+)
+assert(
+  cashInvoiceSendAvailable(
+    { remaining_balance: 0, payment_type: 'deposit', payment_status: 'paid' },
+    null,
+    [{ method: 'cash', amount: 80 }],
+  ),
+  'cash that clears a deposit can still be sent from admin',
 )
 
 function harness(sendImpl) {
@@ -145,5 +199,77 @@ outstanding.ctx.loadQuote = async () => ({ ...settledCash, remaining_balance: 15
 const held = await deliverCashPaidInvoice(outstanding.ctx)
 assert(held.skipped === true && held.error === 'balance_remaining', 'confirmation with a balance does not invoice')
 assert(outstanding.state.builds === 0 && outstanding.state.sends.length === 0, 'nothing is generated while money is outstanding')
+
+const blocked = harness(() => ({ ok: true }))
+blocked.ctx.loadQuote = async () => paidOneSeventy
+blocked.ctx.loadCollections = async () => [{ method: 'card', amount: 170 }]
+const refused = await deliverCashPaidInvoice(blocked.ctx)
+assert(refused.error === 'not_cash' && blocked.state.sends.length === 0, 'a card payment is not emailed by the automatic cash run')
+
+const card = harness(() => ({ ok: true, resendId: 're_170' }))
+card.ctx.manual = true
+card.ctx.loadQuote = async () => paidOneSeventy
+card.ctx.loadCollections = async () => [{ method: 'card', amount: 170 }]
+const cardSent = await deliverCashPaidInvoice(card.ctx)
+assert(cardSent.ok === true && cardSent.resendId === 're_170', 'pressing send emails a settled card invoice')
+assert(card.state.sends.length === 1 && card.state.lastFigures.paid === 170, 'the emailed invoice is for 170')
+
+const bank = harness(() => ({ ok: true, resendId: 're_bank' }))
+bank.ctx.manual = true
+bank.ctx.loadQuote = async () => bankPaid
+bank.ctx.loadCollections = async () => bankRows
+const bankSent = await deliverCashPaidInvoice(bank.ctx)
+assert(bankSent.ok === true && bank.state.lastFigures.kind === 'bank_transfer', 'pressing send emails the £170 bank transfer invoice')
+assert(bank.state.sends.length === 1, 'the bank transfer email is sent once')
+
+const completedCash = {
+  ...settledCash,
+  status: 'completed',
+  completed_at: '2026-11-16T21:28:43.647Z',
+  remaining_balance: 0,
+}
+assert(completionInvoiceEligibility(completedCash, [{ method: 'cash', amount: 180 }]).ok, 'a completed cash job with a zero balance is invoiced')
+assert(
+  completionInvoiceEligibility({ ...completedCash, completed_at: null, status: 'accepted' }, [{ method: 'cash', amount: 180 }]).reason ===
+    'not_completed',
+  'cash is not invoiced before the driver marks the job completed',
+)
+assert(
+  completionInvoiceEligibility({ ...completedCash, remaining_balance: 20 }, [{ method: 'cash', amount: 10 }]).reason ===
+    'balance_remaining',
+  'a completed cash job with a balance is not invoiced',
+)
+assert(
+  completionInvoiceEligibility({ ...paidOneSeventy, completed_at: '2026-11-16T16:12:25Z', status: 'completed' }, [
+    { method: 'card', amount: 170 },
+  ]).reason === 'not_cash',
+  'completing a card job does not use the cash completion invoice',
+)
+
+const cardQuote = {
+  ...paidOneSeventy,
+  payment_type: 'card',
+  stripe_payment_intent_id: 'pi_card',
+  remaining_balance: 0,
+  amount_paid: 170,
+}
+assert(cardSettledInvoiceEligibility(cardQuote, [{ method: 'card', amount: 170 }]).ok, 'a card payment with a zero balance is invoiced')
+assert(
+  cardSettledInvoiceEligibility({ ...cardQuote, remaining_balance: 40 }, []).reason === 'balance_remaining',
+  'a card booking with a balance is not invoiced',
+)
+assert(
+  cardSettledInvoiceEligibility({ ...cardQuote, payment_confirmation_email_sent_at: '2026-11-16T12:00:00Z' }, []).reason ===
+    'already_sent',
+  'a Stripe receipt is not emailed a second time',
+)
+assert(cardSettledInvoiceEligibility(completedCash, [{ method: 'cash', amount: 180 }]).reason === 'not_card', 'cash is not treated as a card invoice')
+
+const onComplete = harness(() => ({ ok: true, resendId: 're_done' }))
+onComplete.ctx.onCompleted = true
+onComplete.ctx.loadQuote = async () => completedCash
+onComplete.ctx.loadCollections = async () => [{ method: 'cash', amount: 180, collected_at: '2026-11-16T21:28:24Z' }]
+const completedSend = await deliverCashPaidInvoice(onComplete.ctx)
+assert(completedSend.ok === true && completedSend.resendId === 're_done', 'marking a settled cash job completed sends the invoice')
 
 console.log('cash invoice checks passed')

@@ -39,6 +39,6 @@ Deno.serve(async (req) => {
   const quoteId = String(body.quoteId || '').trim()
   if (!quoteId) return jsonResponse({ ok: false, error: 'missing_quote' }, 400)
 
-  const result = await sendCashPaidInvoice(admin, quoteId)
+  const result = await sendCashPaidInvoice(admin, quoteId, { manual: true })
   return jsonResponse(result, 200)
 })

@@ -1,5 +1,4 @@
 import type Stripe from 'npm:stripe@14.21.0'
-import { PDFDocument, StandardFonts, rgb } from 'npm:pdf-lib@1.17.1'
 import type { SupabaseClient } from 'npm:@supabase/supabase-js@2'
 import { renderTransactionalEmailTemplate } from './transactionalEmailTemplates.ts'
 import { sendResendEmailMinimal } from './postResendEmail.ts'
@@ -7,6 +6,7 @@ import { asciiEmailSubject, encodePdfBytesToResendBase64 } from './resendPayload
 import { formatDateUK } from './formatDateUK.ts'
 import { saveCustomerEmailArchive, storeSentInvoicePdf } from './customerEmailArchive.ts'
 import { buildPortalMagicUrl } from './customerPortalMagicLink.ts'
+import { renderInvoicePdf } from './invoicePdfDraw.ts'
 
 type UpdateResult = {
   ok: boolean
@@ -32,6 +32,7 @@ type QuoteRow = {
   amount_paid: number | null
   payment_type: string | null
   paid_at: string | null
+  completed_at?: string | null
   inventory?: unknown
   payment_confirmation_email_sent_at: string | null
   payment_confirmation_email_intent_id?: string | null
@@ -87,6 +88,20 @@ function envOrDefault(key: string, fallback: string) {
   return v || fallback
 }
 
+async function loadInvoiceLogo(explicit?: Uint8Array) {
+  if (explicit?.byteLength) return explicit
+  const url = envOrDefault('INVOICE_LOGO_URL', 'https://www.shiftmyhome.co.uk/email-logo.png')
+  try {
+    const res = await fetch(url, { signal: AbortSignal.timeout(4000) })
+    if (!res.ok) return undefined
+    const bytes = new Uint8Array(await res.arrayBuffer())
+    if (bytes.length < 8 || bytes[0] !== 0x89 || bytes[1] !== 0x50) return undefined
+    return bytes
+  } catch {
+    return undefined
+  }
+}
+
 function pickCustomerEmail(pi: Stripe.PaymentIntent, fallback?: string | null) {
   const receipt = asText(pi.receipt_email)
   if (receipt) return receipt
@@ -125,15 +140,59 @@ function todayDateUK() {
 
 function pounds(n: number | null) {
   if (!Number.isFinite(Number(n))) return '-'
-  return `GBP ${Number(n).toFixed(2)}`
+  return `\u00A3${Number(n).toFixed(2)}`
 }
 
-/** StandardFonts Helvetica uses WinAnsi; unsupported glyphs can break pdf-lib drawText/save in Edge/Deno. */
+const UK_MONTHS = [
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December',
+]
+
+function formatLongUkDate(value: unknown) {
+  const text = String(value || '').trim()
+  const match = text.match(/^(\d{4})-(\d{2})-(\d{2})/)
+  if (!match) return ''
+  const month = UK_MONTHS[Number(match[2]) - 1]
+  if (!month) return ''
+  return `${Number(match[3])} ${month} ${match[1]}`
+}
+
+function formatLongUkDateTime(value: unknown) {
+  const text = String(value || '').trim()
+  if (!/^\d{4}-\d{2}-\d{2}[T\s]\d{2}:\d{2}/.test(text)) return formatLongUkDate(text)
+  const date = new Date(text.includes('T') ? text : text.replace(' ', 'T'))
+  if (Number.isNaN(date.getTime())) return formatLongUkDate(text)
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Europe/London',
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  }).formatToParts(date)
+  const pick = (type: string) => parts.find((part) => part.type === type)?.value || ''
+  return `${Number(pick('day'))} ${pick('month')} ${pick('year')}, ${pick('hour')}:${pick('minute')}`
+}
+
+function invoicePaymentStatus(paid: number, remaining: number | null) {
+  const paidN = Number(paid) || 0
+  const rem = Number(remaining)
+  if (paidN > 0.009 && Number.isFinite(rem) && rem <= 0.009) return 'PAID'
+  if (paidN > 0.009) return 'PARTIALLY PAID'
+  return 'UNPAID'
+}
+
+/** StandardFonts Helvetica uses WinAnsi. Dashes and minus signs are mapped so they are not drawn as "?". */
 function pdfSafeText(text: string): string {
+  const mapped = String(text ?? '')
+    .replace(/[\u2010\u2011\u2012\u2013\u2014\u2212]/g, '-')
+    .replace(/\u00A0/g, ' ')
+    .replace(/\u00D7/g, 'x')
   let out = ''
-  for (const ch of String(text ?? '')) {
+  for (const ch of mapped) {
     const cp = ch.codePointAt(0) ?? 63
-    out += cp <= 255 ? ch : '?'
+    out += cp <= 255 ? ch : '-'
   }
   return out
 }
@@ -177,58 +236,6 @@ async function resolveEmailLogoUrl(candidateUrl: string) {
   }
 }
 
-function parseInventoryRows(inventoryText: string, inventoryRaw?: unknown) {
-  const rows: Array<{ qty: string; name: string }> = []
-  const normalizeSegments = (text: string) =>
-    String(text || '')
-      .split(/[\r\n]+|•/g)
-      .map((s) => s.trim().replace(/^[-*·•]\s*/, ''))
-      .filter((s) => s && !/^inventory[:\s]*$/i.test(s))
-
-  const parseSegment = (segment: string) => {
-    const qtyMatch = segment.match(/(?:×|x)\s*(\d+)/i) || segment.match(/^(\d+)\s*(?:×|x)\s*/i)
-    const qty = qtyMatch?.[1] ? qtyMatch[1] : '1'
-    const cleanName = segment
-      .replace(/(?:×|x)\s*\d+/gi, '')
-      .replace(/^\d+\s*(?:×|x)\s*/i, '')
-      .replace(/\([^)]*\)/g, '')
-      .replace(/\s{2,}/g, ' ')
-      .trim()
-    if (!cleanName) return null
-    return {
-      qty,
-      name: cleanName,
-    }
-  }
-
-  if (Array.isArray(inventoryRaw)) {
-    for (const item of inventoryRaw as Array<Record<string, unknown>>) {
-      const qty = String(item.quantity ?? item.qty ?? '').trim()
-      const name = String(item.item_name ?? item.name ?? '')
-        .replace(/(?:×|x)\s*\d+/gi, '')
-        .replace(/^\d+\s*(?:×|x)\s*/i, '')
-        .replace(/\([^)]*\)/g, '')
-        .replace(/\s{2,}/g, ' ')
-        .trim()
-      if (name) rows.push({ qty: qty || '1', name })
-    }
-  }
-
-  const lines = normalizeSegments(inventoryText)
-
-  for (const line of lines) {
-    const parsed = parseSegment(line)
-    if (parsed) rows.push(parsed)
-  }
-
-  const dedup = new Map<string, { qty: string; name: string }>()
-  for (const r of rows) {
-    const key = `${r.qty}|${r.name}`
-    if (!dedup.has(key)) dedup.set(key, r)
-  }
-  return [...dedup.values()]
-}
-
 export async function buildBookingConfirmationPdf(params: {
   quote: QuoteRow
   stops?: QuoteStopRow[]
@@ -246,6 +253,7 @@ export async function buildBookingConfirmationPdf(params: {
   paymentTypeLabel?: string
   totalCaption?: string
   extraSummaryLines?: string[]
+  logoPng?: Uint8Array
 }) {
   const {
     quote,
@@ -264,6 +272,7 @@ export async function buildBookingConfirmationPdf(params: {
     paymentTypeLabel = '',
     totalCaption = '',
     extraSummaryLines = [],
+    logoPng,
   } =
     params
   const moveDate = formatDateISO(asText(quote.move_date))
@@ -273,358 +282,60 @@ export async function buildBookingConfirmationPdf(params: {
   const companyEmail = envOrDefault('COMPANY_SUPPORT_EMAIL', envOrDefault('COMPANY_EMAIL', 'admin@shiftmyhome.co.uk'))
   const site = companyWebsite.replace(/\/$/, '')
   const termsUrl = envOrDefault('TERMS_URL', envOrDefault('COMPANY_TERMS_URL', `${site}/terms`))
-  const privacyUrl = envOrDefault('PRIVACY_URL', envOrDefault('COMPANY_PRIVACY_URL', `${site}/privacy`))
-  const contactUrl = envOrDefault('CONTACT_URL', envOrDefault('COMPANY_CONTACT_URL', `${site}/contact`))
-  const pickupStop = stops.find((s) => s.stop_type === 'pickup')
-  const deliveryStop = stops.find((s) => s.stop_type === 'delivery')
-  const detailsText = asText(quote.details)
-  const findDetail = (pattern: RegExp) => detailsText.match(pattern)?.[1]?.trim() || ''
-  const isMeaningful = (v: string) => {
-    const t = String(v || '').trim()
-    if (!t) return false
-    const l = t.toLowerCase()
-    return l !== '-' && l !== 'n/a' && l !== 'no' && l !== 'none' && l !== '0'
-  }
-  const inventoryRows = inventoryItems.length
-    ? inventoryItems.map((r) => ({
-        qty: String(r.quantity ?? 1),
-        name: String(r.item_name ?? '')
-          .replace(/(?:×|x)\s*\d+/gi, '')
-          .replace(/^\d+\s*(?:×|x)\s*/i, '')
-          .replace(/\([^)]*\)/g, '')
-          .replace(/\s{2,}/g, ' ')
-          .trim(),
-      }))
-    : parseInventoryRows(asText(quote.inventory_text), quote.inventory)
-  const totalItemsCount = inventoryRows.reduce((sum, r) => {
-    const n = Number(r.qty)
-    return sum + (Number.isFinite(n) && n > 0 ? n : 1)
-  }, 0)
-  const specialRequirements = requirements.map((r) => `${r.requirement_type}: ${r.description}`).join(' • ')
-  const serviceDetailsRows = [
-    { label: 'Packing required', value: findDetail(/Packing:\s*(.+)/i) },
-    { label: 'Dismantling required', value: findDetail(/Dismantling:\s*(.+)/i) },
-    { label: 'Reassembly required', value: findDetail(/Reassembly:\s*(.+)/i) },
-    {
-      label: 'Parking / vehicle access',
-      value: pickupStop?.parking_type || deliveryStop?.parking_type || findDetail(/Parking \/ vehicle access:\s*(.+)/i),
-    },
-    {
-      label: 'Walking distance from van to door',
-      value: pickupStop?.walking_distance || deliveryStop?.walking_distance || findDetail(/Walking distance \(van to door\):\s*(.+)/i),
-    },
-    { label: 'Flights of stairs', value: findDetail(/Flights of stairs:\s*(.+)/i) },
-    { label: 'Stairs & access notes', value: findDetail(/Stairs notes:\s*(.+)/i) },
-    { label: 'Heavy / bulky items notes', value: findDetail(/Heavy\/bulky items notes:\s*(.+)/i) },
-    {
-      label: 'Special instructions',
-      value: specialRequirements || findDetail(/Special instructions:\s*(.+)/i),
-    },
-    { label: 'Photos optional if uploaded', value: findDetail(/Photos \(optional\):\s*(.+)/i) },
-  ].filter((r) => isMeaningful(r.value))
-  const amountPaidGbpEarly =
-    quote.amount_paid != null && Number.isFinite(Number(quote.amount_paid))
-      ? Number(quote.amount_paid)
-      : null
-  const isReservationFee = paymentType === 'deposit'
-  const paidBadge = statusBadge || (isReservationFee ? 'RESERVATION PAID' : 'PAID')
-  const isDeposit = paymentType === 'deposit'
+  void statusBadge
+  void totalCaption
+  void extraSummaryLines
+  void requirements
+  void paidDate
+  void companyName
+  void paymentStatusLabel
+  void pricing
 
-  console.log('[payment-email] pdf-lib render started', { mode: 'pdf-lib-text' })
+  console.log('[payment-email] pdf-lib render started', { mode: 'invoice-template' })
   try {
-    const pdf = await PDFDocument.create()
-    const fontRegular = await pdf.embedFont(StandardFonts.Helvetica)
-    const fontBold = await pdf.embedFont(StandardFonts.HelveticaBold)
-    const pageSize: [number, number] = [595, 842]
-    let page = pdf.addPage(pageSize)
-    const margin = 40
-    const width = page.getWidth()
-    const contentW = width - margin * 2
-    let y = page.getHeight() - margin
-
-    const C = {
-      navy: rgb(0.06, 0.13, 0.25),
-      blue: rgb(0.07, 0.36, 0.72),
-      blueSoft: rgb(0.92, 0.96, 1),
-      border: rgb(0.84, 0.9, 0.97),
-      text: rgb(0.11, 0.16, 0.23),
-      textSoft: rgb(0.37, 0.43, 0.51),
-      white: rgb(1, 1, 1),
-      green: rgb(0.1, 0.64, 0.35),
-      amber: rgb(0.85, 0.53, 0.04),
-    }
-
-    const safeCompanyName = pdfSafeText(companyName)
-    const safeBookingRefLine = pdfSafeText(`Booking reference: ${quoteRef}`)
-    const safePaidDate = pdfSafeText(paidDate)
-    const safeFooterPrimary = pdfSafeText(`${companyWebsite}  •  ${companyEmail}`)
-    const safeFooterLegal = pdfSafeText(`Terms: ${termsUrl}   Privacy: ${privacyUrl}   Contact: ${contactUrl}`)
-
-    const wrap = (text: string, maxW: number, size = 10, bold = false) => {
-      const words = String(pdfSafeText(text) || '-').split(/\s+/)
-      const lines: string[] = []
-      const f = bold ? fontBold : fontRegular
-      let line = ''
-      for (const w of words) {
-        const t = line ? `${line} ${w}` : w
-        if (f.widthOfTextAtSize(t, size) <= maxW) line = t
-        else {
-          if (line) lines.push(line)
-          line = w
-        }
-      }
-      if (line) lines.push(line)
-      return lines.length ? lines : ['-']
-    }
-
-    const ensure = (h: number) => {
-      if (y - h < 55) {
-        page = pdf.addPage(pageSize)
-        y = page.getHeight() - margin
-      }
-    }
-
-    const drawLabelValue = (x: number, yy: number, label: string, value: string, maxW: number) => {
-      page.drawText(label, { x, y: yy, size: 8.5, font: fontBold, color: C.textSoft })
-      const lines = wrap(value || '-', maxW, 9.5, false)
-      let ly = yy - 11
-      for (const ln of lines) {
-        page.drawText(ln, { x, y: ly, size: 9.5, font: fontRegular, color: C.text })
-        ly -= 11
-      }
-      return yy - ly + 3
-    }
-
-    const drawCard = (title: string, x: number, yy: number, w: number, rows: Array<{ label: string; value: string }>) => {
-      const rowHeights = rows.map((r) => {
-        const lines = wrap(r.value || '-', w - 20, 9.5, false)
-        return 16 + lines.length * 11
-      })
-      const bodyH = rowHeights.reduce((a, b) => a + b, 0)
-      const h = 30 + bodyH + 8
-      ensure(h + 8)
-      page.drawRectangle({
-        x,
-        y: yy - h,
-        width: w,
-        height: h,
-        color: C.white,
-        borderColor: C.border,
-        borderWidth: 1,
-      })
-      page.drawText(title, { x: x + 10, y: yy - 19, size: 10.5, font: fontBold, color: C.blue })
-      let cy = yy - 34
-      for (const r of rows) {
-        cy -= drawLabelValue(x + 10, cy, r.label, r.value, w - 20)
-      }
-      return h
-    }
-
-    // Header banner
-    ensure(95)
-    page.drawRectangle({ x: margin, y: y - 76, width: contentW, height: 76, color: C.blue })
-    page.drawRectangle({ x: margin, y: y - 76, width: contentW, height: 8, color: C.navy })
-    page.drawText(safeCompanyName, { x: margin + 14, y: y - 32, size: 17, font: fontBold, color: C.white })
-    page.drawText('Invoice / Payment Receipt', { x: margin + 14, y: y - 50, size: 10.5, font: fontRegular, color: rgb(0.9, 0.95, 1) })
-    page.drawText('Trusted UK Removals', { x: width - margin - 130, y: y - 34, size: 9.5, font: fontBold, color: C.white })
-    y -= 88
-
-    // Booking highlight bar + status badge
-    ensure(38)
-    page.drawRectangle({ x: margin, y: y - 30, width: contentW, height: 28, color: C.blueSoft, borderColor: C.border, borderWidth: 1 })
-    page.drawText(safeBookingRefLine, { x: margin + 10, y: y - 19, size: 11, font: fontBold, color: C.navy })
-    const badgeW = Math.max(
-      Math.ceil(fontBold.widthOfTextAtSize(paidBadge, 8.5)) + 14,
-      statusBadge ? 0 : isDeposit ? 102 : 62,
-    )
-    page.drawRectangle({
-      x: width - margin - badgeW - 8,
-      y: y - 25,
-      width: badgeW,
-      height: 18,
-      color: statusBadge ? C.green : isDeposit ? C.amber : C.green,
-    })
-    page.drawText(paidBadge, {
-      x: width - margin - badgeW + 2,
-      y: y - 18,
-      size: 8.5,
-      font: fontBold,
-      color: C.white,
-    })
-    y -= 38
-
-    // Customer card
-    const customerH = drawCard('Customer details', margin, y, contentW, [
-      { label: 'Customer', value: asText(quote.full_name) || '-' },
-      { label: 'Email', value: asText(quote.email) || '-' },
-      { label: 'Phone', value: asText(quote.phone) || '-' },
-      { label: 'Invoice number', value: invoiceNumber },
-    ])
-    y -= customerH + 10
-
-    // Pickup + delivery cards
-    const colW = (contentW - 10) / 2
-    const pickupRows = [
-      { label: 'Contact', value: pickupStop?.contact_name || asText(quote.full_name) || '-' },
-      { label: 'Phone', value: pickupStop?.contact_phone || asText(quote.phone) || '-' },
-      { label: 'Address', value: pickupStop?.address_line_1 || asText(quote.pickup_address) || '-' },
-      { label: 'Floor', value: pickupStop?.floor || '-' },
-      { label: 'Move date', value: moveDate || '-' },
-      { label: 'Arrival', value: pickupStop?.date_time_window || asText(quote.arrival_window) || '-' },
-    ]
-    const deliveryRows = [
-      { label: 'Contact', value: deliveryStop?.contact_name || asText(quote.full_name) || '-' },
-      { label: 'Phone', value: deliveryStop?.contact_phone || asText(quote.phone) || '-' },
-      { label: 'Address', value: deliveryStop?.address_line_1 || asText(quote.delivery_address) || '-' },
-      { label: 'Floor', value: deliveryStop?.floor || '-' },
-      { label: 'Service', value: asText(quote.service_type || quote.service) || '-' },
-      {
-        label: 'Crew Size',
-        value: Number(pricing?.crew_count ?? quote.crew_size) > 0 ? `${pricing?.crew_count ?? quote.crew_size} ${Number(pricing?.crew_count ?? quote.crew_size) === 1 ? 'Man' : 'Men'}` : '-',
+    const companyNumber = envOrDefault('COMPANY_NUMBER', '')
+    const vatNumber = envOrDefault('COMPANY_VAT_NUMBER', '')
+    const bytes = await renderInvoicePdf({
+      quote: {
+        ...quote,
+        issued_on_label: formatLongUkDate(new Date().toISOString()),
+        move_date_label: formatLongUkDate(quote.move_date) || moveDate,
+        paid_on_label: formatLongUkDateTime(quote.completed_at || quote.paid_at),
       },
-    ]
-    const pickupH = drawCard('Pickup details', margin, y, colW, pickupRows)
-    const deliveryH = drawCard('Delivery details', margin + colW + 10, y, colW, deliveryRows)
-    y -= Math.max(pickupH, deliveryH) + 10
-
-    // Inventory 2-column grid
-    if (inventoryRows.length) {
-      const gap = 8
-      const colW = (contentW - gap) / 2
-      const cellPad = 8
-
-      const drawInventoryHeader = (continued = false) => {
-        ensure(54)
-        page.drawText(continued ? 'Inventory (continued)' : 'Inventory', { x: margin, y: y, size: 12, font: fontBold, color: C.blue })
-        page.drawText(`Total items: ${totalItemsCount}`, { x: width - margin - 120, y: y, size: 9.5, font: fontBold, color: C.textSoft })
-        y -= 16
-      }
-
-      drawInventoryHeader(false)
-      for (let i = 0; i < inventoryRows.length; i += 2) {
-        const rowItems = [inventoryRows[i], inventoryRows[i + 1]].filter(Boolean)
-        const lineCounts = rowItems.map((r) => wrap(`${r.qty || 1}x ${r.name || '-'}`, colW - cellPad * 2, 10.5, true).length)
-        const rowH = Math.max(...lineCounts, 1) * 13 + 12
-        if (y - rowH < 65) {
-          page = pdf.addPage(pageSize)
-          y = page.getHeight() - margin
-          drawInventoryHeader(true)
-        }
-        for (let col = 0; col < 2; col++) {
-          const item = rowItems[col]
-          if (!item) continue
-          const cellX = margin + col * (colW + gap)
-          page.drawRectangle({
-            x: cellX,
-            y: y - rowH,
-            width: colW,
-            height: rowH,
-            color: (Math.floor(i / 2) + col) % 2 === 0 ? C.white : rgb(0.985, 0.992, 1),
-            borderColor: C.border,
-            borderWidth: 0.8,
-          })
-          const lines = wrap(`${item.qty || 1}x ${item.name || '-'}`, colW - cellPad * 2, 10.5, true)
-          let cellY = y - 14
-          for (const ln of lines) {
-            page.drawText(ln, { x: cellX + cellPad, y: cellY, size: 10.5, font: fontBold, color: C.text })
-            cellY -= 13
-          }
-        }
-        y -= rowH + 1
-      }
-      y -= 10
-    }
-
-    // Special instructions & services (filled fields only)
-    if (serviceDetailsRows.length) {
-      const serviceRows = serviceDetailsRows.map((r) => {
-        const lines = wrap(r.value, contentW - 26, 9.5, false)
-        return { ...r, lines, h: 14 + lines.length * 11 }
-      })
-      const serviceHeight = 34 + serviceRows.reduce((sum, r) => sum + r.h, 0)
-      ensure(serviceHeight + 10)
-      page.drawRectangle({ x: margin, y: y - serviceHeight, width: contentW, height: serviceHeight, color: C.white, borderColor: C.border, borderWidth: 1 })
-      page.drawText('Special Instructions & Services', { x: margin + 10, y: y - 19, size: 11, font: fontBold, color: C.blue })
-      let sy = y - 34
-      for (const row of serviceRows) {
-        page.drawText(pdfSafeText(row.label), { x: margin + 10, y: sy, size: 8.8, font: fontBold, color: C.textSoft })
-        let vy = sy - 11
-        for (const ln of row.lines) {
-          page.drawText(ln, { x: margin + 10, y: vy, size: 9.5, font: fontRegular, color: C.text })
-          vy -= 11
-        }
-        sy = vy - 2
-      }
-      y -= serviceHeight + 10
-    }
-
-    // Payment summary card (must be last section before footer)
-    const pricedTotal = pricing?.total_price ?? estimatedTotalGbp ?? quote.estimated_total
-    const pricedRemaining = pricing?.remaining_balance ?? remainingBalanceGbp ?? quote.remaining_balance
-    const packageSnap =
-      quote.service_package_snapshot && typeof quote.service_package_snapshot === 'object'
-        ? quote.service_package_snapshot
-        : null
-    const packageFee = Number(packageSnap?.service_package_fee)
-    const packageBase = Number(packageSnap?.quote_base_total)
-    const packageLabel = String(packageSnap?.display_name || packageSnap?.service_package || '')
-    const packageLines: string[] = []
-    if (packageSnap && packageLabel) {
-      if (Number.isFinite(packageBase)) packageLines.push(`Move price: ${pounds(packageBase)}`)
-      if (Number.isFinite(packageFee) && packageFee > 0) packageLines.push(`${packageLabel} upgrade: ${pounds(packageFee)}`)
-      else packageLines.push(`Service package: ${packageLabel}`)
-    }
-    const summaryNotes = extraSummaryLines.map((line) => pdfSafeText(line)).filter(Boolean).slice(0, 6)
-    const rightShift = packageLines.length * 14
-    const extraShift = summaryNotes.length * 12
-    const summaryHeight = (specialRequirements ? 146 : 132) + rightShift + extraShift
-    ensure(summaryHeight + 12)
-    page.drawRectangle({ x: margin, y: y - summaryHeight, width: contentW, height: summaryHeight, color: rgb(0.97, 0.99, 1), borderColor: C.border, borderWidth: 1 })
-    page.drawText('Payment summary', { x: margin + 10, y: y - 19, size: 10.5, font: fontBold, color: C.blue })
-    page.drawText(pounds(amountPaidGbp), { x: margin + 10, y: y - 48, size: 22, font: fontBold, color: C.navy })
-    page.drawText('Amount paid', { x: margin + 10, y: y - 62, size: 8.5, font: fontRegular, color: C.textSoft })
-    const rightX = margin + contentW / 2 + 12
-    let summaryY = y - 33
-    for (const line of packageLines) {
-      page.drawText(line, { x: rightX, y: summaryY, size: 9.5, font: fontRegular, color: C.text })
-      summaryY -= 14
-    }
-    page.drawText(`${totalCaption || 'Estimated total'}: ${pounds(pricedTotal)}`, { x: rightX, y: y - 33 - rightShift, size: 9.5, font: fontRegular, color: C.text })
-    page.drawText(`Remaining balance: ${pounds(pricedRemaining)}`, { x: rightX, y: y - 47 - rightShift, size: 9.5, font: fontRegular, color: C.text })
-    page.drawText(
-      `Payment type: ${paymentTypeLabel || (isReservationFee ? 'Reservation fee' : paymentType === 'deposit' ? 'Deposit payment' : 'Full payment')}`,
-      { x: rightX, y: y - 61 - rightShift, size: 9.5, font: fontRegular, color: C.text },
-    )
-    page.drawText(`Status: ${pdfSafeText(paymentStatusLabel)}`, { x: rightX, y: y - 75 - rightShift, size: 9.5, font: fontRegular, color: C.text })
-    page.drawText(`Date paid: ${safePaidDate}`, { x: rightX, y: y - 89 - rightShift, size: 9.5, font: fontRegular, color: C.text })
-    summaryNotes.forEach((line, index) => {
-      page.drawText(line, { x: rightX, y: y - 103 - rightShift - index * 12, size: 9, font: fontRegular, color: C.text })
+      stops,
+      inventoryItems,
+      quoteRef,
+      invoiceNumber,
+      amountPaidGbp,
+      invoiceTotalGbp:
+        Number.isFinite(Number(quote.agreed_price)) && Number(quote.agreed_price) > 0
+          ? Number(quote.agreed_price)
+          : estimatedTotalGbp,
+      remainingBalanceGbp,
+      paymentTypeLabel:
+        paymentTypeLabel ||
+        (paymentType === 'cash'
+          ? 'Cash'
+          : paymentType === 'bank_transfer'
+            ? 'Bank transfer'
+            : paymentType === 'card'
+              ? 'Card'
+              : paymentType === 'deposit'
+                ? 'Deposit'
+                : ''),
+      logoPng: await loadInvoiceLogo(logoPng),
+      company: {
+        legalName: 'ShiftMyHome Ltd',
+        address: '128 City Road, London, EC1V 2NX',
+        companyNumber: companyNumber && companyNumber.toUpperCase() !== 'N/A' ? companyNumber : '16730159',
+        vatNumber: vatNumber && vatNumber.toUpperCase() !== 'N/A' ? vatNumber : '',
+        email: companyEmail,
+        website: companyWebsite,
+        termsUrl,
+      },
     })
-    if (specialRequirements) {
-      const reqLines = wrap(`Requirements: ${specialRequirements}`, contentW - 20, 8.5, false)
-      let ry = y - 111 - rightShift - extraShift
-      for (const ln of reqLines.slice(0, 3)) {
-        page.drawText(ln, { x: margin + 10, y: ry, size: 8.5, font: fontRegular, color: C.textSoft })
-        ry -= 10
-      }
-    }
-    y -= summaryHeight + 10
-
-    // Footer
-    ensure(54)
-    page.drawRectangle({ x: margin, y: y - 46, width: contentW, height: 40, color: C.navy })
-    page.drawText(safeFooterPrimary, { x: margin + 10, y: y - 22, size: 8.5, font: fontBold, color: rgb(0.89, 0.94, 1) })
-    page.drawText(safeFooterLegal, {
-      x: margin + 10,
-      y: y - 34,
-      size: 7.5,
-      font: fontRegular,
-      color: rgb(0.78, 0.85, 0.94),
-    })
-
-    const bytes = await pdf.save()
     if (!bytes?.length || bytes.length < MIN_VALID_PDF_BYTES) {
-      throw new Error(`pdf-lib save returned invalid buffer (length=${bytes?.length ?? 0})`)
+      throw new Error(`pdf save returned invalid buffer (length=${bytes?.length ?? 0})`)
     }
     console.log('[payment-email] pdf-lib render success', { bytes: bytes.length })
     return bytes
@@ -662,7 +373,7 @@ export async function sendPaymentConfirmationWithPdfIfNeeded(params: {
   }
 
   const quoteSelect =
-    'id, quote_ref, full_name, email, phone, pickup_address, delivery_address, move_date, service, service_type, crew_size, vehicle_size, arrival_window, details, inventory_text, inventory, pricing, amount_paid, payment_type, paid_at, payment_confirmation_email_sent_at, payment_confirmation_email_intent_id, estimated_total, remaining_balance, agreed_price, price_override_reason, service_package_snapshot'
+    'id, quote_ref, full_name, email, phone, pickup_address, delivery_address, move_date, service, service_type, crew_size, vehicle_size, arrival_window, details, inventory_text, inventory, pricing, amount_paid, payment_type, paid_at, completed_at, payment_confirmation_email_sent_at, payment_confirmation_email_intent_id, estimated_total, remaining_balance, agreed_price, price_override_reason, service_package_snapshot'
   let quote: QuoteRow | null = null
   /** Prefer Stripe metadata.quote_ref so idempotency matches the row you inspect in the dashboard (updateResult.quote_id can point at a different row if metadata.quote_id was wrong/stale). */
   let quoteLookupVia: 'metadata_quote_ref' | 'metadata_quote_id' | 'update_result_quote_id' | null = null

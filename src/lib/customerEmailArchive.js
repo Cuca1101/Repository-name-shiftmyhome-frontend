@@ -27,6 +27,7 @@ const EVENT_LABELS = {
   status_completed: 'Completed',
   tip_received: 'Tip received confirmation',
   cash_paid_invoice: 'Cash invoice',
+  paid_invoice: 'Invoice',
 }
 
 export function customerEmailEventLabel(eventKey) {
@@ -158,13 +159,26 @@ export function bookingInvoiceArchive(archives) {
   return withFile[0] || null
 }
 
-/** Settled cash booking that still has no saved cash invoice. */
-export function cashInvoiceSendAvailable(quote, invoiceArchive) {
+function recordedPayment(quote, collections) {
+  const paid = Number(quote?.amount_paid)
+  const fromQuote = Number.isFinite(paid) && paid > 0 ? paid : 0
+  const fromRows = (collections || []).reduce((sum, row) => sum + (Number(row?.amount) || 0), 0)
+  return Math.max(fromQuote, fromRows)
+}
+
+/**
+ * Settled payment with no saved invoice. The email is sent only when an admin presses the button.
+ * Cash, card, and bank transfer all qualify. A cash top-up can still be sent after an earlier payment PDF.
+ */
+export function cashInvoiceSendAvailable(quote, invoiceArchive, collections) {
   const remaining = Number(quote?.remaining_balance)
   if (!Number.isFinite(remaining) || remaining > 0.009) return false
-  if (String(invoiceArchive?.invoice_path || '').endsWith('/cash-paid.pdf')) return false
   const type = String(quote?.payment_type || '').toLowerCase()
-  if (type === 'cash') return true
-  const status = String(quote?.payment_status || '').toLowerCase()
-  return status !== 'paid' && status !== 'deposit_paid'
+  const cash =
+    type === 'cash' || (collections || []).some((row) => String(row?.method || '').toLowerCase() === 'cash')
+  if (!cash && recordedPayment(quote, collections) <= 0) return false
+  const path = String(invoiceArchive?.invoice_path || '')
+  if (!path) return true
+  if (path.endsWith('/cash-paid.pdf') || path.endsWith('/paid.pdf')) return false
+  return cash
 }

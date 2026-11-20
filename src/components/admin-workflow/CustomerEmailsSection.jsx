@@ -27,7 +27,7 @@ function base64ToPdfBlob(contentBase64) {
 
 /**
  * Saved customer emails and the invoice file that was attached.
- * Preview and download read the saved PDF. Generate and send is only for a settled cash booking with no saved invoice.
+ * Preview and download read the saved PDF. The invoice email is sent only when an admin presses the button.
  * @param {{ quote?: Record<string, unknown>, forceOpen?: boolean, children?: import('react').ReactNode }} props
  */
 export default function CustomerEmailsSection({ quote, forceOpen = false, children = null }) {
@@ -38,6 +38,7 @@ export default function CustomerEmailsSection({ quote, forceOpen = false, childr
   const [previewRow, setPreviewRow] = useState(null)
   const [rows, setRows] = useState([])
   const [invoiceArchive, setInvoiceArchive] = useState(null)
+  const [collections, setCollections] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [trackingToken, setTrackingToken] = useState('')
@@ -51,6 +52,7 @@ export default function CustomerEmailsSection({ quote, forceOpen = false, childr
     if (!quoteId || !isSupabaseConfigured || !supabase) {
       setRows([])
       setInvoiceArchive(null)
+      setCollections([])
       setLoading(false)
       return
     }
@@ -63,16 +65,20 @@ export default function CustomerEmailsSection({ quote, forceOpen = false, childr
         fetchJobTrackingTokenRow(quoteId),
       ])
       setTrackingToken(tokenRow?.token ? String(tokenRow.token) : '')
-      const archiveResult = await supabase
-        .from('customer_email_archive')
-        .select(
-          'id, quote_id, notification_id, event_key, subject, recipient_email, html_snapshot, provider_message_id, provider_status, invoice_path, invoice_filename, sent_at',
-        )
-        .eq('quote_id', quoteId)
-        .order('sent_at', { ascending: false })
+      const [archiveResult, collectionResult] = await Promise.all([
+        supabase
+          .from('customer_email_archive')
+          .select(
+            'id, quote_id, notification_id, event_key, subject, recipient_email, html_snapshot, provider_message_id, provider_status, invoice_path, invoice_filename, sent_at',
+          )
+          .eq('quote_id', quoteId)
+          .order('sent_at', { ascending: false }),
+        supabase.from('driver_collected_payments').select('method, amount').eq('quote_id', quoteId),
+      ])
       const archives = archiveResult.error ? [] : archiveResult.data || []
       if (archiveResult.error) setError(archiveResult.error.message)
       setInvoiceArchive(bookingInvoiceArchive(archives))
+      setCollections(collectionResult.error ? [] : collectionResult.data || [])
       setRows(
         buildCustomerEmailList({
           notifications,
@@ -84,6 +90,7 @@ export default function CustomerEmailsSection({ quote, forceOpen = false, childr
       setError(loadError?.message || 'Could not load customer emails.')
       setRows([])
       setInvoiceArchive(null)
+      setCollections([])
       setTrackingToken('')
     } finally {
       setLoading(false)
@@ -179,6 +186,7 @@ export default function CustomerEmailsSection({ quote, forceOpen = false, childr
       if (!data?.ok) {
         const reason = String(data?.error || '')
         if (reason === 'not_cash') throw new Error('This booking was not paid in cash.')
+        if (reason === 'not_paid') throw new Error('This booking has no payment recorded.')
         if (reason === 'balance_remaining') throw new Error('This booking still has a balance.')
         if (reason === 'missing_email') throw new Error('This booking has no customer email.')
         if (reason === 'email_failed') throw new Error('The invoice is saved. The email did not send, so you can try again.')
@@ -235,30 +243,32 @@ export default function CustomerEmailsSection({ quote, forceOpen = false, childr
       <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3">
         <p className="text-sm font-semibold text-slate-900">Invoice</p>
         <p className="mt-1 text-xs text-slate-600">
-          Preview and download use the PDF saved with the payment email.
+          Download the invoice for this job. Cash invoices are emailed when the driver marks the job completed. Card invoices are emailed when the balance reaches zero.
         </p>
         <div className="mt-3 flex flex-wrap gap-2">
           <button
             type="button"
-            disabled={fileBusy || !invoiceArchive}
-            onClick={() => void openStoredInvoice({ archiveId: invoiceArchive.id })}
+            disabled={fileBusy || !quoteId}
+            onClick={() => void openStoredInvoice(invoiceArchive?.id ? { archiveId: invoiceArchive.id } : { quoteId, download: true })}
             className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-800 hover:bg-slate-50 disabled:opacity-50"
           >
             Preview invoice
           </button>
           <button
             type="button"
-            disabled={fileBusy || !invoiceArchive}
-            onClick={() => void downloadStoredInvoice({ archiveId: invoiceArchive.id }, invoiceArchive.invoice_filename)}
+            disabled={fileBusy || !quoteId}
+            onClick={() =>
+              void downloadStoredInvoice(
+                invoiceArchive?.id ? { archiveId: invoiceArchive.id } : { quoteId, download: true },
+                invoiceArchive?.invoice_filename,
+              )
+            }
             className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-800 hover:bg-slate-50 disabled:opacity-50"
           >
             Download PDF
           </button>
         </div>
-        {!loading && !invoiceArchive ? (
-          <p className="mt-2 text-xs text-slate-600">Original invoice file is not saved for this booking.</p>
-        ) : null}
-        {!loading && cashInvoiceSendAvailable(quote, invoiceArchive) ? (
+        {!loading && cashInvoiceSendAvailable(quote, invoiceArchive, collections) ? (
           <button
             type="button"
             disabled={sendingInvoice}

@@ -21,8 +21,8 @@ import {
   queueProcessingIsTerminal,
 } from '../_shared/deliveryRetryPolicy.js'
 import { saveCustomerEmailArchive } from '../_shared/customerEmailArchive.ts'
-import { sendCashPaidInvoice } from '../_shared/cashPaidInvoice.ts'
 import { CASH_INVOICE_EVENT } from '../_shared/cashPaidInvoicePolicy.js'
+import { sendCashPaidInvoice } from '../_shared/cashPaidInvoice.ts'
 
 /**
  * Process customer job notifications (assign / status / completed / tip).
@@ -230,14 +230,25 @@ async function sendEventEmail(
   eventKey: JobNotifyEventKey,
   force = false,
 ) {
+  if (String(eventKey) === 'card_paid_invoice') {
+    return await sendCashPaidInvoice(supabase, quoteId, { onCardSettled: true })
+  }
   if (String(eventKey) === CASH_INVOICE_EVENT) {
-    return sendCashPaidInvoice(supabase, quoteId)
+    return await sendCashPaidInvoice(supabase, quoteId, { onCompleted: true })
   }
 
   const bundle = await loadQuoteBundle(supabase, quoteId)
   if (!bundle) return { ok: false, error: 'quote_not_found' }
 
   const { quote, driver, token } = bundle
+  if (eventKey === 'status_completed') {
+    try {
+      const invoice = await sendCashPaidInvoice(supabase, quoteId, { onCompleted: true })
+      console.log('[job-customer-notify] completion invoice', { quoteId, ok: invoice.ok, error: invoice.error || null })
+    } catch (invoiceError) {
+      console.error('[job-customer-notify] completion invoice failed', invoiceError)
+    }
+  }
   // Website quotes still need card payment before status emails.
   // A phone booking released to Available Jobs can be tracked and emailed while unpaid.
   // Completion thank-you also covers unpaid phone bookings (pay driver / office).
