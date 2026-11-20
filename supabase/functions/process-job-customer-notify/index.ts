@@ -21,6 +21,8 @@ import {
   queueProcessingIsTerminal,
 } from '../_shared/deliveryRetryPolicy.js'
 import { saveCustomerEmailArchive } from '../_shared/customerEmailArchive.ts'
+import { sendCashPaidInvoice } from '../_shared/cashPaidInvoice.ts'
+import { CASH_INVOICE_EVENT } from '../_shared/cashPaidInvoicePolicy.js'
 
 /**
  * Process customer job notifications (assign / status / completed / tip).
@@ -228,6 +230,10 @@ async function sendEventEmail(
   eventKey: JobNotifyEventKey,
   force = false,
 ) {
+  if (String(eventKey) === CASH_INVOICE_EVENT) {
+    return sendCashPaidInvoice(supabase, quoteId)
+  }
+
   const bundle = await loadQuoteBundle(supabase, quoteId)
   if (!bundle) return { ok: false, error: 'quote_not_found' }
 

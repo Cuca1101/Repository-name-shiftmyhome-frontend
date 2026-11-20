@@ -6,6 +6,7 @@ import {
   assignDriverToQuote,
   clearDriverLocationAssignmentLink,
   removeJobAssignmentForQuote,
+  reopenCompletedJobForDriver,
   syncJobAssignmentFromQuoteAssign,
 } from '../../lib/data/driverAssignmentSync'
 import DriverAssignPickerModal from './DriverAssignPickerModal'
@@ -59,6 +60,7 @@ function btnClass(layout, tone = 'default') {
  *   openMarkCancelled: () => void,
  *   openReturnToMarketplace: () => void,
  *   openReassignDriver: () => void,
+ *   openReopenDriver: () => void,
  *   openReassignPartner: () => void,
  *   openAddAdminNote: () => void,
  *   openMarkCompleteWithIssues: () => void,
@@ -86,6 +88,7 @@ const AdminJobOverrideActions = forwardRef(function AdminJobOverrideActions(
   const [partnerCompany, setPartnerCompany] = useState('')
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
+  const [driverIntent, setDriverIntent] = useState('assign')
 
   const isDone = quoteIsCompleted(quote, job)
   const isCancelled = quoteIsCancelled(quote, job)
@@ -111,6 +114,12 @@ const AdminJobOverrideActions = forwardRef(function AdminJobOverrideActions(
         setModal('return')
       },
       openReassignDriver: () => {
+        setDriverIntent('assign')
+        setErr('')
+        setModal('driver')
+      },
+      openReopenDriver: () => {
+        setDriverIntent('reopen')
         setErr('')
         setModal('driver')
       },
@@ -322,6 +331,14 @@ const AdminJobOverrideActions = forwardRef(function AdminJobOverrideActions(
         `${merged.assignedDriver?.trim() ? 'Reassigned' : 'Assigned'} driver to "${name}" (id ${driverId})`,
       )
       const ts = new Date().toISOString()
+      if (driverIntent === 'reopen') {
+        if (!isSupabaseConfigured) throw new Error('Supabase is not configured.')
+        await reopenCompletedJobForDriver(id, driverId, name, quote, actor)
+        setModal(null)
+        setDriverIntent('assign')
+        await notify()
+        return
+      }
       if (isSupabaseConfigured) {
         await assignDriverToQuote(
           id,
@@ -657,7 +674,13 @@ const AdminJobOverrideActions = forwardRef(function AdminJobOverrideActions(
 
       <DriverAssignPickerModal
         open={modal === 'driver'}
-        title={merged.assignedDriver?.trim() ? 'Change driver' : 'Assign driver'}
+        title={
+          driverIntent === 'reopen'
+            ? 'Give this job to another driver'
+            : merged.assignedDriver?.trim()
+              ? 'Change driver'
+              : 'Assign driver'
+        }
         onClose={() => !busy && setModal(null)}
         onAssign={submitReassignDriver}
         assigning={busy}

@@ -26,6 +26,7 @@ const EVENT_LABELS = {
   status_arrived_delivery: 'At delivery',
   status_completed: 'Completed',
   tip_received: 'Tip received confirmation',
+  cash_paid_invoice: 'Cash invoice',
 }
 
 export function customerEmailEventLabel(eventKey) {
@@ -155,4 +156,15 @@ export function bookingInvoiceArchive(archives) {
   const withFile = (archives || []).filter((row) => row?.invoice_path)
   withFile.sort((a, b) => new Date(b.sent_at || 0).getTime() - new Date(a.sent_at || 0).getTime())
   return withFile[0] || null
+}
+
+/** Settled cash booking that still has no saved cash invoice. */
+export function cashInvoiceSendAvailable(quote, invoiceArchive) {
+  const remaining = Number(quote?.remaining_balance)
+  if (!Number.isFinite(remaining) || remaining > 0.009) return false
+  if (String(invoiceArchive?.invoice_path || '').endsWith('/cash-paid.pdf')) return false
+  const type = String(quote?.payment_type || '').toLowerCase()
+  if (type === 'cash') return true
+  const status = String(quote?.payment_status || '').toLowerCase()
+  return status !== 'paid' && status !== 'deposit_paid'
 }

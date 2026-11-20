@@ -38,6 +38,10 @@ function TimelineItem({ t, label, detail, isLast }) {
  *   onCancelJob: () => void,
  *   onResetDriverProgress: () => void,
  *   resetBusy?: boolean,
+ *   reopenAvailable?: boolean,
+ *   onReopenSameDriver?: () => void,
+ *   onReopenOtherDriver?: () => void,
+ *   reopenBusy?: boolean,
  * }} props
  */
 export default function AdminJobDetailsSidebar({
@@ -50,6 +54,10 @@ export default function AdminJobDetailsSidebar({
   onCancelJob,
   onResetDriverProgress,
   resetBusy = false,
+  reopenAvailable = false,
+  onReopenSameDriver,
+  onReopenOtherDriver,
+  reopenBusy = false,
 }) {
   const timeline = buildJobOperationsTimeline(q, overrides).slice(-6)
 
@@ -95,6 +103,21 @@ export default function AdminJobDetailsSidebar({
           <h3 className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Dispatch controls</h3>
         </div>
         <div className="flex flex-col gap-1.5 p-3">
+          {reopenAvailable ? (
+            <>
+              <button
+                type="button"
+                disabled={reopenBusy || !q?.assigned_driver_id}
+                onClick={onReopenSameDriver}
+                className={btnPrimary}
+              >
+                {reopenBusy ? 'Putting back…' : 'Put back with this driver'}
+              </button>
+              <button type="button" disabled={reopenBusy} onClick={onReopenOtherDriver} className={btnSecondary}>
+                Give to another driver
+              </button>
+            </>
+          ) : null}
           <button type="button" disabled={terminal} onClick={onOpenReassignDriver} className={btnPrimary}>
             Assign / reassign driver
           </button>

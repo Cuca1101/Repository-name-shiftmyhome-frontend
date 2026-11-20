@@ -8,7 +8,7 @@ import {
   updateQuoteWorkflowAssignmentSilent,
   updateQuoteWorkflowStatus,
 } from '../lib/data/quotesAdminRepository'
-import { resetDriverProgressForQuote } from '../lib/data/driverAssignmentSync'
+import { reopenCompletedJobForDriver, resetDriverProgressForQuote } from '../lib/data/driverAssignmentSync'
 import { appendAdminNotesLog } from '../lib/adminNotesLog'
 import { currentAttemptRows } from '../lib/driverWorkflowAttempt'
 import { HOME_PAGE_QUOTE_SOURCE } from '../lib/data/quotesRepository'
@@ -189,6 +189,7 @@ export default function AvailableJobDetails() {
     /** @type {{ workflow_status: string, workflow_at: string } | null} */ (null),
   )
   const [resetBusy, setResetBusy] = useState(false)
+  const [reopenBusy, setReopenBusy] = useState(false)
   const [jobStatusHistory, setJobStatusHistory] = useState(
     /** @type {Array<{ status: string, created_at: string }>} */ ([]),
   )
@@ -361,11 +362,36 @@ export default function AvailableJobDetails() {
     }
   }, [id, load, refreshWorkflowMeta])
 
-  const terminal = Boolean(q && (quoteIsCompleted(q, linkedJob) || quoteIsCancelled(q, linkedJob)))
+  const jobCompleted = Boolean(q && quoteIsCompleted(q, linkedJob))
+  const jobCancelled = Boolean(q && quoteIsCancelled(q, linkedJob))
+  const terminal = jobCompleted || jobCancelled
+  const reopenAvailable = jobCompleted && !jobCancelled
   const liveStatusHistory = useMemo(
     () => currentAttemptRows(jobStatusHistory, q?.workflow_version),
     [jobStatusHistory, q?.workflow_version],
   )
+
+  async function reopenWithSameDriver() {
+    if (!q?.id || !reopenAvailable || reopenBusy) return
+    const driverId = String(q.assigned_driver_id || '').trim()
+    const driverName = String(q.assigned_driver_name || '').trim()
+    if (!driverId || !driverName) return
+    const confirmed = window.confirm(
+      `Put this job back with ${driverName}? The driver starts again. The booking, payment and earlier history stay. A completion email already sent is left as it is.`,
+    )
+    if (!confirmed) return
+    setReopenBusy(true)
+    try {
+      const actor = await fetchAssignedByActor()
+      await reopenCompletedJobForDriver(q.id, driverId, driverName, q, actor)
+      setToast(`Job put back with ${driverName}. It is in Active Jobs.`)
+      await load()
+    } catch (e) {
+      setToast(e?.message || 'Could not reopen the job.')
+    } finally {
+      setReopenBusy(false)
+    }
+  }
 
   async function resetDriverProgress() {
     if (!q?.id || terminal || resetBusy) return
@@ -681,6 +707,10 @@ export default function AvailableJobDetails() {
             onCancelJob={() => overrideActionsRef.current?.openMarkCancelled?.()}
             onResetDriverProgress={() => void resetDriverProgress()}
             resetBusy={resetBusy}
+            reopenAvailable={reopenAvailable}
+            reopenBusy={reopenBusy}
+            onReopenSameDriver={() => void reopenWithSameDriver()}
+            onReopenOtherDriver={() => overrideActionsRef.current?.openReopenDriver?.()}
             onReload={load}
             onNotify={showToast}
           />
@@ -939,6 +969,10 @@ export default function AvailableJobDetails() {
             onCancelJob={() => overrideActionsRef.current?.openMarkCancelled?.()}
             onResetDriverProgress={() => void resetDriverProgress()}
             resetBusy={resetBusy}
+            reopenAvailable={reopenAvailable}
+            reopenBusy={reopenBusy}
+            onReopenSameDriver={() => void reopenWithSameDriver()}
+            onReopenOtherDriver={() => overrideActionsRef.current?.openReopenDriver?.()}
           />
         ) : null}
       </div>

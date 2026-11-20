@@ -10,6 +10,8 @@ const TERMINAL_QUEUE_ERRORS = new Set([
   'missing_tracking_token',
   'no_driver',
   'already_sent',
+  'not_cash',
+  'balance_remaining',
 ])
 
 export const PENDING_CLAIM_STALE_MS = 10 * 60 * 1000

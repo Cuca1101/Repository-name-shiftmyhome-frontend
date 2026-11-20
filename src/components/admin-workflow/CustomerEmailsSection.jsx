@@ -3,6 +3,7 @@ import { formatDateTimeUK } from '../../lib/formatDateDisplay'
 import {
   bookingInvoiceArchive,
   buildCustomerEmailList,
+  cashInvoiceSendAvailable,
   providerStatusLabel,
 } from '../../lib/customerEmailArchive'
 import { buildCustomerSentEmailPreview } from '../../lib/customerEmailPreview'
@@ -26,7 +27,7 @@ function base64ToPdfBlob(contentBase64) {
 
 /**
  * Saved customer emails and the invoice file that was attached.
- * Preview and download read stored copies. They do not send mail or build a new invoice.
+ * Preview and download read the saved PDF. Generate and send is only for a settled cash booking with no saved invoice.
  * @param {{ quote?: Record<string, unknown>, forceOpen?: boolean, children?: import('react').ReactNode }} props
  */
 export default function CustomerEmailsSection({ quote, forceOpen = false, children = null }) {
@@ -44,6 +45,7 @@ export default function CustomerEmailsSection({ quote, forceOpen = false, childr
   const [invoiceName, setInvoiceName] = useState('invoice.pdf')
   const [fileError, setFileError] = useState('')
   const [fileBusy, setFileBusy] = useState(false)
+  const [sendingInvoice, setSendingInvoice] = useState(false)
 
   const load = useCallback(async () => {
     if (!quoteId || !isSupabaseConfigured || !supabase) {
@@ -165,6 +167,31 @@ export default function CustomerEmailsSection({ quote, forceOpen = false, childr
     }
   }
 
+  async function sendCashInvoice() {
+    if (!supabase || !quoteId) return
+    setSendingInvoice(true)
+    setFileError('')
+    try {
+      const { data, error: invokeError } = await supabase.functions.invoke('send-cash-invoice', {
+        body: { quoteId },
+      })
+      if (invokeError) throw new Error(invokeError.message || 'Could not send the invoice.')
+      if (!data?.ok) {
+        const reason = String(data?.error || '')
+        if (reason === 'not_cash') throw new Error('This booking was not paid in cash.')
+        if (reason === 'balance_remaining') throw new Error('This booking still has a balance.')
+        if (reason === 'missing_email') throw new Error('This booking has no customer email.')
+        if (reason === 'email_failed') throw new Error('The invoice is saved. The email did not send, so you can try again.')
+        throw new Error('Could not send the invoice.')
+      }
+      await load()
+    } catch (sendError) {
+      setFileError(sendError?.message || 'Could not send the invoice.')
+    } finally {
+      setSendingInvoice(false)
+    }
+  }
+
   function previewHtmlFor(row) {
     if (row.hasSnapshot && row.html) return row.html
     return buildCustomerSentEmailPreview({
@@ -230,6 +257,16 @@ export default function CustomerEmailsSection({ quote, forceOpen = false, childr
         </div>
         {!loading && !invoiceArchive ? (
           <p className="mt-2 text-xs text-slate-600">Original invoice file is not saved for this booking.</p>
+        ) : null}
+        {!loading && cashInvoiceSendAvailable(quote, invoiceArchive) ? (
+          <button
+            type="button"
+            disabled={sendingInvoice}
+            onClick={() => void sendCashInvoice()}
+            className="mt-3 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
+          >
+            {sendingInvoice ? 'Sending invoice…' : 'Generate and send invoice'}
+          </button>
         ) : null}
         {fileError ? <p className="mt-2 text-xs text-amber-900">{fileError}</p> : null}
       </div>

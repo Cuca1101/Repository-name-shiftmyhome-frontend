@@ -229,7 +229,7 @@ function parseInventoryRows(inventoryText: string, inventoryRaw?: unknown) {
   return [...dedup.values()]
 }
 
-async function buildBookingConfirmationPdf(params: {
+export async function buildBookingConfirmationPdf(params: {
   quote: QuoteRow
   stops?: QuoteStopRow[]
   inventoryItems?: QuoteInventoryItemRow[]
@@ -242,6 +242,10 @@ async function buildBookingConfirmationPdf(params: {
   estimatedTotalGbp: number | null
   remainingBalanceGbp: number | null
   paymentType: string
+  statusBadge?: string
+  paymentTypeLabel?: string
+  totalCaption?: string
+  extraSummaryLines?: string[]
 }) {
   const {
     quote,
@@ -256,6 +260,10 @@ async function buildBookingConfirmationPdf(params: {
     estimatedTotalGbp,
     remainingBalanceGbp,
     paymentType,
+    statusBadge = '',
+    paymentTypeLabel = '',
+    totalCaption = '',
+    extraSummaryLines = [],
   } =
     params
   const moveDate = formatDateISO(asText(quote.move_date))
@@ -319,7 +327,7 @@ async function buildBookingConfirmationPdf(params: {
       ? Number(quote.amount_paid)
       : null
   const isReservationFee = paymentType === 'deposit'
-  const paidBadge = isReservationFee ? 'RESERVATION PAID' : 'PAID'
+  const paidBadge = statusBadge || (isReservationFee ? 'RESERVATION PAID' : 'PAID')
   const isDeposit = paymentType === 'deposit'
 
   console.log('[payment-email] pdf-lib render started', { mode: 'pdf-lib-text' })
@@ -425,13 +433,16 @@ async function buildBookingConfirmationPdf(params: {
     ensure(38)
     page.drawRectangle({ x: margin, y: y - 30, width: contentW, height: 28, color: C.blueSoft, borderColor: C.border, borderWidth: 1 })
     page.drawText(safeBookingRefLine, { x: margin + 10, y: y - 19, size: 11, font: fontBold, color: C.navy })
-    const badgeW = isDeposit ? 102 : 62
+    const badgeW = Math.max(
+      Math.ceil(fontBold.widthOfTextAtSize(paidBadge, 8.5)) + 14,
+      statusBadge ? 0 : isDeposit ? 102 : 62,
+    )
     page.drawRectangle({
       x: width - margin - badgeW - 8,
       y: y - 25,
       width: badgeW,
       height: 18,
-      color: isDeposit ? C.amber : C.green,
+      color: statusBadge ? C.green : isDeposit ? C.amber : C.green,
     })
     page.drawText(paidBadge, {
       x: width - margin - badgeW + 2,
@@ -563,8 +574,10 @@ async function buildBookingConfirmationPdf(params: {
       if (Number.isFinite(packageFee) && packageFee > 0) packageLines.push(`${packageLabel} upgrade: ${pounds(packageFee)}`)
       else packageLines.push(`Service package: ${packageLabel}`)
     }
+    const summaryNotes = extraSummaryLines.map((line) => pdfSafeText(line)).filter(Boolean).slice(0, 6)
     const rightShift = packageLines.length * 14
-    const summaryHeight = (specialRequirements ? 146 : 132) + rightShift
+    const extraShift = summaryNotes.length * 12
+    const summaryHeight = (specialRequirements ? 146 : 132) + rightShift + extraShift
     ensure(summaryHeight + 12)
     page.drawRectangle({ x: margin, y: y - summaryHeight, width: contentW, height: summaryHeight, color: rgb(0.97, 0.99, 1), borderColor: C.border, borderWidth: 1 })
     page.drawText('Payment summary', { x: margin + 10, y: y - 19, size: 10.5, font: fontBold, color: C.blue })
@@ -576,17 +589,20 @@ async function buildBookingConfirmationPdf(params: {
       page.drawText(line, { x: rightX, y: summaryY, size: 9.5, font: fontRegular, color: C.text })
       summaryY -= 14
     }
-    page.drawText(`Estimated total: ${pounds(pricedTotal)}`, { x: rightX, y: y - 33 - rightShift, size: 9.5, font: fontRegular, color: C.text })
+    page.drawText(`${totalCaption || 'Estimated total'}: ${pounds(pricedTotal)}`, { x: rightX, y: y - 33 - rightShift, size: 9.5, font: fontRegular, color: C.text })
     page.drawText(`Remaining balance: ${pounds(pricedRemaining)}`, { x: rightX, y: y - 47 - rightShift, size: 9.5, font: fontRegular, color: C.text })
     page.drawText(
-      `Payment type: ${isReservationFee ? 'Reservation fee' : paymentType === 'deposit' ? 'Deposit payment' : 'Full payment'}`,
+      `Payment type: ${paymentTypeLabel || (isReservationFee ? 'Reservation fee' : paymentType === 'deposit' ? 'Deposit payment' : 'Full payment')}`,
       { x: rightX, y: y - 61 - rightShift, size: 9.5, font: fontRegular, color: C.text },
     )
-    page.drawText(`Status: ${paymentStatusLabel}`, { x: rightX, y: y - 75 - rightShift, size: 9.5, font: fontRegular, color: C.text })
+    page.drawText(`Status: ${pdfSafeText(paymentStatusLabel)}`, { x: rightX, y: y - 75 - rightShift, size: 9.5, font: fontRegular, color: C.text })
     page.drawText(`Date paid: ${safePaidDate}`, { x: rightX, y: y - 89 - rightShift, size: 9.5, font: fontRegular, color: C.text })
+    summaryNotes.forEach((line, index) => {
+      page.drawText(line, { x: rightX, y: y - 103 - rightShift - index * 12, size: 9, font: fontRegular, color: C.text })
+    })
     if (specialRequirements) {
       const reqLines = wrap(`Requirements: ${specialRequirements}`, contentW - 20, 8.5, false)
-      let ry = y - 111 - rightShift
+      let ry = y - 111 - rightShift - extraShift
       for (const ln of reqLines.slice(0, 3)) {
         page.drawText(ln, { x: margin + 10, y: ry, size: 8.5, font: fontRegular, color: C.textSoft })
         ry -= 10

@@ -43,6 +43,10 @@ function money(n) {
  *   onCancelJob: () => void,
  *   onResetDriverProgress?: () => void,
  *   resetBusy?: boolean,
+ *   reopenAvailable?: boolean,
+ *   onReopenSameDriver?: () => void,
+ *   onReopenOtherDriver?: () => void,
+ *   reopenBusy?: boolean,
  *   onReload?: () => void | Promise<void>,
  *   onNotify?: (msg: string) => void,
  * }} props
@@ -68,6 +72,10 @@ export default function JobDispatchControlPanel({
   onCancelJob,
   onResetDriverProgress,
   resetBusy = false,
+  reopenAvailable = false,
+  onReopenSameDriver,
+  onReopenOtherDriver,
+  reopenBusy = false,
   onReload,
   onNotify,
 }) {
@@ -97,6 +105,26 @@ export default function JobDispatchControlPanel({
 
   const actions = (
     <div className="flex w-full flex-wrap gap-1.5 sm:ml-auto sm:w-auto">
+      {reopenAvailable ? (
+        <>
+          <button
+            type="button"
+            disabled={reopenBusy || !q?.assigned_driver_id || !onReopenSameDriver}
+            onClick={onReopenSameDriver}
+            className={btnPrimary}
+          >
+            {reopenBusy ? 'Putting back…' : 'Put back with this driver'}
+          </button>
+          <button
+            type="button"
+            disabled={reopenBusy || !onReopenOtherDriver}
+            onClick={onReopenOtherDriver}
+            className={btnSecondary}
+          >
+            Give to another driver
+          </button>
+        </>
+      ) : null}
       <button type="button" disabled={terminal} onClick={onMarkComplete} className={btnPrimary}>
         Complete
       </button>

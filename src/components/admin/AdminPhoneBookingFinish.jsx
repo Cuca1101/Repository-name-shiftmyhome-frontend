@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import AdminPhoneQuoteActions from './AdminPhoneQuoteActions'
+import AdminQuotePriceBreakdown from './AdminQuotePriceBreakdown'
 import { useQuoteWizard } from '../quote-wizard/QuoteWizardContext'
 import {
   collectAdminPhoneBookingFieldErrors,
@@ -81,7 +82,7 @@ export default function AdminPhoneBookingFinish({
   attribution = null,
   notice = '',
 }) {
-  const { wizard, serviceType, quoteRef, breakdown, goToStep, setFeedback, back } = useQuoteWizard()
+  const { wizard, serviceType, quoteRef, breakdown, settings, goToStep, setFeedback, back } = useQuoteWizard()
   const [submitting, setSubmitting] = useState(false)
   const [busyAction, setBusyAction] = useState('')
   const [error, setError] = useState('')
@@ -89,6 +90,11 @@ export default function AdminPhoneBookingFinish({
   const [actionsRefreshKey, setActionsRefreshKey] = useState(0)
   const price = resolveAdminPhoneBookingFinalPrice(breakdown, priceMode)
   const calculatedDisplay = price.calculated != null ? `£${price.calculated.toFixed(2)}` : '—'
+  const customAmount = Number(priceMode.finalPriceOverride)
+  const priceGap =
+    !priceMode.useCalculatedPrice && price.calculated != null && Number.isFinite(customAmount)
+      ? Math.round((price.calculated - customAmount) * 100) / 100
+      : null
 
   function patch(next) {
     setPriceNotice('')
@@ -176,7 +182,22 @@ export default function AdminPhoneBookingFinish({
       ) : null}
       <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
         <h3 className="text-sm font-bold text-slate-900">Price</h3>
-        <p className="mt-1 text-xs text-slate-600">Use the calculated total or set the price the customer will pay.</p>
+        <p className="mt-1 text-xs text-slate-600">
+          The lines below show how the calculated price is built. Use them before you give a discount.
+        </p>
+        {breakdown ? (
+          <div className="mt-4">
+            <AdminQuotePriceBreakdown
+              breakdown={breakdown}
+              serviceType={serviceType}
+              wizard={wizard}
+              crewSettings={settings}
+              summaryOnly
+            />
+          </div>
+        ) : (
+          <p className="mt-3 text-sm text-slate-500">Pricing is still calculating.</p>
+        )}
         <div className="mt-4 space-y-3">
           <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-slate-200 p-3">
             <input
@@ -220,6 +241,13 @@ export default function AdminPhoneBookingFinish({
                   disabled={submitting}
                   onChange={(event) => patch({ finalPriceOverride: event.target.value })}
                 />
+                {priceGap != null && priceGap !== 0 ? (
+                  <p className={`mt-2 text-sm font-semibold ${priceGap > 0 ? 'text-emerald-800' : 'text-amber-900'}`}>
+                    {priceGap > 0
+                      ? `Discount from the calculated price: £${priceGap.toFixed(2)}`
+                      : `Above the calculated price: £${Math.abs(priceGap).toFixed(2)}`}
+                  </p>
+                ) : null}
               </div>
               <div>
                 <label className={labelClass} htmlFor="apb-override-reason">

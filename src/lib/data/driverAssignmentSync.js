@@ -1,8 +1,12 @@
+import { appendAdminNotesLog } from '../adminNotesLog'
 import { quotePatchForAdminDriverAssign } from '../driverOperationalStatus'
 import { sendJobCustomerNotify } from '../jobCustomerTracking'
+import { mergedAdminWorkflowForQuote } from '../quoteAdminWorkflowMerge'
+import { saveAvailableJobAdminOverrides } from '../availableJobLocalStore'
 import { notifyDriverJobAssignedPush, notifyDriverJobRemovedPush } from '../sendDriverPush'
 import { isSupabaseConfigured, supabase } from '../supabase'
 import { cancelJobAssignmentForQuote, upsertJobAssignment } from './jobAssignmentsRepository'
+import { updateQuoteWorkflowAssignment } from './quotesAdminRepository'
 
 /** Statuses that mean the driver should get a new-job FCM alert. */
 function isActiveAssignmentStatus(status) {
@@ -255,6 +259,82 @@ export async function clearDriverFromQuote(quoteId, quoteWorkflowPatch, updateQu
  * @param {string} quoteId
  * @param {string | null} [actor]
  */
+/**
+ * Put a job completed by mistake back with a driver.
+ * Payments, the booking and the earlier attempt stay. The driver starts again.
+ *
+ * @param {string} quoteId
+ * @param {string} driverId
+ * @param {string} driverName
+ * @param {Record<string, unknown>} quote
+ * @param {string | null} [actor]
+ */
+export async function reopenCompletedJobForDriver(quoteId, driverId, driverName, quote, actor = null) {
+  if (!isSupabaseConfigured || !supabase) {
+    throw new Error('Supabase is not configured.')
+  }
+  const qid = String(quoteId || '').trim()
+  const did = String(driverId || '').trim()
+  const name = String(driverName || '').trim()
+  if (!qid) throw new Error('Missing job.')
+  if (!did || !name) throw new Error('Choose a driver.')
+
+  const { data, error } = await supabase.rpc('reopen_completed_driver_job', {
+    p_quote_id: qid,
+    p_driver_id: did,
+    p_actor: actor || null,
+  })
+  if (error) {
+    if (/reopen_completed_driver_job|schema cache|does not exist/i.test(error.message || '')) {
+      throw new Error('Reopen is not available until the latest database migration is applied.')
+    }
+    throw error
+  }
+  if (!data?.ok) {
+    if (data?.error === 'cancelled') throw new Error('A cancelled booking stays cancelled.')
+    if (data?.error === 'not_completed') throw new Error('This booking is not completed.')
+    if (data?.error === 'not_authorised') throw new Error('Only an admin can reopen a completed job.')
+    if (data?.error === 'missing_driver') throw new Error('Choose a driver.')
+    throw new Error(data?.error || 'Could not reopen the job.')
+  }
+
+  const priorDriverId = String(data.prior_driver_id || quote?.assigned_driver_id || '').trim()
+  const moved = Boolean(priorDriverId && priorDriverId !== did)
+  const m = mergedAdminWorkflowForQuote(quote)
+  const log = appendAdminNotesLog(
+    m.adminNotesLog,
+    actor,
+    moved
+      ? `Reopened a completed job and assigned it to "${name}".`
+      : `Reopened a completed job and put it back with "${name}".`,
+  )
+  await updateQuoteWorkflowAssignment(qid, {
+    assigned_driver_id: did,
+    assigned_driver_name: name,
+    assigned_partner_id: null,
+    assigned_partner_company: null,
+    status: 'Booked',
+    operational_status: 'Assigned',
+    completed_at: null,
+    marketplace_visibility: 'assigned',
+    admin_notes_log: log,
+  })
+  saveAvailableJobAdminOverrides(qid, {
+    workflowCompletedAt: '',
+    operationalStatus: 'Assigned',
+    assignedDriver: name,
+    marketplaceVisibility: 'assigned',
+  })
+
+  if (moved) {
+    void notifyDriverJobRemovedPush(priorDriverId, quote ? { ...quote, id: qid } : { id: qid }).catch(() => {})
+  }
+  void notifyDriverJobAssignedPush(did, quote ? { ...quote, id: qid, assigned_driver_name: name } : { id: qid }).catch(
+    () => {},
+  )
+  return data
+}
+
 export async function resetDriverProgressForQuote(quoteId, actor = null) {
   if (!isSupabaseConfigured || !supabase) {
     throw new Error('Supabase is not configured.')

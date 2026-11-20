@@ -77,3 +77,6 @@ verify_jwt = false
 
 [functions.send-balance-payment-email]
 verify_jwt = false
+
+[functions.send-cash-invoice]
+verify_jwt = true

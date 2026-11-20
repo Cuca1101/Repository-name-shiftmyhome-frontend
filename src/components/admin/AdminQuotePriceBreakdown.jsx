@@ -61,6 +61,7 @@ function BreakdownList({ rows, showZero = false }) {
  *   crewSettings?: import('../../lib/pricingCalculator.js').PricingSettings | null,
  *   compact?: boolean,
  *   sidebar?: boolean,
+ *   summaryOnly?: boolean,
  * }} props
  */
 export default function AdminQuotePriceBreakdown({
@@ -70,6 +71,7 @@ export default function AdminQuotePriceBreakdown({
   crewSettings = null,
   compact = false,
   sidebar = false,
+  summaryOnly = false,
 }) {
   const [showEngineDetail, setShowEngineDetail] = useState(false)
   const [showItemisedLines, setShowItemisedLines] = useState(!sidebar)
@@ -102,6 +104,14 @@ export default function AdminQuotePriceBreakdown({
   )
 
   const narrow = compact || sidebar
+
+  if (summaryOnly) {
+    return (
+      <div className="min-w-0">
+        <BreakdownList rows={rollupRows} />
+      </div>
+    )
+  }
 
   return (
     <div className={`min-w-0 ${narrow ? 'space-y-3' : 'space-y-5'}`}>
