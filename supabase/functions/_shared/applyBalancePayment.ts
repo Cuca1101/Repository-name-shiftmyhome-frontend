@@ -1,5 +1,6 @@
 import type { SupabaseClient } from 'npm:@supabase/supabase-js@2'
 import { sendResendEmail } from './resendClient.ts'
+import { sendCashPaidInvoice } from './cashPaidInvoice.ts'
 
 function round2(n: number) {
   return Math.round(n * 100) / 100
@@ -100,6 +101,25 @@ async function sendBalanceReceipt(
   })
 }
 
+/** The paid-in-full invoice. A repeat call does not send a second copy. */
+async function sendSettledBalanceInvoice(supabase: SupabaseClient, quoteId: string) {
+  try {
+    const result = (await sendCashPaidInvoice(supabase, quoteId, { onBalanceSettled: true })) as {
+      ok?: boolean
+      skipped?: boolean
+      error?: string
+    }
+    console.log('[applyBalancePayment] settled invoice', {
+      quote_id: quoteId,
+      ok: Boolean(result.ok),
+      skipped: Boolean(result.skipped),
+      error: result.error || null,
+    })
+  } catch (e) {
+    console.error('[applyBalancePayment] settled invoice', e instanceof Error ? e.message : e)
+  }
+}
+
 /**
  * Add a remaining-balance card payment on top of the deposit.
  * Does not replace amount_paid, the original payment time, or the deposit payment id.
@@ -124,12 +144,14 @@ export async function applyBalancePayment(
   const row = data as QuotePayRow
 
   if (await alreadyLogged(supabase, paymentIntentId)) {
+    await sendSettledBalanceInvoice(supabase, row.id)
     return { ok: true, already: true, quote_id: row.id }
   }
 
   const charge = balanceChargeForQuote(row)
   const status = asText(row.payment_status).toLowerCase()
   if (status === 'paid' && (charge.remaining == null || charge.remaining <= 0.009)) {
+    await sendSettledBalanceInvoice(supabase, row.id)
     return { ok: true, already: true, quote_id: row.id }
   }
 
@@ -149,11 +171,13 @@ export async function applyBalancePayment(
   if (updateError) return { ok: false, error: updateError.message, quote_id: row.id }
   if (!Array.isArray(updated) || updated.length === 0) {
     if (await alreadyLogged(supabase, paymentIntentId)) {
+      await sendSettledBalanceInvoice(supabase, row.id)
       return { ok: true, already: true, quote_id: row.id }
     }
     const { data: again } = await supabase.from('quotes').select('amount_paid').eq('id', row.id).maybeSingle()
     const againPaid = Number(again?.amount_paid)
     if (Number.isFinite(againPaid) && againPaid + 0.02 >= newPaid) {
+      if (remaining <= 0.009) await sendSettledBalanceInvoice(supabase, row.id)
       return { ok: true, already: true, quote_id: row.id }
     }
     return { ok: false, error: 'balance_update_conflict', quote_id: row.id }
@@ -174,7 +198,8 @@ export async function applyBalancePayment(
   })
 
   try {
-    await sendBalanceReceipt(row, amountGbp, remaining, paymentIntentId)
+    if (remaining <= 0.009) await sendSettledBalanceInvoice(supabase, row.id)
+    else await sendBalanceReceipt(row, amountGbp, remaining, paymentIntentId)
   } catch (e) {
     console.error('[applyBalancePayment] receipt email', e instanceof Error ? e.message : e)
   }

@@ -784,6 +784,17 @@ export async function saveJobSheetHtmlAsPdf(html, filename, options = {}) {
     if (!mainEl || mainEl.scrollHeight < 40) {
       throw new Error(JOB_PDF_DATA_MISSING_MESSAGE)
     }
+    await Promise.all(
+      [...root.querySelectorAll('img')].map(
+        (img) =>
+          img.complete
+            ? Promise.resolve()
+            : new Promise((resolve) => {
+                img.onload = () => resolve()
+                img.onerror = () => resolve()
+              }),
+      ),
+    )
 
     const scale = jobSheetHtml2CanvasScale()
     if (shell instanceof HTMLElement) {

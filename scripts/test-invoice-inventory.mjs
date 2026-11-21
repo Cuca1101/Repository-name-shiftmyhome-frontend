@@ -1,4 +1,4 @@
-import { canonicalInvoiceInventory, customerInvoiceNotes, isInternalPricingLine, totalItemQuantity } from '../supabase/functions/_shared/invoiceInventory.js'
+import { canonicalInvoiceInventory, customerDocumentNotes, customerInvoiceNotes, isInternalPricingLine, totalItemQuantity } from '../supabase/functions/_shared/invoiceInventory.js'
 
 function assert(cond, msg) {
   if (!cond) {
@@ -44,5 +44,27 @@ assert(
   customerInvoiceNotes(['Best price (Monday, 5%): -£8.86', 'Parking bay reserved']).join('|') === 'Parking bay reserved',
   'calculator lines are dropped and a real access note stays',
 )
+
+const noted = canonicalInvoiceInventory({
+  inventoryItems: [{ item_name: 'Fridge freezer', quantity: 1, notes: 'American fridge, keep upright' }],
+})
+assert(noted[0].note === 'American fridge, keep upright', 'an inventory note stays with the item')
+
+const details = `Special instructions: Call 20 minutes before arrival
+Stairs & access notes: Narrow staircase
+— Extra services —
+Packing requested
+Best price (Monday, 5%): -£8.86
+`
+const documentNotes = customerDocumentNotes({
+  quote: { details, customer_message: 'Customer will be on site from 8am.' },
+  stops: [{ stop_type: 'pickup', access_notes: details }],
+})
+assert(documentNotes.instructions.includes('Call 20 minutes before arrival'), 'special instructions are kept')
+assert(documentNotes.instructions.includes('Customer will be on site from 8am.'), 'the customer message is kept')
+assert(documentNotes.notes.some((line) => line.includes('Narrow staircase')), 'access notes are kept')
+assert(documentNotes.notes.some((line) => line.startsWith('Extra services:')), 'requested extras are kept')
+assert(!JSON.stringify(documentNotes).includes('Best price'), 'calculator lines stay off both documents')
+assert(!documentNotes.notes.some((line) => line.includes('Quote reference')), 'the full booking text is not pasted as a note')
 
 console.log('invoice inventory checks passed')

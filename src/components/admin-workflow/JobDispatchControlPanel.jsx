@@ -145,8 +145,7 @@ export default function JobDispatchControlPanel({
       <GenerateJobSheetButton
         quote={q}
         internalNotes={notesDraft}
-        variant="secondary"
-        className={`${btnGhost} !h-8 !min-h-0 !rounded-md !px-2.5 !py-0 !text-xs`}
+        className={btnGhost}
         onSuccess={(msg) => onNotify?.(msg)}
         onError={(msg) => onNotify?.(msg)}
       />

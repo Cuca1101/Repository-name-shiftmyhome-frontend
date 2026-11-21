@@ -319,6 +319,15 @@ export function buildJobSummaryLine(inventoryRows, volumeM3, pickupAddress, deli
  * @param {Record<string, unknown>} q
  * @param {{ customerTotal: number|null, paid: number, remaining: number|null }} fin
  */
+function jobSheetPaymentMethod(q) {
+  const type = String(q.payment_type || '').toLowerCase()
+  if (type === 'cash') return 'Cash'
+  if (type === 'bank_transfer') return 'Bank transfer'
+  if (type === 'deposit') return 'Deposit'
+  if (type === 'card' || type === 'full' || String(q.stripe_payment_intent_id || '').trim()) return 'Card'
+  return ''
+}
+
 export function jobSheetPaymentBadge(q, fin) {
   const ps = String(q.payment_status || '').toLowerCase()
   const remaining = fin.remaining != null ? Number(fin.remaining) : null
@@ -487,6 +496,8 @@ export function buildJobSheetPdfModel(quote, options = {}) {
       estimatedTotal: fin.customerTotal != null ? `£${fin.customerTotal.toFixed(2)}` : 'N/A',
       paid: fin.paid != null ? `£${fin.paid.toFixed(2)}` : 'N/A',
       balance: fin.remaining != null ? `£${fin.remaining.toFixed(2)}` : 'N/A',
+      method: jobSheetPaymentMethod(q),
+      paidOn: q.paid_at ? formatDateTimeUK(q.paid_at) : '',
     },
     operations: {
       driver: pdfField(driver),

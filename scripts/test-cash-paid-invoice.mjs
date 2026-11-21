@@ -1,5 +1,6 @@
 import {
   CASH_PAID_MARK,
+  balanceSettledInvoiceEligibility,
   cardSettledInvoiceEligibility,
   cashInvoiceEligibility,
   cashInvoiceFigures,
@@ -264,6 +265,37 @@ assert(
   'a Stripe receipt is not emailed a second time',
 )
 assert(cardSettledInvoiceEligibility(completedCash, [{ method: 'cash', amount: 180 }]).reason === 'not_card', 'cash is not treated as a card invoice')
+
+const depositSettled = {
+  email: 'customer@example.com',
+  payment_type: 'deposit',
+  payment_status: 'paid',
+  remaining_balance: 0,
+  agreed_price: 320,
+  amount_paid: 320,
+  payment_confirmation_email_sent_at: '2026-11-20T14:05:00Z',
+  stripe_payment_intent_id: 'pi_deposit',
+}
+assert(
+  balanceSettledInvoiceEligibility(depositSettled, []).ok,
+  'paying the balance after the reservation fee sends the second invoice',
+)
+assert(
+  balanceSettledInvoiceEligibility({ ...depositSettled, remaining_balance: 270, amount_paid: 50 }, []).reason ===
+    'balance_remaining',
+  'the reservation fee alone does not send the paid-in-full invoice',
+)
+assert(
+  balanceSettledInvoiceEligibility({ ...depositSettled, payment_type: 'full' }, []).reason === 'not_deposit',
+  'a booking paid in full at the start does not get this second invoice',
+)
+
+const balancePaid = harness(() => ({ ok: true, resendId: 're_balance' }))
+balancePaid.ctx.onBalanceSettled = true
+balancePaid.ctx.loadQuote = async () => depositSettled
+const balanceSent = await deliverCashPaidInvoice(balancePaid.ctx)
+assert(balanceSent.ok === true && balanceSent.resendId === 're_balance', 'the balance payment emails the paid invoice')
+assert(balancePaid.state.lastFigures.kind === 'card' && balancePaid.state.lastFigures.paid === 320, 'the second invoice is the full card amount')
 
 const onComplete = harness(() => ({ ok: true, resendId: 're_done' }))
 onComplete.ctx.onCompleted = true

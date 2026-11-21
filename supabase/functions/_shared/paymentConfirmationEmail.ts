@@ -304,6 +304,7 @@ export async function buildBookingConfirmationPdf(params: {
       },
       stops,
       inventoryItems,
+      requirements,
       quoteRef,
       invoiceNumber,
       amountPaidGbp,
@@ -330,6 +331,7 @@ export async function buildBookingConfirmationPdf(params: {
         companyNumber: companyNumber && companyNumber.toUpperCase() !== 'N/A' ? companyNumber : '16730159',
         vatNumber: vatNumber && vatNumber.toUpperCase() !== 'N/A' ? vatNumber : '',
         email: companyEmail,
+        phone: '0141 461 4813',
         website: companyWebsite,
         termsUrl,
       },
@@ -496,10 +498,7 @@ export async function sendPaymentConfirmationWithPdfIfNeeded(params: {
   const remainingBalanceGbp =
     paymentType === 'deposit' && estimatedTotalGbp != null ? Math.max(0, estimatedTotalGbp - amountPaidGbp) : 0
 
-  const invoiceNumber = `SMH-INV-${quoteRef.replace(/[^A-Za-z0-9]/g, '').slice(-12)}-${new Date()
-    .toISOString()
-    .slice(0, 10)
-    .replace(/-/g, '')}`
+  const invoiceNumber = `SMH-INV-${quoteRef}`
 
   let pdfBase64 = ''
   let pdfBytesForStorage: Uint8Array | null = null

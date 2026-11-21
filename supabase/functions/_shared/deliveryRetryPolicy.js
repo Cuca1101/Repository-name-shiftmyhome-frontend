@@ -13,6 +13,7 @@ const TERMINAL_QUEUE_ERRORS = new Set([
   'not_cash',
   'not_card',
   'not_completed',
+  'not_deposit',
   'balance_remaining',
 ])
 

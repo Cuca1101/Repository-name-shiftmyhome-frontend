@@ -139,6 +139,17 @@ export function completionInvoiceEligibility(quote, collections) {
   return { ok: true, kind: 'cash' }
 }
 
+/**
+ * Second invoice after a reservation fee. The first email is the partial invoice.
+ * This one goes out only when that same booking is later paid in full.
+ */
+export function balanceSettledInvoiceEligibility(quote, collections) {
+  if (!balanceIsSettled(quote?.remaining_balance)) return { ok: false, reason: 'balance_remaining' }
+  if (String(quote?.payment_type || '').toLowerCase() !== 'deposit') return { ok: false, reason: 'not_deposit' }
+  if (amountRecorded(quote, collections) <= 0) return { ok: false, reason: 'not_paid' }
+  return { ok: true, kind: 'card' }
+}
+
 /** Card invoice once the balance is zero. A Stripe receipt already sent is not sent again. */
 export function cardSettledInvoiceEligibility(quote, collections) {
   if (!balanceIsSettled(quote?.remaining_balance)) return { ok: false, reason: 'balance_remaining' }
@@ -256,17 +267,20 @@ export async function deliverCashPaidInvoice(ctx) {
   const collections = await ctx.loadCollections()
   const eligibility = ctx.onCompleted
     ? completionInvoiceEligibility(quote, collections)
-    : ctx.onCardSettled
-      ? cardSettledInvoiceEligibility(quote, collections)
-      : ctx.manual
-        ? manualInvoiceEligibility(quote, collections)
-        : cashInvoiceEligibility(quote, collections)
+    : ctx.onBalanceSettled
+      ? balanceSettledInvoiceEligibility(quote, collections)
+      : ctx.onCardSettled
+        ? cardSettledInvoiceEligibility(quote, collections)
+        : ctx.manual
+          ? manualInvoiceEligibility(quote, collections)
+          : cashInvoiceEligibility(quote, collections)
   if (!eligibility.ok) return { ok: false, skipped: true, error: eligibility.reason }
 
   const email = customerInvoiceEmail(quote)
   if (!email) return { ok: false, skipped: true, error: 'missing_email' }
 
   const figures = settledInvoiceFigures(quote, collections)
+  if (eligibility.kind) figures.kind = eligibility.kind
   const existing = await ctx.loadNotification(figures)
   if (String(existing?.delivery_status || '') === 'sent') {
     await ctx.repairArchive(figures)

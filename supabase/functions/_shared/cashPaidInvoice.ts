@@ -131,6 +131,7 @@ export async function buildCurrentInvoicePdf(
   // deno-lint-ignore no-explicit-any
   supabase: any,
   quoteId: string,
+  options: { paymentTypeLabel?: string } = {},
 ) {
   const { data: quote } = await supabase.from('quotes').select('*').eq('id', quoteId).maybeSingle()
   if (!quote) return null
@@ -139,7 +140,7 @@ export async function buildCurrentInvoicePdf(
       .from('quote_stops')
       .select('stop_type, address_line_1, floor, lift_available, parking_type, access_notes')
       .eq('quote_id', quoteId),
-    supabase.from('quote_inventory_items').select('item_name, quantity').eq('quote_id', quoteId),
+    supabase.from('quote_inventory_items').select('item_name, quantity, notes').eq('quote_id', quoteId),
     supabase.from('driver_collected_payments').select('method, amount, collected_at').eq('quote_id', quoteId),
   ])
   const kind = invoiceKind(quote, collections || [])
@@ -164,7 +165,7 @@ export async function buildCurrentInvoicePdf(
     estimatedTotalGbp: total,
     remainingBalanceGbp: Number.isFinite(remaining) ? Math.max(0, remaining) : null,
     paymentType: labelKind === 'cash' ? 'cash' : labelKind === 'card' ? 'card' : labelKind === 'bank_transfer' ? 'bank_transfer' : '',
-    paymentTypeLabel: paid > 0.009 ? invoicePaymentTypeLabel(labelKind) : '',
+    paymentTypeLabel: options.paymentTypeLabel || (paid > 0.009 ? invoicePaymentTypeLabel(labelKind) : ''),
   })
   if (!bytes?.length) return null
   return { bytes, filename: `Invoice-${ref}.pdf` }
@@ -174,9 +175,10 @@ export async function sendCashPaidInvoice(
   // deno-lint-ignore no-explicit-any
   supabase: any,
   quoteId: string,
-  options: { manual?: boolean; onCompleted?: boolean; onCardSettled?: boolean } = {},
+  options: { manual?: boolean; onCompleted?: boolean; onCardSettled?: boolean; onBalanceSettled?: boolean } = {},
 ) {
   const manual = Boolean(options.manual)
+  const balanceInvoice = Boolean(options.onBalanceSettled)
   let activeKind = 'cash'
   const useKind = (figures?: { kind?: unknown }) => {
     const kind = String(figures?.kind || '')
@@ -187,6 +189,7 @@ export async function sendCashPaidInvoice(
     manual,
     onCompleted: Boolean(options.onCompleted),
     onCardSettled: Boolean(options.onCardSettled),
+    onBalanceSettled: balanceInvoice,
     async loadQuote() {
       const { data } = await supabase.from('quotes').select('*').eq('id', quoteId).maybeSingle()
       return data || null
@@ -234,7 +237,13 @@ export async function sendCashPaidInvoice(
       const paidAt = figures.paidAt || new Date().toISOString()
       try {
       return await buildBookingConfirmationPdf({
-        quote: { ...quote, paid_at: quote.paid_at || paidAt, amount_paid: figures.paid, remaining_balance: 0 },
+        quote: {
+          ...quote,
+          completed_at: balanceInvoice ? null : quote.completed_at,
+          paid_at: balanceInvoice ? new Date().toISOString() : quote.paid_at || paidAt,
+          amount_paid: figures.paid,
+          remaining_balance: 0,
+        },
         stops: stops || [],
         inventoryItems: items || [],
         requirements: requirements || [],
@@ -374,6 +383,83 @@ export async function sendCashPaidInvoice(
       }
     },
   })
+}
+
+const APOLOGY_QUOTE_REF = 'SMH-2026-304234'
+
+export async function sendInvoiceApology(
+  // deno-lint-ignore no-explicit-any
+  supabase: any,
+  quoteId: string,
+) {
+  const { data: quote } = await supabase.from('quotes').select('*').eq('id', quoteId).maybeSingle()
+  if (!quote) return { ok: false, error: 'quote_not_found' }
+  if (quoteRefOf(quote) !== APOLOGY_QUOTE_REF) return { ok: false, error: 'not_allowed' }
+  const email = String(quote.email || '').trim()
+  if (!email) return { ok: false, error: 'missing_email' }
+
+  const built = await buildCurrentInvoicePdf(supabase, quoteId, { paymentTypeLabel: 'Cash' })
+  if (!built?.bytes?.length) return { ok: false, error: 'pdf_failed' }
+  const stored = await storeSentInvoicePdf(supabase, quoteId, 'paid', built.bytes, built.filename)
+  if (!stored?.path) return { ok: false, error: 'pdf_store_failed' }
+
+  const apiKey = (Deno.env.get('RESEND_API_KEY') || '').trim()
+  if (!apiKey) return { ok: false, error: 'email_failed' }
+  const from = envOrDefault('RESEND_FROM_EMAIL', 'ShiftMyHome <onboarding@resend.dev>')
+  const first = String(quote.full_name || 'there').trim().split(/\s+/)[0] || 'there'
+  const safeFirst = first.replace(/[&<>"]/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[char] || char)
+  const subject = `Your invoice for booking ${APOLOGY_QUOTE_REF}`
+  const text = [
+    `Hi ${first},`,
+    '',
+    'Thank you for choosing ShiftMyHome for your move, and thank you for calling us today.',
+    '',
+    'We are sorry you had to wait, and sorry that you did not receive your invoice. There was a glitch in our system, so the invoice was not sent to you as it should have been. Please accept our apologies.',
+    '',
+    `Your invoice is attached to this email. It is for booking ${APOLOGY_QUOTE_REF}. The amount paid is £170.00, and there is nothing left to pay.`,
+    '',
+    'Thank you again for your booking and for your patience. If you need anything else, just reply to this email and we will be glad to help.',
+    '',
+    'Kind regards,',
+    'The ShiftMyHome Team',
+    'admin@shiftmyhome.co.uk',
+    'www.shiftmyhome.co.uk',
+  ].join('\n')
+  const html = `
+    <div style="font-family:Arial,Helvetica,sans-serif;color:#111827;line-height:1.55;font-size:15px;max-width:560px;">
+      <p>Hi ${safeFirst},</p>
+      <p>Thank you for choosing ShiftMyHome for your move, and thank you for calling us today.</p>
+      <p>We are sorry you had to wait, and sorry that you did not receive your invoice. There was a glitch in our system, so the invoice was not sent to you as it should have been. Please accept our apologies.</p>
+      <p>Your invoice is attached to this email. It is for booking ${APOLOGY_QUOTE_REF}. The amount paid is £170.00, and there is nothing left to pay.</p>
+      <p>Thank you again for your booking and for your patience. If you need anything else, just reply to this email and we will be glad to help.</p>
+      <p>Kind regards,<br>The ShiftMyHome Team<br>admin@shiftmyhome.co.uk<br>www.shiftmyhome.co.uk</p>
+    </div>`
+  const result = await sendResendEmailMinimal({
+    logTag: 'invoice-apology',
+    apiKey,
+    from,
+    to: [email],
+    subject,
+    html,
+    text,
+    attachments: [{ filename: built.filename, content: bytesToBase64(built.bytes) }],
+  })
+  if (!result.ok) return { ok: false, error: 'email_failed' }
+
+  await saveCustomerEmailArchive(supabase, {
+    quoteId,
+    eventKey: 'invoice_resent',
+    subject,
+    recipientEmail: email,
+    html,
+    text,
+    providerMessageId: result.resendId || null,
+    providerStatus: 'sent',
+    invoiceBucket: 'booking-invoices',
+    invoicePath: stored.path,
+    invoiceFilename: built.filename,
+  })
+  return { ok: true, resendId: result.resendId || null, email }
 }
 
 export function cashInvoiceAdminClient() {

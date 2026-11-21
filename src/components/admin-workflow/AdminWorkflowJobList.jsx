@@ -24,6 +24,7 @@ import { PAYOUT_FIXED_FROM_AVAILABLE_LABEL } from '../../lib/marketplacePayoutDi
 import MarketplaceJourneyCard from './MarketplaceJourneyCard'
 import MarketplaceJobCardActions from './MarketplaceJobCardActions'
 import JobCard from './JobCard'
+import GenerateJobSheetButton from './GenerateJobSheetButton'
 import AdminJobListSections from './AdminJobListSections'
 import AdminJobOverrideActions from './AdminJobOverrideActions'
 import MarketplaceJobRemoveButton from './MarketplaceJobRemoveButton'
@@ -460,15 +461,22 @@ export default function AdminWorkflowJobList({ workflow, title, description }) {
                     />
                   ) : null
 
+                const jobSheetActions = <GenerateJobSheetButton quote={q} />
                 const secondarySlot =
                   workflow === 'marketplace' ? (
                     <div className="flex w-full flex-col gap-2">
                       <MarketplaceJobRemoveButton quote={q} onApplied={load} />
                       <MarketplaceJobCardActions quote={q} onApplied={load} />
+                      {jobSheetActions}
                     </div>
                   ) : workflow === 'completed' && chargeActions ? (
-                    <div className="flex w-full flex-col gap-2">{chargeActions}</div>
-                  ) : null
+                    <div className="flex w-full flex-col gap-2">
+                      {chargeActions}
+                      {jobSheetActions}
+                    </div>
+                  ) : (
+                    jobSheetActions
+                  )
 
                 return (
                   <JobCard

@@ -21,6 +21,11 @@ function documentSecurityPlugin() {
 
 export default defineConfig({
   plugins: [react(), documentSecurityPlugin(), adminApiDevPlugin(process.cwd())],
+  resolve: {
+    alias: {
+      'npm:pdf-lib@1.17.1': 'pdf-lib',
+    },
+  },
   server: { headers: securityHeaders },
   preview: { headers: securityHeaders },
 })
