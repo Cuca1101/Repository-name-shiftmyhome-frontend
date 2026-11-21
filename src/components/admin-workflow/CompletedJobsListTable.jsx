@@ -46,7 +46,7 @@ export default function CompletedJobsListTable({ quotes, jobs }) {
             {rows.map((q) => {
               const job = findLinkedJobForQuote(q, jobs)
               const row = completedJobDisplayFields(q, job)
-              const href = `/admin/active-jobs/${encodeURIComponent(String(q.id))}`
+              const href = `/admin/completed-jobs/${encodeURIComponent(String(q.id))}`
               return (
                 <tr key={String(q.id)} className="border-b border-slate-100 hover:bg-slate-50/90">
                       <td className="px-2 py-2 sm:px-3">

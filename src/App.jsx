@@ -291,6 +291,8 @@ export default function App() {
         <Route path="active-jobs/:id/edit" element={<EditBookingAdmin />} />
         <Route path="active-jobs/:id" element={<AvailableJobDetails />} />
         <Route path="active-jobs" element={<ActiveJobsAdmin />} />
+        <Route path="completed-jobs/:id/edit" element={<EditBookingAdmin />} />
+        <Route path="completed-jobs/:id" element={<AvailableJobDetails />} />
         <Route path="completed-jobs" element={<CompletedJobsAdmin />} />
         <Route path="cancelled-jobs" element={<CancelledJobsAdmin />} />
         <Route path="access-control" element={<AuthAccessAdmin />} />

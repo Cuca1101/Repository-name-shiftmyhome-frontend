@@ -89,7 +89,9 @@ export default function JobDispatchControlPanel({
   const collection = resolveQuoteCollectionAddress(q, linkedJob)
   const delivery = resolveQuoteDeliveryAddress(q, linkedJob)
 
-  const accepted = backHref.includes('/active-jobs')
+  const onCompletedList = backHref.includes('/completed-jobs')
+  const onAcceptedList = backHref.includes('/active-jobs')
+  const accepted = onAcceptedList || onCompletedList
   const btn =
     'inline-flex h-8 items-center justify-center rounded-md px-2.5 text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-40'
   const btnPrimary = `${btn} bg-emerald-600 text-white hover:bg-emerald-700`
@@ -151,7 +153,7 @@ export default function JobDispatchControlPanel({
       />
       {!terminal && q?.id ? (
         <Link
-          to={`${accepted ? '/admin/active-jobs' : '/admin/available-jobs'}/${q.id}/edit`}
+          to={`${onCompletedList ? '/admin/completed-jobs' : onAcceptedList ? '/admin/active-jobs' : '/admin/available-jobs'}/${q.id}/edit`}
           className={btnGhost}
         >
           Edit Booking

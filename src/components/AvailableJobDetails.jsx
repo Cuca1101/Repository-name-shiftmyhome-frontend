@@ -170,6 +170,7 @@ export default function AvailableJobDetails() {
   const location = useLocation()
   const [searchParams, setSearchParams] = useSearchParams()
   const isActiveJobDetailRoute = /\/admin\/active-jobs\//.test(location.pathname)
+  const isCompletedJobDetailRoute = /\/admin\/completed-jobs\//.test(location.pathname)
   const [q, setQ] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -604,27 +605,41 @@ export default function AvailableJobDetails() {
       <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm">
         <p className="text-slate-600">{error || 'Job not found.'}</p>
         <Link
-          to={isActiveJobDetailRoute ? '/admin/active-jobs' : '/admin/available-jobs'}
+          to={
+            isCompletedJobDetailRoute
+              ? '/admin/completed-jobs'
+              : isActiveJobDetailRoute
+                ? '/admin/active-jobs'
+                : '/admin/available-jobs'
+          }
           className="mt-4 inline-block font-semibold text-brand-700 hover:underline"
         >
-          {isActiveJobDetailRoute ? 'Back to Job Accepted' : 'Back to Available Jobs'}
+          {isCompletedJobDetailRoute
+            ? 'Back to Completed Jobs'
+            : isActiveJobDetailRoute
+              ? 'Back to Job Accepted'
+              : 'Back to Available Jobs'}
         </Link>
       </div>
     )
   }
 
-  const inJobAccepted = isActiveJobDetailRoute || quotePassesActiveStrict(q)
+  const inJobAccepted = isActiveJobDetailRoute || (!isCompletedJobDetailRoute && quotePassesActiveStrict(q))
   const backHref = q.source === HOME_PAGE_QUOTE_SOURCE
     ? '/admin/quote-requests'
-    : inJobAccepted
-      ? '/admin/active-jobs'
-      : '/admin/available-jobs'
+    : isCompletedJobDetailRoute
+      ? '/admin/completed-jobs'
+      : inJobAccepted
+        ? '/admin/active-jobs'
+        : '/admin/available-jobs'
   const backLabel = q.source === HOME_PAGE_QUOTE_SOURCE
     ? 'Quote requests'
-    : inJobAccepted
-      ? 'Job Accepted'
-      : 'Available Jobs'
-  const fullPageDispatch = isActiveJobDetailRoute
+    : isCompletedJobDetailRoute
+      ? 'Completed Jobs'
+      : inJobAccepted
+        ? 'Job Accepted'
+        : 'Available Jobs'
+  const fullPageDispatch = isActiveJobDetailRoute || isCompletedJobDetailRoute
 
   const mv = overrides.marketplaceVisibility
   const listedOnMarketplace = mv === 'visible_in_marketplace'

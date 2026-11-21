@@ -9,8 +9,17 @@ export default function EditBookingAdmin() {
   const { id } = useParams()
   const location = useLocation()
   const fromActive = /\/admin\/active-jobs\//.test(location.pathname)
-  const backHref = fromActive ? `/admin/active-jobs/${id}` : `/admin/available-jobs/${id}`
-  const backLabel = fromActive ? 'Back to job accepted' : 'Back to job details'
+  const fromCompleted = /\/admin\/completed-jobs\//.test(location.pathname)
+  const backHref = fromCompleted
+    ? `/admin/completed-jobs/${id}`
+    : fromActive
+      ? `/admin/active-jobs/${id}`
+      : `/admin/available-jobs/${id}`
+  const backLabel = fromCompleted
+    ? 'Back to completed job'
+    : fromActive
+      ? 'Back to job accepted'
+      : 'Back to job details'
 
   if (!id) {
     return (
