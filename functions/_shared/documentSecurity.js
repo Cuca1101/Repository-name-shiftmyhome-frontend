@@ -1,6 +1,6 @@
 /** Site CSP for payments, maps, and media. Teams calls open in a new window, not an iframe. */
 export const DOCUMENT_CSP = [
-  "frame-src 'self' https://js.stripe.com https://*.stripe.com https://hooks.stripe.com https://m.stripe.network https://maps.googleapis.com https://maps.gstatic.com",
+  "frame-src 'self' blob: https://js.stripe.com https://*.stripe.com https://hooks.stripe.com https://m.stripe.network https://maps.googleapis.com https://maps.gstatic.com",
   "worker-src 'self' blob:",
   "media-src 'self' blob: mediastream:",
 ].join('; ')
