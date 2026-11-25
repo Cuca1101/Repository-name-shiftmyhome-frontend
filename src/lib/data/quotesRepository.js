@@ -323,6 +323,9 @@ export function buildAdminPhoneBookingRow(form) {
         ? String(form.arrival_time).trim()
         : null,
     details,
+    inventory: Array.isArray(form.inventoryLines)
+      ? structuredInventoryFromWizardLines(form.inventoryLines) || []
+      : [],
     source: ADMIN_PHONE_BOOKING_SOURCE,
     status,
     payment_status,
@@ -330,7 +333,6 @@ export function buildAdminPhoneBookingRow(form) {
     amount_paid,
     paid_at,
     operational_status,
-    inventory: [],
     message: null,
   }
 }

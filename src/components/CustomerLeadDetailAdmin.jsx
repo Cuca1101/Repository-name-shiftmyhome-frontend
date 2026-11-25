@@ -679,6 +679,25 @@ export default function CustomerLeadDetailAdmin() {
     }
   }
 
+  async function handleOpenQuote() {
+    const popup = window.open('about:blank', '_blank')
+    setBusy('openquote')
+    setActionMsg('')
+    try {
+      const token = await withToken()
+      const url = buildResumeQuoteUrl(token)
+      if (popup) popup.location.href = url
+      else window.location.assign(url)
+      setActionMsg('Resume Quote is open in a new tab. It is the same quote the customer opens. Changes you save there are saved on this lead.')
+      await load()
+    } catch (e) {
+      popup?.close()
+      setActionMsg(e?.message || 'Could not open the quote.')
+    } finally {
+      setBusy('')
+    }
+  }
+
   async function handleCopyPayment() {
     setBusy('copypay')
     setActionMsg('')
@@ -1185,6 +1204,16 @@ export default function CustomerLeadDetailAdmin() {
               <button type="button" disabled={Boolean(busy)} onClick={() => openEmailPreview(false)} className={actionSecondary}>
                 View customer email
               </button>
+              {!isConverted && !trashed ? (
+                <button
+                  type="button"
+                  disabled={Boolean(busy)}
+                  onClick={() => void handleOpenQuote()}
+                  className={actionSecondary}
+                >
+                  {busy === 'openquote' ? 'Opening…' : 'Resume Quote'}
+                </button>
+              ) : null}
             </div>
             {lead.price_override_reason ? (
               <p className="mt-3 whitespace-pre-wrap text-sm text-slate-700">
@@ -1199,6 +1228,14 @@ export default function CustomerLeadDetailAdmin() {
             </>
           )}
         </section>
+
+        <div className="min-w-0 lg:col-span-2">
+          <CustomerLeadMoveEditor
+            lead={lead}
+            disabled={Boolean(busy)}
+            onSaved={(updated) => setLead(updated)}
+          />
+        </div>
 
         <section className="min-w-0 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
           <h3 className="text-sm font-bold text-slate-900">Payment</h3>
@@ -1550,12 +1587,6 @@ export default function CustomerLeadDetailAdmin() {
         <Row label="Distance (mi)" value={distanceLabel || null} />
       </DetailBlock>
       </div>
-
-      <CustomerLeadMoveEditor
-        lead={lead}
-        disabled={Boolean(busy)}
-        onSaved={(updated) => setLead(updated)}
-      />
 
       <div className="grid items-start gap-6 xl:grid-cols-2">
       <DetailBlock title="Contact & inventory">

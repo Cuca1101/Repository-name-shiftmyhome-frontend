@@ -66,6 +66,14 @@ function inventoryFromLead(lead: LeadLike) {
   return lines as Array<Record<string, unknown>>
 }
 
+/** Sum of quantities, so two sofas and one table count as 3 items. */
+function totalItemQuantity(inventory: Array<Record<string, unknown>>) {
+  return inventory.reduce((sum, line) => {
+    const qty = Number(line.qty ?? line.quantity ?? 1)
+    return sum + (Number.isFinite(qty) && qty > 0 ? qty : 0)
+  }, 0)
+}
+
 /** A short list stays in one column. A long list uses three columns so the email stays short. */
 function inventoryRowsHtml(inventory: Array<Record<string, unknown>>) {
   if (!inventory.length) {
@@ -233,6 +241,8 @@ export function buildRecoveryEmailContent(lead: LeadLike, kind: RecoveryEmailKin
   const year = new Date().getFullYear()
   const siteUrl = siteBase()
   const inventory = inventoryFromLead(lead)
+  const itemTotal = totalItemQuantity(inventory)
+  const itemTotalLabel = itemTotal === 1 ? '1 item' : `${itemTotal} items`
   const invRows = inventoryRowsHtml(inventory)
 
   const firstName = name.split(/\s+/)[0] || 'there'
@@ -358,7 +368,10 @@ export function buildRecoveryEmailContent(lead: LeadLike, kind: RecoveryEmailKin
 </td></tr>
 <tr><td style="padding:14px 24px 0 24px;">
   <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border:1px solid #e2e8f0;border-radius:12px;"><tr><td style="padding:12px 16px;">
-    <div style="font-size:15px;font-weight:700;color:#0f172a;margin-bottom:6px;">Inventory</div>
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin-bottom:6px;"><tr>
+      <td style="font-size:15px;font-weight:700;color:#0f172a;">Inventory</td>
+      <td align="right" style="font-size:13px;font-weight:700;color:#1d4ed8;">${escHtml(itemTotalLabel)}</td>
+    </tr></table>
     <table role="presentation" width="100%" cellspacing="0" cellpadding="0">${invRows}</table>
   </td></tr></table>
 </td></tr>
@@ -377,10 +390,20 @@ ${notesBlock}
   ${escHtml(payLabel)}: <a href="${escHtml(trackPay)}" style="color:#2563eb;word-break:break-all;">${escHtml(trackPay)}</a><br />
   Resume Quote: <a href="${escHtml(trackResume)}" style="color:#2563eb;word-break:break-all;">${escHtml(trackResume)}</a>
 </td></tr>
-<tr><td style="padding:20px 24px 24px 24px;font-size:12px;line-height:1.6;background:#020617;color:#cbd5e1;border-top:1px solid #1e293b;">
-  Questions? Call <a href="tel:+441414614813" style="color:#e2e8f0;text-decoration:none;">0141 461 4813</a> or email <a href="mailto:admin@shiftmyhome.co.uk" style="color:#e2e8f0;text-decoration:none;">admin@shiftmyhome.co.uk</a>.<br />
-  ShiftMyHome · <a href="${escHtml(siteUrl)}" style="color:#94a3b8;text-decoration:none;">${escHtml(siteUrl.replace(/^https?:\/\//, ''))}</a><br />
-  <span style="color:#94a3b8;">© ${year} ShiftMyHome</span>
+<tr><td style="padding:18px 24px 0 24px;font-size:14px;line-height:1.55;color:#334155;">
+  Kind regards,<br /><strong style="color:#0f172a;">The ShiftMyHome Team</strong>
+</td></tr>
+<tr><td style="padding:18px 24px 22px 24px;font-size:12px;line-height:1.65;background:#0f172a;color:#e2e8f0;">
+  <strong style="color:#ffffff;font-size:13px;">ShiftMyHome Ltd</strong><br />
+  128 City Road, London, EC1V 2NX<br />
+  Company number 16730159<br />
+  <a href="tel:+441414614813" style="color:#e2e8f0;text-decoration:none;">0141 461 4813</a>
+  &nbsp;·&nbsp;
+  <a href="mailto:admin@shiftmyhome.co.uk" style="color:#e2e8f0;text-decoration:none;">admin@shiftmyhome.co.uk</a>
+  &nbsp;·&nbsp;
+  <a href="${escHtml(siteUrl)}" style="color:#93c5fd;text-decoration:none;">www.shiftmyhome.co.uk</a><br />
+  <a href="${escHtml(siteUrl)}/terms" style="color:#94a3b8;text-decoration:none;">Terms</a>
+  <span style="color:#64748b;"> · © ${year} ShiftMyHome Ltd</span>
 </td></tr>
 </table>
 </td></tr></table>
@@ -396,6 +419,7 @@ ${notesBlock}
     `Collection: ${collection}${collectionFloor ? ` · ${collectionFloor}` : ''}`,
     `Drop-off: ${dropoff}${dropoffFloor ? ` · ${dropoffFloor}` : ''}`,
     `Quote: ${quoteRef}`,
+    `Items: ${itemTotalLabel}`,
     `Service: ${service}`,
     `Move date: ${moveDate}`,
     `Crew: ${crewLabel}`,
@@ -408,9 +432,14 @@ ${notesBlock}
     `Resume Quote: ${trackResume}`,
     `${payLabel}: ${trackPay}`,
     '',
-    'Glasgow, Scotland',
-    '0141 461 4813 · admin@shiftmyhome.co.uk',
-    siteUrl,
+    'Kind regards,',
+    'The ShiftMyHome Team',
+    '',
+    'ShiftMyHome Ltd',
+    '128 City Road, London, EC1V 2NX',
+    'Company number 16730159',
+    '0141 461 4813 · admin@shiftmyhome.co.uk · www.shiftmyhome.co.uk',
+    `${siteUrl}/terms`,
   ]
     .filter((line) => line != null)
     .join('\n')

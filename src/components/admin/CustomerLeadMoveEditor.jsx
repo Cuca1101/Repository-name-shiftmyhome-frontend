@@ -145,66 +145,74 @@ export default function CustomerLeadMoveEditor({ lead, disabled = false, onSaved
         </div>
       </div>
 
-      <div className="mt-4 space-y-2">
+      {lines.length > 0 ? (
+        <div className="mt-3 grid grid-cols-[minmax(0,1fr)_3.25rem_4rem_auto] gap-1.5 px-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+          <span>Item</span>
+          <span>Qty</span>
+          <span>m³</span>
+          <span className="sr-only">Remove</span>
+        </div>
+      ) : null}
+      <div className={`${lines.length > 0 ? 'mt-1' : 'mt-3'} max-h-64 space-y-1.5 overflow-y-auto`}>
         {lines.length === 0 ? (
-          <p className="rounded-lg border border-dashed border-slate-200 bg-slate-50 px-3 py-3 text-sm text-slate-600">
+          <p className="rounded-lg border border-dashed border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">
             No items yet.
           </p>
         ) : (
           lines.map((line) => (
             <div
               key={line.lineId}
-              className="flex flex-col gap-2 rounded-lg border border-slate-200 px-3 py-2 sm:flex-row sm:items-center"
+              className="grid grid-cols-[minmax(0,1fr)_3.25rem_4rem_auto] items-center gap-1.5 rounded-md border border-slate-200 px-2 py-1"
             >
-              <p className="min-w-0 flex-1 text-sm font-medium text-slate-900">{line.name}</p>
-              <div className="flex flex-wrap items-center gap-2">
-                <label className="flex items-center gap-1 text-xs font-semibold text-slate-600">
-                  Qty
-                  <input
-                    type="number"
-                    min="1"
-                    inputMode="numeric"
-                    value={line.quantity}
-                    disabled={disabled || saving}
-                    onChange={(event) => {
-                      const quantity = Math.max(1, Math.round(Number(event.target.value) || 1))
-                      markDirty(lines.map((row) => (row.lineId === line.lineId ? { ...row, quantity } : row)))
-                    }}
-                    className="w-16 rounded-md border border-slate-300 px-2 py-1.5 text-sm"
-                  />
-                </label>
-                <label className="flex items-center gap-1 text-xs font-semibold text-slate-600">
-                  m³
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    inputMode="decimal"
-                    value={line.m3 ?? ''}
-                    disabled={disabled || saving}
-                    onChange={(event) => {
-                      const raw = event.target.value
-                      const m3 = raw === '' ? null : Number(raw)
-                      markDirty(
-                        lines.map((row) =>
-                          row.lineId === line.lineId
-                            ? { ...row, m3: Number.isFinite(m3) ? m3 : null, volumePerUnitM3: Number.isFinite(m3) ? m3 : null }
-                            : row,
-                        ),
-                      )
-                    }}
-                    className="w-20 rounded-md border border-slate-300 px-2 py-1.5 text-sm"
-                  />
-                </label>
-                <button
-                  type="button"
+              <p className="min-w-0 truncate text-sm text-slate-900" title={line.name}>{line.name}</p>
+              <label className="flex items-center gap-1 text-[11px] font-semibold text-slate-500">
+                <span className="sr-only">Qty</span>
+                <input
+                  type="number"
+                  min="1"
+                  inputMode="numeric"
+                  aria-label={`Quantity for ${line.name}`}
+                  value={line.quantity}
                   disabled={disabled || saving}
-                  onClick={() => markDirty(lines.filter((row) => row.lineId !== line.lineId))}
-                  className="inline-flex min-h-10 items-center rounded-md border border-red-200 px-3 text-sm font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50"
-                >
-                  Remove
-                </button>
-              </div>
+                  onChange={(event) => {
+                    const quantity = Math.max(1, Math.round(Number(event.target.value) || 1))
+                    markDirty(lines.map((row) => (row.lineId === line.lineId ? { ...row, quantity } : row)))
+                  }}
+                  className="w-full rounded border border-slate-300 px-1.5 py-1 text-sm"
+                />
+              </label>
+              <label className="flex items-center gap-1 text-[11px] font-semibold text-slate-500">
+                <span className="sr-only">m³</span>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  inputMode="decimal"
+                  aria-label={`Cubic metres for ${line.name}`}
+                  value={line.m3 ?? ''}
+                  disabled={disabled || saving}
+                  onChange={(event) => {
+                    const raw = event.target.value
+                    const m3 = raw === '' ? null : Number(raw)
+                    markDirty(
+                      lines.map((row) =>
+                        row.lineId === line.lineId
+                          ? { ...row, m3: Number.isFinite(m3) ? m3 : null, volumePerUnitM3: Number.isFinite(m3) ? m3 : null }
+                          : row,
+                      ),
+                    )
+                  }}
+                  className="w-full rounded border border-slate-300 px-1.5 py-1 text-sm"
+                />
+              </label>
+              <button
+                type="button"
+                disabled={disabled || saving}
+                onClick={() => markDirty(lines.filter((row) => row.lineId !== line.lineId))}
+                className="rounded px-1.5 py-1 text-xs font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50"
+              >
+                Remove
+              </button>
             </div>
           ))
         )}
@@ -286,7 +294,7 @@ export default function CustomerLeadMoveEditor({ lead, disabled = false, onSaved
       </p>
       <textarea
         id="lead-special-instructions"
-        rows={4}
+        rows={3}
         value={instructions}
         disabled={disabled || saving}
         onChange={(event) => markDirty(null, event.target.value)}

@@ -239,21 +239,11 @@ function buildAdminPhoneBookingFormFromLead(lead, { createdBy, convert = true, f
       `Service package: ${packageSnap.display_name || packageSnap.service_package} (£${Number(packageSnap.service_package_fee || 0).toFixed(2)})`,
     )
   }
-  if (String(lead.price_override_reason || '').trim()) {
-    detailsLines.push(`Price override reason: ${String(lead.price_override_reason).trim()}`)
-  }
-  if (wizard.specialInstructions) {
-    detailsLines.push('', `Customer notes: ${wizard.specialInstructions}`)
-  }
-  if (wizard.inventoryLines.length > 0) {
-    detailsLines.push(
-      '',
-      'Inventory:',
-      ...wizard.inventoryLines.map(
-        (l) => `- ${l.quantity || 1}× ${l.name || 'Item'} (${l.m3 ?? '?'} m³)`,
-      ),
-    )
-  }
+  const details = mergeLeadEditsIntoQuoteDetails(detailsLines.filter(Boolean).join('\n'), {
+    specialInstructions: wizard.specialInstructions || '',
+    priceNote: String(lead.price_override_reason || '').trim(),
+    inventoryLines: wizard.inventoryLines,
+  })
   const arrival = formatWizardArrivalSummary(wizard) || getWizardArrivalTimePayload(wizard) || ''
 
   return {
@@ -267,7 +257,8 @@ function buildAdminPhoneBookingFormFromLead(lead, { createdBy, convert = true, f
     delivery: wizard.deliveryAddress,
     move_date: wizard.moveDate || new Date().toISOString().slice(0, 10),
     arrival_time: arrival || undefined,
-    details: detailsLines.join('\n'),
+    details,
+    inventoryLines: wizard.inventoryLines,
     payment_mode: /** @type {'quote_only'} */ ('quote_only'),
     estimated_total: chargeable ?? calculated,
     created_by: createdBy,
