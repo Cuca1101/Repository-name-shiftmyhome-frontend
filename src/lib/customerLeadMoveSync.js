@@ -40,6 +40,8 @@ export function normalizeAdminInventoryLine(raw, index = 0) {
     mult: Number(raw?.mult) > 0 ? Number(raw.mult) : 1,
     isCustom: Boolean(raw?.isCustom),
     categoryLabel: String(raw?.categoryLabel || raw?.category || ''),
+    suppliedByUs: Boolean(raw?.suppliedByUs) || String(raw?.lineId || '').startsWith('supplied-box:'),
+    suppliedMaterialId: raw?.suppliedMaterialId ?? null,
   }
 }
 

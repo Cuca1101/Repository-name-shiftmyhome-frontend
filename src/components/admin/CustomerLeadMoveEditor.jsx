@@ -133,6 +133,9 @@ export default function CustomerLeadMoveEditor({ lead, disabled = false, onSaved
     }
   }
 
+  const itemTotal = lines.reduce((sum, line) => sum + (Number(line.quantity) || 0), 0)
+  const itemTotalLabel = itemTotal === 1 ? '1 item' : `${itemTotal} items`
+
   return (
     <section className="min-w-0 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
       <div className="flex flex-wrap items-start justify-between gap-2">
@@ -143,80 +146,80 @@ export default function CustomerLeadMoveEditor({ lead, disabled = false, onSaved
             The saved price does not change.
           </p>
         </div>
+        {lines.length > 0 ? (
+          <p className="text-sm font-bold text-brand-700">{itemTotalLabel}</p>
+        ) : null}
       </div>
 
-      {lines.length > 0 ? (
-        <div className="mt-3 grid grid-cols-[minmax(0,1fr)_3.25rem_4rem_auto] gap-1.5 px-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-          <span>Item</span>
-          <span>Qty</span>
-          <span>m³</span>
-          <span className="sr-only">Remove</span>
-        </div>
-      ) : null}
-      <div className={`${lines.length > 0 ? 'mt-1' : 'mt-3'} max-h-64 space-y-1.5 overflow-y-auto`}>
-        {lines.length === 0 ? (
-          <p className="rounded-lg border border-dashed border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">
-            No items yet.
-          </p>
-        ) : (
-          lines.map((line) => (
-            <div
+      {lines.length === 0 ? (
+        <p className="mt-3 rounded-lg border border-dashed border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">
+          No items yet.
+        </p>
+      ) : (
+        <ul className="mt-3 grid grid-cols-1 gap-2 md:grid-cols-3">
+          {lines.map((line) => (
+            <li
               key={line.lineId}
-              className="grid grid-cols-[minmax(0,1fr)_3.25rem_4rem_auto] items-center gap-1.5 rounded-md border border-slate-200 px-2 py-1"
+              className="min-w-0 rounded-md border border-slate-200 px-2 py-1.5"
             >
-              <p className="min-w-0 truncate text-sm text-slate-900" title={line.name}>{line.name}</p>
-              <label className="flex items-center gap-1 text-[11px] font-semibold text-slate-500">
-                <span className="sr-only">Qty</span>
-                <input
-                  type="number"
-                  min="1"
-                  inputMode="numeric"
-                  aria-label={`Quantity for ${line.name}`}
-                  value={line.quantity}
+              <p className="flex items-baseline justify-between gap-2 text-sm text-slate-900">
+                <span className="min-w-0 truncate" title={line.name}>{line.name}</span>
+                <span className="shrink-0 font-bold">×{line.quantity}</span>
+              </p>
+              <div className="mt-1.5 flex items-center gap-1.5">
+                <label className="flex min-w-0 items-center gap-1 text-[11px] font-semibold text-slate-500">
+                  Qty
+                  <input
+                    type="number"
+                    min="1"
+                    inputMode="numeric"
+                    aria-label={`Quantity for ${line.name}`}
+                    value={line.quantity}
+                    disabled={disabled || saving}
+                    onChange={(event) => {
+                      const quantity = Math.max(1, Math.round(Number(event.target.value) || 1))
+                      markDirty(lines.map((row) => (row.lineId === line.lineId ? { ...row, quantity } : row)))
+                    }}
+                    className="w-14 rounded border border-slate-300 px-1.5 py-1 text-sm"
+                  />
+                </label>
+                <label className="flex min-w-0 items-center gap-1 text-[11px] font-semibold text-slate-500">
+                  m³
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    inputMode="decimal"
+                    aria-label={`Cubic metres for ${line.name}`}
+                    value={line.m3 ?? ''}
+                    disabled={disabled || saving}
+                    onChange={(event) => {
+                      const raw = event.target.value
+                      const m3 = raw === '' ? null : Number(raw)
+                      markDirty(
+                        lines.map((row) =>
+                          row.lineId === line.lineId
+                            ? { ...row, m3: Number.isFinite(m3) ? m3 : null, volumePerUnitM3: Number.isFinite(m3) ? m3 : null }
+                            : row,
+                        ),
+                      )
+                    }}
+                    className="w-16 rounded border border-slate-300 px-1.5 py-1 text-sm"
+                  />
+                </label>
+                <button
+                  type="button"
                   disabled={disabled || saving}
-                  onChange={(event) => {
-                    const quantity = Math.max(1, Math.round(Number(event.target.value) || 1))
-                    markDirty(lines.map((row) => (row.lineId === line.lineId ? { ...row, quantity } : row)))
-                  }}
-                  className="w-full rounded border border-slate-300 px-1.5 py-1 text-sm"
-                />
-              </label>
-              <label className="flex items-center gap-1 text-[11px] font-semibold text-slate-500">
-                <span className="sr-only">m³</span>
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  inputMode="decimal"
-                  aria-label={`Cubic metres for ${line.name}`}
-                  value={line.m3 ?? ''}
-                  disabled={disabled || saving}
-                  onChange={(event) => {
-                    const raw = event.target.value
-                    const m3 = raw === '' ? null : Number(raw)
-                    markDirty(
-                      lines.map((row) =>
-                        row.lineId === line.lineId
-                          ? { ...row, m3: Number.isFinite(m3) ? m3 : null, volumePerUnitM3: Number.isFinite(m3) ? m3 : null }
-                          : row,
-                      ),
-                    )
-                  }}
-                  className="w-full rounded border border-slate-300 px-1.5 py-1 text-sm"
-                />
-              </label>
-              <button
-                type="button"
-                disabled={disabled || saving}
-                onClick={() => markDirty(lines.filter((row) => row.lineId !== line.lineId))}
-                className="rounded px-1.5 py-1 text-xs font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50"
-              >
-                Remove
-              </button>
-            </div>
-          ))
-        )}
-      </div>
+                  onClick={() => markDirty(lines.filter((row) => row.lineId !== line.lineId))}
+                  className="ml-auto rounded px-1.5 py-1 text-xs font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50"
+                >
+                  Remove
+                </button>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
 
       <div className="relative mt-4">
         <label className="block text-sm font-semibold text-slate-800" htmlFor="lead-item-search">

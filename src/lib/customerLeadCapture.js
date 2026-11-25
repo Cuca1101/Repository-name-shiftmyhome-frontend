@@ -9,6 +9,8 @@ import {
   resolveDeliveryContact,
   resolvePickupContact,
 } from './quoteWizardContactFields'
+import { parsePackingMaterialQuantities } from './packingMaterialsCatalog.js'
+import { syncSuppliedBoxesIntoInventory } from './suppliedBoxesInventory.js'
 
 /**
  * @param {{
@@ -228,7 +230,10 @@ export function buildCustomerLeadUpsertPayload({
     paymentPhase,
   })
 
-  /** @type {Record<string, unknown>} */
+  const inventoryLines = syncSuppliedBoxesIntoInventory(
+    w.inventoryLines,
+    parsePackingMaterialQuantities(w),
+  )
   const payload = {
     quote_ref: String(quoteRef || '').trim() || null,
     quote_id: quoteId ? String(quoteId).trim() : null,
@@ -246,10 +251,13 @@ export function buildCustomerLeadUpsertPayload({
     wizard_step: Math.max(1, Number(step) || 1),
     wizard_data: {
       step1: buildStep1Snapshot(w),
-      step2: buildStep2Snapshot(w, resolveCustomerLeadVolumeM3({
-        totalVolumeM3: totalM3,
-        inventoryLines: w.inventoryLines,
-      })),
+      step2: buildStep2Snapshot(
+        { ...w, inventoryLines },
+        resolveCustomerLeadVolumeM3({
+          totalVolumeM3: totalM3,
+          inventoryLines,
+        }),
+      ),
       step3: buildStep3Snapshot(w, { estimatedTotal, servicePackageSnapshot }),
       capturedAt: new Date().toISOString(),
     },

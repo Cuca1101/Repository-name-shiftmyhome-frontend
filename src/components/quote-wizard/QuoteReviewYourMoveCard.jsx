@@ -33,17 +33,23 @@ function isCustomerOptionalExtraLine(label) {
     /^Reassembly \(/i.test(text) ||
     /^Waiting time \(/i.test(text) ||
     /^Extra helper/i.test(text) ||
-    PACKING_MATERIALS_CATALOG.some((item) => text.startsWith(`${item.label} (`))
+    PACKING_MATERIALS_CATALOG.some(
+      (item) => text.startsWith(`${item.label} (`) || text.startsWith(`${item.label} purchase (`),
+    )
   )
 }
 
-function optionalExtrasAmount(breakdown) {
+function optionalExtrasAmount(breakdown, predicate = isCustomerOptionalExtraLine) {
   const lines = Array.isArray(breakdown?.extrasLines) ? breakdown.extrasLines : []
   const sum = lines.reduce(
-    (total, line) => (isCustomerOptionalExtraLine(line?.label) ? total + (Number(line.amount) || 0) : total),
+    (total, line) => (predicate(line?.label) ? total + (Number(line.amount) || 0) : total),
     0,
   )
   return Math.round(sum * 100) / 100
+}
+
+function isSuppliedBoxPurchaseLine(label) {
+  return / moving box purchase \(/i.test(String(label || ''))
 }
 
 function formatVolume(totalM3) {
@@ -88,6 +94,8 @@ export default function QuoteReviewYourMoveCard({
   )
   const arrival = formatReviewShortTimeLabel(wizard)
   const extras = optionalExtrasAmount(breakdown)
+  const boxPurchase = optionalExtrasAmount(breakdown, isSuppliedBoxPurchaseLine)
+  const otherExtras = Math.round((extras - boxPurchase) * 100) / 100
   const movePrice =
     breakdown?.quoteBaseTotal != null && Number.isFinite(breakdown.quoteBaseTotal)
       ? Math.round((breakdown.quoteBaseTotal - extras) * 100) / 100
@@ -155,10 +163,18 @@ export default function QuoteReviewYourMoveCard({
           <dt className="text-slate-600">{packageLabel}</dt>
           <dd className="font-semibold tabular-nums text-slate-900">£{packageFee.toFixed(2)}</dd>
         </div>
-        <div className="flex items-baseline justify-between gap-3">
-          <dt className="text-slate-600">Optional extras</dt>
-          <dd className="font-semibold tabular-nums text-slate-900">£{extras.toFixed(2)}</dd>
-        </div>
+        {boxPurchase > 0 ? (
+          <div className="flex items-baseline justify-between gap-3">
+            <dt className="text-slate-600">Boxes supplied by us</dt>
+            <dd className="font-semibold tabular-nums text-slate-900">£{boxPurchase.toFixed(2)}</dd>
+          </div>
+        ) : null}
+        {otherExtras > 0 || boxPurchase <= 0 ? (
+          <div className="flex items-baseline justify-between gap-3">
+            <dt className="text-slate-600">Optional extras</dt>
+            <dd className="font-semibold tabular-nums text-slate-900">£{otherExtras.toFixed(2)}</dd>
+          </div>
+        ) : null}
         <div className="flex items-end justify-between gap-3 pt-1">
           <dt className="font-semibold text-slate-800">Total</dt>
           <dd className="text-[1.75rem] font-extrabold leading-none tabular-nums text-blue-600">{totalFormatted}</dd>

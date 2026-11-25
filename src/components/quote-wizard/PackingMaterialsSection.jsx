@@ -8,6 +8,7 @@ import {
   parsePackingMaterialQuantities,
   sumBoxQuantities,
 } from '../../lib/packingMaterialsCatalog'
+import { syncSuppliedBoxesIntoInventory } from '../../lib/suppliedBoxesInventory'
 import { applyWizardPatch } from '../../lib/wizardStateUpdate'
 
 function QtyStepper({ value, onChange, disabled, size = 'default' }) {
@@ -109,17 +110,22 @@ export default function PackingMaterialsSection({
   }
 
   function setMaterialQty(id, qty) {
-    const raw = { ...materialQty, [id]: Math.max(0, qty) }
-    delete raw.boxes
-    const next = normalizePackingMaterialQuantities(raw)
-    const detail = buildPackingWhatFromQuantities(next)
-    const any = PACKING_MATERIALS_CATALOG.some((m) => (next[m.id] || 0) > 0)
-    set({
-      packingMaterialsQuantities: next,
-      packingApproxBoxes: sumBoxQuantities(next),
-      packingMaterials: any,
-      packingMaterialsDetail: detail,
-      packingWhat: detail,
+    set((prev) => {
+      const currentQty = parsePackingMaterialQuantities(prev)
+      const raw = { ...currentQty, [id]: Math.max(0, qty) }
+      delete raw.boxes
+      const next = normalizePackingMaterialQuantities(raw)
+      const detail = buildPackingWhatFromQuantities(next)
+      const any = PACKING_MATERIALS_CATALOG.some((m) => (next[m.id] || 0) > 0)
+      return {
+        ...prev,
+        packingMaterialsQuantities: next,
+        packingApproxBoxes: sumBoxQuantities(next),
+        packingMaterials: any,
+        packingMaterialsDetail: detail,
+        packingWhat: detail,
+        inventoryLines: syncSuppliedBoxesIntoInventory(prev.inventoryLines, next),
+      }
     })
   }
 

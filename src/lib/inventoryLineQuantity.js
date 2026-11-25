@@ -6,11 +6,11 @@
  */
 export function applyInventoryLineQuantityDelta(lines, lineId, delta) {
   return (lines || [])
-    .map((r) =>
-      r.lineId === lineId
-        ? { ...r, quantity: Math.max(0, (Number(r.quantity) || 0) + delta) }
-        : r,
-    )
+    .map((r) => {
+      if (r.lineId !== lineId) return r
+      if (r.suppliedByUs || String(r.lineId || '').startsWith('supplied-box:')) return r
+      return { ...r, quantity: Math.max(0, (Number(r.quantity) || 0) + delta) }
+    })
     .filter((r) => r.quantity > 0)
 }
 

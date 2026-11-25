@@ -674,8 +674,9 @@ export function calculateQuote(settings, input) {
         if (q > 0 && rate > 0) {
           const lineAmt = money(q * rate)
           const unitLabel = q === 1 ? def.unit : def.unitPlural
+          const purchaseLabel = def.id.endsWith('Boxes') ? `${def.label} purchase` : def.label
           extrasLines.push({
-            label: `${def.label} (${q} ${unitLabel} × £${rate.toFixed(2)})`,
+            label: `${purchaseLabel} (${q} ${unitLabel} × £${rate.toFixed(2)})`,
             amount: lineAmt,
           })
         }

@@ -12,6 +12,8 @@ import { EMAILJS_TEMPLATE_ID_GUIDE, isEmailJsReady } from '../../emailjs.config'
 import { fetchPricingSettings } from '../../lib/data/pricingSettingsRepository'
 import { onPricingSettingsUpdated } from '../../lib/pricingSettingsEvents'
 import { consumeWelcomeBackFlag } from '../../lib/quoteRecoveryResume'
+import { parsePackingMaterialQuantities } from '../../lib/packingMaterialsCatalog'
+import { syncSuppliedBoxesIntoInventory } from '../../lib/suppliedBoxesInventory'
 import { authenticatedCustomerAccessToken, authenticatedCustomerEmail, getPortalContact } from '../../lib/customerPortalApi'
 import { portalContactPrefill } from '../../lib/customerPortalModel'
 
@@ -475,6 +477,26 @@ export function QuoteWizardProvider({
       })),
     [wizard.inventoryLines],
   )
+
+  const suppliedBoxKey = [
+    wizard.packingMaterialsQuantities?.smallBoxes,
+    wizard.packingMaterialsQuantities?.mediumBoxes,
+    wizard.packingMaterialsQuantities?.largeBoxes,
+    wizard.packingMaterialsQuantities?.extraLargeBoxes,
+    wizard.packingApproxBoxes,
+    wizard.packingMaterialsDetail,
+  ].join('|')
+
+  useEffect(() => {
+    setWizard((current) => {
+      const nextLines = syncSuppliedBoxesIntoInventory(
+        current.inventoryLines,
+        parsePackingMaterialQuantities(current),
+      )
+      if (JSON.stringify(current.inventoryLines || []) === JSON.stringify(nextLines)) return current
+      return { ...current, inventoryLines: nextLines }
+    })
+  }, [suppliedBoxKey])
 
   const heavyItemCount = useMemo(() => {
     let n = 0
@@ -1006,15 +1028,19 @@ export function QuoteWizardProvider({
     if (!breakdown) return null
     const files = quotePhotoFiles
 
+    const inventoryLines = syncSuppliedBoxesIntoInventory(
+      wizard.inventoryLines,
+      parsePackingMaterialQuantities(wizard),
+    )
     const fullSummaryText = buildWizardFullSummaryText({
-      wizard,
+      wizard: { ...wizard, inventoryLines },
       serviceType,
       quoteRef,
       breakdown,
       photoFileNames: files.map((f) => f.name),
     })
 
-    const invRowsForParams = wizard.inventoryLines.map((l) => ({
+    const invRowsForParams = inventoryLines.map((l) => ({
       name: l.name,
       quantity: l.quantity,
       volumePerUnitM3: l.m3,
@@ -1051,7 +1077,7 @@ export function QuoteWizardProvider({
       distance_miles: Number(wizard.distanceMiles) || 0,
       crew_size: Number(wizard.crewSize) || null,
       vehicle_size: wizard.vehicleSize ? String(wizard.vehicleSize) : null,
-      inventoryLines: wizard.inventoryLines,
+      inventoryLines,
     }
 
     return { templateParams, extras, fullSummaryText, photoFileNames: files.map((f) => f.name) }
@@ -1270,7 +1296,10 @@ export function QuoteWizardProvider({
       photoFileNames,
     }
 
-    const jobItems = wizard.inventoryLines.map((row) => {
+    const jobItems = syncSuppliedBoxesIntoInventory(
+      wizard.inventoryLines,
+      parsePackingMaterialQuantities(wizard),
+    ).map((row) => {
       const lineVol = row.quantity * row.m3
       return {
         item_name: row.name,
