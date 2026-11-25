@@ -33,7 +33,7 @@ import {
   inventoryJsonFromLines,
   inventoryTextFromLines,
   mergeLeadEditsIntoQuoteDetails,
-  specialInstructionsWithoutPriceNote,
+  removePriceNoteFromInstructions,
 } from './customerLeadMoveSync'
 
 /** Stored on lead.wizard_data so Undo can restore prior lead + quote shape. */
@@ -461,7 +461,7 @@ export async function saveCustomerLeadAgreedPrice({
 
   const note = String(reason || '').trim()
   const currentEdits = editsFromLead(currentLead)
-  const specialInstructions = specialInstructionsWithoutPriceNote(
+  const specialInstructions = removePriceNoteFromInstructions(
     currentEdits.specialInstructions,
     currentEdits.priceNote,
   )

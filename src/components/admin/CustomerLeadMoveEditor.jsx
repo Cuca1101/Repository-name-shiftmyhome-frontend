@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { saveCustomerLeadMoveEdits } from '../../lib/customerLeadBookingConvert'
-import { editsFromLead, normalizeAdminInventoryLine } from '../../lib/customerLeadMoveSync'
+import { editsFromLead, normalizeAdminInventoryLine, notesForCustomerEmail } from '../../lib/customerLeadMoveSync'
 import { useQuoteInventoryCatalog } from '../quote-wizard/useQuoteInventoryCatalog'
 import { filterAndSortInventorySearchResults } from '../quote-wizard/inventorySearchUtils'
 
@@ -16,6 +16,7 @@ import { filterAndSortInventorySearchResults } from '../quote-wizard/inventorySe
 export default function CustomerLeadMoveEditor({ lead, disabled = false, onSaved }) {
   const catalog = useQuoteInventoryCatalog()
   const saved = useMemo(() => editsFromLead(lead), [lead])
+  const noteLabels = useMemo(() => notesForCustomerEmail(lead), [lead])
   const [lines, setLines] = useState(saved.inventoryLines)
   const [instructions, setInstructions] = useState(saved.specialInstructions)
   const [query, setQuery] = useState('')
@@ -279,7 +280,9 @@ export default function CustomerLeadMoveEditor({ lead, disabled = false, onSaved
         Special instructions
       </label>
       <p className="mt-1 text-xs text-slate-500">
-        Special instructions are what the customer wrote. Your price note is separate and shows in the email under Notes as Included in price.
+        {noteLabels.customer
+          ? 'Special instructions are the customer’s words. A price note stays separate and shows under them as Included in price.'
+          : 'Special instructions are for the customer. A price note shows under them in the email as Included in price.'}
       </p>
       <textarea
         id="lead-special-instructions"

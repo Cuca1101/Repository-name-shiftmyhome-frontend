@@ -71,7 +71,7 @@ export function mergePriceNoteIntoSpecialInstructions(existing, note, previousNo
  * @param {unknown} text
  * @param {unknown} note
  */
-export function specialInstructionsWithoutPriceNote(text, note) {
+function withoutNoteLine(text, note) {
   const current = String(text || '').trim()
   const extra = String(note || '').trim()
   if (!current) return ''
@@ -89,6 +89,11 @@ export function specialInstructionsWithoutPriceNote(text, note) {
   return kept.join('\n').replace(/\n{3,}/g, '\n\n').trim()
 }
 
+/** Keep special instructions as the customer's words. The price note stays a note. */
+export function removePriceNoteFromInstructions(text, note) {
+  return withoutNoteLine(text, note)
+}
+
 /**
  * Split a lead note into the customer's words and the admin's words.
  * @param {Record<string, unknown>|null|undefined} lead
@@ -104,7 +109,7 @@ export function notesForCustomerEmail(lead) {
     ? String(step3.customerSpecialInstructions).trim()
     : source === 'admin'
       ? ''
-      : specialInstructionsWithoutPriceNote(current, note)
+      : withoutNoteLine(current, note)
 
   let admin = ''
   if (source === 'admin' && current && current !== customer) {
@@ -264,7 +269,7 @@ export function buildLeadWizardData(lead, edits) {
     const customerOriginal =
       typeof step3.customerSpecialInstructions === 'string'
         ? String(step3.customerSpecialInstructions).trim()
-        : specialInstructionsWithoutPriceNote(step3.specialInstructions, priceNote)
+        : withoutNoteLine(step3.specialInstructions, priceNote)
     step3Next.customerSpecialInstructions = customerOriginal
     step3Next.specialInstructionsSource = nextInstructions === customerOriginal ? 'customer' : 'admin'
   }

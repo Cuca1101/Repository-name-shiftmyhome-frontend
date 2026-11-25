@@ -58,15 +58,14 @@ export function buildQuoteRecoveryEmailPreview(data) {
     data.customerNote != null
       ? String(data.customerNote).trim()
       : String(data.specialInstructions || '').trim()
-  const year = new Date().getFullYear()
+  const inventory = Array.isArray(data.inventoryLines) ? data.inventoryLines : []
   const phone = String(data.customerPhone || '').trim()
   const email = String(data.customerEmail || '').trim()
   const collection = String(data.collectionAddress || '').trim() || route
   const dropoff = String(data.dropoffAddress || '').trim() || '—'
   const collectionFloor = floorLabel(data.collectionFloor)
   const dropoffFloor = floorLabel(data.dropoffFloor)
-
-  const inventory = Array.isArray(data.inventoryLines) ? data.inventoryLines : []
+  const year = new Date().getFullYear()
   const invRows = inventoryRowsHtml(inventory, esc)
 
   const firstName = name.split(/\s+/)[0] || 'there'
@@ -121,15 +120,13 @@ export function buildQuoteRecoveryEmailPreview(data) {
   const detailValue = 'margin-top:4px;font-size:13px;font-weight:600;line-height:1.4;color:#0f172a;'
   const buttonStyle =
     'display:inline-block;color:#ffffff;text-decoration:none;font-size:16px;font-weight:700;padding:14px 28px;border-radius:12px;'
-  const notesBlock = `${
-    customerNote
-      ? `<tr><td style="padding:14px 24px 0 24px;"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border:1px solid #e2e8f0;border-radius:12px;"><tr><td style="padding:12px 16px;"><div style="font-size:15px;font-weight:700;color:#0f172a;">Special instructions</div><div style="margin-top:6px;font-size:14px;line-height:1.55;color:#334155;white-space:pre-wrap;">${esc(customerNote)}</div></td></tr></table></td></tr>`
+  const includedHtml = priceReason
+    ? `<div style="margin-top:12px;padding-top:10px;border-top:1px solid #f1f5f9;"><span style="display:inline-block;background:#ecfdf5;color:#047857;font-size:11px;font-weight:700;letter-spacing:0.04em;text-transform:uppercase;border:1px solid #a7f3d0;border-radius:999px;padding:3px 8px;">Included in price</span><div style="margin-top:6px;font-size:14px;line-height:1.55;color:#334155;white-space:pre-wrap;">${esc(priceReason)}</div></div>`
+    : ''
+  const notesBlock =
+    customerNote || priceReason
+      ? `<tr><td style="padding:14px 24px 0 24px;"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border:1px solid #e2e8f0;border-radius:12px;"><tr><td style="padding:12px 16px;"><div style="font-size:15px;font-weight:700;color:#0f172a;">Special instructions</div>${customerNote ? `<div style="margin-top:6px;font-size:14px;line-height:1.55;color:#334155;white-space:pre-wrap;">${esc(customerNote)}</div>` : ''}${includedHtml}</td></tr></table></td></tr>`
       : ''
-  }${
-    priceReason
-      ? `<tr><td style="padding:14px 24px 0 24px;"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border:1px solid #e2e8f0;border-radius:12px;"><tr><td style="padding:12px 16px;"><div style="font-size:15px;font-weight:700;color:#0f172a;">Notes</div><div style="margin-top:8px;font-size:11px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:#64748b;">Included in price</div><div style="margin-top:4px;font-size:14px;line-height:1.55;color:#334155;white-space:pre-wrap;">${esc(priceReason)}</div></td></tr></table></td></tr>`
-      : ''
-  }`
 
   const html = `<!doctype html>
 <html lang="en">
@@ -230,14 +227,13 @@ ${notesBlock}
     `Collection: ${collection}${collectionFloor ? ` · ${collectionFloor}` : ''}`,
     `Drop-off: ${dropoff}${dropoffFloor ? ` · ${dropoffFloor}` : ''}`,
     `Quote: ${quoteRef}`,
-    `Service: ${service}`,
-    `Move date: ${moveDate}`,
     `Crew: ${crew}`,
+    `Total: ${total}`,
+    '',
     hasOverride ? `Was: ${wasLabel}` : null,
     hasOverride && reducedBy ? `Reduced by: £${reducedBy.toFixed(2)}` : null,
-    `Not paid yet. Amount to pay: ${total}`,
-    priceReason ? `Notes — Included in price: ${priceReason}` : null,
     customerNote ? `Special instructions: ${customerNote}` : null,
+    priceReason ? `Included in price: ${priceReason}` : null,
     '',
     `Resume: ${resumeUrl}`,
     `Pay: ${payUrl}`,
@@ -248,6 +244,15 @@ ${notesBlock}
   ].filter((line) => line != null).join('\n')
 
   return { subject, html, text }
+}
+
+/** @param {unknown} v */
+function esc(v) {
+  return String(v ?? '')
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
 }
 
 const FLOOR_LABELS = {
@@ -313,15 +318,6 @@ function inventoryRowsHtml(inventory, escapeHtml) {
   return rows.join('')
 }
 
-/** @param {unknown} v */
-function esc(v) {
-  return String(v ?? '')
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-}
-
 /**
  * Build inventory + crew from lead wizard_data for emails/admin.
  * @param {Record<string, unknown>|null|undefined} lead
@@ -350,6 +346,7 @@ export function recoveryContentFromLead(lead) {
     calculatedTotal: lead?.calculated_total ?? lead?.estimated_total ?? s3.estimatedTotal ?? null,
     agreedPrice: lead?.agreed_price ?? null,
     customerNote: notes.customer,
+    adminNote: notes.admin,
     priceReason: String(lead?.price_override_reason || '').trim(),
   }
 }

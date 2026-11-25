@@ -1163,8 +1163,9 @@ export default function CustomerLeadDetailAdmin() {
                 </button>
               </div>
               <p className="text-xs text-slate-500">
-                This note is shown only under Notes in the customer email, as Included in price.
-                It is not added to special instructions. Saving does not email the customer or record a payment. The calculated price stays as it is.
+                The note stays on the price only. It is not copied into special instructions.
+                In the customer email it appears under special instructions, marked Included in price.
+                Saving does not email the customer or record a payment. The calculated price stays as it is.
               </p>
             </div>
           ) : (
