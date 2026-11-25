@@ -2,6 +2,7 @@
  * Client-side recovery email HTML preview (mirrors edge template content).
  */
 import { formatDateUK } from './formatDateDisplay'
+import { notesForCustomerEmail } from './customerLeadMoveSync'
 
 /**
  * @param {{
@@ -19,6 +20,13 @@ import { formatDateUK } from './formatDateDisplay'
  *   resumeUrl?: string,
  *   payUrl?: string,
  *   siteUrl?: string,
+ *   specialInstructions?: string,
+ *   customerPhone?: string,
+ *   customerEmail?: string,
+ *   collectionAddress?: string,
+ *   dropoffAddress?: string,
+ *   collectionFloor?: string,
+ *   dropoffFloor?: string,
  * }} data
  */
 export function buildQuoteRecoveryEmailPreview(data) {
@@ -46,81 +54,263 @@ export function buildQuoteRecoveryEmailPreview(data) {
   const resumeUrl = data.resumeUrl || '#'
   const payUrl = data.payUrl || '#'
   const siteUrl = (data.siteUrl || 'https://www.shiftmyhome.co.uk').replace(/\/$/, '')
+  const customerNote =
+    data.customerNote != null
+      ? String(data.customerNote).trim()
+      : String(data.specialInstructions || '').trim()
+  const year = new Date().getFullYear()
+  const phone = String(data.customerPhone || '').trim()
+  const email = String(data.customerEmail || '').trim()
+  const collection = String(data.collectionAddress || '').trim() || route
+  const dropoff = String(data.dropoffAddress || '').trim() || '—'
+  const collectionFloor = floorLabel(data.collectionFloor)
+  const dropoffFloor = floorLabel(data.dropoffFloor)
 
   const inventory = Array.isArray(data.inventoryLines) ? data.inventoryLines : []
-  const invRows = inventory.length
-    ? inventory
-        .map((line) => {
-          const label = String(line.name || line.label || 'Item').trim()
-          const qty = Number(line.qty ?? line.quantity ?? 1) || 1
-          return `<tr><td style="padding:6px 0;border-bottom:1px solid #e2e8f0;">${esc(label)}</td><td style="padding:6px 0;border-bottom:1px solid #e2e8f0;text-align:right;">×${qty}</td></tr>`
-        })
-        .join('')
-    : `<tr><td colspan="2" style="padding:6px 0;color:#64748b;">No inventory items saved</td></tr>`
+  const invRows = inventoryRowsHtml(inventory, esc)
 
-  const titles = {
-    abandoned: 'Your quote is still reserved',
-    abandoned_reminder: 'Reminder: your quote is waiting',
-    abandoned_final: 'Final reminder: complete your booking',
-    payment_failed: 'Payment unsuccessful — retry anytime',
-  }
-  const intros = {
-    abandoned: `Hi ${esc(name)}, you left before completing payment. Good news — your quote is still reserved.`,
-    abandoned_reminder: `Hi ${esc(name)}, just a reminder that your ShiftMyHome quote is still reserved and ready to finish.`,
-    abandoned_final: `Hi ${esc(name)}, this is your final reminder. Your quote is still reserved — resume or pay now to secure your move.`,
-    payment_failed: `Hi ${esc(name)}, your payment for quote ${esc(quoteRef)} didn’t go through. No charge was made — you can retry payment or resume your quote below.`,
-  }
-
+  const firstName = name.split(/\s+/)[0] || 'there'
+  const payLabel = kind === 'payment_failed' ? 'Retry Payment' : 'Pay Now'
+  const banner =
+    kind === 'payment_failed'
+      ? 'Payment unsuccessful'
+      : kind === 'abandoned_final'
+        ? 'Final reminder: your quote is still reserved'
+        : kind === 'abandoned_reminder'
+          ? 'Reminder: your quote is still reserved'
+          : 'Your quote is still reserved'
+  const introPlain =
+    kind === 'payment_failed'
+      ? `Hi ${firstName}, your payment for quote ${quoteRef} didn’t go through. No charge was made. You can retry payment or resume your quote below.`
+      : kind === 'abandoned_final'
+        ? `Hi ${firstName}, this is your final reminder. Your quote is still reserved — resume or pay now to secure your move.`
+        : kind === 'abandoned_reminder'
+          ? `Hi ${firstName}, just a reminder that your ShiftMyHome quote is still reserved and ready to finish.`
+          : `Hi ${firstName}, you left before completing payment. Good news — your quote is still reserved.`
+  const intro = `Hi ${esc(firstName)},<br />${esc(introPlain.replace(/^Hi [^,]+, /, ''))}`
   const subject =
     kind === 'payment_failed'
-      ? `[ShiftMyHome] Payment failed — retry for ${quoteRef}`
-      : `[ShiftMyHome] Your quote ${quoteRef} is still reserved`
+      ? `Your ShiftMyHome quote ${quoteRef} — payment unsuccessful`
+      : `Your ShiftMyHome quote ${quoteRef} — ${total}`
+  const priceReason = String(data.priceReason || '').trim()
+  const unpaidLine = kind === 'payment_failed' ? 'Not paid. No charge was made.' : 'Not paid yet.'
+  const wasLabel = calculated != null ? `£${calculated.toFixed(2)}` : ''
+  const reducedBy =
+    hasOverride && agreed != null && calculated != null && calculated - agreed > 0.009
+      ? calculated - agreed
+      : 0
+  const priceNote = hasOverride
+    ? reducedBy
+      ? `${unpaidLine} Was ${wasLabel}. Reduced by £${reducedBy.toFixed(2)}. Amount to pay ${total}.`
+      : `${unpaidLine} Was ${wasLabel}. Amount to pay ${total}.`
+    : `${unpaidLine} Amount to pay ${total}.`
+  const priceBox = `<div style="font-size:13px;color:#065f46;font-weight:600;text-transform:uppercase;letter-spacing:0.04em;">Amount to pay</div>
+    ${hasOverride ? `<div style="margin-top:6px;font-size:16px;line-height:1.3;color:#64748b;">Was <span style="text-decoration:line-through;">${esc(wasLabel)}</span></div>` : ''}
+    <div style="font-size:30px;font-weight:800;color:#047857;margin-top:2px;">${esc(total)}</div>
+    <div style="font-size:13px;color:#065f46;margin-top:6px;line-height:1.5;">${esc(priceNote)}</div>`
+  const logoUrl = `${siteUrl}/logo.png`
+  const splitLines = (value) =>
+    String(value || '')
+      .split(/\s*,\s*/)
+      .map((part) => part.trim())
+      .filter(Boolean)
+      .map((part) => esc(part))
+      .join('<br />')
+  const detailLabel =
+    'font-size:11px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:#64748b;'
+  const detailValue = 'margin-top:4px;font-size:13px;font-weight:600;line-height:1.4;color:#0f172a;'
+  const buttonStyle =
+    'display:inline-block;color:#ffffff;text-decoration:none;font-size:16px;font-weight:700;padding:14px 28px;border-radius:12px;'
+  const notesBlock = `${
+    customerNote
+      ? `<tr><td style="padding:14px 24px 0 24px;"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border:1px solid #e2e8f0;border-radius:12px;"><tr><td style="padding:12px 16px;"><div style="font-size:15px;font-weight:700;color:#0f172a;">Special instructions</div><div style="margin-top:6px;font-size:14px;line-height:1.55;color:#334155;white-space:pre-wrap;">${esc(customerNote)}</div></td></tr></table></td></tr>`
+      : ''
+  }${
+    priceReason
+      ? `<tr><td style="padding:14px 24px 0 24px;"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border:1px solid #e2e8f0;border-radius:12px;"><tr><td style="padding:12px 16px;"><div style="font-size:15px;font-weight:700;color:#0f172a;">Notes</div><div style="margin-top:8px;font-size:11px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:#64748b;">Included in price</div><div style="margin-top:4px;font-size:14px;line-height:1.55;color:#334155;white-space:pre-wrap;">${esc(priceReason)}</div></td></tr></table></td></tr>`
+      : ''
+  }`
 
-  const html = `<!doctype html><html><body style="margin:0;background:#f8fafc;font-family:Inter,Segoe UI,Arial,sans-serif;">
-  <div style="max-width:560px;margin:24px auto;background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:24px;">
-    <h1 style="margin:0 0 8px;font-size:22px;color:#0f172a;">${titles[kind] || titles.abandoned}</h1>
-    <p style="margin:0 0 16px;color:#475569;line-height:1.55;">${intros[kind] || intros.abandoned}</p>
-    <table width="100%" style="font-size:14px;color:#334155;margin-bottom:16px;">
-      <tr><td style="padding:4px 0;"><strong>Quote</strong></td><td style="padding:4px 0;text-align:right;">${esc(quoteRef)}</td></tr>
-      <tr><td style="padding:4px 0;"><strong>Route</strong></td><td style="padding:4px 0;text-align:right;">${esc(route)}</td></tr>
-      <tr><td style="padding:4px 0;"><strong>Service</strong></td><td style="padding:4px 0;text-align:right;">${esc(service)}</td></tr>
-      <tr><td style="padding:4px 0;"><strong>Move date</strong></td><td style="padding:4px 0;text-align:right;">${esc(moveDate)}</td></tr>
-      <tr><td style="padding:4px 0;"><strong>Crew</strong></td><td style="padding:4px 0;text-align:right;">${esc(crew)}</td></tr>
-      ${
-        hasOverride
-          ? `<tr><td style="padding:4px 0;"><strong>Calculated price</strong></td><td style="padding:4px 0;text-align:right;">£${calculated.toFixed(2)}</td></tr>
-      <tr><td style="padding:4px 0;"><strong>Agreed price</strong></td><td style="padding:4px 0;text-align:right;font-weight:700;color:#0f172a;">${esc(total)}</td></tr>`
-          : `<tr><td style="padding:4px 0;"><strong>Total</strong></td><td style="padding:4px 0;text-align:right;font-weight:700;color:#0f172a;">${esc(total)}</td></tr>`
-      }
+  const html = `<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8" /><meta name="viewport" content="width=device-width,initial-scale=1" /><title>${esc(subject)}</title></head>
+<body style="margin:0;padding:0;background:#eff6ff;font-family:Inter,Segoe UI,Arial,sans-serif;">
+<div style="display:none;max-height:0;overflow:hidden;">Your quote ${esc(quoteRef)} for ${esc(moveDate)} is still reserved — ${esc(total)}.</div>
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#eff6ff;"><tr><td align="center" style="padding:24px 12px;">
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="width:100%;max-width:600px;background:#ffffff;border-radius:18px;border:1px solid #dbeafe;overflow:hidden;">
+<tr><td style="padding:20px 24px;">
+  <a href="${esc(siteUrl)}" style="text-decoration:none;"><img src="${esc(logoUrl)}" width="170" alt="ShiftMyHome" style="display:block;width:170px;max-width:100%;height:auto;border:0;" /></a>
+</td></tr>
+<tr><td style="padding:0 24px;">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#1d4ed8;border-radius:14px;"><tr><td style="padding:22px;">
+    <div style="font-size:26px;line-height:1.2;color:#ffffff;font-weight:800;">${esc(banner)}</div>
+    <div style="margin-top:6px;font-size:13px;color:#dbeafe;">Reference ${esc(quoteRef)}</div>
+  </td></tr></table>
+</td></tr>
+<tr><td style="padding:20px 24px 0 24px;font-size:15px;line-height:1.6;color:#334155;">
+  ${intro}
+</td></tr>
+<tr><td style="padding:16px 24px 0 24px;">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border:1px solid #e2e8f0;border-radius:12px;"><tr><td style="padding:12px 14px;">
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
+      <tr>
+        <td width="34%" valign="top" style="width:34%;padding-right:10px;border-right:1px solid #f1f5f9;">
+          <div style="${detailLabel}">Name</div>
+          <div style="${detailValue}">${esc(name)}</div>
+          ${phone ? `<div style="margin-top:4px;font-size:12px;line-height:1.4;color:#334155;">${esc(phone)}</div>` : ''}
+          ${email ? `<div style="margin-top:2px;font-size:12px;line-height:1.4;color:#334155;word-break:break-all;">${esc(email)}</div>` : ''}
+        </td>
+        <td width="33%" valign="top" style="width:33%;padding:0 10px;border-right:1px solid #f1f5f9;">
+          <div style="${detailLabel}">Collection</div>
+          <div style="${detailValue}">${splitLines(collection)}</div>
+          ${collectionFloor ? `<div style="margin-top:4px;font-size:12px;line-height:1.4;color:#475569;">${esc(collectionFloor)}</div>` : ''}
+        </td>
+        <td width="33%" valign="top" style="width:33%;padding-left:10px;">
+          <div style="${detailLabel}">Drop-off</div>
+          <div style="${detailValue}">${splitLines(dropoff)}</div>
+          ${dropoffFloor ? `<div style="margin-top:4px;font-size:12px;line-height:1.4;color:#475569;">${esc(dropoffFloor)}</div>` : ''}
+        </td>
+      </tr>
     </table>
-    <h2 style="font-size:15px;margin:0 0 8px;color:#0f172a;">Inventory</h2>
-    <table width="100%" style="font-size:14px;color:#334155;margin-bottom:20px;">${invRows}</table>
-    <p style="margin:0 0 12px;">
-      <a href="${esc(resumeUrl)}" target="_blank" rel="noopener noreferrer" style="display:inline-block;background:#0284c7;color:#fff;text-decoration:none;font-weight:700;padding:12px 18px;border-radius:10px;">Resume Quote</a>
-    </p>
-    <p style="margin:0 0 16px;">
-      <a href="${esc(payUrl)}" target="_blank" rel="noopener noreferrer" style="display:inline-block;background:#0f172a;color:#fff;text-decoration:none;font-weight:700;padding:12px 18px;border-radius:10px;">${kind === 'payment_failed' ? 'Retry Payment' : 'Pay Now'}</a>
-    </p>
-    <p style="margin:0;font-size:12px;color:#94a3b8;">ShiftMyHome · <a href="${esc(siteUrl)}" target="_blank" rel="noopener noreferrer" style="color:#64748b;">${esc(siteUrl.replace(/^https?:\/\//, ''))}</a></p>
-  </div>
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin-top:10px;border-top:1px solid #f1f5f9;">
+      <tr>
+        <td width="34%" valign="top" style="width:34%;padding:8px 10px 0 0;">
+          <div style="${detailLabel}">Move date</div>
+          <div style="${detailValue}">${esc(moveDate)}</div>
+        </td>
+        <td width="33%" valign="top" style="width:33%;padding:8px 10px 0 10px;">
+          <div style="${detailLabel}">Service</div>
+          <div style="${detailValue}">${esc(service)}</div>
+        </td>
+        <td width="33%" valign="top" style="width:33%;padding:8px 0 0 10px;">
+          <div style="${detailLabel}">Crew</div>
+          <div style="${detailValue}">${esc(crew)}</div>
+        </td>
+      </tr>
+    </table>
+  </td></tr></table>
+</td></tr>
+<tr><td style="padding:14px 24px 0 24px;">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border:1px solid #e2e8f0;border-radius:12px;"><tr><td style="padding:12px 16px;">
+    <div style="font-size:15px;font-weight:700;color:#0f172a;margin-bottom:6px;">Inventory</div>
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0">${invRows}</table>
+  </td></tr></table>
+</td></tr>
+${notesBlock}
+<tr><td style="padding:14px 24px 0 24px;">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#ecfdf5;border:1px solid #a7f3d0;border-radius:12px;"><tr><td style="padding:16px;">
+    ${priceBox}
+  </td></tr></table>
+</td></tr>
+<tr><td align="center" style="padding:22px 24px 6px 24px;">
+  <a href="${esc(payUrl)}" target="_blank" rel="noopener noreferrer" style="${buttonStyle}background:#2563eb;margin:0 0 10px 0;">${esc(payLabel)}</a><br />
+  <a href="${esc(resumeUrl)}" target="_blank" rel="noopener noreferrer" style="${buttonStyle}background:#1d4ed8;">Resume Quote</a>
+</td></tr>
+<tr><td style="padding:6px 24px 0 24px;font-size:12px;color:#64748b;text-align:center;line-height:1.5;">
+  If a button does not work, copy this link:<br />
+  ${esc(payLabel)}: <a href="${esc(payUrl)}" style="color:#2563eb;word-break:break-all;">${esc(payUrl)}</a><br />
+  Resume Quote: <a href="${esc(resumeUrl)}" style="color:#2563eb;word-break:break-all;">${esc(resumeUrl)}</a>
+</td></tr>
+<tr><td style="padding:20px 24px 24px 24px;font-size:12px;line-height:1.6;background:#020617;color:#cbd5e1;border-top:1px solid #1e293b;">
+  Questions? Call <a href="tel:+441414614813" style="color:#e2e8f0;text-decoration:none;">0141 461 4813</a> or email <a href="mailto:admin@shiftmyhome.co.uk" style="color:#e2e8f0;text-decoration:none;">admin@shiftmyhome.co.uk</a>.<br />
+  ShiftMyHome · <a href="${esc(siteUrl)}" style="color:#94a3b8;text-decoration:none;">${esc(siteUrl.replace(/^https?:\/\//, ''))}</a><br />
+  <span style="color:#94a3b8;">© ${year} ShiftMyHome</span>
+</td></tr>
+</table>
+</td></tr></table>
 </body></html>`
 
   const text = [
-    titles[kind] || titles.abandoned,
+    banner,
     '',
-    (intros[kind] || intros.abandoned).replace(/<[^>]+>/g, ''),
+    introPlain,
+    name,
+    phone || null,
+    email || null,
+    `Collection: ${collection}${collectionFloor ? ` · ${collectionFloor}` : ''}`,
+    `Drop-off: ${dropoff}${dropoffFloor ? ` · ${dropoffFloor}` : ''}`,
     `Quote: ${quoteRef}`,
-    `Route: ${route}`,
     `Service: ${service}`,
     `Move date: ${moveDate}`,
     `Crew: ${crew}`,
-    `Total: ${total}`,
+    hasOverride ? `Was: ${wasLabel}` : null,
+    hasOverride && reducedBy ? `Reduced by: £${reducedBy.toFixed(2)}` : null,
+    `Not paid yet. Amount to pay: ${total}`,
+    priceReason ? `Notes — Included in price: ${priceReason}` : null,
+    customerNote ? `Special instructions: ${customerNote}` : null,
     '',
     `Resume: ${resumeUrl}`,
     `Pay: ${payUrl}`,
-  ].join('\n')
+    '',
+    'Glasgow, Scotland',
+    '0141 461 4813 · admin@shiftmyhome.co.uk',
+    siteUrl,
+  ].filter((line) => line != null).join('\n')
 
   return { subject, html, text }
+}
+
+const FLOOR_LABELS = {
+  '-1': 'Basement',
+  0: 'Ground Floor',
+  1: '1st Floor',
+  2: '2nd Floor',
+  3: '3rd Floor',
+  4: '4th Floor',
+  5: '5th Floor',
+  6: '6th Floor',
+  7: '7th Floor',
+  8: '8th Floor',
+  9: '9th Floor',
+  10: '10+ Floors',
+}
+
+/** @param {unknown} value */
+function floorLabel(value) {
+  if (value == null || value === '') return ''
+  const n = Number(value)
+  if (Number.isFinite(n) && FLOOR_LABELS[n]) return FLOOR_LABELS[n]
+  const text = String(value).trim()
+  if (/ground/i.test(text)) return 'Ground Floor'
+  return text
+}
+
+/**
+ * A short list stays in one column. A long list uses three columns so the email stays short.
+ * @param {Array<{ name?: string, label?: string, qty?: number, quantity?: number }>} inventory
+ * @param {(value: unknown) => string} escapeHtml
+ */
+function inventoryRowsHtml(inventory, escapeHtml) {
+  if (!inventory.length) {
+    return `<tr><td style="padding:6px 0;font-size:14px;color:#64748b;">No items listed</td></tr>`
+  }
+  const items = inventory.map((line) => ({
+    label: String(line.name || line.label || 'Item').trim() || 'Item',
+    qty: Number(line.qty ?? line.quantity ?? 1) || 1,
+  }))
+  if (items.length < 6) {
+    return items
+      .map(
+        (item) =>
+          `<tr><td style="padding:6px 0;border-bottom:1px solid #f1f5f9;font-size:14px;color:#334155;">${escapeHtml(item.label)}</td><td align="right" style="padding:6px 0;border-bottom:1px solid #f1f5f9;font-size:14px;color:#0f172a;font-weight:600;">×${item.qty}</td></tr>`,
+      )
+      .join('')
+  }
+  const rows = []
+  for (let i = 0; i < items.length; i += 3) {
+    const slice = items.slice(i, i + 3)
+    while (slice.length < 3) slice.push(null)
+    rows.push(
+      `<tr>${slice
+        .map((item) =>
+          item
+            ? `<td width="33%" valign="top" style="width:33%;padding:6px 8px 6px 0;border-bottom:1px solid #f1f5f9;font-size:13px;line-height:1.35;color:#334155;">${escapeHtml(item.label)} <span style="color:#0f172a;font-weight:600;white-space:nowrap;">×${item.qty}</span></td>`
+            : `<td width="33%" style="width:33%;padding:6px 0;border-bottom:1px solid #f1f5f9;">&nbsp;</td>`,
+        )
+        .join('')}</tr>`,
+    )
+  }
+  return rows.join('')
 }
 
 /** @param {unknown} v */
@@ -138,10 +328,18 @@ function esc(v) {
  */
 export function recoveryContentFromLead(lead) {
   const wd = lead?.wizard_data && typeof lead.wizard_data === 'object' ? lead.wizard_data : {}
+  const s1 = wd.step1 && typeof wd.step1 === 'object' ? wd.step1 : {}
   const s2 = wd.step2 && typeof wd.step2 === 'object' ? wd.step2 : {}
   const s3 = wd.step3 && typeof wd.step3 === 'object' ? wd.step3 : {}
+  const notes = notesForCustomerEmail(lead)
   return {
     customerName: lead?.customer_name || s2.fullName || '',
+    customerPhone: lead?.customer_phone || s2.phone || '',
+    customerEmail: lead?.customer_email || s2.email || '',
+    collectionAddress: lead?.pickup_address || s1.pickupAddress || '',
+    dropoffAddress: lead?.delivery_address || s1.deliveryAddress || '',
+    collectionFloor: s1.pickupFloor,
+    dropoffFloor: s1.deliveryFloor,
     quoteRef: lead?.quote_ref || '',
     routeLabel: lead?.route_label || '',
     serviceType: lead?.service_type || '',
@@ -151,5 +349,7 @@ export function recoveryContentFromLead(lead) {
     estimatedTotal: lead?.estimated_total ?? s3.estimatedTotal ?? null,
     calculatedTotal: lead?.calculated_total ?? lead?.estimated_total ?? s3.estimatedTotal ?? null,
     agreedPrice: lead?.agreed_price ?? null,
+    customerNote: notes.customer,
+    priceReason: String(lead?.price_override_reason || '').trim(),
   }
 }

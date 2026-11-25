@@ -68,6 +68,7 @@ import { resolveCustomerPaymentSummary } from '../lib/customerPaymentSummary'
 import CustomerLeadRouteMap from './admin/CustomerLeadRouteMap'
 import DepotMileageTable from './admin/DepotMileageTable'
 import CustomerLeadOffersSection from './admin/CustomerLeadOffersSection'
+import CustomerLeadMoveEditor from './admin/CustomerLeadMoveEditor'
 
 function ScreenModal({ title, onClose, children, wide = false }) {
   useEffect(() => {
@@ -187,7 +188,7 @@ export default function CustomerLeadDetailAdmin() {
   const [busy, setBusy] = useState('')
   const [deleting, setDeleting] = useState(false)
   const [purging, setPurging] = useState(false)
-  const [previewHtml, setPreviewHtml] = useState('')
+  const [emailPreview, setEmailPreview] = useState(null)
   const [pricePanelOpen, setPricePanelOpen] = useState(false)
   const [pricingPanelOpen, setPricingPanelOpen] = useState(false)
   const [agreedPriceInput, setAgreedPriceInput] = useState('')
@@ -456,9 +457,11 @@ export default function CustomerLeadDetailAdmin() {
         currentLead: lead,
       })
       setActionMsg(
-        saved.previousSessionId
-          ? 'Price saved. Older Stripe links for a different amount no longer apply.'
-          : 'Price saved',
+        saved.quoteUpdated
+          ? 'Price and note saved on this lead and on the booking.'
+          : saved.previousSessionId
+            ? 'Price and note saved. Older Stripe links for a different amount no longer apply. They are copied onto the booking when you convert.'
+            : 'Price and note saved. They are copied onto the booking when you convert.',
       )
       setPricePanelOpen(false)
       await load()
@@ -632,6 +635,7 @@ export default function CustomerLeadDetailAdmin() {
       })
       setActionMsg('Quote sent')
       await load()
+      openEmailPreview(true)
     } catch (e) {
       setActionMsg(e?.message || 'Failed to send email.')
     } finally {
@@ -690,7 +694,7 @@ export default function CustomerLeadDetailAdmin() {
     }
   }
 
-  function handlePreviewEmail() {
+  function openEmailPreview(justSent = false) {
     const content = recoveryContentFromLead(lead)
     const token = lead.resume_token || 'preview-token'
     const built = buildQuoteRecoveryEmailPreview({
@@ -700,7 +704,7 @@ export default function CustomerLeadDetailAdmin() {
       payUrl: buildPayQuoteUrl(token),
       siteUrl: typeof window !== 'undefined' ? window.location.origin : undefined,
     })
-    setPreviewHtml(built.html)
+    setEmailPreview({ html: built.html, subject: built.subject, justSent })
   }
 
   async function handleDelete() {
@@ -1158,7 +1162,10 @@ export default function CustomerLeadDetailAdmin() {
                   Cancel
                 </button>
               </div>
-              <p className="text-xs text-slate-500">Saving stores the price only. It does not email the customer, create a booking, or record a payment.</p>
+              <p className="text-xs text-slate-500">
+                This note is shown only under Notes in the customer email, as Included in price.
+                It is not added to special instructions. Saving does not email the customer or record a payment. The calculated price stays as it is.
+              </p>
             </div>
           ) : (
             <>
@@ -1174,12 +1181,19 @@ export default function CustomerLeadDetailAdmin() {
               >
                 {busy === 'email' ? 'Sending…' : 'Send quote by email'}
               </button>
-              <button type="button" disabled={Boolean(busy)} onClick={handlePreviewEmail} className={actionSecondary}>
-                Preview quote email
+              <button type="button" disabled={Boolean(busy)} onClick={() => openEmailPreview(false)} className={actionSecondary}>
+                View customer email
               </button>
             </div>
+            {lead.price_override_reason ? (
+              <p className="mt-3 whitespace-pre-wrap text-sm text-slate-700">
+                <span className="font-semibold">Note: </span>
+                {lead.price_override_reason}
+              </p>
+            ) : null}
             <p className="mt-2 text-xs text-slate-500">
-              Preview quote email only shows the message. Send quote by email sends the saved checkout total.
+              View customer email shows the message the customer receives, including the footer.
+              Send quote by email sends that message with the saved checkout total.
             </p>
             </>
           )}
@@ -1440,13 +1454,21 @@ export default function CustomerLeadDetailAdmin() {
         </div>
       </DetailBlock>
 
-      {previewHtml ? (
-        <ScreenModal title="Preview quote email" wide onClose={() => setPreviewHtml('')}>
-          <p className="mb-2 text-xs text-slate-500">
-            Preview only. Nothing is sent. Pay Now and Resume open in a new tab.
+      {emailPreview ? (
+        <ScreenModal
+          title={emailPreview.justSent ? 'Email sent to the customer' : 'Customer email'}
+          wide
+          onClose={() => setEmailPreview(null)}
+        >
+          <p className="text-sm font-semibold text-slate-900">{emailPreview.subject}</p>
+          <p className="mb-3 mt-1 text-xs text-slate-500">
+            {emailPreview.justSent
+              ? `This is the email just sent to ${lead.customer_email || 'the customer'}.`
+              : `This is the email ${lead.customer_email || 'the customer'} receives. Nothing is sent from this view.`}
+            {' '}Resume and Pay open in a new tab.
           </p>
           <div className="overflow-hidden rounded-lg border border-slate-200">
-            <RecoveryEmailPreviewFrame html={previewHtml} className="h-[min(60dvh,28rem)] w-full bg-white" />
+            <RecoveryEmailPreviewFrame html={emailPreview.html} className="h-[min(72dvh,40rem)] w-full bg-slate-100" />
           </div>
         </ScreenModal>
       ) : null}
@@ -1528,6 +1550,12 @@ export default function CustomerLeadDetailAdmin() {
       </DetailBlock>
       </div>
 
+      <CustomerLeadMoveEditor
+        lead={lead}
+        disabled={Boolean(busy)}
+        onSaved={(updated) => setLead(updated)}
+      />
+
       <div className="grid items-start gap-6 xl:grid-cols-2">
       <DetailBlock title="Contact & inventory">
         <Row label="Name" value={s2.fullName || lead.customer_name} />
@@ -1538,20 +1566,14 @@ export default function CustomerLeadDetailAdmin() {
         <Row label="Email" value={s2.email || lead.customer_email} />
         <Row label="Crew" value={s2.crewSize} />
         <Row label="Volume (m³)" value={volumeLabel} />
-        {Array.isArray(s2.inventoryLines) && s2.inventoryLines.length > 0 ? (
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Inventory</p>
-            <ul className="mt-2 list-inside list-disc text-sm">
-              {s2.inventoryLines.map((line, i) => (
-                <li key={i}>
-                  {line.quantity}× {line.name} ({line.m3} m³ each)
-                </li>
-              ))}
-            </ul>
-          </div>
-        ) : (
-          <Row label="Inventory" value={null} />
-        )}
+        <Row
+          label="Items"
+          value={
+            Array.isArray(s2.inventoryLines) && s2.inventoryLines.length
+              ? `${s2.inventoryLines.length} on the list above`
+              : null
+          }
+        />
       </DetailBlock>
 
       <DetailBlock title="Quote & extras">
@@ -1595,7 +1617,7 @@ export default function CustomerLeadDetailAdmin() {
               : null
           }
         />
-        <Row label="Notes" value={s3.specialInstructions} />
+        <Row label="Special instructions" value={s3.specialInstructions} />
         <Row label="Heavy items" value={s3.heavyNotes} />
         <Row label="Packing" value={s3.packing ? s3.packingWhat || 'Yes' : 'No'} />
         <Row

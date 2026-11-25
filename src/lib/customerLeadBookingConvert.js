@@ -27,6 +27,14 @@ import {
   getWizardArrivalTimePayload,
 } from './emailQuotePayload'
 import { resolveServiceLabel } from './normalizeServiceType'
+import {
+  buildLeadWizardData,
+  editsFromLead,
+  inventoryJsonFromLines,
+  inventoryTextFromLines,
+  mergeLeadEditsIntoQuoteDetails,
+  specialInstructionsWithoutPriceNote,
+} from './customerLeadMoveSync'
 
 /** Stored on lead.wizard_data so Undo can restore prior lead + quote shape. */
 const CONVERT_SNAPSHOT_KEY = '_smh_admin_convert'
@@ -218,10 +226,6 @@ function buildAdminPhoneBookingFormFromLead(lead, { createdBy, convert = true, f
     'House Removals'
   const calculated = resolveCalculatedTotal(lead)
   const chargeable = resolveChargeableTotal(lead)
-  const isOverride =
-    calculated != null &&
-    chargeable != null &&
-    Math.abs(calculated - chargeable) > 0.009
 
   const detailsLines = [
     createdBy ? `Created by admin (${createdBy}) from customer lead` : 'Created by admin from customer lead',
@@ -235,7 +239,7 @@ function buildAdminPhoneBookingFormFromLead(lead, { createdBy, convert = true, f
       `Service package: ${packageSnap.display_name || packageSnap.service_package} (£${Number(packageSnap.service_package_fee || 0).toFixed(2)})`,
     )
   }
-  if (isOverride && lead.price_override_reason) {
+  if (String(lead.price_override_reason || '').trim()) {
     detailsLines.push(`Price override reason: ${String(lead.price_override_reason).trim()}`)
   }
   if (wizard.specialInstructions) {
@@ -326,11 +330,19 @@ function buildLeadConvertedJobPatch({ summary, chargeable, calculated, lead, cre
   const calc = calculated ?? chargeable
   const now = new Date().toISOString()
   const staffNote = `Converted from customer lead by admin (${createdBy || 'admin'}). Payment status was left as recorded.`
+  const wizard = wizardFromLead(lead)
   const priorDetails = String(existing?.details || '').trim()
-  const details =
-    priorDetails && !priorDetails.includes('Converted from customer lead')
-      ? `${staffNote}\n\n${priorDetails}`
-      : priorDetails || staffNote
+  const fromLead = buildAdminPhoneBookingFormFromLead(lead, { createdBy, convert: true }).details
+  const baseDetails = !priorDetails
+    ? fromLead
+    : priorDetails.includes('Converted from customer lead')
+      ? priorDetails
+      : `${staffNote}\n\n${priorDetails}`
+  const details = mergeLeadEditsIntoQuoteDetails(baseDetails, {
+    specialInstructions: wizard.specialInstructions,
+    priceNote: String(lead.price_override_reason || '').trim(),
+    inventoryLines: wizard.inventoryLines,
+  })
   return {
     full_name: summary.fullName || existing?.full_name || 'Customer',
     // quotes.phone is NOT NULL — placeholder when lead has email only.
@@ -357,6 +369,8 @@ function buildLeadConvertedJobPatch({ summary, chargeable, calculated, lead, cre
     price_override_by: lead.price_override_by || createdBy || null,
     price_override_at: lead.price_override_at || now,
     details,
+    inventory: inventoryJsonFromLines(wizard.inventoryLines),
+    inventory_text: inventoryTextFromLines(wizard.inventoryLines),
     ...(packageSnapshotFromLead(lead) ? { service_package_snapshot: packageSnapshotFromLead(lead) } : {}),
     // Production inbox hides archived / test rows — clear so convert is visible.
     archived_for_go_live: false,
@@ -445,15 +459,27 @@ export async function saveCustomerLeadAgreedPrice({
   const amountChanged =
     !Number.isFinite(previousAmount) || Math.abs(previousAmount - agreedPrice) > 0.009
 
+  const note = String(reason || '').trim()
+  const currentEdits = editsFromLead(currentLead)
+  const specialInstructions = specialInstructionsWithoutPriceNote(
+    currentEdits.specialInstructions,
+    currentEdits.priceNote,
+  )
+  const built = buildLeadWizardData(currentLead, {
+    inventoryLines: currentEdits.inventoryLines,
+    specialInstructions,
+  })
+
   const patch = {
     calculated_total: calculated,
     estimated_total: calculated ?? currentLead.estimated_total ?? null,
     agreed_price: agreedPrice,
-    price_override_reason: String(reason || '').trim() || null,
+    price_override_reason: note || null,
     price_override_by: String(adminLabel || 'admin').trim() || 'admin',
     price_override_at: new Date().toISOString(),
     last_activity_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
+    wizard_data: built.wizard_data,
   }
 
   if (amountChanged && previousSessionId) {
@@ -466,22 +492,102 @@ export async function saveCustomerLeadAgreedPrice({
   if (!updated) throw new Error('Failed to save agreed price.')
 
   const quoteId = updated.quote_id || currentLead.quote_id
+  let quoteUpdated = false
   if (quoteId) {
-    await supabase
+    const { data: existing, error: readErr } = await supabase
       .from('quotes')
-      .update({
-        calculated_total: calculated,
-        estimated_total: calculated,
-        agreed_price: agreedPrice,
-        remaining_balance: agreedPrice,
-        price_override_reason: patch.price_override_reason,
-        price_override_by: patch.price_override_by,
-        price_override_at: patch.price_override_at,
-      })
+      .select('id, details')
       .eq('id', quoteId)
+      .maybeSingle()
+    if (readErr) throw new Error(readErr.message || 'Failed to read the booking.')
+    const quotePatch = {
+      calculated_total: calculated,
+      estimated_total: calculated,
+      agreed_price: agreedPrice,
+      remaining_balance: agreedPrice,
+      price_override_reason: patch.price_override_reason,
+      price_override_by: patch.price_override_by,
+      price_override_at: patch.price_override_at,
+    }
+    if (existing) {
+      quotePatch.details = mergeLeadEditsIntoQuoteDetails(existing.details, {
+        specialInstructions,
+        priceNote: note,
+        inventoryLines: built.lines,
+      })
+      quotePatch.inventory = inventoryJsonFromLines(built.lines)
+      quotePatch.inventory_text = inventoryTextFromLines(built.lines)
+    }
+    const { error } = await supabase.from('quotes').update(quotePatch).eq('id', quoteId)
+    if (error) throw new Error(error.message || 'Price saved on the lead, but the booking did not update.')
+    quoteUpdated = Boolean(existing)
   }
 
-  return { lead: updated, previousSessionId: amountChanged ? previousSessionId : '' }
+  return {
+    lead: { ...updated, wizard_data: built.wizard_data },
+    previousSessionId: amountChanged ? previousSessionId : '',
+    quoteUpdated,
+  }
+}
+
+/**
+ * Save the item list and special instructions on the lead, and on the booking when one exists.
+ * Prices are left unchanged.
+ * @param {{
+ *   lead: Record<string, unknown>,
+ *   inventoryLines: Array<Record<string, unknown>>,
+ *   specialInstructions: string,
+ * }} params
+ */
+export async function saveCustomerLeadMoveEdits({ lead, inventoryLines, specialInstructions }) {
+  if (!isSupabaseConfigured || !supabase) {
+    throw new Error('Supabase is not configured.')
+  }
+  if (!lead?.id) throw new Error('Lead not found.')
+
+  const built = buildLeadWizardData(lead, {
+    inventoryLines,
+    specialInstructions,
+    instructionsAuthor: 'admin',
+  })
+  const now = new Date().toISOString()
+  const updated = await updateCustomerLeadById(String(lead.id), {
+    wizard_data: built.wizard_data,
+    total_volume_m3: built.total_volume_m3,
+    updated_at: now,
+    last_activity_at: now,
+  })
+  if (!updated) throw new Error('Failed to save items and special instructions.')
+
+  const quoteId = String(updated.quote_id || lead.quote_id || '').trim()
+  let quoteUpdated = false
+  if (quoteId) {
+    const { data: existing, error: readErr } = await supabase
+      .from('quotes')
+      .select('id, details')
+      .eq('id', quoteId)
+      .maybeSingle()
+    if (readErr) throw new Error(readErr.message || 'Failed to read the booking.')
+    if (existing) {
+      const priceNote = String(updated.price_override_reason || lead.price_override_reason || '').trim()
+      const { error } = await supabase
+        .from('quotes')
+        .update({
+          details: mergeLeadEditsIntoQuoteDetails(existing.details, {
+            specialInstructions: built.specialInstructions,
+            priceNote,
+            inventoryLines: built.lines,
+          }),
+          inventory: inventoryJsonFromLines(built.lines),
+          inventory_text: inventoryTextFromLines(built.lines),
+        })
+        .eq('id', quoteId)
+      if (error) throw new Error(error.message || 'Saved on the lead, but the booking did not update.')
+      quoteUpdated = true
+    }
+  }
+
+  return { lead: updated, quoteUpdated }
 }
 
 /**
