@@ -29,6 +29,8 @@ import {
 import { resolveServiceLabel } from './normalizeServiceType'
 import {
   buildLeadWizardData,
+  buildMoveDetailsWizard,
+  buildQuoteExtrasWizard,
   editsFromLead,
   inventoryJsonFromLines,
   inventoryTextFromLines,
@@ -579,6 +581,122 @@ export async function saveCustomerLeadMoveEdits({ lead, inventoryLines, specialI
   }
 
   return { lead: updated, quoteUpdated }
+}
+
+/**
+ * Save pickup, delivery, date, and access on the lead. The saved price stays as it is.
+ * @param {{ lead: Record<string, unknown>, form: Record<string, unknown> }} params
+ */
+export async function saveCustomerLeadMoveDetails({ lead, form }) {
+  if (!isSupabaseConfigured || !supabase) {
+    throw new Error('Supabase is not configured.')
+  }
+  if (!lead?.id) throw new Error('Lead not found.')
+
+  const built = buildMoveDetailsWizard(lead, form)
+  const now = new Date().toISOString()
+  const updated = await updateCustomerLeadById(String(lead.id), {
+    wizard_data: built.wizard_data,
+    service_type: built.service_type,
+    pickup_address: built.pickup_address,
+    delivery_address: built.delivery_address,
+    move_date: built.move_date,
+    route_label: built.route_label,
+    updated_at: now,
+    last_activity_at: now,
+  })
+  if (!updated) throw new Error('Failed to save the move details.')
+
+  const current = editsFromLead({ ...lead, ...updated, wizard_data: built.wizard_data })
+  let quoteUpdated = false
+  const quoteId = String(updated.quote_id || lead.quote_id || '').trim()
+  if (quoteId) {
+    const { data: existing, error: readErr } = await supabase
+      .from('quotes')
+      .select('id, details')
+      .eq('id', quoteId)
+      .maybeSingle()
+    if (readErr) throw new Error(readErr.message || 'Failed to read the booking.')
+    if (existing) {
+      const { error } = await supabase
+        .from('quotes')
+        .update({
+          service: built.service_type,
+          service_type: built.service_type,
+          pickup_address: built.pickup_address || '',
+          delivery_address: built.delivery_address || '',
+          move_date: built.move_date,
+          arrival_window: built.arrival_window,
+          arrival_type: built.arrival_type,
+          arrival_time: built.arrival_time,
+          details: mergeLeadEditsIntoQuoteDetails(existing.details, {
+            specialInstructions: current.specialInstructions,
+            priceNote: current.priceNote,
+            wizardPatch: built.wizardPatch,
+            serviceType: built.service_type || '',
+          }),
+        })
+        .eq('id', quoteId)
+      if (error) throw new Error(error.message || 'Saved on the lead, but the booking did not update.')
+      quoteUpdated = true
+    }
+  }
+
+  return { lead: { ...updated, wizard_data: built.wizard_data }, quoteUpdated }
+}
+
+/**
+ * Save packing, dismantling, contacts, and the selected date. The saved price stays as it is.
+ * @param {{ lead: Record<string, unknown>, form: Record<string, unknown> }} params
+ */
+export async function saveCustomerLeadQuoteExtras({ lead, form }) {
+  if (!isSupabaseConfigured || !supabase) {
+    throw new Error('Supabase is not configured.')
+  }
+  if (!lead?.id) throw new Error('Lead not found.')
+
+  const built = buildQuoteExtrasWizard(lead, form)
+  const now = new Date().toISOString()
+  const updated = await updateCustomerLeadById(String(lead.id), {
+    wizard_data: built.wizard_data,
+    move_date: built.move_date,
+    total_volume_m3: built.total_volume_m3,
+    updated_at: now,
+    last_activity_at: now,
+  })
+  if (!updated) throw new Error('Failed to save the quote extras.')
+
+  const current = editsFromLead({ ...lead, ...updated, wizard_data: built.wizard_data })
+  let quoteUpdated = false
+  const quoteId = String(updated.quote_id || lead.quote_id || '').trim()
+  if (quoteId) {
+    const { data: existing, error: readErr } = await supabase
+      .from('quotes')
+      .select('id, details')
+      .eq('id', quoteId)
+      .maybeSingle()
+    if (readErr) throw new Error(readErr.message || 'Failed to read the booking.')
+    if (existing) {
+      const { error } = await supabase
+        .from('quotes')
+        .update({
+          move_date: built.move_date,
+          inventory: inventoryJsonFromLines(built.lines),
+          inventory_text: inventoryTextFromLines(built.lines),
+          details: mergeLeadEditsIntoQuoteDetails(existing.details, {
+            specialInstructions: current.specialInstructions,
+            priceNote: current.priceNote,
+            inventoryLines: built.lines,
+            wizardPatch: built.wizardPatch,
+          }),
+        })
+        .eq('id', quoteId)
+      if (error) throw new Error(error.message || 'Saved on the lead, but the booking did not update.')
+      quoteUpdated = true
+    }
+  }
+
+  return { lead: { ...updated, wizard_data: built.wizard_data }, quoteUpdated }
 }
 
 /**

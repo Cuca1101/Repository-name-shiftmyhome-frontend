@@ -3,7 +3,6 @@ import { Link } from 'react-router-dom'
 import { groupJobsByMoveDate } from '../../lib/adminJobMoveDateGroups'
 import { findLinkedJobForQuote } from '../../lib/adminWorkflowFilters'
 import { cancelledJobDisplayFields } from '../../lib/adminTerminalJobsDisplay'
-import GenerateJobSheetButton from './GenerateJobSheetButton'
 
 const TABLE_HEAD = (
   <thead>
@@ -73,7 +72,6 @@ export default function CancelledJobsListTable({ quotes, jobs, charges = [] }) {
                           >
                             View
                           </Link>
-                          <GenerateJobSheetButton quote={q} />
                         </div>
                       </td>
                     </tr>

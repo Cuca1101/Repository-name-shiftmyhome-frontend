@@ -44,8 +44,6 @@ import {
   saveCustomerLeadAgreedPrice,
 } from '../lib/customerLeadBookingConvert'
 import { isSupabaseConfigured, supabase } from '../lib/supabase'
-import { formatFloorLabel } from './quote-wizard/FloorSelect'
-import { formatAccessLiftLabel } from '../lib/floorAccess'
 import RecoveryEmailPreviewFrame from './admin/RecoveryEmailPreviewFrame'
 import AdminJobEmailsSentPanel from './admin-workflow/AdminJobEmailsSentPanel'
 import AdminQuotePriceBreakdown from './admin/AdminQuotePriceBreakdown'
@@ -69,6 +67,8 @@ import CustomerLeadRouteMap from './admin/CustomerLeadRouteMap'
 import DepotMileageTable from './admin/DepotMileageTable'
 import CustomerLeadOffersSection from './admin/CustomerLeadOffersSection'
 import CustomerLeadMoveEditor from './admin/CustomerLeadMoveEditor'
+import CustomerLeadMoveDetailsEditor from './admin/CustomerLeadMoveDetailsEditor'
+import CustomerLeadQuoteExtrasEditor from './admin/CustomerLeadQuoteExtrasEditor'
 
 function ScreenModal({ title, onClose, children, wide = false }) {
   useEffect(() => {
@@ -135,12 +135,6 @@ function formatDriveTime(seconds) {
   if (hours <= 0) return `${minutes} min`
   if (minutes === 0) return hours === 1 ? '1 hr' : `${hours} hr`
   return `${hours} hr ${minutes} min`
-}
-
-function floorDisplay(value) {
-  if (value == null || value === '') return null
-  const n = Number(value)
-  return Number.isFinite(n) ? formatFloorLabel(n) : String(value)
 }
 
 function datetimeLocalValue(value) {
@@ -679,25 +673,6 @@ export default function CustomerLeadDetailAdmin() {
     }
   }
 
-  async function handleOpenQuote() {
-    const popup = window.open('about:blank', '_blank')
-    setBusy('openquote')
-    setActionMsg('')
-    try {
-      const token = await withToken()
-      const url = buildResumeQuoteUrl(token)
-      if (popup) popup.location.href = url
-      else window.location.assign(url)
-      setActionMsg('Resume Quote is open in a new tab. It is the same quote the customer opens. Changes you save there are saved on this lead.')
-      await load()
-    } catch (e) {
-      popup?.close()
-      setActionMsg(e?.message || 'Could not open the quote.')
-    } finally {
-      setBusy('')
-    }
-  }
-
   async function handleCopyPayment() {
     setBusy('copypay')
     setActionMsg('')
@@ -801,7 +776,6 @@ export default function CustomerLeadDetailAdmin() {
   const wd = lead.wizard_data && typeof lead.wizard_data === 'object' ? lead.wizard_data : {}
   const s1 = wd.step1 || {}
   const s2 = wd.step2 || {}
-  const s3 = wd.step3 || {}
   const volumeM3 = resolveCustomerLeadVolumeM3({
     totalVolumeM3: s2.totalVolumeM3 ?? lead.total_volume_m3,
     inventoryLines: s2.inventoryLines,
@@ -1204,16 +1178,6 @@ export default function CustomerLeadDetailAdmin() {
               <button type="button" disabled={Boolean(busy)} onClick={() => openEmailPreview(false)} className={actionSecondary}>
                 View customer email
               </button>
-              {!isConverted && !trashed ? (
-                <button
-                  type="button"
-                  disabled={Boolean(busy)}
-                  onClick={() => void handleOpenQuote()}
-                  className={actionSecondary}
-                >
-                  {busy === 'openquote' ? 'Opening…' : 'Resume Quote'}
-                </button>
-              ) : null}
             </div>
             {lead.price_override_reason ? (
               <p className="mt-3 whitespace-pre-wrap text-sm text-slate-700">
@@ -1572,20 +1536,11 @@ export default function CustomerLeadDetailAdmin() {
         {lead.converted_at ? <Row label="Converted" value={formatDateTimeUK(lead.converted_at)} /> : null}
       </DetailBlock>
 
-      <DetailBlock title="Move details">
-        <Row label="Service" value={s1.serviceType || lead.service_type} />
-        <Row label="Pickup" value={s1.pickupAddress || lead.pickup_address} />
-        <Row label="Pickup property" value={s1.pickupPropertyType} />
-        <Row label="Pickup floor" value={floorDisplay(s1.pickupFloor)} />
-        <Row label="Pickup lift" value={formatAccessLiftLabel(s1.pickupFloor, s1.pickupLift)} />
-        <Row label="Delivery" value={s1.deliveryAddress || lead.delivery_address} />
-        <Row label="Delivery property" value={s1.deliveryPropertyType} />
-        <Row label="Delivery floor" value={floorDisplay(s1.deliveryFloor)} />
-        <Row label="Delivery lift" value={formatAccessLiftLabel(s1.deliveryFloor, s1.deliveryLift)} />
-        <Row label="Move date" value={s1.moveDate ? formatDateUK(s1.moveDate) : null} />
-        <Row label="Arrival" value={s1.arrivalSummary} />
-        <Row label="Distance (mi)" value={distanceLabel || null} />
-      </DetailBlock>
+      <CustomerLeadMoveDetailsEditor
+        lead={lead}
+        disabled={Boolean(busy)}
+        onSaved={(updated) => setLead(updated)}
+      />
       </div>
 
       <div className="grid items-start gap-6 xl:grid-cols-2">
@@ -1608,69 +1563,11 @@ export default function CustomerLeadDetailAdmin() {
         />
       </DetailBlock>
 
-      <DetailBlock title="Quote & extras">
-        <Row label="Selected date" value={s3.selectedMoveDate} />
-        <Row
-          label="Selected quote"
-          value={
-            s3.estimatedTotal != null
-              ? `£${Number(s3.estimatedTotal).toFixed(2)}`
-              : lead.estimated_total != null
-                ? `£${Number(lead.estimated_total).toFixed(2)}`
-                : null
-          }
-        />
-        <Row label="Package" value={s3.servicePackage?.display_name || s3.packageTier} />
-        <Row
-          label="Package fee"
-          value={
-            s3.servicePackage?.service_package_fee != null
-              ? `£${Number(s3.servicePackage.service_package_fee).toFixed(2)}`
-              : null
-          }
-        />
-        <Row
-          label="Forgotten items allowance"
-          value={
-            s3.servicePackage
-              ? `${s3.servicePackage.forgotten_item_allowance ?? 0} items · ${s3.servicePackage.forgotten_volume_m3 ?? 0} m³ (used ${s3.servicePackage.used_forgotten_items ?? 0} / ${s3.servicePackage.used_forgotten_volume_m3 ?? 0} m³)`
-              : null
-          }
-        />
-        <Row
-          label="Included waiting"
-          value={s3.servicePackage ? `${s3.servicePackage.included_waiting_minutes ?? 0} minutes` : null}
-        />
-        <Row
-          label="Wrapping / dismantling"
-          value={
-            s3.servicePackage
-              ? `${s3.servicePackage.included_wrapping_items ?? 0} wrapping · ${s3.servicePackage.included_dismantle_items ?? 0} dismantle/reassembly`
-              : null
-          }
-        />
-        <Row label="Special instructions" value={s3.specialInstructions} />
-        <Row label="Heavy items" value={s3.heavyNotes} />
-        <Row label="Packing" value={s3.packing ? s3.packingWhat || 'Yes' : 'No'} />
-        <Row
-          label="Materials"
-          value={s3.packingMaterials ? s3.packingMaterialsDetail || 'Yes' : 'No'}
-        />
-        <Row
-          label="Dismantling"
-          value={s3.dismantling ? `${s3.dismantlingItemCount || 0} — ${s3.dismantlingWhat || ''}` : 'No'}
-        />
-        <Row
-          label="Reassembly"
-          value={s3.reassembly ? `${s3.reassemblyItemCount || 0} — ${s3.reassemblyWhat || ''}` : 'No'}
-        />
-        <Row label="Pickup contact" value={`${s3.pickupContactName || ''} ${s3.pickupContactPhone || ''}`.trim()} />
-        <Row
-          label="Delivery contact"
-          value={`${s3.deliveryContactName || ''} ${s3.deliveryContactPhone || ''}`.trim()}
-        />
-        <Row label="Promo" value={s3.promoCode} />
-      </DetailBlock>
+      <CustomerLeadQuoteExtrasEditor
+        lead={lead}
+        disabled={Boolean(busy)}
+        onSaved={(updated) => setLead(updated)}
+      />
       </div>
 
       {wd.homepageDetails ? (

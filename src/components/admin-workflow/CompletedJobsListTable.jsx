@@ -4,7 +4,6 @@ import { completedJobDisplayFields, formatAdminMoney } from '../../lib/adminTerm
 import { MANUAL_PAYOUT_CONFIRMED_LABEL } from '../../lib/jobAcceptedPaymentDisplay'
 import { tipBadgeForQuote } from '../../lib/jobTipBadge'
 import JobStatusBadge from './JobStatusBadge'
-import GenerateJobSheetButton from './GenerateJobSheetButton'
 
 const TABLE_HEAD = (
   <thead>
@@ -94,7 +93,6 @@ export default function CompletedJobsListTable({ quotes, jobs }) {
                           >
                             View
                           </Link>
-                          <GenerateJobSheetButton quote={q} />
                         </div>
                       </td>
                     </tr>

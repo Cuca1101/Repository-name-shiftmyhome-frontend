@@ -7,6 +7,11 @@ import {
   appendWizardSnapshotToDetails,
   extractWizardSnapshotFromDetails,
 } from './adminPhoneBookingWizardSnapshot'
+import { formatWizardArrivalSummary, getWizardArrivalTimePayload } from './emailQuotePayload'
+import { liftValueForFloor } from './floorAccess'
+import { normalizeServiceType } from './normalizeServiceType'
+import { parsePackingMaterialQuantities } from './packingMaterialsCatalog.js'
+import { syncSuppliedBoxesIntoInventory } from './suppliedBoxesInventory.js'
 
 /**
  * @param {Record<string, unknown> | null | undefined} lead
@@ -205,11 +210,14 @@ export function mergeLeadEditsIntoQuoteDetails(details, edits) {
   const wizard = {
     ...extracted.meta.wizard,
     specialInstructions: String(edits.specialInstructions || '').trim(),
+    ...(edits.wizardPatch && typeof edits.wizardPatch === 'object' ? edits.wizardPatch : {}),
   }
   if (inventoryLines) wizard.inventoryLines = inventoryLines
   return appendWizardSnapshotToDetails(body, {
     ...extracted.meta,
     wizard,
+    serviceType:
+      edits.serviceType != null ? String(edits.serviceType) : extracted.meta.serviceType,
     overrideReason: String(edits.priceNote || extracted.meta.overrideReason || ''),
   })
 }
@@ -303,5 +311,249 @@ export function editsFromLead(lead) {
     inventoryLines,
     specialInstructions: String(step3.specialInstructions || '').trim(),
     priceNote: String(lead?.price_override_reason || '').trim(),
+  }
+}
+
+/**
+ * @param {unknown} value
+ */
+function parseFloorValue(value) {
+  if (value == null || value === '') return null
+  const n = Number(value)
+  return Number.isFinite(n) ? n : null
+}
+
+/**
+ * @param {unknown} value
+ */
+function liftChoice(value) {
+  if (value === 'yes' || value === true) return true
+  if (value === 'no' || value === false) return false
+  return null
+}
+
+/**
+ * @param {unknown} pickup
+ * @param {unknown} delivery
+ */
+function routeLabel(pickup, delivery) {
+  const clip = (value) => {
+    const text = String(value || '').trim()
+    return text.length > 42 ? `${text.slice(0, 42)}…` : text
+  }
+  const from = clip(pickup)
+  const to = clip(delivery)
+  if (from && to) return `${from} → ${to}`
+  return from || to || null
+}
+
+/**
+ * @param {unknown} value
+ */
+function dateOnly(value) {
+  const text = String(value || '').trim()
+  const match = text.match(/^(\d{4}-\d{2}-\d{2})/)
+  return match ? match[1] : ''
+}
+
+/**
+ * @param {Record<string, unknown>} lead
+ */
+export function moveDetailsFormFromLead(lead) {
+  const { step1 } = leadWizardSteps(lead)
+  const pickupLift = step1.pickupLift
+  const deliveryLift = step1.deliveryLift
+  return {
+    serviceType: String(step1.serviceType || lead?.service_type || ''),
+    pickupAddress: String(step1.pickupAddress || lead?.pickup_address || ''),
+    pickupPropertyType: String(step1.pickupPropertyType || ''),
+    pickupFloor: step1.pickupFloor == null || step1.pickupFloor === '' ? '' : String(step1.pickupFloor),
+    pickupLift: pickupLift === true ? 'yes' : pickupLift === false ? 'no' : '',
+    deliveryAddress: String(step1.deliveryAddress || lead?.delivery_address || ''),
+    deliveryPropertyType: String(step1.deliveryPropertyType || ''),
+    deliveryFloor: step1.deliveryFloor == null || step1.deliveryFloor === '' ? '' : String(step1.deliveryFloor),
+    deliveryLift: deliveryLift === true ? 'yes' : deliveryLift === false ? 'no' : '',
+    moveDate: dateOnly(step1.moveDate || lead?.move_date),
+    arrivalWindow: String(step1.arrivalWindow || ''),
+    exactArrivalTime: String(step1.exactArrivalTime || ''),
+    flexibleArrivalFrom: String(step1.flexibleArrivalFrom || ''),
+    flexibleArrivalUntil: String(step1.flexibleArrivalUntil || ''),
+  }
+}
+
+/**
+ * Write move details onto the lead wizard. Distance and prices stay as they are.
+ * @param {Record<string, unknown>} lead
+ * @param {ReturnType<typeof moveDetailsFormFromLead>} form
+ */
+export function buildMoveDetailsWizard(lead, form) {
+  const { wd, step1, step3 } = leadWizardSteps(lead)
+  const service = normalizeServiceType(form.serviceType)
+  const pickupFloor = parseFloorValue(form.pickupFloor)
+  const deliveryFloor = parseFloorValue(form.deliveryFloor)
+  const arrivalWindow = String(form.arrivalWindow || '').trim() === 'afternoon' ? 'evening' : String(form.arrivalWindow || '').trim()
+  const nextStep1 = {
+    ...step1,
+    serviceType: service.label || String(form.serviceType || '').trim() || step1.serviceType || null,
+    serviceKey: service.key || step1.serviceKey || null,
+    pickupAddress: String(form.pickupAddress || '').trim(),
+    deliveryAddress: String(form.deliveryAddress || '').trim(),
+    pickupPropertyType: String(form.pickupPropertyType || '').trim(),
+    deliveryPropertyType: String(form.deliveryPropertyType || '').trim(),
+    pickupFloor,
+    deliveryFloor,
+    pickupLift: liftValueForFloor(pickupFloor, liftChoice(form.pickupLift)),
+    deliveryLift: liftValueForFloor(deliveryFloor, liftChoice(form.deliveryLift)),
+    moveDate: dateOnly(form.moveDate),
+    arrivalWindow,
+    exactArrivalTime: arrivalWindow === 'exact' ? String(form.exactArrivalTime || '').trim() : '',
+    flexibleArrivalFrom: arrivalWindow === 'flex_window' ? String(form.flexibleArrivalFrom || '').trim() : '',
+    flexibleArrivalUntil: arrivalWindow === 'flex_window' ? String(form.flexibleArrivalUntil || '').trim() : '',
+  }
+  nextStep1.arrivalSummary = formatWizardArrivalSummary(nextStep1)
+  const wizardPatch = {
+    serviceType: nextStep1.serviceType || '',
+    pickupAddress: nextStep1.pickupAddress,
+    deliveryAddress: nextStep1.deliveryAddress,
+    pickupPropertyType: nextStep1.pickupPropertyType,
+    deliveryPropertyType: nextStep1.deliveryPropertyType,
+    pickupFloor: nextStep1.pickupFloor,
+    deliveryFloor: nextStep1.deliveryFloor,
+    pickupLift: nextStep1.pickupLift,
+    deliveryLift: nextStep1.deliveryLift,
+    moveDate: nextStep1.moveDate,
+    arrivalWindow: nextStep1.arrivalWindow,
+    exactArrivalTime: nextStep1.exactArrivalTime,
+    flexibleArrivalFrom: nextStep1.flexibleArrivalFrom,
+    flexibleArrivalUntil: nextStep1.flexibleArrivalUntil,
+  }
+  return {
+    wizard_data: {
+      ...wd,
+      step1: nextStep1,
+      step3: {
+        ...step3,
+        selectedMoveDate: nextStep1.moveDate || step3.selectedMoveDate || '',
+      },
+    },
+    wizardPatch,
+    service_type: nextStep1.serviceType || null,
+    pickup_address: nextStep1.pickupAddress || null,
+    delivery_address: nextStep1.deliveryAddress || null,
+    move_date: nextStep1.moveDate || null,
+    route_label: routeLabel(nextStep1.pickupAddress, nextStep1.deliveryAddress),
+    arrival_window: arrivalWindow || null,
+    arrival_type: arrivalWindow === 'exact' ? 'exact' : arrivalWindow || null,
+    arrival_time: getWizardArrivalTimePayload(nextStep1) || null,
+  }
+}
+
+/**
+ * @param {Record<string, unknown>} lead
+ */
+export function quoteExtrasFormFromLead(lead) {
+  const { step1, step3 } = leadWizardSteps(lead)
+  return {
+    selectedMoveDate: dateOnly(step3.selectedMoveDate || step1.moveDate || lead?.move_date),
+    packing: Boolean(step3.packing),
+    packingWhat: String(step3.packingWhat || ''),
+    packingMaterials: Boolean(step3.packingMaterials),
+    packingMaterialsDetail: String(step3.packingMaterialsDetail || ''),
+    dismantling: Boolean(step3.dismantling),
+    dismantlingItemCount: String(step3.dismantlingItemCount || 0),
+    dismantlingWhat: String(step3.dismantlingWhat || ''),
+    reassembly: Boolean(step3.reassembly),
+    reassemblyItemCount: String(step3.reassemblyItemCount || 0),
+    reassemblyWhat: String(step3.reassemblyWhat || ''),
+    heavyNotes: String(step3.heavyNotes || ''),
+    pickupContactName: String(step3.pickupContactName || ''),
+    pickupContactPhone: String(step3.pickupContactPhone || ''),
+    deliveryContactName: String(step3.deliveryContactName || ''),
+    deliveryContactPhone: String(step3.deliveryContactPhone || ''),
+    promoCode: String(step3.promoCode || ''),
+  }
+}
+
+/**
+ * Write quote extras onto the lead. Ordered boxes follow the materials text.
+ * Prices stay as they are.
+ * @param {Record<string, unknown>} lead
+ * @param {ReturnType<typeof quoteExtrasFormFromLead>} form
+ */
+export function buildQuoteExtrasWizard(lead, form) {
+  const { wd, step1, step2, step3 } = leadWizardSteps(lead)
+  const packing = Boolean(form.packing)
+  const packingMaterials = Boolean(form.packingMaterials)
+  const dismantling = Boolean(form.dismantling)
+  const reassembly = Boolean(form.reassembly)
+  const packingMaterialsDetail = packingMaterials ? String(form.packingMaterialsDetail || '').trim() : ''
+  const quantities = parsePackingMaterialQuantities(
+    packingMaterials ? { packingMaterialsDetail } : { packingMaterialsQuantities: {} },
+  )
+  const lines = syncSuppliedBoxesIntoInventory(step2.inventoryLines || [], quantities)
+  const volume = sumCustomerLeadInventoryVolume(lines)
+  const moveDate = dateOnly(form.selectedMoveDate)
+  const pickupContactName = String(form.pickupContactName || '').trim()
+  const pickupContactPhone = String(form.pickupContactPhone || '').trim()
+  const deliveryContactName = String(form.deliveryContactName || '').trim()
+  const deliveryContactPhone = String(form.deliveryContactPhone || '').trim()
+  const step3Next = {
+    ...step3,
+    selectedMoveDate: moveDate,
+    packing,
+    packingWhat: packing ? String(form.packingWhat || '').trim() : '',
+    packingMaterials,
+    packingMaterialsDetail,
+    dismantling,
+    dismantlingItemCount: dismantling ? Math.max(0, Math.round(Number(form.dismantlingItemCount) || 0)) : 0,
+    dismantlingWhat: dismantling ? String(form.dismantlingWhat || '').trim() : '',
+    reassembly,
+    reassemblyItemCount: reassembly ? Math.max(0, Math.round(Number(form.reassemblyItemCount) || 0)) : 0,
+    reassemblyWhat: reassembly ? String(form.reassemblyWhat || '').trim() : '',
+    heavyNotes: String(form.heavyNotes || '').trim(),
+    pickupContactName,
+    pickupContactPhone,
+    deliveryContactName,
+    deliveryContactPhone,
+    promoCode: String(form.promoCode || '').trim(),
+  }
+  const wizardPatch = {
+    moveDate,
+    packing: step3Next.packing,
+    packingWhat: step3Next.packingWhat,
+    packingMaterials: step3Next.packingMaterials,
+    packingMaterialsDetail: step3Next.packingMaterialsDetail,
+    dismantling: step3Next.dismantling,
+    dismantlingItemCount: step3Next.dismantlingItemCount,
+    dismantlingWhat: step3Next.dismantlingWhat,
+    reassembly: step3Next.reassembly,
+    reassemblyItemCount: step3Next.reassemblyItemCount,
+    reassemblyWhat: step3Next.reassemblyWhat,
+    heavyNotes: step3Next.heavyNotes,
+    pickupContactName,
+    pickupContactPhone,
+    pickupContactSameAsCustomer: !(pickupContactName || pickupContactPhone),
+    deliveryContactName,
+    deliveryContactPhone,
+    deliveryContactSameAsCustomer: !(deliveryContactName || deliveryContactPhone),
+    dropoffSameAsPickup: !(deliveryContactName || deliveryContactPhone),
+    promoCode: step3Next.promoCode,
+    inventoryLines: lines,
+  }
+  return {
+    lines,
+    move_date: moveDate || null,
+    total_volume_m3: volume != null ? volume : lead.total_volume_m3 ?? null,
+    wizardPatch,
+    wizard_data: {
+      ...wd,
+      step1: { ...step1, moveDate: moveDate || step1.moveDate || '' },
+      step2: {
+        ...step2,
+        inventoryLines: lines,
+        ...(volume != null ? { totalVolumeM3: volume } : {}),
+      },
+      step3: step3Next,
+    },
   }
 }

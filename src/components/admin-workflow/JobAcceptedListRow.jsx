@@ -8,7 +8,6 @@ import { getFleetDriversCached } from '../../lib/adminFleetDrivers'
 import { tipBadgeForQuote } from '../../lib/jobTipBadge'
 import JobStatusBadge from './JobStatusBadge'
 import JobAcceptedListPayoutSummary from './JobAcceptedListPayoutSummary'
-import GenerateJobSheetButton from './GenerateJobSheetButton'
 
 function shortRoute(from, to, max = 36) {
   const f = from.length > max ? `${from.slice(0, max - 1)}…` : from
@@ -103,7 +102,6 @@ export default function JobAcceptedListRow({ q, job = null, onUpdated }) {
           >
             View
           </Link>
-          <GenerateJobSheetButton quote={q} />
         </div>
       </td>
     </tr>

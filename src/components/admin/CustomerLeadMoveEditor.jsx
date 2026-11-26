@@ -21,16 +21,24 @@ export default function CustomerLeadMoveEditor({ lead, disabled = false, onSaved
   const [instructions, setInstructions] = useState(saved.specialInstructions)
   const [query, setQuery] = useState('')
   const [customName, setCustomName] = useState('')
-  const [customM3, setCustomM3] = useState('')
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState('')
   const [dirty, setDirty] = useState(false)
+  const [editing, setEditing] = useState(false)
 
   useEffect(() => {
     if (dirty) return
     setLines(saved.inventoryLines)
     setInstructions(saved.specialInstructions)
   }, [saved, dirty])
+
+  useEffect(() => {
+    setEditing(false)
+    setDirty(false)
+    setMessage('')
+    setQuery('')
+    setCustomName('')
+  }, [lead?.id])
 
   const matches = useMemo(() => {
     const q = query.trim()
@@ -85,11 +93,6 @@ export default function CustomerLeadMoveEditor({ lead, disabled = false, onSaved
       setMessage('Type the item name to add.')
       return
     }
-    const m3 = customM3.trim() === '' ? 0.2 : Number(customM3)
-    if (!Number.isFinite(m3) || m3 < 0) {
-      setMessage('Volume needs to be a number, for example 0.5.')
-      return
-    }
     setLines((current) => [
       ...current,
       normalizeAdminInventoryLine(
@@ -97,7 +100,7 @@ export default function CustomerLeadMoveEditor({ lead, disabled = false, onSaved
           lineId: `custom-${Date.now()}`,
           name,
           quantity: 1,
-          m3,
+          m3: 0.2,
           isCustom: true,
           weightType: 'std',
         },
@@ -107,7 +110,6 @@ export default function CustomerLeadMoveEditor({ lead, disabled = false, onSaved
     setDirty(true)
     setMessage('')
     setCustomName('')
-    setCustomM3('')
   }
 
   async function handleSave() {
@@ -120,6 +122,7 @@ export default function CustomerLeadMoveEditor({ lead, disabled = false, onSaved
         specialInstructions: instructions,
       })
       setDirty(false)
+      setEditing(false)
       setMessage(
         result.quoteUpdated
           ? 'Saved on this lead and on the booking.'
@@ -133,188 +136,197 @@ export default function CustomerLeadMoveEditor({ lead, disabled = false, onSaved
     }
   }
 
-  const itemTotal = lines.reduce((sum, line) => sum + (Number(line.quantity) || 0), 0)
+  function cancelEdit() {
+    setLines(saved.inventoryLines)
+    setInstructions(saved.specialInstructions)
+    setQuery('')
+    setCustomName('')
+    setDirty(false)
+    setMessage('')
+    setEditing(false)
+  }
+
+  const shownLines = editing ? lines : saved.inventoryLines
+  const shownInstructions = editing ? instructions : saved.specialInstructions
+  const itemTotal = shownLines.reduce((sum, line) => sum + (Number(line.quantity) || 0), 0)
   const itemTotalLabel = itemTotal === 1 ? '1 item' : `${itemTotal} items`
 
   return (
     <section className="min-w-0 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
       <div className="flex flex-wrap items-start justify-between gap-2">
-        <div>
-          <h3 className="text-sm font-bold text-slate-900">Items and special instructions</h3>
-          <p className="mt-1 text-xs text-slate-600">
-            Add or remove items when the customer calls. Write the special instructions yourself.
-            The saved price does not change.
-          </p>
-        </div>
-        {lines.length > 0 ? (
-          <p className="text-sm font-bold text-brand-700">{itemTotalLabel}</p>
+        <h3 className="text-sm font-bold text-slate-900">Items and special instructions</h3>
+        {shownLines.length > 0 ? (
+          <p className="text-sm font-bold text-slate-900">{itemTotalLabel}</p>
         ) : null}
       </div>
 
-      {lines.length === 0 ? (
-        <p className="mt-3 rounded-lg border border-dashed border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">
-          No items yet.
-        </p>
+      {shownLines.length === 0 ? (
+        <p className="mt-3 text-sm text-slate-700">No items yet.</p>
       ) : (
-        <ul className="mt-3 grid grid-cols-1 gap-2 md:grid-cols-3">
-          {lines.map((line) => (
+        <ul className={`mt-3 grid grid-cols-1 gap-2 md:grid-cols-3 ${editing ? '' : 'text-sm text-slate-700'}`}>
+          {shownLines.map((line) => (
             <li
               key={line.lineId}
-              className="min-w-0 rounded-md border border-slate-200 px-2 py-1.5"
+              className={editing ? 'min-w-0 rounded-md border border-slate-200 px-2 py-1.5' : 'min-w-0'}
             >
               <p className="flex items-baseline justify-between gap-2 text-sm text-slate-900">
                 <span className="min-w-0 truncate" title={line.name}>{line.name}</span>
                 <span className="shrink-0 font-bold">×{line.quantity}</span>
               </p>
-              <div className="mt-1.5 flex items-center gap-1.5">
-                <label className="flex min-w-0 items-center gap-1 text-[11px] font-semibold text-slate-500">
-                  Qty
-                  <input
-                    type="number"
-                    min="1"
-                    inputMode="numeric"
-                    aria-label={`Quantity for ${line.name}`}
-                    value={line.quantity}
+              {editing ? (
+                <div className="mt-1.5 flex items-center gap-1.5">
+                  <label className="flex min-w-0 items-center gap-1 text-[11px] font-semibold text-slate-500">
+                    Qty
+                    <input
+                      type="number"
+                      min="1"
+                      inputMode="numeric"
+                      aria-label={`Quantity for ${line.name}`}
+                      value={line.quantity}
+                      disabled={disabled || saving}
+                      onChange={(event) => {
+                        const quantity = Math.max(1, Math.round(Number(event.target.value) || 1))
+                        markDirty(lines.map((row) => (row.lineId === line.lineId ? { ...row, quantity } : row)))
+                      }}
+                      className="w-14 rounded border border-slate-300 px-1.5 py-1 text-sm"
+                    />
+                  </label>
+                  <span className="text-[11px] font-semibold text-slate-500">
+                    {Number.isFinite(Number(line.m3)) ? `${Number(line.m3)} m³` : '—'}
+                  </span>
+                  <button
+                    type="button"
                     disabled={disabled || saving}
-                    onChange={(event) => {
-                      const quantity = Math.max(1, Math.round(Number(event.target.value) || 1))
-                      markDirty(lines.map((row) => (row.lineId === line.lineId ? { ...row, quantity } : row)))
-                    }}
-                    className="w-14 rounded border border-slate-300 px-1.5 py-1 text-sm"
-                  />
-                </label>
-                <label className="flex min-w-0 items-center gap-1 text-[11px] font-semibold text-slate-500">
-                  m³
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    inputMode="decimal"
-                    aria-label={`Cubic metres for ${line.name}`}
-                    value={line.m3 ?? ''}
-                    disabled={disabled || saving}
-                    onChange={(event) => {
-                      const raw = event.target.value
-                      const m3 = raw === '' ? null : Number(raw)
-                      markDirty(
-                        lines.map((row) =>
-                          row.lineId === line.lineId
-                            ? { ...row, m3: Number.isFinite(m3) ? m3 : null, volumePerUnitM3: Number.isFinite(m3) ? m3 : null }
-                            : row,
-                        ),
-                      )
-                    }}
-                    className="w-16 rounded border border-slate-300 px-1.5 py-1 text-sm"
-                  />
-                </label>
-                <button
-                  type="button"
-                  disabled={disabled || saving}
-                  onClick={() => markDirty(lines.filter((row) => row.lineId !== line.lineId))}
-                  className="ml-auto rounded px-1.5 py-1 text-xs font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50"
-                >
-                  Remove
-                </button>
-              </div>
+                    onClick={() => markDirty(lines.filter((row) => row.lineId !== line.lineId))}
+                    className="ml-auto rounded px-1.5 py-1 text-xs font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50"
+                  >
+                    Remove
+                  </button>
+                </div>
+              ) : null}
             </li>
           ))}
         </ul>
       )}
 
-      <div className="relative mt-4">
-        <label className="block text-sm font-semibold text-slate-800" htmlFor="lead-item-search">
-          Add an item
-        </label>
-        <input
-          id="lead-item-search"
-          value={query}
-          disabled={disabled || saving}
-          onChange={(event) => setQuery(event.target.value)}
-          placeholder="Search items, e.g. sofa, bed, table"
-          className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-          autoComplete="off"
-        />
-        {matches.length > 0 ? (
-          <ul className="absolute z-20 mt-1 max-h-64 w-full overflow-auto rounded-lg border border-slate-200 bg-white shadow-lg">
-            {matches.map((entry) => (
-              <li key={`${entry.categoryLabel}-${entry.item.id || entry.item.name}`}>
-                <button
-                  type="button"
-                  className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm hover:bg-slate-50"
-                  onClick={() => addCatalogItem(entry)}
-                >
-                  <span className="font-medium text-slate-900">{entry.item.name}</span>
-                  <span className="shrink-0 text-xs text-slate-500">{entry.categoryLabel}</span>
-                </button>
-              </li>
-            ))}
-          </ul>
-        ) : null}
-      </div>
+      {editing ? (
+        <>
+          <div className="relative mt-4">
+            <label className="block text-sm font-semibold text-slate-800" htmlFor="lead-item-search">
+              Add an item
+            </label>
+            <input
+              id="lead-item-search"
+              value={query}
+              disabled={disabled || saving}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Search items, e.g. sofa, bed, table"
+              className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+              autoComplete="off"
+            />
+            {matches.length > 0 ? (
+              <ul className="absolute z-20 mt-1 max-h-64 w-full overflow-auto rounded-lg border border-slate-200 bg-white shadow-lg">
+                {matches.map((entry) => (
+                  <li key={`${entry.categoryLabel}-${entry.item.id || entry.item.name}`}>
+                    <button
+                      type="button"
+                      className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm hover:bg-slate-50"
+                      onClick={() => addCatalogItem(entry)}
+                    >
+                      <span className="font-medium text-slate-900">{entry.item.name}</span>
+                      <span className="shrink-0 text-xs text-slate-500">{entry.categoryLabel}</span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+          </div>
 
-      <div className="mt-3 grid gap-2 sm:grid-cols-[minmax(0,1fr)_7rem_auto] sm:items-end">
-        <label className="block text-sm font-semibold text-slate-800">
-          Item not in the list
-          <input
-            value={customName}
-            disabled={disabled || saving}
-            onChange={(event) => setCustomName(event.target.value)}
-            placeholder="Custom item name"
-            className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-normal"
-          />
-        </label>
-        <label className="block text-sm font-semibold text-slate-800">
-          m³ each
-          <input
-            type="number"
-            min="0"
-            step="0.01"
-            inputMode="decimal"
-            value={customM3}
-            disabled={disabled || saving}
-            onChange={(event) => setCustomM3(event.target.value)}
-            placeholder="0.2"
-            className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-normal"
-          />
-        </label>
-        <button
-          type="button"
-          disabled={disabled || saving}
-          onClick={addCustomItem}
-          className="inline-flex min-h-10 items-center justify-center rounded-lg border border-slate-300 px-3 text-sm font-semibold text-slate-800 hover:bg-slate-50 disabled:opacity-50"
-        >
-          Add custom item
-        </button>
-      </div>
+          <div className="mt-3 grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
+            <label className="block text-sm font-semibold text-slate-800">
+              Item not in the list
+              <input
+                value={customName}
+                disabled={disabled || saving}
+                onChange={(event) => setCustomName(event.target.value)}
+                placeholder="Custom item name"
+                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-normal"
+              />
+            </label>
+            <button
+              type="button"
+              disabled={disabled || saving}
+              onClick={addCustomItem}
+              className="inline-flex min-h-10 items-center justify-center rounded-lg border border-slate-300 px-3 text-sm font-semibold text-slate-800 hover:bg-slate-50 disabled:opacity-50"
+            >
+              Add custom item
+            </button>
+          </div>
 
-      <label className="mt-4 block text-sm font-semibold text-slate-800" htmlFor="lead-special-instructions">
-        Special instructions
-      </label>
-      <p className="mt-1 text-xs text-slate-500">
-        {noteLabels.customer
-          ? 'Special instructions are the customer’s words. A price note stays separate and shows under them as Included in price.'
-          : 'Special instructions are for the customer. A price note shows under them in the email as Included in price.'}
-      </p>
-      <textarea
-        id="lead-special-instructions"
-        rows={3}
-        value={instructions}
-        disabled={disabled || saving}
-        onChange={(event) => markDirty(null, event.target.value)}
-        placeholder="Access notes, extra items, or anything the crew should know"
-        className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-      />
-      <div className="mt-3 flex flex-wrap items-center gap-3">
-        <button
-          type="button"
-          disabled={disabled || saving || !dirty}
-          onClick={() => void handleSave()}
-          className="inline-flex min-h-10 items-center rounded-lg bg-brand-600 px-3 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-50"
-        >
-          {saving ? 'Saving…' : 'Save items and instructions'}
-        </button>
-        {message ? <p className="text-sm text-slate-700">{message}</p> : null}
-      </div>
+          <label className="mt-4 block text-sm font-semibold text-slate-800" htmlFor="lead-special-instructions">
+            Special instructions
+          </label>
+          <p className="mt-1 text-xs text-slate-500">
+            {noteLabels.customer
+              ? 'Special instructions are the customer’s words. A price note stays separate and shows under them as Included in price.'
+              : 'Special instructions are for the customer. A price note shows under them in the email as Included in price.'}
+            {' '}The saved price does not change.
+          </p>
+          <textarea
+            id="lead-special-instructions"
+            rows={3}
+            value={instructions}
+            disabled={disabled || saving}
+            onChange={(event) => markDirty(null, event.target.value)}
+            placeholder="Access notes, extra items, or anything the crew should know"
+            className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+          />
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              disabled={disabled || saving || !dirty}
+              onClick={() => void handleSave()}
+              className="inline-flex min-h-10 items-center rounded-lg bg-brand-600 px-3 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-50"
+            >
+              {saving ? 'Saving…' : 'Save items and instructions'}
+            </button>
+            <button
+              type="button"
+              disabled={saving}
+              onClick={cancelEdit}
+              className="inline-flex min-h-10 items-center rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-800 hover:bg-slate-50 disabled:opacity-50"
+            >
+              Cancel
+            </button>
+            {message ? <p className="text-sm text-slate-700">{message}</p> : null}
+          </div>
+        </>
+      ) : (
+        <>
+          <div className="mt-3 grid gap-1 sm:grid-cols-[140px_1fr] text-sm text-slate-700">
+            <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">Special instructions</span>
+            <span className="whitespace-pre-wrap break-words">{shownInstructions.trim() || '—'}</span>
+          </div>
+          <div className="mt-4 flex flex-wrap items-center gap-3">
+            <button
+              type="button"
+              disabled={disabled}
+              onClick={() => {
+                const ok = window.confirm('Are you sure you want to edit the items and special instructions?')
+                if (!ok) return
+                setLines(saved.inventoryLines)
+                setInstructions(saved.specialInstructions)
+                setMessage('')
+                setEditing(true)
+              }}
+              className="inline-flex min-h-10 items-center rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-800 hover:bg-slate-50 disabled:opacity-50"
+            >
+              Edit
+            </button>
+            {message ? <p className="text-sm text-slate-700">{message}</p> : null}
+          </div>
+        </>
+      )}
     </section>
   )
 }
