@@ -269,17 +269,39 @@ function inventoryRowsHtml(items: BookingInventoryLine[]) {
   return rows.join('')
 }
 
-/** Inventory list for the booking confirmation. Notes stay out of this email. */
+/**
+ * Inventory, the customer's special instructions, and the price note.
+ * Same blocks as the reserved-quote email. Empty sections are left out.
+ */
 export function buildBookingMoveSectionsHtml(params: {
   inventory: BookingInventoryLine[]
-  customerNote?: string
-  priceReason?: string
+  customerNote: string
+  priceReason: string
 }) {
   const inventory = params.inventory
-  if (!inventory.length) return ''
-  const itemTotal = inventory.reduce((sum, line) => sum + line.quantity, 0)
-  const itemTotalLabel = itemTotal === 1 ? '1 item' : `${itemTotal} items`
-  return `<div style="margin-top:16px;"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border:1px solid #e2e8f0;border-radius:12px;"><tr><td style="padding:12px 16px;"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin-bottom:6px;"><tr><td style="font-size:15px;font-weight:700;color:#0f172a;">Inventory</td><td align="right" style="font-size:13px;font-weight:700;color:#1d4ed8;">${esc(itemTotalLabel)}</td></tr></table><table role="presentation" width="100%" cellspacing="0" cellpadding="0">${inventoryRowsHtml(inventory)}</table></td></tr></table></div>`
+  const customerNote = params.customerNote.trim()
+  const priceReason = params.priceReason.trim()
+  const blocks: string[] = []
+  if (inventory.length) {
+    const itemTotal = inventory.reduce((sum, line) => sum + line.quantity, 0)
+    const itemTotalLabel = itemTotal === 1 ? '1 item' : `${itemTotal} items`
+    blocks.push(
+      `<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border:1px solid #e2e8f0;border-radius:12px;"><tr><td style="padding:12px 16px;"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin-bottom:6px;"><tr><td style="font-size:15px;font-weight:700;color:#0f172a;">Inventory</td><td align="right" style="font-size:13px;font-weight:700;color:#1d4ed8;">${esc(itemTotalLabel)}</td></tr></table><table role="presentation" width="100%" cellspacing="0" cellpadding="0">${inventoryRowsHtml(inventory)}</table></td></tr></table>`,
+    )
+  }
+  if (customerNote || priceReason) {
+    const note = customerNote
+      ? `<div style="margin-top:6px;font-size:14px;line-height:1.55;color:#334155;white-space:pre-wrap;">${esc(customerNote)}</div>`
+      : ''
+    const included = priceReason
+      ? `<div style="margin-top:12px;padding-top:10px;border-top:1px solid #f1f5f9;"><span style="display:inline-block;background:#ecfdf5;color:#047857;font-size:11px;font-weight:700;letter-spacing:0.04em;text-transform:uppercase;border:1px solid #a7f3d0;border-radius:999px;padding:3px 8px;">Included in price</span><div style="margin-top:6px;font-size:14px;line-height:1.55;color:#334155;white-space:pre-wrap;">${esc(priceReason)}</div></div>`
+      : ''
+    blocks.push(
+      `<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border:1px solid #e2e8f0;border-radius:12px;"><tr><td style="padding:12px 16px;"><div style="font-size:15px;font-weight:700;color:#0f172a;">Special instructions</div>${note}${included}</td></tr></table>`,
+    )
+  }
+  if (!blocks.length) return ''
+  return `<div style="margin-top:16px;">${blocks.join('<div style="height:14px;line-height:14px;font-size:14px;">&nbsp;</div>')}</div>`
 }
 
 export function buildJobCustomerEmailHtml(params: {

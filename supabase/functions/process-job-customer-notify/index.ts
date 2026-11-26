@@ -7,6 +7,7 @@ import {
   buildBookingMoveSectionsHtml,
   buildJobCompletedThankYouEmailHtml,
   buildJobCustomerEmailHtml,
+  customerAccountUrl,
   customerFirstName,
   customerInstructionText,
   customerStatusLabel,
@@ -17,6 +18,7 @@ import {
   trackingUrl,
   type JobNotifyEventKey,
 } from '../_shared/jobCustomerNotify.ts'
+import { buildPortalMagicUrl } from '../_shared/customerPortalMagicLink.ts'
 import { phoneQuoteFinalTotal } from '../_shared/phoneQuotePaymentRules.ts'
 import {
   isUniqueViolation,
@@ -398,6 +400,7 @@ async function sendEventEmail(
   const unpaid = !isPaid(quote.payment_status)
   let moveSectionsHtml = ''
   let plainMoveLines: string[] = []
+  let accountSignInUrl = ''
 
   if (eventKey === 'booking_confirmed') {
     title = 'Your booking is confirmed'
@@ -415,11 +418,17 @@ async function sendEventEmail(
     footerNote = unpaid
       ? 'Pay by card whenever you like, or pay your driver when they arrive. These links are private to your booking.'
       : 'This tracking link is private to your booking.'
+    if (email) {
+      const magic = await buildPortalMagicUrl(supabase, email, `/portal/bookings/${quoteId}`)
+      accountSignInUrl = magic.ok ? magic.url : customerAccountUrl(email)
+    }
     moveSectionsHtml = extras.sectionsHtml
     const itemTotal = extras.inventory.reduce((sum, line) => sum + line.quantity, 0)
     plainMoveLines = [
       itemTotal ? `Items: ${itemTotal === 1 ? '1 item' : `${itemTotal} items`}` : '',
       ...extras.inventory.map((line) => `- ${line.name} ×${line.quantity}`),
+      extras.customerNote ? `Special instructions: ${extras.customerNote}` : '',
+      extras.priceReason ? `Included in price: ${extras.priceReason}` : '',
     ].filter(Boolean)
     rows.push(
       { label: 'Move date', value: formatDateUK(quote.move_date) },
@@ -508,6 +517,11 @@ async function sendEventEmail(
           secondaryCtas: secondary,
           footerNote,
           moveSectionsHtml,
+          companyFooter: eventKey === 'booking_confirmed',
+          accountCta:
+            eventKey === 'booking_confirmed' && accountSignInUrl
+              ? { label: 'My account', url: accountSignInUrl }
+              : undefined,
         })
 
   const text =
@@ -538,6 +552,16 @@ async function sendEventEmail(
           ...(plainMoveLines.length ? ['', ...plainMoveLines] : []),
           '',
           primary.url,
+          ...(eventKey === 'booking_confirmed'
+            ? [
+                '',
+                `My account: ${accountSignInUrl}`,
+                '',
+                '0141 461 4813',
+                'www.shiftmyhome.co.uk',
+                `© ${new Date().getFullYear()} ShiftMyHome. All rights reserved.`,
+              ]
+            : []),
         ].join('\n')
 
   const invoice =
