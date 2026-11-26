@@ -10,6 +10,7 @@ const {
   buildMoveDetailsWizard,
   buildQuoteExtrasWizard,
   editsFromLead,
+  instructionRecordForStep,
   mergeLeadEditsIntoQuoteDetails,
   mergePriceNoteIntoSpecialInstructions,
   notesForCustomerEmail,
@@ -194,6 +195,31 @@ test('turning materials off removes the boxes we supply and keeps the customer i
     changed.wizard_data.step3.specialInstructions.split('\n').filter((line) => /^Supply:\s/i.test(line.trim())).length,
     1,
   )
+})
+
+test('saved packing materials appear in special instructions even when that text was left blank', () => {
+  const opened = editsFromLead({
+    wizard_data: {
+      step3: {
+        packingMaterials: true,
+        packingMaterialsDetail: 'Small moving box: 4 boxes',
+        specialInstructions: '',
+      },
+    },
+  })
+  assert.equal(opened.instructionBlocks.length, 1)
+  assert.equal(opened.instructionBlocks[0].author, 'customer')
+  assert.equal(opened.instructionBlocks[0].text, 'Supply: 4 small moving boxes.')
+  assert.equal(opened.supplyAuthor, 'customer')
+
+  const same = instructionRecordForStep({
+    packingMaterials: true,
+    packingMaterialsDetail: 'Small moving box: 4 boxes',
+    specialInstructions: 'Added by customer:\nSupply: 4 small moving boxes.',
+    customerSpecialInstructions: '',
+    supplyNoteAuthor: 'customer',
+  })
+  assert.equal(same.specialInstructions.match(/Supply:/gi).length, 1)
 })
 
 test('the items view reads saved names, quantities, and instruction paragraphs', () => {

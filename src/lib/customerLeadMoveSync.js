@@ -12,6 +12,7 @@ import { liftValueForFloor } from './floorAccess'
 import { normalizeServiceType } from './normalizeServiceType'
 import { applyInstructionEdit, instructionFields, readInstructionParts } from './instructionAuthors.js'
 import { parsePackingMaterialQuantities } from './packingMaterialsCatalog.js'
+import { buildSupplyNote } from './supplyInstructionNote.js'
 import { syncSuppliedBoxesIntoInventory } from './suppliedBoxesInventory.js'
 
 /**
@@ -100,6 +101,19 @@ function withoutNoteLine(text, note) {
 /** Keep special instructions as the customer's words. The price note stays a note. */
 export function removePriceNoteFromInstructions(text, note) {
   return withoutNoteLine(text, note)
+}
+
+/**
+ * Saved packing materials still produce the Supply line when the instruction text was never updated.
+ * @param {Record<string, unknown> | null | undefined} step3
+ * @param {unknown} [priceNote]
+ */
+export function instructionRecordForStep(step3, priceNote = '') {
+  const source = step3 && typeof step3 === 'object' ? step3 : {}
+  return applyInstructionEdit(source, {
+    priceNote,
+    quantities: source.packingMaterials ? parsePackingMaterialQuantities(source) : {},
+  })
 }
 
 /**
@@ -258,6 +272,7 @@ export function buildLeadWizardData(lead, edits) {
   const volume = sumCustomerLeadInventoryVolume(lines)
   const priceNote = String(lead?.price_override_reason || '').trim()
   const parts = readInstructionParts(step3, priceNote)
+  const quantities = step3.packingMaterials ? parsePackingMaterialQuantities(step3) : {}
   const record =
     edits.instructionsAuthor === 'admin' || edits.instructionsAuthor === 'customer'
       ? applyInstructionEdit(
@@ -271,9 +286,10 @@ export function buildLeadWizardData(lead, edits) {
             customer: edits.instructionsAuthor === 'customer' ? edits.specialInstructions : parts.customer,
             admin: edits.instructionsAuthor === 'admin' ? edits.specialInstructions : parts.admin,
             priceNote,
+            quantities,
           },
         )
-      : applyInstructionEdit(step3, { priceNote })
+      : applyInstructionEdit(step3, { priceNote, quantities })
   const step3Next = {
     ...step3,
     ...instructionFields(record),
@@ -304,7 +320,7 @@ export function editsFromLead(lead) {
     .map((line, index) => normalizeAdminInventoryLine(line, index))
     .filter((line) => line.name)
   const priceNote = String(lead?.price_override_reason || '').trim()
-  const record = applyInstructionEdit(step3, { priceNote })
+  const record = instructionRecordForStep(step3, priceNote)
   return {
     inventoryLines,
     specialInstructions: String(step3.specialInstructions || '').trim(),
@@ -492,6 +508,10 @@ export function buildQuoteExtrasWizard(lead, form) {
   const quantities = parsePackingMaterialQuantities(
     packingMaterials ? { packingMaterialsDetail } : { packingMaterialsQuantities: {} },
   )
+  const savedSupplyNote = buildSupplyNote(
+    step3.packingMaterials ? parsePackingMaterialQuantities(step3) : {},
+  )
+  const materialsChanged = buildSupplyNote(quantities) !== savedSupplyNote
   const lines = syncSuppliedBoxesIntoInventory(step2.inventoryLines || [], quantities)
   const volume = sumCustomerLeadInventoryVolume(lines)
   const moveDate = dateOnly(form.selectedMoveDate)
@@ -522,7 +542,7 @@ export function buildQuoteExtrasWizard(lead, form) {
     ...instructionFields(
       applyInstructionEdit(step3, {
         quantities,
-        actor: 'admin',
+        actor: materialsChanged ? 'admin' : '',
         priceNote: lead?.price_override_reason,
       }),
     ),

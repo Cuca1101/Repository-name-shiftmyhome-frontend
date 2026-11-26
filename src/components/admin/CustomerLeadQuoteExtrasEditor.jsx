@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react'
 import { saveCustomerLeadQuoteExtras } from '../../lib/customerLeadBookingConvert'
-import { applyInstructionEdit } from '../../lib/instructionAuthors'
-import { leadWizardSteps, quoteExtrasFormFromLead } from '../../lib/customerLeadMoveSync'
+import { instructionRecordForStep, leadWizardSteps, quoteExtrasFormFromLead } from '../../lib/customerLeadMoveSync'
 import SpecialInstructionBlocks from '../admin-workflow/SpecialInstructionBlocks'
 import { formatDateUK } from '../../lib/formatDateDisplay'
 
@@ -74,7 +73,7 @@ export default function CustomerLeadQuoteExtrasEditor({ lead, disabled = false, 
   }
 
   const packageSnap = step3.servicePackage && typeof step3.servicePackage === 'object' ? step3.servicePackage : null
-  const instructionRecord = applyInstructionEdit(step3, { priceNote: lead?.price_override_reason })
+  const instructionRecord = instructionRecordForStep(step3, lead?.price_override_reason)
   const selectedQuote =
     step3.estimatedTotal != null
       ? money(step3.estimatedTotal)
