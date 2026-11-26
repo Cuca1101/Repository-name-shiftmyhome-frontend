@@ -144,6 +144,14 @@ export default function CustomerLeadMoveEditor({ lead, disabled = false, onSaved
     () => selectionDiff.added.reduce((sum, row) => sum + (Number(row.quantity) || 0), 0),
     [selectionDiff.added],
   )
+  const savedItemCount = useMemo(
+    () => saved.inventoryLines.reduce((sum, line) => sum + (Number(line.quantity) || 0), 0),
+    [saved.inventoryLines],
+  )
+  const currentItemCount = useMemo(
+    () => lines.reduce((sum, line) => sum + (Number(line.quantity) || 0), 0),
+    [lines],
+  )
 
   const pricePreview = useMemo(() => {
     if (!editing || !pricingSettings) return null
@@ -266,149 +274,148 @@ export default function CustomerLeadMoveEditor({ lead, disabled = false, onSaved
             <div className="rounded-xl border border-slate-200 bg-gradient-to-br from-slate-50 to-white p-4 shadow-sm">
               <p className="text-sm font-bold text-slate-900">Job total</p>
               <p className="mt-1 text-xs text-slate-500">
-                {pricePreview?.usesAgreed
-                  ? 'Item changes move the Saved agreed total by the engine price difference. Save writes that new agreed total.'
-                  : 'No saved agreed total — item changes move the calculated total. Save an agreed price to lock checkout.'}
+                Live summary for this edit. Save writes the new Saved agreed total and item list.
               </p>
 
-              <dl className="mt-4 space-y-3">
-                {pricePreview?.usesAgreed ? (
-                  <div className="rounded-lg border border-blue-100 bg-blue-50/70 px-3 py-2.5">
-                    <dt className="text-[11px] font-semibold uppercase tracking-wide text-blue-700">
-                      Saved agreed total
-                    </dt>
-                    <dd className="mt-0.5 flex flex-wrap items-baseline gap-2">
-                      <span className="text-2xl font-bold tabular-nums text-blue-950">
-                        {formatGbp(pricePreview?.checkoutAfter)}
-                      </span>
-                      {pricePreview?.checkoutDelta != null &&
-                      Math.abs(pricePreview.checkoutDelta) >= 0.009 ? (
-                        <span
-                          className={`text-sm font-semibold tabular-nums ${
-                            pricePreview.checkoutDelta > 0 ? 'text-emerald-700' : 'text-amber-800'
-                          }`}
-                        >
-                          {formatSignedGbp(pricePreview.checkoutDelta)}
-                        </span>
-                      ) : (
-                        <span className="text-xs font-medium text-slate-500">No change yet</span>
-                      )}
-                    </dd>
-                    {pricePreview?.checkoutBefore != null ? (
-                      <p className="mt-1 text-xs text-blue-800/90">
-                        Starts from saved agreed {formatGbp(pricePreview.checkoutBefore)}
-                        {pricePreview.checkoutDelta != null &&
-                        Math.abs(pricePreview.checkoutDelta) >= 0.009
-                          ? ` → ${formatGbp(pricePreview.checkoutAfter)} after this edit`
-                          : ''}
-                      </p>
-                    ) : null}
-                  </div>
-                ) : (
-                  <div className="rounded-lg border border-blue-100 bg-blue-50/70 px-3 py-2.5">
-                    <dt className="text-[11px] font-semibold uppercase tracking-wide text-blue-700">
-                      Checkout total
-                    </dt>
-                    <dd className="mt-0.5 text-2xl font-bold tabular-nums text-blue-950">
-                      {formatGbp(pricePreview?.checkoutAfter)}
-                    </dd>
-                  </div>
-                )}
-
-                <div>
-                  <dt className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                    Calculated total
-                  </dt>
-                  <dd className="mt-0.5 flex flex-wrap items-baseline gap-2">
-                    <span className="text-lg font-bold tabular-nums text-slate-900">
-                      {formatGbp(pricePreview?.calculatedAfter)}
-                    </span>
-                    {pricePreview?.calculatedDelta != null &&
-                    Math.abs(pricePreview.calculatedDelta) >= 0.009 ? (
-                      <span
-                        className={`text-sm font-semibold tabular-nums ${
-                          pricePreview.calculatedDelta > 0 ? 'text-emerald-700' : 'text-amber-700'
-                        }`}
-                      >
-                        {formatSignedGbp(pricePreview.calculatedDelta)}
-                      </span>
-                    ) : null}
-                  </dd>
-                  <p className="mt-0.5 text-xs text-slate-500">
-                    Engine price only — the agreed total above is what checkout uses.
-                  </p>
-                </div>
-              </dl>
-
-              {removedUnitCount > 0 ? (
-                <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50/80 px-3 py-3">
-                  <p className="text-sm font-bold text-amber-950">
-                    Removed {removedUnitCount === 1 ? '1 item' : `${removedUnitCount} items`}
-                  </p>
-                  {pricePreview?.usesAgreed &&
-                  pricePreview?.checkoutDelta != null &&
-                  pricePreview.checkoutDelta < -0.009 ? (
-                    <p className="mt-1 text-sm font-semibold tabular-nums text-amber-900">
-                      Saved agreed total reduced by {formatGbp(Math.abs(pricePreview.checkoutDelta))}
-                      <span className="mt-0.5 block text-xs font-medium text-amber-800/90">
-                        {formatGbp(pricePreview.checkoutBefore)} → {formatGbp(pricePreview.checkoutAfter)}
-                      </span>
-                    </p>
-                  ) : pricePreview?.checkoutDelta != null && pricePreview.checkoutDelta < -0.009 ? (
-                    <p className="mt-1 text-sm font-semibold tabular-nums text-amber-900">
-                      Price reduced by {formatGbp(Math.abs(pricePreview.checkoutDelta))}
-                    </p>
-                  ) : (
-                    <p className="mt-1 text-xs text-amber-800/90">
-                      Save applies the lower Saved agreed total when the engine price changes.
-                    </p>
-                  )}
-                  <ul className="mt-2 max-h-40 space-y-1.5 overflow-y-auto border-t border-amber-200/80 pt-2">
-                    {selectionDiff.removed.map((row) => (
-                      <li
-                        key={`rm-${row.name}`}
-                        className="flex items-baseline justify-between gap-2 text-sm text-amber-950"
-                      >
-                        <span className="min-w-0 break-words">{row.name}</span>
-                        <span className="shrink-0 font-semibold">−{row.quantity}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              ) : null}
-
-              <div className="mt-4 border-t border-slate-200 pt-3">
-                <p className="text-sm font-bold text-slate-900">
-                  {addedUnitCount > 0
-                    ? `Added this edit · ${addedUnitCount === 1 ? '1 item' : `${addedUnitCount} items`}`
-                    : 'Added this edit'}
+              <div className="mt-4 rounded-lg border border-slate-200 bg-white px-3 py-3">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                  Items now
                 </p>
-                {selectionDiff.added.length === 0 ? (
-                  <p className="mt-1 text-sm text-slate-600">No extra items yet — pick from the left.</p>
+                <p className="mt-0.5 text-2xl font-bold tabular-nums text-slate-900">
+                  {currentItemCount === 1 ? '1 item' : `${currentItemCount} items`}
+                </p>
+                <p className="mt-1 text-xs text-slate-600">
+                  Was {savedItemCount === 1 ? '1 item' : `${savedItemCount} items`}
+                  {removedUnitCount > 0 ? ` · removed ${removedUnitCount}` : ''}
+                  {addedUnitCount > 0 ? ` · added ${addedUnitCount}` : ''}
+                </p>
+              </div>
+
+              <div className="mt-3 rounded-lg border border-blue-100 bg-blue-50/70 px-3 py-2.5">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-blue-700">
+                  {pricePreview?.usesAgreed ? 'Saved agreed total' : 'Checkout total'}
+                </p>
+                <p className="mt-0.5 flex flex-wrap items-baseline gap-2">
+                  <span className="text-2xl font-bold tabular-nums text-blue-950">
+                    {formatGbp(pricePreview?.checkoutAfter)}
+                  </span>
+                  {pricePreview?.checkoutDelta != null &&
+                  Math.abs(pricePreview.checkoutDelta) >= 0.009 ? (
+                    <span
+                      className={`text-sm font-semibold tabular-nums ${
+                        pricePreview.checkoutDelta > 0 ? 'text-emerald-700' : 'text-amber-800'
+                      }`}
+                    >
+                      {pricePreview.checkoutDelta > 0
+                        ? `up ${formatGbp(pricePreview.checkoutDelta)}`
+                        : `down ${formatGbp(Math.abs(pricePreview.checkoutDelta))}`}
+                    </span>
+                  ) : (
+                    <span className="text-xs font-medium text-slate-500">No price change yet</span>
+                  )}
+                </p>
+                {pricePreview?.checkoutBefore != null ? (
+                  <p className="mt-1 text-xs text-blue-800/90">
+                    Was {formatGbp(pricePreview.checkoutBefore)}
+                    {pricePreview.checkoutDelta != null &&
+                    Math.abs(pricePreview.checkoutDelta) >= 0.009
+                      ? ` → now ${formatGbp(pricePreview.checkoutAfter)}`
+                      : ''}
+                  </p>
+                ) : null}
+              </div>
+
+              <div className="mt-3">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                  Calculated total
+                </p>
+                <p className="mt-0.5 flex flex-wrap items-baseline gap-2 text-sm">
+                  <span className="font-bold tabular-nums text-slate-900">
+                    {formatGbp(pricePreview?.calculatedAfter)}
+                  </span>
+                  {pricePreview?.calculatedDelta != null &&
+                  Math.abs(pricePreview.calculatedDelta) >= 0.009 ? (
+                    <span
+                      className={`font-semibold tabular-nums ${
+                        pricePreview.calculatedDelta > 0 ? 'text-emerald-700' : 'text-amber-700'
+                      }`}
+                    >
+                      {formatSignedGbp(pricePreview.calculatedDelta)}
+                    </span>
+                  ) : null}
+                </p>
+                {pricePreview?.calculatedBefore != null &&
+                pricePreview?.calculatedDelta != null &&
+                Math.abs(pricePreview.calculatedDelta) >= 0.009 ? (
+                  <p className="mt-0.5 text-xs text-slate-500">
+                    Was {formatGbp(pricePreview.calculatedBefore)}
+                  </p>
+                ) : null}
+              </div>
+
+              <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50/80 px-3 py-3">
+                <p className="text-sm font-bold text-amber-950">
+                  Removed
+                  {removedUnitCount > 0
+                    ? ` · ${removedUnitCount === 1 ? '1 item' : `${removedUnitCount} items`}`
+                    : ''}
+                </p>
+                {removedUnitCount === 0 ? (
+                  <p className="mt-1 text-sm text-amber-900/80">Nothing removed yet.</p>
                 ) : (
                   <>
-                    {pricePreview?.usesAgreed &&
-                    pricePreview?.checkoutDelta != null &&
-                    pricePreview.checkoutDelta > 0.009 ? (
-                      <p className="mt-1 text-sm font-semibold tabular-nums text-emerald-800">
-                        Saved agreed total up by {formatGbp(pricePreview.checkoutDelta)}
-                        <span className="mt-0.5 block text-xs font-medium text-emerald-800/90">
-                          {formatGbp(pricePreview.checkoutBefore)} → {formatGbp(pricePreview.checkoutAfter)}
+                    {pricePreview?.checkoutDelta != null && pricePreview.checkoutDelta < -0.009 ? (
+                      <p className="mt-1 text-sm font-semibold tabular-nums text-amber-900">
+                        Price down {formatGbp(Math.abs(pricePreview.checkoutDelta))}
+                        <span className="mt-0.5 block text-xs font-medium text-amber-800/90">
+                          Was {formatGbp(pricePreview.checkoutBefore)} → now{' '}
+                          {formatGbp(pricePreview.checkoutAfter)}
                         </span>
                       </p>
-                    ) : pricePreview?.checkoutDelta != null && pricePreview.checkoutDelta > 0.009 ? (
-                      <p className="mt-1 text-sm font-semibold tabular-nums text-emerald-800">
-                        Price up by {formatGbp(pricePreview.checkoutDelta)}
+                    ) : null}
+                    <ul className="mt-2 max-h-44 space-y-1.5 overflow-y-auto border-t border-amber-200/80 pt-2">
+                      {selectionDiff.removed.map((row) => (
+                        <li
+                          key={`rm-${row.name}`}
+                          className="flex items-baseline justify-between gap-2 text-sm text-amber-950"
+                        >
+                          <span className="min-w-0 break-words">{row.name}</span>
+                          <span className="shrink-0 font-semibold">−{row.quantity}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </>
+                )}
+              </div>
+
+              <div className="mt-3 rounded-lg border border-emerald-200 bg-emerald-50/70 px-3 py-3">
+                <p className="text-sm font-bold text-emerald-950">
+                  Added
+                  {addedUnitCount > 0
+                    ? ` · ${addedUnitCount === 1 ? '1 item' : `${addedUnitCount} items`}`
+                    : ''}
+                </p>
+                {addedUnitCount === 0 ? (
+                  <p className="mt-1 text-sm text-emerald-900/80">Nothing added yet — pick from the left.</p>
+                ) : (
+                  <>
+                    {pricePreview?.checkoutDelta != null && pricePreview.checkoutDelta > 0.009 ? (
+                      <p className="mt-1 text-sm font-semibold tabular-nums text-emerald-900">
+                        Price up {formatGbp(pricePreview.checkoutDelta)}
+                        <span className="mt-0.5 block text-xs font-medium text-emerald-800/90">
+                          Was {formatGbp(pricePreview.checkoutBefore)} → now{' '}
+                          {formatGbp(pricePreview.checkoutAfter)}
+                        </span>
                       </p>
                     ) : null}
-                    <ul className="mt-2 max-h-48 space-y-1.5 overflow-y-auto">
+                    <ul className="mt-2 max-h-44 space-y-1.5 overflow-y-auto border-t border-emerald-200/80 pt-2">
                       {selectionDiff.added.map((row) => (
                         <li
                           key={`add-${row.name}`}
-                          className="flex items-baseline justify-between gap-2 text-sm text-slate-800"
+                          className="flex items-baseline justify-between gap-2 text-sm text-emerald-950"
                         >
                           <span className="min-w-0 break-words">{row.name}</span>
-                          <span className="shrink-0 font-semibold text-emerald-700">+{row.quantity}</span>
+                          <span className="shrink-0 font-semibold">+{row.quantity}</span>
                         </li>
                       ))}
                     </ul>
