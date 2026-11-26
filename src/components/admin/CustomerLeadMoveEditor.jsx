@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
 import { saveCustomerLeadMoveEdits } from '../../lib/customerLeadBookingConvert'
+import { applyInventoryLineQuantityDelta } from '../../lib/inventoryLineQuantity'
 import SpecialInstructionBlocks from '../admin-workflow/SpecialInstructionBlocks'
 import { editsFromLead, normalizeAdminInventoryLine } from '../../lib/customerLeadMoveSync'
 import { fetchPricingSettings } from '../../lib/data/pricingSettingsRepository'
+import InlineInventoryQtyControl from '../quote-wizard/InlineInventoryQtyControl'
 import Step2Inventory from '../quote-wizard/steps/Step2Inventory'
 
 /**
@@ -140,8 +142,52 @@ export default function CustomerLeadMoveEditor({ lead, disabled = false, onSaved
         )}
       </div>
 
+      <div className="mt-4 flex items-baseline justify-between gap-3">
+        <p className="text-sm font-bold text-slate-900">{editing ? 'Current items' : 'Inventory'}</p>
+        {shownLines.length > 0 ? (
+          <p className="text-sm font-bold text-blue-700">{itemTotalLabel}</p>
+        ) : null}
+      </div>
+      {shownLines.length === 0 ? (
+        <p className="mt-2 text-sm text-slate-700">No items yet.</p>
+      ) : editing ? (
+        <ul className={`mt-2 space-y-2 ${disabled || saving ? 'pointer-events-none opacity-60' : ''}`}>
+          {shownLines.map((line) => (
+            <li
+              key={line.lineId}
+              className="flex min-w-0 items-center gap-3 rounded-lg border border-slate-200 bg-slate-50/80 px-3 py-2"
+            >
+              <p className="min-w-0 flex-1 break-words text-sm font-medium leading-snug text-slate-800">
+                {line.name}
+              </p>
+              <InlineInventoryQtyControl
+                catalog
+                compact
+                quantity={line.quantity}
+                onAdd={() => markDirty(applyInventoryLineQuantityDelta(lines, line.lineId, 1))}
+                onDecrement={() => markDirty(applyInventoryLineQuantityDelta(lines, line.lineId, -1))}
+                onIncrement={() => markDirty(applyInventoryLineQuantityDelta(lines, line.lineId, 1))}
+              />
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <ul className="mt-1 grid grid-cols-1 sm:grid-cols-3">
+          {shownLines.map((line) => (
+            <li
+              key={line.lineId}
+              className="min-w-0 border-b border-slate-100 py-1.5 pr-3 text-sm leading-snug text-slate-700"
+            >
+              <span className="break-words">{line.name}</span>{' '}
+              <span className="whitespace-nowrap font-semibold text-slate-900">×{line.quantity}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+
       {editing ? (
-        <div className={`mt-4 ${disabled || saving ? 'pointer-events-none opacity-60' : ''}`}>
+        <div className={`mt-4 border-t border-slate-100 pt-4 ${disabled || saving ? 'pointer-events-none opacity-60' : ''}`}>
+          <p className="mb-3 text-sm font-bold text-slate-900">Add items</p>
           {settingsLoading ? (
             <p className="text-sm text-slate-600">Loading item catalogue…</p>
           ) : (
@@ -159,31 +205,7 @@ export default function CustomerLeadMoveEditor({ lead, disabled = false, onSaved
             />
           )}
         </div>
-      ) : (
-        <>
-          <div className="mt-4 flex items-baseline justify-between gap-3">
-            <p className="text-sm font-bold text-slate-900">Inventory</p>
-            {shownLines.length > 0 ? (
-              <p className="text-sm font-bold text-blue-700">{itemTotalLabel}</p>
-            ) : null}
-          </div>
-          {shownLines.length === 0 ? (
-            <p className="mt-2 text-sm text-slate-700">No items yet.</p>
-          ) : (
-            <ul className="mt-1 grid grid-cols-1 sm:grid-cols-3">
-              {shownLines.map((line) => (
-                <li
-                  key={line.lineId}
-                  className="min-w-0 border-b border-slate-100 py-1.5 pr-3 text-sm leading-snug text-slate-700"
-                >
-                  <span className="break-words">{line.name}</span>{' '}
-                  <span className="whitespace-nowrap font-semibold text-slate-900">×{line.quantity}</span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </>
-      )}
+      ) : null}
 
       {editing ? (
         <>
