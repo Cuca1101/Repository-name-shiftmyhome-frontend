@@ -136,6 +136,14 @@ export default function CustomerLeadMoveEditor({ lead, disabled = false, onSaved
     () => (editing ? diffInventorySelection(saved.inventoryLines, lines) : { added: [], removed: [] }),
     [editing, saved.inventoryLines, lines],
   )
+  const removedUnitCount = useMemo(
+    () => selectionDiff.removed.reduce((sum, row) => sum + (Number(row.quantity) || 0), 0),
+    [selectionDiff.removed],
+  )
+  const addedUnitCount = useMemo(
+    () => selectionDiff.added.reduce((sum, row) => sum + (Number(row.quantity) || 0), 0),
+    [selectionDiff.added],
+  )
 
   const pricePreview = useMemo(() => {
     if (!editing || !pricingSettings) return null
@@ -322,41 +330,67 @@ export default function CustomerLeadMoveEditor({ lead, disabled = false, onSaved
                 </div>
               </dl>
 
-              <div className="mt-4 border-t border-slate-200 pt-3">
-                <p className="text-sm font-bold text-slate-900">Added this edit</p>
-                {selectionDiff.added.length === 0 ? (
-                  <p className="mt-1 text-sm text-slate-600">No extra items yet — pick from the left.</p>
-                ) : (
-                  <ul className="mt-2 max-h-48 space-y-1.5 overflow-y-auto">
-                    {selectionDiff.added.map((row) => (
-                      <li
-                        key={`add-${row.name}`}
-                        className="flex items-baseline justify-between gap-2 text-sm text-slate-800"
-                      >
-                        <span className="min-w-0 break-words">{row.name}</span>
-                        <span className="shrink-0 font-semibold text-emerald-700">+{row.quantity}</span>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-
-              {selectionDiff.removed.length > 0 ? (
-                <div className="mt-3 border-t border-slate-200 pt-3">
-                  <p className="text-sm font-bold text-slate-900">Removed this edit</p>
-                  <ul className="mt-2 max-h-36 space-y-1.5 overflow-y-auto">
+              {removedUnitCount > 0 ? (
+                <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50/80 px-3 py-3">
+                  <p className="text-sm font-bold text-amber-950">
+                    Removed {removedUnitCount === 1 ? '1 item' : `${removedUnitCount} items`}
+                  </p>
+                  {pricePreview?.checkoutDelta != null && pricePreview.checkoutDelta < -0.009 ? (
+                    <p className="mt-1 text-sm font-semibold tabular-nums text-amber-900">
+                      Price reduced by {formatGbp(Math.abs(pricePreview.checkoutDelta))}
+                      <span className="mt-0.5 block text-xs font-medium text-amber-800/90">
+                        Agreed was {formatGbp(pricePreview.checkoutBefore)} → now{' '}
+                        {formatGbp(pricePreview.checkoutAfter)}
+                      </span>
+                    </p>
+                  ) : (
+                    <p className="mt-1 text-xs text-amber-800/90">
+                      Save applies the lower total when the engine price changes.
+                    </p>
+                  )}
+                  <ul className="mt-2 max-h-40 space-y-1.5 overflow-y-auto border-t border-amber-200/80 pt-2">
                     {selectionDiff.removed.map((row) => (
                       <li
                         key={`rm-${row.name}`}
-                        className="flex items-baseline justify-between gap-2 text-sm text-slate-800"
+                        className="flex items-baseline justify-between gap-2 text-sm text-amber-950"
                       >
                         <span className="min-w-0 break-words">{row.name}</span>
-                        <span className="shrink-0 font-semibold text-amber-700">−{row.quantity}</span>
+                        <span className="shrink-0 font-semibold">−{row.quantity}</span>
                       </li>
                     ))}
                   </ul>
                 </div>
               ) : null}
+
+              <div className="mt-4 border-t border-slate-200 pt-3">
+                <p className="text-sm font-bold text-slate-900">
+                  {addedUnitCount > 0
+                    ? `Added this edit · ${addedUnitCount === 1 ? '1 item' : `${addedUnitCount} items`}`
+                    : 'Added this edit'}
+                </p>
+                {selectionDiff.added.length === 0 ? (
+                  <p className="mt-1 text-sm text-slate-600">No extra items yet — pick from the left.</p>
+                ) : (
+                  <>
+                    {pricePreview?.checkoutDelta != null && pricePreview.checkoutDelta > 0.009 ? (
+                      <p className="mt-1 text-sm font-semibold tabular-nums text-emerald-800">
+                        Price up by {formatGbp(pricePreview.checkoutDelta)}
+                      </p>
+                    ) : null}
+                    <ul className="mt-2 max-h-48 space-y-1.5 overflow-y-auto">
+                      {selectionDiff.added.map((row) => (
+                        <li
+                          key={`add-${row.name}`}
+                          className="flex items-baseline justify-between gap-2 text-sm text-slate-800"
+                        >
+                          <span className="min-w-0 break-words">{row.name}</span>
+                          <span className="shrink-0 font-semibold text-emerald-700">+{row.quantity}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </>
+                )}
+              </div>
             </div>
           </aside>
         </div>
