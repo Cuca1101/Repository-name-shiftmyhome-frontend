@@ -1,10 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { saveCustomerLeadMoveEdits } from '../../lib/customerLeadBookingConvert'
-import { applyInventoryLineQuantityDelta } from '../../lib/inventoryLineQuantity'
 import SpecialInstructionBlocks from '../admin-workflow/SpecialInstructionBlocks'
 import { editsFromLead, normalizeAdminInventoryLine } from '../../lib/customerLeadMoveSync'
 import { fetchPricingSettings } from '../../lib/data/pricingSettingsRepository'
-import InlineInventoryQtyControl from '../quote-wizard/InlineInventoryQtyControl'
 import Step2Inventory from '../quote-wizard/steps/Step2Inventory'
 
 /**
@@ -150,27 +148,6 @@ export default function CustomerLeadMoveEditor({ lead, disabled = false, onSaved
       </div>
       {shownLines.length === 0 ? (
         <p className="mt-2 text-sm text-slate-700">No items yet.</p>
-      ) : editing ? (
-        <ul className={`mt-2 space-y-2 ${disabled || saving ? 'pointer-events-none opacity-60' : ''}`}>
-          {shownLines.map((line) => (
-            <li
-              key={line.lineId}
-              className="flex min-w-0 items-center gap-3 rounded-lg border border-slate-200 bg-slate-50/80 px-3 py-2"
-            >
-              <p className="min-w-0 flex-1 break-words text-sm font-medium leading-snug text-slate-800">
-                {line.name}
-              </p>
-              <InlineInventoryQtyControl
-                catalog
-                compact
-                quantity={line.quantity}
-                onAdd={() => markDirty(applyInventoryLineQuantityDelta(lines, line.lineId, 1))}
-                onDecrement={() => markDirty(applyInventoryLineQuantityDelta(lines, line.lineId, -1))}
-                onIncrement={() => markDirty(applyInventoryLineQuantityDelta(lines, line.lineId, 1))}
-              />
-            </li>
-          ))}
-        </ul>
       ) : (
         <ul className="mt-1 grid grid-cols-1 sm:grid-cols-3">
           {shownLines.map((line) => (
