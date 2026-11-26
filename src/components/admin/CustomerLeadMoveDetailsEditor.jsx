@@ -98,7 +98,7 @@ export default function CustomerLeadMoveDetailsEditor({ lead, disabled = false, 
   const deliveryFloor = form.deliveryFloor === '' ? null : Number(form.deliveryFloor)
 
   return (
-    <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+    <section className="flex h-full min-w-0 flex-col rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
       <h3 className="text-sm font-bold text-slate-900">Move details</h3>
       {editing ? (
         <div className="mt-3 space-y-3">

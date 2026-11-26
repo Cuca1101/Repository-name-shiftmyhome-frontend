@@ -108,9 +108,9 @@ function ScreenModal({ title, onClose, children, wide = false }) {
   )
 }
 
-function DetailBlock({ title, children }) {
+function DetailBlock({ title, children, className = '' }) {
   return (
-    <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+    <section className={`flex h-full min-w-0 flex-col rounded-xl border border-slate-200 bg-white p-4 shadow-sm ${className}`}>
       <h3 className="text-sm font-bold text-slate-900">{title}</h3>
       <div className="mt-3 space-y-2 text-sm text-slate-700">{children}</div>
     </section>
@@ -781,6 +781,8 @@ export default function CustomerLeadDetailAdmin() {
     inventoryLines: s2.inventoryLines,
   })
   const volumeLabel = volumeM3 == null ? null : volumeM3.toFixed(2)
+  const inventoryLines = Array.isArray(s2.inventoryLines) ? s2.inventoryLines : []
+  const itemQtyTotal = inventoryLines.reduce((sum, line) => sum + (Number(line?.quantity) || 0), 0)
   const emailHref = mailHref(lead.customer_email)
   const convertHref = lead.quote_id
     ? `/admin/available-jobs/${lead.quote_id}`
@@ -1095,6 +1097,31 @@ export default function CustomerLeadDetailAdmin() {
 
       </section>
 
+      <div className="grid items-stretch gap-3 md:grid-cols-3">
+        <DetailBlock title="Record">
+          <Row label="Source page" value={lead.source_page_url} />
+          <Row label="Entry" value={lead.entry_point} />
+          <Row label="Wizard step" value={lead.wizard_step} />
+          <Row label="Created" value={formatDateTimeUK(lead.created_at)} />
+          <Row label="Last activity" value={formatDateTimeUK(lead.last_activity_at)} />
+          {lead.abandoned_at ? <Row label="Abandoned" value={formatDateTimeUK(lead.abandoned_at)} /> : null}
+          {lead.converted_at ? <Row label="Converted" value={formatDateTimeUK(lead.converted_at)} /> : null}
+        </DetailBlock>
+        <DetailBlock title="Contact">
+          <Row label="Name" value={s2.fullName || lead.customer_name} />
+          <div className="grid gap-1 sm:grid-cols-[140px_1fr]">
+            <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">Phone</span>
+            <LeadCallButton phone={s2.phone || lead.customer_phone || ''} />
+          </div>
+          <Row label="Email" value={s2.email || lead.customer_email} />
+          <Row label="Crew" value={s2.crewSize} />
+        </DetailBlock>
+        <DetailBlock title="Inventory">
+          <Row label="Volume (m³)" value={volumeLabel} />
+          <Row label="Items" value={itemQtyTotal > 0 ? (itemQtyTotal === 1 ? '1 item' : `${itemQtyTotal} items`) : null} />
+        </DetailBlock>
+      </div>
+
       <div className="grid items-start gap-4 lg:grid-cols-2">
         <section className="min-w-0 rounded-xl border border-slate-200 bg-white p-4 shadow-sm lg:col-span-2">
           <h3 className="text-sm font-bold text-slate-900">Quote &amp; price</h3>
@@ -1157,7 +1184,7 @@ export default function CustomerLeadDetailAdmin() {
               </div>
               <p className="text-xs text-slate-500">
                 The note stays on the price only. It is not copied into special instructions.
-                In the customer email it appears under special instructions, marked Included in price.
+                It appears under special instructions on this page and in the customer email, marked Included in price.
                 Saving does not email the customer or record a payment. The calculated price stays as it is.
               </p>
             </div>
@@ -1179,12 +1206,6 @@ export default function CustomerLeadDetailAdmin() {
                 View customer email
               </button>
             </div>
-            {lead.price_override_reason ? (
-              <p className="mt-3 whitespace-pre-wrap text-sm text-slate-700">
-                <span className="font-semibold">Note: </span>
-                {lead.price_override_reason}
-              </p>
-            ) : null}
             <p className="mt-2 text-xs text-slate-500">
               View customer email shows the message the customer receives, including the footer.
               Send quote by email sends that message with the saved checkout total.
@@ -1195,6 +1216,19 @@ export default function CustomerLeadDetailAdmin() {
 
         <div className="min-w-0 lg:col-span-2">
           <CustomerLeadMoveEditor
+            lead={lead}
+            disabled={Boolean(busy)}
+            onSaved={(updated) => setLead(updated)}
+          />
+        </div>
+
+        <div className="grid items-stretch gap-3 xl:grid-cols-2 lg:col-span-2">
+          <CustomerLeadMoveDetailsEditor
+            lead={lead}
+            disabled={Boolean(busy)}
+            onSaved={(updated) => setLead(updated)}
+          />
+          <CustomerLeadQuoteExtrasEditor
             lead={lead}
             disabled={Boolean(busy)}
             onSaved={(updated) => setLead(updated)}
@@ -1524,51 +1558,6 @@ export default function CustomerLeadDetailAdmin() {
           quoteId={lead.quote_id || undefined}
         />
       </DetailBlock>
-
-      <div className="grid items-start gap-6 xl:grid-cols-2">
-      <DetailBlock title="Record">
-        <Row label="Source page" value={lead.source_page_url} />
-        <Row label="Entry" value={lead.entry_point} />
-        <Row label="Wizard step" value={lead.wizard_step} />
-        <Row label="Created" value={formatDateTimeUK(lead.created_at)} />
-        <Row label="Last activity" value={formatDateTimeUK(lead.last_activity_at)} />
-        {lead.abandoned_at ? <Row label="Abandoned" value={formatDateTimeUK(lead.abandoned_at)} /> : null}
-        {lead.converted_at ? <Row label="Converted" value={formatDateTimeUK(lead.converted_at)} /> : null}
-      </DetailBlock>
-
-      <CustomerLeadMoveDetailsEditor
-        lead={lead}
-        disabled={Boolean(busy)}
-        onSaved={(updated) => setLead(updated)}
-      />
-      </div>
-
-      <div className="grid items-start gap-6 xl:grid-cols-2">
-      <DetailBlock title="Contact & inventory">
-        <Row label="Name" value={s2.fullName || lead.customer_name} />
-        <div className="grid gap-1 sm:grid-cols-[140px_1fr]">
-          <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">Phone</span>
-          <LeadCallButton phone={s2.phone || lead.customer_phone || ''} />
-        </div>
-        <Row label="Email" value={s2.email || lead.customer_email} />
-        <Row label="Crew" value={s2.crewSize} />
-        <Row label="Volume (m³)" value={volumeLabel} />
-        <Row
-          label="Items"
-          value={
-            Array.isArray(s2.inventoryLines) && s2.inventoryLines.length
-              ? `${s2.inventoryLines.length} on the list above`
-              : null
-          }
-        />
-      </DetailBlock>
-
-      <CustomerLeadQuoteExtrasEditor
-        lead={lead}
-        disabled={Boolean(busy)}
-        onSaved={(updated) => setLead(updated)}
-      />
-      </div>
 
       {wd.homepageDetails ? (
         <DetailBlock title="Homepage form">

@@ -80,7 +80,7 @@ export default function CustomerLeadQuoteExtrasEditor({ lead, disabled = false, 
         : null
 
   return (
-    <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+    <section className="flex h-full min-w-0 flex-col rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
       <h3 className="text-sm font-bold text-slate-900">Quote &amp; extras</h3>
       <div className="mt-3 space-y-2 text-sm text-slate-700">
         {editing ? (
