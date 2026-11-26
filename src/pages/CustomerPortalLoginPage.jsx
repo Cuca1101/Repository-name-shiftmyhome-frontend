@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import PortalShell, { useAppSession, usePortalSession } from '../components/customer-portal/PortalShell'
 import { sessionKindFromUser } from '../lib/accountRole'
 import { requestPortalLink } from '../lib/customerPortalApi'
@@ -19,7 +19,8 @@ export default function CustomerPortalLoginPage() {
   const { ready, session, notice } = usePortalSession()
   const app = useAppSession()
   const appKind = sessionKindFromUser(app.session?.user)
-  const [email, setEmail] = useState('')
+  const [params] = useSearchParams()
+  const [email, setEmail] = useState(() => String(params.get('email') || '').trim())
   const [password, setPassword] = useState('')
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')

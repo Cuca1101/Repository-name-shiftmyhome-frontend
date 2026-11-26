@@ -171,6 +171,35 @@ export async function buildCurrentInvoicePdf(
   return { bytes, filename: `Invoice-${ref}.pdf` }
 }
 
+/** Invoice PDF for a card payment. Cash and bank transfer stay off this attachment. */
+export async function cardPaidInvoiceAttachment(
+  // deno-lint-ignore no-explicit-any
+  supabase: any,
+  quoteId: string,
+) {
+  const { data: quote } = await supabase
+    .from('quotes')
+    .select('id, payment_status, payment_type, stripe_payment_intent_id')
+    .eq('id', quoteId)
+    .maybeSingle()
+  if (!quote) return null
+  const status = String(quote.payment_status || '').toLowerCase()
+  if (status !== 'paid' && status !== 'deposit_paid') return null
+  const { data: collections } = await supabase
+    .from('driver_collected_payments')
+    .select('method, amount')
+    .eq('quote_id', quoteId)
+  const kind = invoiceKind(quote, collections || [])
+  if (kind === 'cash' || kind === 'bank_transfer') return null
+  const type = String(quote.payment_type || '').toLowerCase()
+  const stripeCard = Boolean(String(quote.stripe_payment_intent_id || '').trim())
+  const card = kind === 'card' || type === 'card' || type === 'full' || type === 'deposit' || stripeCard
+  if (!card) return null
+  const built = await buildCurrentInvoicePdf(supabase, quoteId)
+  if (!built?.bytes?.length) return null
+  return { filename: built.filename, content: bytesToBase64(built.bytes) }
+}
+
 export async function sendCashPaidInvoice(
   // deno-lint-ignore no-explicit-any
   supabase: any,

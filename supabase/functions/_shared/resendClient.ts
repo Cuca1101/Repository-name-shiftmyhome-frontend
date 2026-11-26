@@ -40,6 +40,7 @@ export async function sendResendEmail(params: {
   logTag?: string
   /** Optional display-name override. Other emails keep the shared from-address. */
   from?: string
+  attachments?: Array<{ filename: string; content: string }>
 }): Promise<ResendSendResult> {
   const apiKey = resendApiKey()
   if (!apiKey) {
@@ -63,7 +64,7 @@ export async function sendResendEmail(params: {
     subject: params.subject,
     html: params.html,
     text: params.text || '',
-    attachments: [],
+    attachments: params.attachments || [],
     idempotencyKey: params.idempotencyKey,
   })
 

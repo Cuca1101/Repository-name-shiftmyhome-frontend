@@ -21,6 +21,7 @@ import {
   quotePassesAvailableJobsStrict,
   quoteIsAdminPhoneBookingPending,
 } from './adminJobListRules'
+import { sendJobCustomerNotify } from './jobCustomerTracking'
 import { isSupabaseConfigured, supabase } from './supabase'
 import {
   formatWizardArrivalSummary,
@@ -1061,11 +1062,22 @@ export async function convertCustomerLeadToUnpaidJob({
     quoteIdBefore: result.quoteIdBefore,
   })
 
+  let customerEmail = { emailed: false, emailReason: '' }
+  try {
+    const data = await sendJobCustomerNotify(result.quoteId, 'booking_confirmed')
+    customerEmail = data?.skipped
+      ? { emailed: false, emailReason: 'already_sent' }
+      : { emailed: true, emailReason: '' }
+  } catch (error) {
+    customerEmail = { emailed: false, emailReason: error?.message || 'email_failed' }
+  }
+
   return {
     ...result,
     lead: updatedLead,
     releasedToAvailableJobs: true,
     alreadyReleased: ready.alreadyVisible,
+    ...customerEmail,
   }
 }
 

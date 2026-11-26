@@ -3,9 +3,13 @@ import { createClient } from 'npm:@supabase/supabase-js@2'
 import { sendResendEmail } from '../_shared/resendClient.ts'
 import { formatDateUK } from '../_shared/formatDateUK.ts'
 import {
+  bookingInventoryLines,
+  buildBookingMoveSectionsHtml,
   buildJobCompletedThankYouEmailHtml,
   buildJobCustomerEmailHtml,
+  customerAccountUrl,
   customerFirstName,
+  customerInstructionText,
   customerStatusLabel,
   JOB_NOTIFY_EVENT_LABELS,
   resolveGoogleReviewUrl,
@@ -14,6 +18,7 @@ import {
   trackingUrl,
   type JobNotifyEventKey,
 } from '../_shared/jobCustomerNotify.ts'
+import { buildPortalMagicUrl } from '../_shared/customerPortalMagicLink.ts'
 import { phoneQuoteFinalTotal } from '../_shared/phoneQuotePaymentRules.ts'
 import {
   isUniqueViolation,
@@ -22,7 +27,7 @@ import {
 } from '../_shared/deliveryRetryPolicy.js'
 import { saveCustomerEmailArchive } from '../_shared/customerEmailArchive.ts'
 import { CASH_INVOICE_EVENT } from '../_shared/cashPaidInvoicePolicy.js'
-import { sendCashPaidInvoice } from '../_shared/cashPaidInvoice.ts'
+import { cardPaidInvoiceAttachment, sendCashPaidInvoice } from '../_shared/cashPaidInvoice.ts'
 
 /**
  * Process customer job notifications (assign / status / completed / tip).
@@ -70,6 +75,97 @@ function isReleasedPhoneBooking(quote: Record<string, unknown>) {
     operational !== 'phone_booking_pending' &&
     operational !== 'cancelled'
   )
+}
+
+function arrivalFromWizard(step1: Record<string, unknown>) {
+  const windowKey = String(step1.arrivalWindow || '').trim()
+  const from = String(step1.flexibleArrivalFrom || '').trim()
+  const until = String(step1.flexibleArrivalUntil || '').trim()
+  if (windowKey === 'flex_window' && from && until) {
+    return `Flexible window · ${from}–${until}`
+  }
+  const exact = String(step1.exactArrivalTime || '').trim()
+  if (windowKey === 'exact' && exact) return `${exact} (Exact time)`
+  const labels: Record<string, string> = {
+    morning: 'Morning · 08:00–12:00',
+    afternoon: 'Evening · 16:00–20:00',
+    evening: 'Evening · 16:00–20:00',
+  }
+  return labels[windowKey] || ''
+}
+
+function customerNoteFromDetails(details: unknown, priceNote: string) {
+  const line = String(details || '')
+    .split(/\r?\n/)
+    .find((row) => row.trim().toLowerCase().startsWith('customer notes:'))
+  if (!line) return ''
+  return customerInstructionText(line.replace(/^customer notes:\s*/i, ''), priceNote)
+}
+
+/**
+ * Items, the customer's instructions, and the price note for the confirmation email.
+ * The job row is used first. A converted lead fills anything the job does not have yet.
+ */
+async function bookingConfirmationContent(
+  // deno-lint-ignore no-explicit-any
+  supabase: any,
+  quote: Record<string, unknown>,
+) {
+  let inventory = bookingInventoryLines(quote.inventory)
+  let priceReason = String(quote.price_override_reason || '').trim()
+  let arrival = String(quote.arrival_window || '').trim()
+  let customerNote = ''
+
+  const quoteId = String(quote.id || '').trim()
+  const quoteRef = String(quote.quote_ref || '').trim()
+  let lead: Record<string, unknown> | null = null
+  if (quoteId) {
+    const { data } = await supabase
+      .from('customer_leads')
+      .select('wizard_data, price_override_reason')
+      .eq('quote_id', quoteId)
+      .maybeSingle()
+    lead = data
+  }
+  if (!lead && quoteRef) {
+    const { data } = await supabase
+      .from('customer_leads')
+      .select('wizard_data, price_override_reason')
+      .eq('quote_ref', quoteRef)
+      .maybeSingle()
+    lead = data
+  }
+
+  const wizard = lead?.wizard_data && typeof lead.wizard_data === 'object' ? lead.wizard_data : {}
+  const step1 =
+    wizard && typeof wizard === 'object' && (wizard as Record<string, unknown>).step1
+      ? ((wizard as Record<string, unknown>).step1 as Record<string, unknown>)
+      : {}
+  const step2 =
+    wizard && typeof wizard === 'object' && (wizard as Record<string, unknown>).step2
+      ? ((wizard as Record<string, unknown>).step2 as Record<string, unknown>)
+      : {}
+  const step3 =
+    wizard && typeof wizard === 'object' && (wizard as Record<string, unknown>).step3
+      ? ((wizard as Record<string, unknown>).step3 as Record<string, unknown>)
+      : {}
+
+  if (!inventory.length) inventory = bookingInventoryLines(step2.inventoryLines)
+  if (!priceReason) priceReason = String(lead?.price_override_reason || '').trim()
+  if (!arrival) arrival = arrivalFromWizard(step1)
+  const fromWizard =
+    typeof step3.customerSpecialInstructions === 'string'
+      ? customerInstructionText(step3.customerSpecialInstructions, priceReason)
+      : customerInstructionText(step3.specialInstructions, priceReason)
+  customerNote = fromWizard || customerNoteFromDetails(quote.details, priceReason)
+
+  return {
+    arrival,
+    inventory,
+    customerNote,
+    priceReason,
+    sectionsHtml: buildBookingMoveSectionsHtml({ inventory, customerNote, priceReason }),
+  }
 }
 
 /** The price the admin set for this booking. Never the higher calculator figure. */
@@ -302,10 +398,14 @@ async function sendEventEmail(
     { label: 'Booking reference', value: quoteRef },
   ]
   const unpaid = !isPaid(quote.payment_status)
+  let moveSectionsHtml = ''
+  let plainMoveLines: string[] = []
+  let accountSignInUrl = ''
 
   if (eventKey === 'booking_confirmed') {
     title = 'Your booking is confirmed'
     const priceLabel = bookingPriceLabel(quote)
+    const extras = await bookingConfirmationContent(supabase, quote)
     const payUrl = unpaid && priceLabel ? await cardPayUrl(supabase, quote) : ''
     intro = unpaid
       ? `Hi ${name}, your booking is confirmed. Payment has not been taken yet. You can pay by card at any time, or pay your driver when they arrive. You can also follow the job from the link below.`
@@ -318,9 +418,21 @@ async function sendEventEmail(
     footerNote = unpaid
       ? 'Pay by card whenever you like, or pay your driver when they arrive. These links are private to your booking.'
       : 'This tracking link is private to your booking.'
+    if (email) {
+      const magic = await buildPortalMagicUrl(supabase, email, `/portal/bookings/${quoteId}`)
+      accountSignInUrl = magic.ok ? magic.url : customerAccountUrl(email)
+    }
+    moveSectionsHtml = extras.sectionsHtml
+    const itemTotal = extras.inventory.reduce((sum, line) => sum + line.quantity, 0)
+    plainMoveLines = [
+      itemTotal ? `Items: ${itemTotal === 1 ? '1 item' : `${itemTotal} items`}` : '',
+      ...extras.inventory.map((line) => `- ${line.name} ×${line.quantity}`),
+      extras.customerNote ? `Special instructions: ${extras.customerNote}` : '',
+      extras.priceReason ? `Included in price: ${extras.priceReason}` : '',
+    ].filter(Boolean)
     rows.push(
       { label: 'Move date', value: formatDateUK(quote.move_date) },
-      { label: 'Arrival window', value: String(quote.arrival_window || '').trim() },
+      { label: 'Arrival window', value: extras.arrival },
       { label: 'Pickup', value: String(quote.pickup_address || '').trim() },
       { label: 'Delivery', value: String(quote.delivery_address || '').trim() },
       { label: 'Price', value: priceLabel },
@@ -404,6 +516,12 @@ async function sendEventEmail(
           primaryCta: primary,
           secondaryCtas: secondary,
           footerNote,
+          moveSectionsHtml,
+          companyFooter: eventKey === 'booking_confirmed',
+          accountCta:
+            eventKey === 'booking_confirmed' && accountSignInUrl
+              ? { label: 'My account', url: accountSignInUrl }
+              : undefined,
         })
 
   const text =
@@ -426,13 +544,34 @@ async function sendEventEmail(
           'The ShiftMyHome Team',
           'Moving made simple.',
         ].join('\n')
-      : [title, '', intro, ...rows.map((r) => `${r.label}: ${r.value}`), '', primary.url].join('\n')
+      : [
+          title,
+          '',
+          intro,
+          ...rows.filter((r) => r.value && r.value.trim()).map((r) => `${r.label}: ${r.value}`),
+          ...(plainMoveLines.length ? ['', ...plainMoveLines] : []),
+          '',
+          primary.url,
+          ...(eventKey === 'booking_confirmed'
+            ? [
+                '',
+                `My account: ${accountSignInUrl}`,
+                '',
+                '0141 461 4813',
+                'www.shiftmyhome.co.uk',
+                `© ${new Date().getFullYear()} ShiftMyHome. All rights reserved.`,
+              ]
+            : []),
+        ].join('\n')
 
+  const invoice =
+    eventKey === 'booking_confirmed' ? await cardPaidInvoiceAttachment(supabase, quoteId) : null
   const result = await sendResendEmail({
     to: email,
     subject,
     html,
     text,
+    attachments: invoice ? [invoice] : [],
     logTag: `job-customer-notify:${eventKey}`,
   })
   if (!result.ok) {
