@@ -1,4 +1,5 @@
 import { ACCESS_NOT_PROVIDED } from '../../lib/adminJobQuoteDetailsViewModel'
+import SpecialInstructionBlocks from './SpecialInstructionBlocks'
 
 const ROWS = [
   ['propertyType', 'Property type'],
@@ -16,10 +17,24 @@ const ROWS = [
  */
 function AccessRow({ label, value }) {
   const missing = value === ACCESS_NOT_PROVIDED
+  if (label === 'Special instructions') {
+    return (
+      <>
+        <dt className="text-sm text-slate-500">{label}</dt>
+        <dd className="min-w-0">
+          {missing ? (
+            <span className="text-sm text-slate-400">{value}</span>
+          ) : (
+            <SpecialInstructionBlocks text={value} emptyLabel={ACCESS_NOT_PROVIDED} />
+          )}
+        </dd>
+      </>
+    )
+  }
   return (
     <>
       <dt className="text-sm text-slate-500">{label}</dt>
-      <dd className={missing ? 'text-sm text-slate-400' : 'whitespace-pre-wrap text-sm font-medium text-slate-900'}>
+      <dd className={missing ? 'text-sm text-slate-400' : 'whitespace-pre-wrap break-words text-sm font-medium text-slate-900'}>
         {value}
       </dd>
     </>

@@ -157,7 +157,9 @@ test('turning materials off removes the boxes we supply and keeps the customer i
     cleared.wizard_data.step2.inventoryLines.map((line) => line.name),
     ['Sofa'],
   )
-  assert.equal(cleared.wizard_data.step3.specialInstructions, 'Park on the left')
+  assert.equal(cleared.wizard_data.step3.specialInstructions, 'Added by customer:\nPark on the left')
+  assert.equal(cleared.wizard_data.step3.customerSpecialInstructions, 'Park on the left')
+  assert.equal(cleared.wizard_data.step3.adminSpecialInstructions, '')
 
   const added = buildQuoteExtrasWizard(lead, {
     ...quoteExtrasFormFromLead(lead),
@@ -168,6 +170,30 @@ test('turning materials off removes the boxes we supply and keeps the customer i
   assert.equal(supplied.name, 'Medium moving box (Boxes supplied by us)')
   assert.equal(supplied.quantity, 2)
   assert.equal(added.lines[0].name, 'Sofa')
+  assert.equal(added.wizard_data.step3.customerSpecialInstructions, 'Park on the left')
+  assert.equal(added.wizard_data.step3.supplyNoteAuthor, 'admin')
+  assert.equal(
+    added.wizard_data.step3.specialInstructions,
+    'Added by customer:\nPark on the left\n\nAdded by admin:\nSupply: 2 medium moving boxes.',
+  )
+  const changed = buildQuoteExtrasWizard(
+    { ...lead, wizard_data: added.wizard_data },
+    {
+      ...quoteExtrasFormFromLead({ ...lead, wizard_data: added.wizard_data }),
+      packingMaterials: true,
+      packingMaterialsDetail: 'Medium moving box: 4 boxes\nBubble wrap (10m roll): 1 roll',
+    },
+  )
+  assert.equal(changed.wizard_data.step3.customerSpecialInstructions, 'Park on the left')
+  assert.equal(changed.wizard_data.step3.supplyNoteAuthor, 'admin')
+  assert.equal(
+    changed.wizard_data.step3.specialInstructions,
+    'Added by customer:\nPark on the left\n\nAdded by admin:\nSupply: 4 medium moving boxes, 1 roll of bubble wrap (10m).',
+  )
+  assert.equal(
+    changed.wizard_data.step3.specialInstructions.split('\n').filter((line) => /^Supply:\s/i.test(line.trim())).length,
+    1,
+  )
 })
 
 test('the items view reads saved names, quantities, and instruction paragraphs', () => {
@@ -198,7 +224,7 @@ test('the items view reads saved names, quantities, and instruction paragraphs',
     inventoryLines: opened.inventoryLines.map((line) =>
       line.lineId === 'sofa' ? { ...line, quantity: 3 } : line,
     ),
-    specialInstructions: 'Park on the left.\n\nCall before arrival.\nUse the side gate.',
+    specialInstructions: 'Use the side gate.',
     instructionsAuthor: 'admin',
   })
   const afterSave = editsFromLead({ ...lead, wizard_data: saved.wizard_data })
@@ -209,9 +235,11 @@ test('the items view reads saved names, quantities, and instruction paragraphs',
       ['Small moving box (Boxes supplied by us)', 4, 0.05],
     ],
   )
+  assert.equal(afterSave.customerInstructions, 'Park on the left.\n\nCall before arrival.')
+  assert.equal(afterSave.adminInstructions, 'Use the side gate.')
   assert.equal(
     afterSave.specialInstructions,
-    'Park on the left.\n\nCall before arrival.\nUse the side gate.',
+    'Added by customer:\nPark on the left.\n\nCall before arrival.\n\nAdded by admin:\nUse the side gate.',
   )
   assert.equal(afterSave.priceNote, 'Agreed on the phone')
 })

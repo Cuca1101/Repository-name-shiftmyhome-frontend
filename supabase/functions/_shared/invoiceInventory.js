@@ -151,12 +151,15 @@ export function customerDocumentNotes({ quote = {}, stops = [], requirements = [
     list.push(line)
   }
 
-  for (const row of requirements || []) {
-    if (/instruction|note/i.test(String(row?.requirement_type || ''))) push(instructions, row?.description)
+  const pushInstruction = (value) => {
+    for (const part of String(value || '').split(/\r?\n| · /)) push(instructions, part)
   }
-  for (const label of INSTRUCTION_LABELS) push(instructions, labeledValue(details, label))
-  push(instructions, quote.customer_message)
-  push(instructions, quote.special_instructions)
+  for (const row of requirements || []) {
+    if (/instruction|note/i.test(String(row?.requirement_type || ''))) pushInstruction(row?.description)
+  }
+  for (const label of INSTRUCTION_LABELS) pushInstruction(labeledValue(details, label))
+  pushInstruction(quote.customer_message)
+  pushInstruction(quote.special_instructions)
 
   for (const [label, prefix] of NOTE_LABELS) {
     const value = labeledValue(details, label)

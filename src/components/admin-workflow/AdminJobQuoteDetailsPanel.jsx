@@ -3,6 +3,7 @@ import { formatDateUK } from '../../lib/formatDateDisplay'
 import { ACCESS_NOT_PROVIDED, buildAdminJobQuoteDetailsViewModel } from '../../lib/adminJobQuoteDetailsViewModel'
 import AvailableJobInventorySection from './AvailableJobInventorySection'
 import QuotePhotosAdminSection from './QuotePhotosAdminSection'
+import SpecialInstructionBlocks from './SpecialInstructionBlocks'
 
 const ACCESS_ROWS = [
   ['propertyType', 'Property'],
@@ -61,9 +62,15 @@ function StopCard({ title, tone, address, contact, phone, flat, access }) {
       {rows.length ? (
         <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1.5">
           {rows.map((row) => (
-            <div key={row.label} className="min-w-0">
+            <div key={row.label} className={row.label === 'Instructions' ? 'col-span-2 min-w-0' : 'min-w-0'}>
               <dt className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">{row.label}</dt>
-              <dd className="text-xs font-medium leading-snug text-slate-800">{row.value}</dd>
+              <dd className="text-xs font-medium leading-snug text-slate-800">
+                {row.label === 'Instructions' ? (
+                  <SpecialInstructionBlocks text={row.value} emptyLabel="" />
+                ) : (
+                  row.value
+                )}
+              </dd>
             </div>
           ))}
         </dl>

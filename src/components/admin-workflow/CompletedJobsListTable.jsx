@@ -13,7 +13,7 @@ const TABLE_HEAD = (
       <th className="hidden px-2 py-2 text-right sm:table-cell lg:px-3">Customer</th>
       <th className="px-2 py-2 text-right lg:px-3">Driver pay</th>
       <th className="hidden px-2 py-2 text-right lg:table-cell lg:px-3">Platform</th>
-      <th className="hidden px-2 py-2 lg:table-cell lg:px-3">Completed</th>
+      <th className="hidden px-2 py-2 xl:table-cell xl:px-3">Completed</th>
       <th className="px-2 py-2 lg:px-3">Payment</th>
       <th className="px-2 py-2 text-right lg:px-3"> </th>
     </tr>
@@ -53,6 +53,10 @@ export default function CompletedJobsListTable({ quotes, jobs }) {
                           {row.quoteRef}
                         </Link>
                         <p className="truncate text-xs font-semibold text-slate-900">{row.customer}</p>
+                        <p className="mt-0.5 text-[11px] leading-snug text-slate-600 xl:hidden">
+                          <span className="font-medium text-slate-500">Completed at</span>{' '}
+                          <span className="tabular-nums text-slate-800">{row.completedAtDisplay}</span>
+                        </p>
                         {tipBadgeForQuote(q) ? (
                           <span className="mt-0.5 inline-flex rounded bg-emerald-100 px-1.5 py-px text-[10px] font-bold text-emerald-900">
                             {tipBadgeForQuote(q).label}
@@ -79,7 +83,7 @@ export default function CompletedJobsListTable({ quotes, jobs }) {
                       <td className="hidden px-2 py-2 text-right tabular-nums text-[11px] text-emerald-800 lg:table-cell lg:px-3">
                         {formatAdminMoney(row.platformProfit)}
                       </td>
-                      <td className="hidden px-2 py-2 text-[11px] text-slate-700 lg:table-cell lg:px-3">
+                      <td className="hidden px-2 py-2 text-[11px] text-slate-700 xl:table-cell xl:px-3">
                         {row.completedAtDisplay}
                       </td>
                       <td className="px-2 py-2">

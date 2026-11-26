@@ -13,6 +13,7 @@ import { fetchPricingSettings } from '../../lib/data/pricingSettingsRepository'
 import { onPricingSettingsUpdated } from '../../lib/pricingSettingsEvents'
 import { consumeWelcomeBackFlag } from '../../lib/quoteRecoveryResume'
 import { parsePackingMaterialQuantities } from '../../lib/packingMaterialsCatalog'
+import { applyInstructionEdit, instructionFields } from '../../lib/instructionAuthors'
 import { syncSuppliedBoxesIntoInventory } from '../../lib/suppliedBoxesInventory'
 import { authenticatedCustomerAccessToken, authenticatedCustomerEmail, getPortalContact } from '../../lib/customerPortalApi'
 import { portalContactPrefill } from '../../lib/customerPortalModel'
@@ -479,6 +480,11 @@ export function QuoteWizardProvider({
   )
 
   const suppliedBoxKey = [
+    wizard.packingMaterials ? '1' : '0',
+    wizard.packingMaterialsQuantities?.bubble,
+    wizard.packingMaterialsQuantities?.paper,
+    wizard.packingMaterialsQuantities?.tape,
+    wizard.packingMaterialsQuantities?.mattress,
     wizard.packingMaterialsQuantities?.smallBoxes,
     wizard.packingMaterialsQuantities?.mediumBoxes,
     wizard.packingMaterialsQuantities?.largeBoxes,
@@ -489,12 +495,17 @@ export function QuoteWizardProvider({
 
   useEffect(() => {
     setWizard((current) => {
-      const nextLines = syncSuppliedBoxesIntoInventory(
-        current.inventoryLines,
-        parsePackingMaterialQuantities(current),
-      )
-      if (JSON.stringify(current.inventoryLines || []) === JSON.stringify(nextLines)) return current
-      return { ...current, inventoryLines: nextLines }
+      const quantities = current.packingMaterials ? parsePackingMaterialQuantities(current) : {}
+      const nextLines = syncSuppliedBoxesIntoInventory(current.inventoryLines, quantities)
+      const nextInstructions = applyInstructionEdit(current, { quantities, actor: 'customer' })
+      const linesSame = JSON.stringify(current.inventoryLines || []) === JSON.stringify(nextLines)
+      const notesSame =
+        String(current.specialInstructions || '') === nextInstructions.specialInstructions &&
+        String(current.customerSpecialInstructions ?? '') === nextInstructions.customer &&
+        String(current.adminSpecialInstructions ?? '') === nextInstructions.admin &&
+        String(current.supplyNoteAuthor || '') === nextInstructions.supplyAuthor
+      if (linesSame && notesSame) return current
+      return { ...current, inventoryLines: nextLines, ...instructionFields(nextInstructions) }
     })
   }, [suppliedBoxKey])
 

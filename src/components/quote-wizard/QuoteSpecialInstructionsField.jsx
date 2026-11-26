@@ -1,3 +1,4 @@
+import { applyInstructionEdit, instructionFields } from '../../lib/instructionAuthors'
 import { applyWizardPatch } from '../../lib/wizardStateUpdate'
 import { quoteMobileInput } from '../../lib/quoteMobileUiClasses'
 
@@ -38,8 +39,17 @@ export default function QuoteSpecialInstructionsField({ data, onChange, variant 
         <span className="sr-only">Special instructions</span>
         <textarea
           rows={3}
-          value={data.specialInstructions || ''}
-          onChange={(e) => applyWizardPatch(onChange, { specialInstructions: e.target.value })}
+          value={
+            typeof data.customerSpecialInstructions === 'string'
+              ? data.customerSpecialInstructions
+              : data.specialInstructions || ''
+          }
+          onChange={(e) =>
+            applyWizardPatch(onChange, (prev) => ({
+              ...prev,
+              ...instructionFields(applyInstructionEdit(prev, { customer: e.target.value })),
+            }))
+          }
           className={input}
           placeholder="e.g. fragile items, narrow access, parking restrictions..."
         />

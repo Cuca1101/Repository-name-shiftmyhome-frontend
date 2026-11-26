@@ -37,6 +37,8 @@ import {
   mergeLeadEditsIntoQuoteDetails,
   removePriceNoteFromInstructions,
 } from './customerLeadMoveSync'
+import { applyInstructionEdit, instructionFields } from './instructionAuthors'
+import { parsePackingMaterialQuantities } from './packingMaterialsCatalog'
 
 /** Stored on lead.wizard_data so Undo can restore prior lead + quote shape. */
 const CONVERT_SNAPSHOT_KEY = '_smh_admin_convert'
@@ -195,7 +197,11 @@ function wizardFromLead(lead) {
     flexibleArrivalFrom: s1.flexibleArrivalFrom || '',
     flexibleArrivalUntil: s1.flexibleArrivalUntil || '',
     inventoryLines: Array.isArray(s2.inventoryLines) ? s2.inventoryLines : [],
-    specialInstructions: s3.specialInstructions || '',
+    ...instructionFields(
+      applyInstructionEdit(s3, {
+        quantities: s3.packingMaterials ? parsePackingMaterialQuantities(s3) : {},
+      }),
+    ),
     packing: Boolean(s3.packing),
     packingWhat: s3.packingWhat || '',
     packingMaterials: Boolean(s3.packingMaterials),
@@ -504,9 +510,14 @@ export async function saveCustomerLeadAgreedPrice({
     }
     if (existing) {
       quotePatch.details = mergeLeadEditsIntoQuoteDetails(existing.details, {
-        specialInstructions,
+        specialInstructions: built.specialInstructions,
         priceNote: note,
         inventoryLines: built.lines,
+        wizardPatch: {
+          customerSpecialInstructions: built.wizard_data.step3.customerSpecialInstructions,
+          adminSpecialInstructions: built.wizard_data.step3.adminSpecialInstructions,
+          supplyNoteAuthor: built.wizard_data.step3.supplyNoteAuthor,
+        },
       })
       quotePatch.inventory = inventoryJsonFromLines(built.lines)
       quotePatch.inventory_text = inventoryTextFromLines(built.lines)
@@ -570,6 +581,11 @@ export async function saveCustomerLeadMoveEdits({ lead, inventoryLines, specialI
             specialInstructions: built.specialInstructions,
             priceNote,
             inventoryLines: built.lines,
+            wizardPatch: {
+              customerSpecialInstructions: built.wizard_data.step3.customerSpecialInstructions,
+              adminSpecialInstructions: built.wizard_data.step3.adminSpecialInstructions,
+              supplyNoteAuthor: built.wizard_data.step3.supplyNoteAuthor,
+            },
           }),
           inventory: inventoryJsonFromLines(built.lines),
           inventory_text: inventoryTextFromLines(built.lines),

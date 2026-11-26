@@ -295,7 +295,8 @@ export function buildWizardFullSummaryText({
     `Flights of stairs (estimate): ${wizard.stairsFlights != null ? wizard.stairsFlights : '—'}`,
     wizard.stairsNotes && `Stairs & access notes: ${wizard.stairsNotes}`,
     wizard.heavyNotes && `Heavy / bulky items notes: ${wizard.heavyNotes}`,
-    wizard.specialInstructions && `Special instructions: ${wizard.specialInstructions}`,
+    wizard.specialInstructions &&
+      `Special instructions: ${String(wizard.specialInstructions).replace(/\s*\n+\s*/g, ' · ').trim()}`,
     photoLine,
     '',
     '— Extra services —',

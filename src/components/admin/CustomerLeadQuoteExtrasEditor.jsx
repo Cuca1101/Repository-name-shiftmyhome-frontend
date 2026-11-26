@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { saveCustomerLeadQuoteExtras } from '../../lib/customerLeadBookingConvert'
+import { applyInstructionEdit } from '../../lib/instructionAuthors'
 import { leadWizardSteps, quoteExtrasFormFromLead } from '../../lib/customerLeadMoveSync'
+import SpecialInstructionBlocks from '../admin-workflow/SpecialInstructionBlocks'
 import { formatDateUK } from '../../lib/formatDateDisplay'
 
 const fieldClass = 'mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-normal'
@@ -72,6 +74,7 @@ export default function CustomerLeadQuoteExtrasEditor({ lead, disabled = false, 
   }
 
   const packageSnap = step3.servicePackage && typeof step3.servicePackage === 'object' ? step3.servicePackage : null
+  const instructionRecord = applyInstructionEdit(step3, { priceNote: lead?.price_override_reason })
   const selectedQuote =
     step3.estimatedTotal != null
       ? money(step3.estimatedTotal)
@@ -118,7 +121,13 @@ export default function CustomerLeadQuoteExtrasEditor({ lead, disabled = false, 
               : null
           }
         />
-        <InfoRow label="Special instructions" value={step3.specialInstructions} />
+        <div className="grid gap-1 sm:grid-cols-[140px_1fr]">
+          <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">Special instructions</span>
+          <SpecialInstructionBlocks
+            customer={instructionRecord.blocks.find((block) => block.author === 'customer')?.text || ''}
+            admin={instructionRecord.blocks.find((block) => block.author === 'admin')?.text || ''}
+          />
+        </div>
         {editing ? (
           <>
             <label className={labelClass}>

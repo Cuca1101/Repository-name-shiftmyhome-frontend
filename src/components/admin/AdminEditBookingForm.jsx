@@ -29,7 +29,9 @@ import {
 import { formatGbp } from '../../lib/adminAgreedPrice'
 import { supabase } from '../../lib/supabase'
 import { initialWizardState } from '../../lib/quoteWizardDefaults'
+import { applyInstructionEdit, instructionFields } from '../../lib/instructionAuthors'
 import { applyWizardPatch } from '../../lib/wizardStateUpdate'
+import SpecialInstructionBlocks from '../admin-workflow/SpecialInstructionBlocks'
 
 const inputClass =
   'mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 shadow-sm outline-none transition placeholder:text-slate-400 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/25'
@@ -940,13 +942,27 @@ export default function AdminEditBookingForm({
               />
             </label>
           ) : null}
+          <div className="sm:col-span-2">
+            <SpecialInstructionBlocks
+              customer={
+                applyInstructionEdit(wizard).blocks.find((block) => block.author === 'customer')?.text || ''
+              }
+              emptyLabel="None"
+            />
+          </div>
           <label className="block sm:col-span-2">
-            <span className={labelClass}>Booking instructions (customer-facing)</span>
+            <span className={labelClass}>Added by admin</span>
             <textarea
               rows={3}
               className={`${inputClass} min-h-[80px] resize-y`}
-              value={wizard.specialInstructions || ''}
-              onChange={(e) => patchWizard({ specialInstructions: e.target.value })}
+              value={applyInstructionEdit(wizard).admin}
+              onChange={(e) =>
+                patchWizard((prev) => ({
+                  ...prev,
+                  ...instructionFields(applyInstructionEdit(prev, { admin: e.target.value })),
+                }))
+              }
+              placeholder="Please bring extra blankets."
             />
           </label>
           <label className="block sm:col-span-2">

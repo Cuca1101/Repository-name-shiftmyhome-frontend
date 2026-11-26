@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { saveCustomerLeadMoveEdits } from '../../lib/customerLeadBookingConvert'
-import { editsFromLead, normalizeAdminInventoryLine, notesForCustomerEmail } from '../../lib/customerLeadMoveSync'
+import SpecialInstructionBlocks from '../admin-workflow/SpecialInstructionBlocks'
+import { editsFromLead, normalizeAdminInventoryLine } from '../../lib/customerLeadMoveSync'
 import { useQuoteInventoryCatalog } from '../quote-wizard/useQuoteInventoryCatalog'
 import { filterAndSortInventorySearchResults } from '../quote-wizard/inventorySearchUtils'
 
@@ -16,9 +17,8 @@ import { filterAndSortInventorySearchResults } from '../quote-wizard/inventorySe
 export default function CustomerLeadMoveEditor({ lead, disabled = false, onSaved }) {
   const catalog = useQuoteInventoryCatalog()
   const saved = useMemo(() => editsFromLead(lead), [lead])
-  const noteLabels = useMemo(() => notesForCustomerEmail(lead), [lead])
   const [lines, setLines] = useState(saved.inventoryLines)
-  const [instructions, setInstructions] = useState(saved.specialInstructions)
+  const [instructions, setInstructions] = useState(saved.adminInstructions)
   const [query, setQuery] = useState('')
   const [customName, setCustomName] = useState('')
   const [saving, setSaving] = useState(false)
@@ -29,7 +29,7 @@ export default function CustomerLeadMoveEditor({ lead, disabled = false, onSaved
   useEffect(() => {
     if (dirty) return
     setLines(saved.inventoryLines)
-    setInstructions(saved.specialInstructions)
+    setInstructions(saved.adminInstructions)
   }, [saved, dirty])
 
   useEffect(() => {
@@ -138,7 +138,7 @@ export default function CustomerLeadMoveEditor({ lead, disabled = false, onSaved
 
   function cancelEdit() {
     setLines(saved.inventoryLines)
-    setInstructions(saved.specialInstructions)
+    setInstructions(saved.adminInstructions)
     setQuery('')
     setCustomName('')
     setDirty(false)
@@ -147,7 +147,15 @@ export default function CustomerLeadMoveEditor({ lead, disabled = false, onSaved
   }
 
   const shownLines = editing ? lines : saved.inventoryLines
-  const shownInstructions = editing ? instructions : saved.specialInstructions
+  const customerBlock = saved.instructionBlocks.find((block) => block.author === 'customer')
+  const adminBlock = saved.instructionBlocks.find((block) => block.author === 'admin')
+  const adminSupply =
+    saved.supplyAuthor === 'admin'
+      ? String(adminBlock?.text || '')
+          .split('\n')
+          .map((line) => line.trim())
+          .find((line) => /^Supply:\s/i.test(line)) || ''
+      : ''
   const itemTotal = shownLines.reduce((sum, line) => sum + (Number(line.quantity) || 0), 0)
   const itemTotalLabel = itemTotal === 1 ? '1 item' : `${itemTotal} items`
   const priceNote = String(lead?.price_override_reason || '').trim()
@@ -161,7 +169,7 @@ export default function CustomerLeadMoveEditor({ lead, disabled = false, onSaved
     const ok = window.confirm('Are you sure you want to edit the items and special instructions?')
     if (!ok) return
     setLines(saved.inventoryLines)
-    setInstructions(saved.specialInstructions)
+    setInstructions(saved.adminInstructions)
     setMessage('')
     setEditing(true)
   }
@@ -309,23 +317,33 @@ export default function CustomerLeadMoveEditor({ lead, disabled = false, onSaved
             </button>
           </div>
 
-          <label className="mt-4 block text-xs font-semibold uppercase tracking-wide text-slate-500" htmlFor="lead-special-instructions">
-            Special instructions
-          </label>
-          <p className="mt-1 text-xs text-slate-500">
-            {noteLabels.customer
-              ? 'These are the customer’s words. A price note stays separate and shows in the email as Included in price.'
-              : 'These are the words the customer sees. A price note shows in the email as Included in price.'}
-          </p>
-          <textarea
-            id="lead-special-instructions"
-            rows={3}
-            value={instructions}
-            disabled={disabled || saving}
-            onChange={(event) => markDirty(null, event.target.value)}
-            placeholder="Access notes, extra items, or anything the crew should know"
-            className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-          />
+          <div className="mt-4 border-t border-slate-100 pt-3">
+            <p className="text-sm font-bold text-slate-900">Special instructions</p>
+            {customerBlock ? (
+              <div className="mt-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+                <p className="text-xs font-bold text-slate-500">Added by customer:</p>
+                <p className="mt-1 whitespace-pre-wrap break-words text-sm leading-relaxed text-slate-800">{customerBlock.text}</p>
+              </div>
+            ) : null}
+            <label className="mt-2 block text-xs font-bold text-slate-500" htmlFor="lead-special-instructions">
+              Added by admin:
+            </label>
+            <textarea
+              id="lead-special-instructions"
+              rows={3}
+              value={instructions}
+              disabled={disabled || saving}
+              onChange={(event) => markDirty(null, event.target.value)}
+              placeholder="Please bring extra blankets."
+              className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+            />
+            {adminSupply ? (
+              <p className="mt-1 whitespace-pre-wrap break-words text-sm leading-relaxed text-slate-700">{adminSupply}</p>
+            ) : null}
+            <p className="mt-1 text-xs text-slate-500">
+              Customer instructions stay as the customer wrote them. A price note shows under this section as Included in price.
+            </p>
+          </div>
           <div className="mt-3 flex flex-wrap items-center gap-2">
             <button
               type="button"
@@ -350,21 +368,18 @@ export default function CustomerLeadMoveEditor({ lead, disabled = false, onSaved
         <>
           <div className="mt-4 border-t border-slate-100 pt-3">
             <p className="text-sm font-bold text-slate-900">Special instructions</p>
-            {shownInstructions.trim() ? (
-              <p className="mt-1 whitespace-pre-wrap break-words text-sm leading-relaxed text-slate-700">
-                {shownInstructions.trim()}
-              </p>
-            ) : null}
+            <SpecialInstructionBlocks
+              customer={customerBlock?.text || ''}
+              admin={adminBlock?.text || ''}
+              emptyLabel={priceNote ? '' : 'None'}
+            />
             {priceNote ? (
-              <div className={shownInstructions.trim() ? 'mt-3 border-t border-slate-100 pt-3' : 'mt-2'}>
+              <div className={customerBlock || adminBlock ? 'mt-3 border-t border-slate-100 pt-3' : 'mt-2'}>
                 <span className="inline-flex rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-emerald-700">
                   Included in price
                 </span>
                 <p className="mt-1.5 whitespace-pre-wrap break-words text-sm leading-relaxed text-slate-700">{priceNote}</p>
               </div>
-            ) : null}
-            {!shownInstructions.trim() && !priceNote ? (
-              <p className="mt-1 text-sm text-slate-700">None</p>
             ) : null}
           </div>
           {message ? <p className="mt-3 text-sm text-slate-700">{message}</p> : null}

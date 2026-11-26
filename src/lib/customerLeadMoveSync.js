@@ -10,6 +10,7 @@ import {
 import { formatWizardArrivalSummary, getWizardArrivalTimePayload } from './emailQuotePayload'
 import { liftValueForFloor } from './floorAccess'
 import { normalizeServiceType } from './normalizeServiceType'
+import { applyInstructionEdit, instructionFields, readInstructionParts } from './instructionAuthors.js'
 import { parsePackingMaterialQuantities } from './packingMaterialsCatalog.js'
 import { syncSuppliedBoxesIntoInventory } from './suppliedBoxesInventory.js'
 
@@ -108,28 +109,14 @@ export function removePriceNoteFromInstructions(text, note) {
  */
 export function notesForCustomerEmail(lead) {
   const { step3 } = leadWizardSteps(lead || {})
-  const current = String(step3.specialInstructions || '').trim()
   const note = String(lead?.price_override_reason || '').trim()
-  const source = String(step3.specialInstructionsSource || '').trim()
-  const hasSnapshot = typeof step3.customerSpecialInstructions === 'string'
-  const customer = hasSnapshot
-    ? String(step3.customerSpecialInstructions).trim()
-    : source === 'admin'
-      ? ''
-      : withoutNoteLine(current, note)
-
-  let admin = ''
-  if (source === 'admin' && current && current !== customer) {
-    admin =
-      customer && current.startsWith(`${customer}\n`)
-        ? current.slice(customer.length).trim()
-        : current
-  }
+  const parts = readInstructionParts(step3, note)
+  let admin = parts.admin
   if (note && admin !== note && !admin.split('\n').some((line) => line.trim() === note)) {
     admin = admin ? `${admin}\n${note}` : note
   }
-  if (admin === customer) admin = note && note !== customer ? note : ''
-  return { customer, admin }
+  if (admin === parts.customer) admin = note && note !== parts.customer ? note : ''
+  return { customer: parts.customer, admin }
 }
 
 /**
@@ -269,23 +256,32 @@ export function buildLeadWizardData(lead, edits) {
     .map((line, index) => normalizeAdminInventoryLine(line, index))
     .filter((line) => line.name)
   const volume = sumCustomerLeadInventoryVolume(lines)
-  const nextInstructions = String(edits.specialInstructions || '').trim()
+  const priceNote = String(lead?.price_override_reason || '').trim()
+  const parts = readInstructionParts(step3, priceNote)
+  const record =
+    edits.instructionsAuthor === 'admin' || edits.instructionsAuthor === 'customer'
+      ? applyInstructionEdit(
+          {
+            ...step3,
+            customerSpecialInstructions: parts.customer,
+            adminSpecialInstructions: parts.admin,
+            supplyNoteAuthor: parts.supplyAuthor,
+          },
+          {
+            customer: edits.instructionsAuthor === 'customer' ? edits.specialInstructions : parts.customer,
+            admin: edits.instructionsAuthor === 'admin' ? edits.specialInstructions : parts.admin,
+            priceNote,
+          },
+        )
+      : applyInstructionEdit(step3, { priceNote })
   const step3Next = {
     ...step3,
-    specialInstructions: nextInstructions,
-  }
-  if (edits.instructionsAuthor === 'admin') {
-    const priceNote = String(lead?.price_override_reason || '').trim()
-    const customerOriginal =
-      typeof step3.customerSpecialInstructions === 'string'
-        ? String(step3.customerSpecialInstructions).trim()
-        : withoutNoteLine(step3.specialInstructions, priceNote)
-    step3Next.customerSpecialInstructions = customerOriginal
-    step3Next.specialInstructionsSource = nextInstructions === customerOriginal ? 'customer' : 'admin'
+    ...instructionFields(record),
+    specialInstructionsSource: record.admin ? 'admin' : 'customer',
   }
   return {
     lines,
-    specialInstructions: nextInstructions,
+    specialInstructions: record.specialInstructions,
     total_volume_m3: volume != null ? volume : lead.total_volume_m3 ?? null,
     wizard_data: {
       ...wd,
@@ -307,10 +303,16 @@ export function editsFromLead(lead) {
   const inventoryLines = (Array.isArray(step2.inventoryLines) ? step2.inventoryLines : [])
     .map((line, index) => normalizeAdminInventoryLine(line, index))
     .filter((line) => line.name)
+  const priceNote = String(lead?.price_override_reason || '').trim()
+  const record = applyInstructionEdit(step3, { priceNote })
   return {
     inventoryLines,
     specialInstructions: String(step3.specialInstructions || '').trim(),
-    priceNote: String(lead?.price_override_reason || '').trim(),
+    customerInstructions: record.customer,
+    adminInstructions: record.admin,
+    instructionBlocks: record.blocks,
+    supplyAuthor: record.supplyAuthor,
+    priceNote,
   }
 }
 
@@ -516,6 +518,14 @@ export function buildQuoteExtrasWizard(lead, form) {
     deliveryContactName,
     deliveryContactPhone,
     promoCode: String(form.promoCode || '').trim(),
+    packingMaterialsQuantities: quantities,
+    ...instructionFields(
+      applyInstructionEdit(step3, {
+        quantities,
+        actor: 'admin',
+        priceNote: lead?.price_override_reason,
+      }),
+    ),
   }
   const wizardPatch = {
     moveDate,
@@ -539,6 +549,11 @@ export function buildQuoteExtrasWizard(lead, form) {
     dropoffSameAsPickup: !(deliveryContactName || deliveryContactPhone),
     promoCode: step3Next.promoCode,
     inventoryLines: lines,
+    specialInstructions: step3Next.specialInstructions,
+    customerSpecialInstructions: step3Next.customerSpecialInstructions,
+    adminSpecialInstructions: step3Next.adminSpecialInstructions,
+    supplyNoteAuthor: step3Next.supplyNoteAuthor,
+    packingMaterialsQuantities: quantities,
   }
   return {
     lines,

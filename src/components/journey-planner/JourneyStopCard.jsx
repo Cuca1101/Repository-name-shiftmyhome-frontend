@@ -16,6 +16,7 @@ import {
   buildJourneyStopWarningChips,
 } from '../../lib/journeyStopInventoryDisplay'
 import { liftReadable } from '../../lib/adminJobQuoteDetailsViewModel'
+import SpecialInstructionBlocks from '../admin-workflow/SpecialInstructionBlocks'
 
 const btn =
   'rounded border border-slate-200 bg-white px-1.5 py-0.5 text-[10px] font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-40'
@@ -355,9 +356,9 @@ export default function JourneyStopCard({
             </div>
           ) : null}
           {vm?.specialInstructions && vm.specialInstructions !== '—' ? (
-            <div className="mt-1.5">
+            <div className="mt-1.5 min-w-0">
               <p className="text-[9px] font-bold uppercase tracking-wide text-slate-500">Instructions</p>
-              <p className="mt-px whitespace-pre-wrap text-[11px] text-slate-800">{vm.specialInstructions}</p>
+              <SpecialInstructionBlocks text={vm.specialInstructions} emptyLabel="" />
             </div>
           ) : null}
         </div>

@@ -9,6 +9,7 @@ import {
   resolveDeliveryContact,
   resolvePickupContact,
 } from './quoteWizardContactFields'
+import { applyInstructionEdit, instructionFields } from './instructionAuthors.js'
 import { parsePackingMaterialQuantities } from './packingMaterialsCatalog.js'
 import { syncSuppliedBoxesIntoInventory } from './suppliedBoxesInventory.js'
 
@@ -160,7 +161,12 @@ function buildStep3Snapshot(wizard, extras = {}) {
     packageTier: wizard.packageTier ?? 'standard',
     servicePackage: extras.servicePackageSnapshot || null,
     crewSize: wizard.crewSize ?? null,
-    specialInstructions: wizard.specialInstructions ?? '',
+    ...instructionFields(
+      applyInstructionEdit(wizard, {
+        quantities: wizard.packingMaterials ? parsePackingMaterialQuantities(wizard) : {},
+        actor: 'customer',
+      }),
+    ),
     heavyNotes: wizard.heavyNotes ?? '',
     packing: wizard.packing ?? false,
     packingWhat: wizard.packingWhat ?? '',
