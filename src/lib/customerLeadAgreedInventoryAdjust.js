@@ -1,6 +1,7 @@
 /**
- * When an admin has set an agreed price on a Customer Lead, inventory add/remove
- * moves that agreed price by the engine total delta (not raw volume £).
+ * Inventory edit helpers for Customer Leads.
+ * Saved agreed_price is never auto-written from inventory changes — only calculated
+ * totals refresh. Preview keeps checkout at the saved agreed figure.
  */
 import { getFlattenedCatalogEntries, getCatalogItem } from '../components/quote-wizard/inventoryCatalog.js'
 import { calculateQuote } from './pricingCalculator'
@@ -300,28 +301,19 @@ export function previewLeadInventoryPriceChange({
   const agreedRaw = lead?.agreed_price
   const hasAgreed = agreedRaw != null && String(agreedRaw).trim() !== ''
   const agreed = hasAgreed ? Number(agreedRaw) : null
-  const agreedAdjust =
-    hasAgreed && Number.isFinite(agreed) && agreed >= 0 && beforeTotal != null && afterTotal != null
-      ? applyInventoryDeltaToAgreedPrice({
-          agreedPrice: agreed,
-          beforeTotal,
-          afterTotal,
-        })
-      : null
+  const usesAgreed = hasAgreed && Number.isFinite(agreed) && agreed >= 0
 
-  const checkoutBefore =
-    hasAgreed && Number.isFinite(agreed) && agreed >= 0
-      ? round2(agreed)
-      : beforeTotal != null
-        ? round2(beforeTotal)
-        : null
-  const checkoutAfter = agreedAdjust
-    ? agreedAdjust.agreed_price
-    : hasAgreed && Number.isFinite(agreed) && agreed >= 0
-      ? round2(agreed)
-      : afterTotal != null
-        ? round2(afterTotal)
-        : null
+  // Saved agreed never moves with inventory preview — only calculated does.
+  const checkoutBefore = usesAgreed
+    ? round2(agreed)
+    : beforeTotal != null
+      ? round2(beforeTotal)
+      : null
+  const checkoutAfter = usesAgreed
+    ? round2(agreed)
+    : afterTotal != null
+      ? round2(afterTotal)
+      : null
   const checkoutDelta =
     checkoutBefore != null && checkoutAfter != null ? round2(checkoutAfter - checkoutBefore) : null
 
@@ -332,6 +324,6 @@ export function previewLeadInventoryPriceChange({
     checkoutBefore,
     checkoutAfter,
     checkoutDelta,
-    usesAgreed: hasAgreed && Number.isFinite(agreed) && agreed >= 0,
+    usesAgreed,
   }
 }

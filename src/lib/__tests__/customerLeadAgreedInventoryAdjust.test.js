@@ -81,7 +81,7 @@ test('diffInventorySelection reports extras and removals', () => {
   assert.deepEqual(diff.removed, [])
 })
 
-test('previewLeadInventoryPriceChange moves agreed checkout by engine delta', () => {
+test('previewLeadInventoryPriceChange keeps saved agreed fixed', () => {
   const preview = previewLeadInventoryPriceChange({
     pricingSettings: null,
     lead: { agreed_price: 600.43 },

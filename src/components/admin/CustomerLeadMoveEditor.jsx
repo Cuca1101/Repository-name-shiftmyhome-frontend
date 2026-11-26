@@ -31,8 +31,8 @@ function normalizeEditorLine(line, index) {
 
 /**
  * Add, remove, or rewrite items and special instructions on a customer lead.
- * Item search matches Quote / New phone booking. When an agreed price is set,
- * saving items adjusts that price by the engine delta.
+ * Item search matches Quote / New phone booking. Saved agreed stays fixed on save;
+ * only the calculated total refreshes from the engine.
  * @param {{
  *   lead: Record<string, unknown>,
  *   disabled?: boolean,
@@ -274,7 +274,8 @@ export default function CustomerLeadMoveEditor({ lead, disabled = false, onSaved
             <div className="rounded-xl border border-slate-200 bg-gradient-to-br from-slate-50 to-white p-4 shadow-sm">
               <p className="text-sm font-bold text-slate-900">Job total</p>
               <p className="mt-1 text-xs text-slate-500">
-                Live summary for this edit. Save writes the new Saved agreed total and item list.
+                Live summary for this edit. Save updates the item list and calculated total —
+                Saved agreed only changes if you edit it separately.
               </p>
 
               <div className="mt-4 rounded-lg border border-slate-200 bg-white px-3 py-3">
@@ -364,12 +365,13 @@ export default function CustomerLeadMoveEditor({ lead, disabled = false, onSaved
                   <p className="mt-1 text-sm text-amber-900/80">Nothing removed yet.</p>
                 ) : (
                   <>
-                    {pricePreview?.checkoutDelta != null && pricePreview.checkoutDelta < -0.009 ? (
+                    {pricePreview?.calculatedDelta != null &&
+                    pricePreview.calculatedDelta < -0.009 ? (
                       <p className="mt-1 text-sm font-semibold tabular-nums text-amber-900">
-                        Price down {formatGbp(Math.abs(pricePreview.checkoutDelta))}
+                        Calculated down {formatGbp(Math.abs(pricePreview.calculatedDelta))}
                         <span className="mt-0.5 block text-xs font-medium text-amber-800/90">
-                          Was {formatGbp(pricePreview.checkoutBefore)} → now{' '}
-                          {formatGbp(pricePreview.checkoutAfter)}
+                          Was {formatGbp(pricePreview.calculatedBefore)} → now{' '}
+                          {formatGbp(pricePreview.calculatedAfter)}
                         </span>
                       </p>
                     ) : null}
@@ -399,12 +401,13 @@ export default function CustomerLeadMoveEditor({ lead, disabled = false, onSaved
                   <p className="mt-1 text-sm text-emerald-900/80">Nothing added yet — pick from the left.</p>
                 ) : (
                   <>
-                    {pricePreview?.checkoutDelta != null && pricePreview.checkoutDelta > 0.009 ? (
+                    {pricePreview?.calculatedDelta != null &&
+                    pricePreview.calculatedDelta > 0.009 ? (
                       <p className="mt-1 text-sm font-semibold tabular-nums text-emerald-900">
-                        Price up {formatGbp(pricePreview.checkoutDelta)}
+                        Calculated up {formatGbp(pricePreview.calculatedDelta)}
                         <span className="mt-0.5 block text-xs font-medium text-emerald-800/90">
-                          Was {formatGbp(pricePreview.checkoutBefore)} → now{' '}
-                          {formatGbp(pricePreview.checkoutAfter)}
+                          Was {formatGbp(pricePreview.calculatedBefore)} → now{' '}
+                          {formatGbp(pricePreview.calculatedAfter)}
                         </span>
                       </p>
                     ) : null}
