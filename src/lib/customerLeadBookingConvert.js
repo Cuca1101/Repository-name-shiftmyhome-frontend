@@ -38,8 +38,48 @@ import {
   mergeLeadEditsIntoQuoteDetails,
   removePriceNoteFromInstructions,
 } from './customerLeadMoveSync'
+import { adjustAgreedPriceForInventoryChange } from './customerLeadAgreedInventoryAdjust'
+import { fetchPricingSettings } from './data/pricingSettingsRepository'
 import { applyInstructionEdit, instructionFields } from './instructionAuthors'
 import { parsePackingMaterialQuantities } from './packingMaterialsCatalog'
+
+/**
+ * If the lead has an agreed price, move it by the engine total delta when inventory changes.
+ * @param {Record<string, unknown>} lead
+ * @param {Array<Record<string, unknown>>} previousLines
+ * @param {Array<Record<string, unknown>>} nextLines
+ */
+async function pricePatchForInventoryChange(lead, previousLines, nextLines) {
+  const agreedRaw = lead?.agreed_price
+  if (agreedRaw == null || String(agreedRaw).trim() === '') return {}
+  try {
+    const pricingSettings = await fetchPricingSettings()
+    const adjust = adjustAgreedPriceForInventoryChange({
+      pricingSettings,
+      lead,
+      previousInventoryLines: previousLines,
+      nextInventoryLines: nextLines,
+    })
+    if (!adjust) return {}
+    const patch = {
+      agreed_price: adjust.agreed_price,
+      calculated_total: adjust.calculated_total,
+      estimated_total: adjust.estimated_total,
+    }
+    const previousLinkAmount = Number(lead.stripe_payment_link_amount)
+    const amountChanged =
+      !Number.isFinite(previousLinkAmount) ||
+      Math.abs(previousLinkAmount - adjust.agreed_price) > 0.009
+    if (amountChanged && String(lead.stripe_checkout_session_id || '').trim()) {
+      patch.stripe_checkout_session_id = null
+      patch.stripe_payment_link_url = null
+      patch.stripe_payment_link_amount = null
+    }
+    return patch
+  } catch {
+    return {}
+  }
+}
 
 /** Stored on lead.wizard_data so Undo can restore prior lead + quote shape. */
 const CONVERT_SNAPSHOT_KEY = '_smh_admin_convert'
@@ -537,7 +577,7 @@ export async function saveCustomerLeadAgreedPrice({
 
 /**
  * Save the item list and special instructions on the lead, and on the booking when one exists.
- * Prices are left unchanged.
+ * When an agreed price is set, it rises or falls by the engine delta for the inventory change.
  * @param {{
  *   lead: Record<string, unknown>,
  *   inventoryLines: Array<Record<string, unknown>>,
@@ -550,17 +590,20 @@ export async function saveCustomerLeadMoveEdits({ lead, inventoryLines, specialI
   }
   if (!lead?.id) throw new Error('Lead not found.')
 
+  const previousLines = editsFromLead(lead).inventoryLines
   const built = buildLeadWizardData(lead, {
     inventoryLines,
     specialInstructions,
     instructionsAuthor: 'admin',
   })
+  const pricePatch = await pricePatchForInventoryChange(lead, previousLines, built.lines)
   const now = new Date().toISOString()
   const updated = await updateCustomerLeadById(String(lead.id), {
     wizard_data: built.wizard_data,
     total_volume_m3: built.total_volume_m3,
     updated_at: now,
     last_activity_at: now,
+    ...pricePatch,
   })
   if (!updated) throw new Error('Failed to save items and special instructions.')
 
@@ -575,23 +618,27 @@ export async function saveCustomerLeadMoveEdits({ lead, inventoryLines, specialI
     if (readErr) throw new Error(readErr.message || 'Failed to read the booking.')
     if (existing) {
       const priceNote = String(updated.price_override_reason || lead.price_override_reason || '').trim()
-      const { error } = await supabase
-        .from('quotes')
-        .update({
-          details: mergeLeadEditsIntoQuoteDetails(existing.details, {
-            specialInstructions: built.specialInstructions,
-            priceNote,
-            inventoryLines: built.lines,
-            wizardPatch: {
-              customerSpecialInstructions: built.wizard_data.step3.customerSpecialInstructions,
-              adminSpecialInstructions: built.wizard_data.step3.adminSpecialInstructions,
-              supplyNoteAuthor: built.wizard_data.step3.supplyNoteAuthor,
-            },
-          }),
-          inventory: inventoryJsonFromLines(built.lines),
-          inventory_text: inventoryTextFromLines(built.lines),
-        })
-        .eq('id', quoteId)
+      const quotePatch = {
+        details: mergeLeadEditsIntoQuoteDetails(existing.details, {
+          specialInstructions: built.specialInstructions,
+          priceNote,
+          inventoryLines: built.lines,
+          wizardPatch: {
+            customerSpecialInstructions: built.wizard_data.step3.customerSpecialInstructions,
+            adminSpecialInstructions: built.wizard_data.step3.adminSpecialInstructions,
+            supplyNoteAuthor: built.wizard_data.step3.supplyNoteAuthor,
+          },
+        }),
+        inventory: inventoryJsonFromLines(built.lines),
+        inventory_text: inventoryTextFromLines(built.lines),
+      }
+      if (pricePatch.agreed_price != null) {
+        quotePatch.agreed_price = pricePatch.agreed_price
+        quotePatch.calculated_total = pricePatch.calculated_total
+        quotePatch.estimated_total = pricePatch.estimated_total
+        quotePatch.remaining_balance = pricePatch.agreed_price
+      }
+      const { error } = await supabase.from('quotes').update(quotePatch).eq('id', quoteId)
       if (error) throw new Error(error.message || 'Saved on the lead, but the booking did not update.')
       quoteUpdated = true
     }
@@ -672,7 +719,9 @@ export async function saveCustomerLeadQuoteExtras({ lead, form }) {
   }
   if (!lead?.id) throw new Error('Lead not found.')
 
+  const previousLines = editsFromLead(lead).inventoryLines
   const built = buildQuoteExtrasWizard(lead, form)
+  const pricePatch = await pricePatchForInventoryChange(lead, previousLines, built.lines)
   const now = new Date().toISOString()
   const updated = await updateCustomerLeadById(String(lead.id), {
     wizard_data: built.wizard_data,
@@ -680,6 +729,7 @@ export async function saveCustomerLeadQuoteExtras({ lead, form }) {
     total_volume_m3: built.total_volume_m3,
     updated_at: now,
     last_activity_at: now,
+    ...pricePatch,
   })
   if (!updated) throw new Error('Failed to save the quote extras.')
 
@@ -694,20 +744,24 @@ export async function saveCustomerLeadQuoteExtras({ lead, form }) {
       .maybeSingle()
     if (readErr) throw new Error(readErr.message || 'Failed to read the booking.')
     if (existing) {
-      const { error } = await supabase
-        .from('quotes')
-        .update({
-          move_date: built.move_date,
-          inventory: inventoryJsonFromLines(built.lines),
-          inventory_text: inventoryTextFromLines(built.lines),
-          details: mergeLeadEditsIntoQuoteDetails(existing.details, {
-            specialInstructions: current.specialInstructions,
-            priceNote: current.priceNote,
-            inventoryLines: built.lines,
-            wizardPatch: built.wizardPatch,
-          }),
-        })
-        .eq('id', quoteId)
+      const quotePatch = {
+        move_date: built.move_date,
+        inventory: inventoryJsonFromLines(built.lines),
+        inventory_text: inventoryTextFromLines(built.lines),
+        details: mergeLeadEditsIntoQuoteDetails(existing.details, {
+          specialInstructions: current.specialInstructions,
+          priceNote: current.priceNote,
+          inventoryLines: built.lines,
+          wizardPatch: built.wizardPatch,
+        }),
+      }
+      if (pricePatch.agreed_price != null) {
+        quotePatch.agreed_price = pricePatch.agreed_price
+        quotePatch.calculated_total = pricePatch.calculated_total
+        quotePatch.estimated_total = pricePatch.estimated_total
+        quotePatch.remaining_balance = pricePatch.agreed_price
+      }
+      const { error } = await supabase.from('quotes').update(quotePatch).eq('id', quoteId)
       if (error) throw new Error(error.message || 'Saved on the lead, but the booking did not update.')
       quoteUpdated = true
     }

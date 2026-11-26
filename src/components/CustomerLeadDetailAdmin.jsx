@@ -1220,7 +1220,12 @@ export default function CustomerLeadDetailAdmin() {
           <CustomerLeadMoveEditor
             lead={lead}
             disabled={Boolean(busy)}
-            onSaved={(updated) => setLead(updated)}
+            onSaved={(updated) => {
+              setLead(updated)
+              if (updated?.agreed_price != null && Number.isFinite(Number(updated.agreed_price))) {
+                setAgreedPriceInput(String(Number(updated.agreed_price).toFixed(2)))
+              }
+            }}
           />
         </div>
 
@@ -1233,7 +1238,12 @@ export default function CustomerLeadDetailAdmin() {
           <CustomerLeadQuoteExtrasEditor
             lead={lead}
             disabled={Boolean(busy)}
-            onSaved={(updated) => setLead(updated)}
+            onSaved={(updated) => {
+              setLead(updated)
+              if (updated?.agreed_price != null && Number.isFinite(Number(updated.agreed_price))) {
+                setAgreedPriceInput(String(Number(updated.agreed_price).toFixed(2)))
+              }
+            }}
           />
         </div>
 
