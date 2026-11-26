@@ -266,11 +266,55 @@ export default function CustomerLeadMoveEditor({ lead, disabled = false, onSaved
             <div className="rounded-xl border border-slate-200 bg-gradient-to-br from-slate-50 to-white p-4 shadow-sm">
               <p className="text-sm font-bold text-slate-900">Job total</p>
               <p className="mt-1 text-xs text-slate-500">
-                Updates live as you add or remove items. Saving applies this to the lead
-                {pricePreview?.usesAgreed ? ' agreed total' : ' calculated total'}.
+                {pricePreview?.usesAgreed
+                  ? 'Item changes move the Saved agreed total by the engine price difference. Save writes that new agreed total.'
+                  : 'No saved agreed total — item changes move the calculated total. Save an agreed price to lock checkout.'}
               </p>
 
               <dl className="mt-4 space-y-3">
+                {pricePreview?.usesAgreed ? (
+                  <div className="rounded-lg border border-blue-100 bg-blue-50/70 px-3 py-2.5">
+                    <dt className="text-[11px] font-semibold uppercase tracking-wide text-blue-700">
+                      Saved agreed total
+                    </dt>
+                    <dd className="mt-0.5 flex flex-wrap items-baseline gap-2">
+                      <span className="text-2xl font-bold tabular-nums text-blue-950">
+                        {formatGbp(pricePreview?.checkoutAfter)}
+                      </span>
+                      {pricePreview?.checkoutDelta != null &&
+                      Math.abs(pricePreview.checkoutDelta) >= 0.009 ? (
+                        <span
+                          className={`text-sm font-semibold tabular-nums ${
+                            pricePreview.checkoutDelta > 0 ? 'text-emerald-700' : 'text-amber-800'
+                          }`}
+                        >
+                          {formatSignedGbp(pricePreview.checkoutDelta)}
+                        </span>
+                      ) : (
+                        <span className="text-xs font-medium text-slate-500">No change yet</span>
+                      )}
+                    </dd>
+                    {pricePreview?.checkoutBefore != null ? (
+                      <p className="mt-1 text-xs text-blue-800/90">
+                        Starts from saved agreed {formatGbp(pricePreview.checkoutBefore)}
+                        {pricePreview.checkoutDelta != null &&
+                        Math.abs(pricePreview.checkoutDelta) >= 0.009
+                          ? ` → ${formatGbp(pricePreview.checkoutAfter)} after this edit`
+                          : ''}
+                      </p>
+                    ) : null}
+                  </div>
+                ) : (
+                  <div className="rounded-lg border border-blue-100 bg-blue-50/70 px-3 py-2.5">
+                    <dt className="text-[11px] font-semibold uppercase tracking-wide text-blue-700">
+                      Checkout total
+                    </dt>
+                    <dd className="mt-0.5 text-2xl font-bold tabular-nums text-blue-950">
+                      {formatGbp(pricePreview?.checkoutAfter)}
+                    </dd>
+                  </div>
+                )}
+
                 <div>
                   <dt className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
                     Calculated total
@@ -290,43 +334,9 @@ export default function CustomerLeadMoveEditor({ lead, disabled = false, onSaved
                       </span>
                     ) : null}
                   </dd>
-                  {pricePreview?.calculatedBefore != null &&
-                  pricePreview?.calculatedAfter != null &&
-                  Math.abs((pricePreview.calculatedDelta || 0)) >= 0.009 ? (
-                    <p className="mt-0.5 text-xs text-slate-500">
-                      Was {formatGbp(pricePreview.calculatedBefore)}
-                    </p>
-                  ) : null}
-                </div>
-
-                <div className="rounded-lg border border-blue-100 bg-blue-50/70 px-3 py-2.5">
-                  <dt className="text-[11px] font-semibold uppercase tracking-wide text-blue-700">
-                    {pricePreview?.usesAgreed ? 'Checkout / agreed total' : 'Checkout total'}
-                  </dt>
-                  <dd className="mt-0.5 flex flex-wrap items-baseline gap-2">
-                    <span className="text-xl font-bold tabular-nums text-blue-950">
-                      {formatGbp(pricePreview?.checkoutAfter)}
-                    </span>
-                    {pricePreview?.checkoutDelta != null &&
-                    Math.abs(pricePreview.checkoutDelta) >= 0.009 ? (
-                      <span
-                        className={`text-sm font-semibold tabular-nums ${
-                          pricePreview.checkoutDelta > 0 ? 'text-emerald-700' : 'text-amber-800'
-                        }`}
-                      >
-                        {formatSignedGbp(pricePreview.checkoutDelta)}
-                      </span>
-                    ) : (
-                      <span className="text-xs font-medium text-slate-500">No change yet</span>
-                    )}
-                  </dd>
-                  {pricePreview?.checkoutBefore != null &&
-                  pricePreview?.checkoutDelta != null &&
-                  Math.abs(pricePreview.checkoutDelta) >= 0.009 ? (
-                    <p className="mt-0.5 text-xs text-blue-800/80">
-                      Was {formatGbp(pricePreview.checkoutBefore)}
-                    </p>
-                  ) : null}
+                  <p className="mt-0.5 text-xs text-slate-500">
+                    Engine price only — the agreed total above is what checkout uses.
+                  </p>
                 </div>
               </dl>
 
@@ -335,17 +345,22 @@ export default function CustomerLeadMoveEditor({ lead, disabled = false, onSaved
                   <p className="text-sm font-bold text-amber-950">
                     Removed {removedUnitCount === 1 ? '1 item' : `${removedUnitCount} items`}
                   </p>
-                  {pricePreview?.checkoutDelta != null && pricePreview.checkoutDelta < -0.009 ? (
+                  {pricePreview?.usesAgreed &&
+                  pricePreview?.checkoutDelta != null &&
+                  pricePreview.checkoutDelta < -0.009 ? (
+                    <p className="mt-1 text-sm font-semibold tabular-nums text-amber-900">
+                      Saved agreed total reduced by {formatGbp(Math.abs(pricePreview.checkoutDelta))}
+                      <span className="mt-0.5 block text-xs font-medium text-amber-800/90">
+                        {formatGbp(pricePreview.checkoutBefore)} → {formatGbp(pricePreview.checkoutAfter)}
+                      </span>
+                    </p>
+                  ) : pricePreview?.checkoutDelta != null && pricePreview.checkoutDelta < -0.009 ? (
                     <p className="mt-1 text-sm font-semibold tabular-nums text-amber-900">
                       Price reduced by {formatGbp(Math.abs(pricePreview.checkoutDelta))}
-                      <span className="mt-0.5 block text-xs font-medium text-amber-800/90">
-                        Agreed was {formatGbp(pricePreview.checkoutBefore)} → now{' '}
-                        {formatGbp(pricePreview.checkoutAfter)}
-                      </span>
                     </p>
                   ) : (
                     <p className="mt-1 text-xs text-amber-800/90">
-                      Save applies the lower total when the engine price changes.
+                      Save applies the lower Saved agreed total when the engine price changes.
                     </p>
                   )}
                   <ul className="mt-2 max-h-40 space-y-1.5 overflow-y-auto border-t border-amber-200/80 pt-2">
@@ -372,7 +387,16 @@ export default function CustomerLeadMoveEditor({ lead, disabled = false, onSaved
                   <p className="mt-1 text-sm text-slate-600">No extra items yet — pick from the left.</p>
                 ) : (
                   <>
-                    {pricePreview?.checkoutDelta != null && pricePreview.checkoutDelta > 0.009 ? (
+                    {pricePreview?.usesAgreed &&
+                    pricePreview?.checkoutDelta != null &&
+                    pricePreview.checkoutDelta > 0.009 ? (
+                      <p className="mt-1 text-sm font-semibold tabular-nums text-emerald-800">
+                        Saved agreed total up by {formatGbp(pricePreview.checkoutDelta)}
+                        <span className="mt-0.5 block text-xs font-medium text-emerald-800/90">
+                          {formatGbp(pricePreview.checkoutBefore)} → {formatGbp(pricePreview.checkoutAfter)}
+                        </span>
+                      </p>
+                    ) : pricePreview?.checkoutDelta != null && pricePreview.checkoutDelta > 0.009 ? (
                       <p className="mt-1 text-sm font-semibold tabular-nums text-emerald-800">
                         Price up by {formatGbp(pricePreview.checkoutDelta)}
                       </p>
