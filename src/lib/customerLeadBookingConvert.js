@@ -38,20 +38,48 @@ import {
   mergeLeadEditsIntoQuoteDetails,
   removePriceNoteFromInstructions,
 } from './customerLeadMoveSync'
-import { engineTotalForLeadWithInventory } from './customerLeadAgreedInventoryAdjust'
+import {
+  adjustAgreedPriceForInventoryChange,
+  engineTotalForLeadWithInventory,
+} from './customerLeadAgreedInventoryAdjust'
 import { fetchPricingSettings } from './data/pricingSettingsRepository'
 import { applyInstructionEdit, instructionFields } from './instructionAuthors'
 import { parsePackingMaterialQuantities } from './packingMaterialsCatalog'
 
 /**
- * Inventory edits refresh calculated/estimated only.
- * Saved agreed_price never changes here — admin must edit the agreed total explicitly.
+ * On Save only: if agreed is set, move it by the engine delta for inventory changes.
+ * Live preview moves the figure on screen; nothing is written until Save.
  * @param {Record<string, unknown>} lead
- * @param {Array<Record<string, unknown>>} _previousLines
+ * @param {Array<Record<string, unknown>>} previousLines
  * @param {Array<Record<string, unknown>>} nextLines
  */
-async function pricePatchForInventoryChange(lead, _previousLines, nextLines) {
+async function pricePatchForInventoryChange(lead, previousLines, nextLines) {
   const pricingSettings = await fetchPricingSettings()
+  const adjust = adjustAgreedPriceForInventoryChange({
+    pricingSettings,
+    lead,
+    previousInventoryLines: previousLines,
+    nextInventoryLines: nextLines,
+  })
+  if (adjust) {
+    const patch = {
+      agreed_price: adjust.agreed_price,
+      calculated_total: adjust.calculated_total,
+      estimated_total: adjust.estimated_total,
+    }
+    const previousLinkAmount = Number(lead.stripe_payment_link_amount)
+    const amountChanged =
+      !Number.isFinite(previousLinkAmount) ||
+      Math.abs(previousLinkAmount - adjust.agreed_price) > 0.009
+    if (amountChanged && String(lead.stripe_checkout_session_id || '').trim()) {
+      patch.stripe_checkout_session_id = null
+      patch.stripe_payment_link_url = null
+      patch.stripe_payment_link_amount = null
+    }
+    return patch
+  }
+
+  // No agreed (self-pay / engine-only): refresh calculated on Save.
   const afterTotal = engineTotalForLeadWithInventory(pricingSettings, lead, nextLines)
   if (afterTotal == null) return {}
   return {
@@ -611,7 +639,12 @@ export async function saveCustomerLeadMoveEdits({ lead, inventoryLines, specialI
         inventory: inventoryJsonFromLines(built.lines),
         inventory_text: inventoryTextFromLines(built.lines),
       }
-      if (pricePatch.calculated_total != null) {
+      if (pricePatch.agreed_price != null) {
+        quotePatch.agreed_price = pricePatch.agreed_price
+        quotePatch.calculated_total = pricePatch.calculated_total
+        quotePatch.estimated_total = pricePatch.estimated_total
+        quotePatch.remaining_balance = pricePatch.agreed_price
+      } else if (pricePatch.calculated_total != null) {
         quotePatch.calculated_total = pricePatch.calculated_total
         quotePatch.estimated_total = pricePatch.estimated_total
       }
@@ -732,7 +765,12 @@ export async function saveCustomerLeadQuoteExtras({ lead, form }) {
           wizardPatch: built.wizardPatch,
         }),
       }
-      if (pricePatch.calculated_total != null) {
+      if (pricePatch.agreed_price != null) {
+        quotePatch.agreed_price = pricePatch.agreed_price
+        quotePatch.calculated_total = pricePatch.calculated_total
+        quotePatch.estimated_total = pricePatch.estimated_total
+        quotePatch.remaining_balance = pricePatch.agreed_price
+      } else if (pricePatch.calculated_total != null) {
         quotePatch.calculated_total = pricePatch.calculated_total
         quotePatch.estimated_total = pricePatch.estimated_total
       }

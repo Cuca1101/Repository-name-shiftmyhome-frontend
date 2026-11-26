@@ -1,7 +1,7 @@
 /**
  * Inventory edit helpers for Customer Leads.
- * Saved agreed_price is never auto-written from inventory changes — only calculated
- * totals refresh. Preview keeps checkout at the saved agreed figure.
+ * Live preview moves Saved agreed by the engine delta while editing.
+ * Persist happens only when admin clicks Save (not while browsing).
  */
 import { getFlattenedCatalogEntries, getCatalogItem } from '../components/quote-wizard/inventoryCatalog.js'
 import { calculateQuote } from './pricingCalculator'
@@ -302,18 +302,27 @@ export function previewLeadInventoryPriceChange({
   const hasAgreed = agreedRaw != null && String(agreedRaw).trim() !== ''
   const agreed = hasAgreed ? Number(agreedRaw) : null
   const usesAgreed = hasAgreed && Number.isFinite(agreed) && agreed >= 0
+  const agreedAdjust =
+    usesAgreed && beforeTotal != null && afterTotal != null
+      ? applyInventoryDeltaToAgreedPrice({
+          agreedPrice: agreed,
+          beforeTotal,
+          afterTotal,
+        })
+      : null
 
-  // Saved agreed never moves with inventory preview — only calculated does.
   const checkoutBefore = usesAgreed
     ? round2(agreed)
     : beforeTotal != null
       ? round2(beforeTotal)
       : null
-  const checkoutAfter = usesAgreed
-    ? round2(agreed)
-    : afterTotal != null
-      ? round2(afterTotal)
-      : null
+  const checkoutAfter = agreedAdjust
+    ? agreedAdjust.agreed_price
+    : usesAgreed
+      ? round2(agreed)
+      : afterTotal != null
+        ? round2(afterTotal)
+        : null
   const checkoutDelta =
     checkoutBefore != null && checkoutAfter != null ? round2(checkoutAfter - checkoutBefore) : null
 
