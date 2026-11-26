@@ -2,12 +2,13 @@ import { useEffect, useMemo, useState } from 'react'
 import { saveCustomerLeadMoveEdits } from '../../lib/customerLeadBookingConvert'
 import SpecialInstructionBlocks from '../admin-workflow/SpecialInstructionBlocks'
 import { editsFromLead, normalizeAdminInventoryLine } from '../../lib/customerLeadMoveSync'
-import { useQuoteInventoryCatalog } from '../quote-wizard/useQuoteInventoryCatalog'
-import { filterAndSortInventorySearchResults } from '../quote-wizard/inventorySearchUtils'
+import { fetchPricingSettings } from '../../lib/data/pricingSettingsRepository'
+import Step2Inventory from '../quote-wizard/steps/Step2Inventory'
 
 /**
  * Add, remove, or rewrite items and special instructions on a customer lead.
- * A linked booking receives the same list and notes. The saved price is left as it is.
+ * Item search matches Quote / New phone booking. When an agreed price is set,
+ * saving items adjusts that price by the engine delta.
  * @param {{
  *   lead: Record<string, unknown>,
  *   disabled?: boolean,
@@ -15,16 +16,15 @@ import { filterAndSortInventorySearchResults } from '../quote-wizard/inventorySe
  * }} props
  */
 export default function CustomerLeadMoveEditor({ lead, disabled = false, onSaved }) {
-  const catalog = useQuoteInventoryCatalog()
   const saved = useMemo(() => editsFromLead(lead), [lead])
   const [lines, setLines] = useState(saved.inventoryLines)
   const [instructions, setInstructions] = useState(saved.adminInstructions)
-  const [query, setQuery] = useState('')
-  const [customName, setCustomName] = useState('')
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState('')
   const [dirty, setDirty] = useState(false)
   const [editing, setEditing] = useState(false)
+  const [customSizeM3, setCustomSizeM3] = useState(null)
+  const [settingsLoading, setSettingsLoading] = useState(true)
 
   useEffect(() => {
     if (dirty) return
@@ -36,80 +36,37 @@ export default function CustomerLeadMoveEditor({ lead, disabled = false, onSaved
     setEditing(false)
     setDirty(false)
     setMessage('')
-    setQuery('')
-    setCustomName('')
   }, [lead?.id])
 
-  const matches = useMemo(() => {
-    const q = query.trim()
-    if (q.length < 1) return []
-    return filterAndSortInventorySearchResults(catalog.getFlattenedCatalogEntries(), q, 8)
-  }, [catalog, query])
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      setSettingsLoading(true)
+      try {
+        const settings = await fetchPricingSettings()
+        if (!cancelled) setCustomSizeM3(settings?.customSizeM3 ?? null)
+      } catch {
+        if (!cancelled) setCustomSizeM3(null)
+      } finally {
+        if (!cancelled) setSettingsLoading(false)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   function markDirty(nextLines, nextInstructions) {
     setDirty(true)
     setMessage('')
-    if (nextLines) setLines(nextLines)
-    if (nextInstructions != null) setInstructions(nextInstructions)
-  }
-
-  function addCatalogItem(entry) {
-    const item = entry.item
-    const name = String(item?.name || '').trim()
-    if (!name) return
-    setLines((current) => {
-      const existing = current.find((line) => String(line.name).trim().toLowerCase() === name.toLowerCase())
-      if (existing) {
-        return current.map((line) =>
-          line.lineId === existing.lineId ? { ...line, quantity: Number(line.quantity || 1) + 1 } : line,
-        )
-      }
-      return [
-        ...current,
-        normalizeAdminInventoryLine(
-          {
-            lineId: `cat-${item.id || name}-${Date.now()}`,
-            catalogId: item.id || null,
-            name,
-            quantity: 1,
-            m3: item.m3,
-            weightType: item.weightType || 'std',
-            mult: item.mult || 1,
-            categoryLabel: entry.categoryLabel || '',
-            isCustom: false,
-          },
-          current.length,
-        ),
-      ]
-    })
-    setDirty(true)
-    setMessage('')
-    setQuery('')
-  }
-
-  function addCustomItem() {
-    const name = customName.trim()
-    if (!name) {
-      setMessage('Type the item name to add.')
-      return
+    if (nextLines) {
+      setLines(
+        nextLines
+          .map((line, index) => normalizeAdminInventoryLine(line, index))
+          .filter((line) => line.name),
+      )
     }
-    setLines((current) => [
-      ...current,
-      normalizeAdminInventoryLine(
-        {
-          lineId: `custom-${Date.now()}`,
-          name,
-          quantity: 1,
-          m3: 0.2,
-          isCustom: true,
-          weightType: 'std',
-        },
-        current.length,
-      ),
-    ])
-    setDirty(true)
-    setMessage('')
-    setCustomName('')
+    if (nextInstructions != null) setInstructions(nextInstructions)
   }
 
   async function handleSave() {
@@ -139,8 +96,6 @@ export default function CustomerLeadMoveEditor({ lead, disabled = false, onSaved
   function cancelEdit() {
     setLines(saved.inventoryLines)
     setInstructions(saved.adminInstructions)
-    setQuery('')
-    setCustomName('')
     setDirty(false)
     setMessage('')
     setEditing(false)
@@ -159,11 +114,6 @@ export default function CustomerLeadMoveEditor({ lead, disabled = false, onSaved
   const itemTotal = shownLines.reduce((sum, line) => sum + (Number(line.quantity) || 0), 0)
   const itemTotalLabel = itemTotal === 1 ? '1 item' : `${itemTotal} items`
   const priceNote = String(lead?.price_override_reason || '').trim()
-
-  function volumeLabel(line) {
-    const n = Number(line.m3)
-    return Number.isFinite(n) ? `${n} m³` : ''
-  }
 
   function startEdit() {
     const ok = window.confirm('Are you sure you want to edit the items and special instructions?')
@@ -191,52 +141,24 @@ export default function CustomerLeadMoveEditor({ lead, disabled = false, onSaved
       </div>
 
       {editing ? (
-        <>
-          <p className="mt-4 text-xs font-semibold uppercase tracking-wide text-slate-500">Items</p>
-          {lines.length === 0 ? (
-            <p className="mt-2 text-sm text-slate-700">No items yet.</p>
+        <div className={`mt-4 ${disabled || saving ? 'pointer-events-none opacity-60' : ''}`}>
+          {settingsLoading ? (
+            <p className="text-sm text-slate-600">Loading item catalogue…</p>
           ) : (
-            <ul className="mt-2 grid grid-cols-1 gap-2">
-              {lines.map((line) => (
-                <li
-                  key={line.lineId}
-                  className="min-w-0 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2"
-                >
-                  <p className="break-words text-sm font-medium leading-snug text-slate-900">{line.name}</p>
-                  <div className="mt-2 flex items-center gap-2">
-                    <label className="flex items-center gap-1 text-xs font-semibold text-slate-600">
-                      Qty
-                      <input
-                        type="number"
-                        min="1"
-                        inputMode="numeric"
-                        aria-label={`Quantity for ${line.name}`}
-                        value={line.quantity}
-                        disabled={disabled || saving}
-                        onChange={(event) => {
-                          const quantity = Math.max(1, Math.round(Number(event.target.value) || 1))
-                          markDirty(lines.map((row) => (row.lineId === line.lineId ? { ...row, quantity } : row)))
-                        }}
-                        className="w-16 rounded border border-slate-300 bg-white px-2 py-1 text-sm font-normal text-slate-900"
-                      />
-                    </label>
-                    {volumeLabel(line) ? (
-                      <span className="text-xs text-slate-500">{volumeLabel(line)}</span>
-                    ) : null}
-                    <button
-                      type="button"
-                      disabled={disabled || saving}
-                      onClick={() => markDirty(lines.filter((row) => row.lineId !== line.lineId))}
-                      className="ml-auto text-xs font-semibold text-red-700 hover:underline disabled:opacity-50"
-                    >
-                      Remove
-                    </button>
-                  </div>
-                </li>
-              ))}
-            </ul>
+            <Step2Inventory
+              layoutVariant="admin"
+              hideCrew
+              lines={lines}
+              onLinesChange={(inventoryLines) => markDirty(inventoryLines)}
+              customSizeM3={customSizeM3}
+              crewSize={2}
+              onCrewSizeChange={() => {}}
+              crewSettings={null}
+              crewRestrictions={{ oneManAllowed: true }}
+              showContact={false}
+            />
           )}
-        </>
+        </div>
       ) : (
         <>
           <div className="mt-4 flex items-baseline justify-between gap-3">
@@ -265,64 +187,14 @@ export default function CustomerLeadMoveEditor({ lead, disabled = false, onSaved
 
       {editing ? (
         <>
-          <div className="relative mt-4">
-            <label className="block text-sm font-semibold text-slate-800" htmlFor="lead-item-search">
-              Add an item
-            </label>
-            <input
-              id="lead-item-search"
-              value={query}
-              disabled={disabled || saving}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder="Search items, e.g. sofa, bed, table"
-              className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-              autoComplete="off"
-            />
-            {matches.length > 0 ? (
-              <ul className="absolute z-20 mt-1 max-h-64 w-full overflow-auto rounded-lg border border-slate-200 bg-white shadow-lg">
-                {matches.map((entry) => (
-                  <li key={`${entry.categoryLabel}-${entry.item.id || entry.item.name}`}>
-                    <button
-                      type="button"
-                      className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm hover:bg-slate-50"
-                      onClick={() => addCatalogItem(entry)}
-                    >
-                      <span className="font-medium text-slate-900">{entry.item.name}</span>
-                      <span className="shrink-0 text-xs text-slate-500">{entry.categoryLabel}</span>
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            ) : null}
-          </div>
-
-          <div className="mt-3 grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
-            <label className="block text-sm font-semibold text-slate-800">
-              Item not in the list
-              <input
-                value={customName}
-                disabled={disabled || saving}
-                onChange={(event) => setCustomName(event.target.value)}
-                placeholder="Custom item name"
-                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-normal"
-              />
-            </label>
-            <button
-              type="button"
-              disabled={disabled || saving}
-              onClick={addCustomItem}
-              className="inline-flex min-h-10 items-center justify-center rounded-lg border border-slate-300 px-3 text-sm font-semibold text-slate-800 hover:bg-slate-50 disabled:opacity-50"
-            >
-              Add custom item
-            </button>
-          </div>
-
           <div className="mt-4 border-t border-slate-100 pt-3">
             <p className="text-sm font-bold text-slate-900">Special instructions</p>
             {customerBlock ? (
               <div className="mt-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
                 <p className="text-xs font-bold text-slate-500">Added by customer:</p>
-                <p className="mt-1 whitespace-pre-wrap break-words text-sm leading-relaxed text-slate-800">{customerBlock.text}</p>
+                <p className="mt-1 whitespace-pre-wrap break-words text-sm leading-relaxed text-slate-800">
+                  {customerBlock.text}
+                </p>
               </div>
             ) : null}
             <label className="mt-2 block text-xs font-bold text-slate-500" htmlFor="lead-special-instructions">
@@ -338,10 +210,13 @@ export default function CustomerLeadMoveEditor({ lead, disabled = false, onSaved
               className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
             />
             {adminSupply ? (
-              <p className="mt-1 whitespace-pre-wrap break-words text-sm leading-relaxed text-slate-700">{adminSupply}</p>
+              <p className="mt-1 whitespace-pre-wrap break-words text-sm leading-relaxed text-slate-700">
+                {adminSupply}
+              </p>
             ) : null}
             <p className="mt-1 text-xs text-slate-500">
-              Customer instructions stay as the customer wrote them. A price note shows under this section as Included in price.
+              Customer instructions stay as the customer wrote them. A price note shows under this
+              section as Included in price.
             </p>
           </div>
           <div className="mt-3 flex flex-wrap items-center gap-2">
@@ -378,7 +253,9 @@ export default function CustomerLeadMoveEditor({ lead, disabled = false, onSaved
                 <span className="inline-flex rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-emerald-700">
                   Included in price
                 </span>
-                <p className="mt-1.5 whitespace-pre-wrap break-words text-sm leading-relaxed text-slate-700">{priceNote}</p>
+                <p className="mt-1.5 whitespace-pre-wrap break-words text-sm leading-relaxed text-slate-700">
+                  {priceNote}
+                </p>
               </div>
             ) : null}
           </div>

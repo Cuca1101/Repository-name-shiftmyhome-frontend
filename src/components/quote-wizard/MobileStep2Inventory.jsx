@@ -63,6 +63,7 @@ export default function MobileStep2Inventory({
   categoriesRef,
   inputClass,
   matchTablet = false,
+  hideCrew = false,
 }) {
   const catalogSectionRef = categoriesRef || useRef(null)
 
@@ -88,15 +89,17 @@ export default function MobileStep2Inventory({
         </div>
       )}
 
-      <CrewSizeField
-        id={crewFieldId}
-        value={crewSize}
-        onChange={onCrewSizeChange}
-        crewSettings={crewSettings}
-        invalid={Boolean(validationMessage && /crew size/i.test(validationMessage))}
-        lockMobile={matchTablet}
-        appearance={crewAppearance}
-      />
+      {hideCrew ? null : (
+        <CrewSizeField
+          id={crewFieldId}
+          value={crewSize}
+          onChange={onCrewSizeChange}
+          crewSettings={crewSettings}
+          invalid={Boolean(validationMessage && /crew size/i.test(validationMessage))}
+          lockMobile={matchTablet}
+          appearance={crewAppearance}
+        />
+      )}
 
       {validationMessage ? (
         <p

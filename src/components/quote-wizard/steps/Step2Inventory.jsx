@@ -62,6 +62,8 @@ export default function Step2Inventory({
   showCustomerIdentity = false,
   showContact = true,
   matchTablet = false,
+  /** Hide crew when only the item picker is needed (e.g. Customer Leads). */
+  hideCrew = false,
 }) {
   const isAdminLayout = layoutVariant === 'admin'
   const searchId = useId()
@@ -367,6 +369,7 @@ export default function Step2Inventory({
         crewRestrictions={crewRestrictions}
         crewFieldId={crewFieldId}
         crewAppearance={isAdminLayout ? 'cards' : 'bar'}
+        hideCrew={hideCrew}
         validationMessage={validationMessage}
         searchId={searchId}
         searchQuery={searchQuery}
@@ -417,7 +420,9 @@ export default function Step2Inventory({
         </div>
       ) : isAdminLayout ? (
         <p className="text-sm text-slate-600">
-          Choose crew size, then add items. Search and categories use the full width below.
+          {hideCrew
+            ? 'Search or browse categories, then tap Add. Use − / + to change quantity.'
+            : 'Choose crew size, then add items. Search and categories use the full width below.'}
         </p>
       ) : catalogLoading ? (
         <p className="text-xs text-slate-500">Loading item catalogue…</p>
@@ -429,14 +434,16 @@ export default function Step2Inventory({
         </div>
       ) : null}
 
-      <CrewSizeField
-        id={crewFieldId}
-        value={crewSize}
-        onChange={onCrewSizeChange}
-        crewSettings={crewSettings}
-        invalid={Boolean(validationMessage && /crew size/i.test(validationMessage))}
-        appearance={isAdminLayout ? 'cards' : 'bar'}
-      />
+      {hideCrew ? null : (
+        <CrewSizeField
+          id={crewFieldId}
+          value={crewSize}
+          onChange={onCrewSizeChange}
+          crewSettings={crewSettings}
+          invalid={Boolean(validationMessage && /crew size/i.test(validationMessage))}
+          appearance={isAdminLayout ? 'cards' : 'bar'}
+        />
+      )}
 
       {validationMessage ? (
         <p
