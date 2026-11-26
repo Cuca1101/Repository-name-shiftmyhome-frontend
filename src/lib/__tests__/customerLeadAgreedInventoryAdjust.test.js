@@ -9,6 +9,8 @@ const {
   applyInventoryDeltaToAgreedPrice,
   diffInventorySelection,
   previewLeadInventoryPriceChange,
+  resolveInventoryLineVolumeM3,
+  inventoryLinesToEngineItems,
 } = await import('../customerLeadAgreedInventoryAdjust.js')
 
 test('adding items raises the agreed price by the engine delta', () => {
@@ -92,4 +94,10 @@ test('previewLeadInventoryPriceChange moves agreed checkout by engine delta', ()
   assert.equal(preview.checkoutBefore, 600.43)
   assert.equal(preview.checkoutAfter, 600.43)
   assert.equal(preview.checkoutDelta, 0)
+})
+
+test('resolveInventoryLineVolumeM3 fills catalogue volume by name when m3 is missing', () => {
+  assert.equal(resolveInventoryLineVolumeM3({ name: 'Double bed & mattress' }), 1.4)
+  const [engine] = inventoryLinesToEngineItems([{ name: 'Double bed & mattress', quantity: 1 }])
+  assert.equal(engine.volumePerUnitM3, 1.4)
 })

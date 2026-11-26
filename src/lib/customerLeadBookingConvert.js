@@ -52,33 +52,29 @@ import { parsePackingMaterialQuantities } from './packingMaterialsCatalog'
 async function pricePatchForInventoryChange(lead, previousLines, nextLines) {
   const agreedRaw = lead?.agreed_price
   if (agreedRaw == null || String(agreedRaw).trim() === '') return {}
-  try {
-    const pricingSettings = await fetchPricingSettings()
-    const adjust = adjustAgreedPriceForInventoryChange({
-      pricingSettings,
-      lead,
-      previousInventoryLines: previousLines,
-      nextInventoryLines: nextLines,
-    })
-    if (!adjust) return {}
-    const patch = {
-      agreed_price: adjust.agreed_price,
-      calculated_total: adjust.calculated_total,
-      estimated_total: adjust.estimated_total,
-    }
-    const previousLinkAmount = Number(lead.stripe_payment_link_amount)
-    const amountChanged =
-      !Number.isFinite(previousLinkAmount) ||
-      Math.abs(previousLinkAmount - adjust.agreed_price) > 0.009
-    if (amountChanged && String(lead.stripe_checkout_session_id || '').trim()) {
-      patch.stripe_checkout_session_id = null
-      patch.stripe_payment_link_url = null
-      patch.stripe_payment_link_amount = null
-    }
-    return patch
-  } catch {
-    return {}
+  const pricingSettings = await fetchPricingSettings()
+  const adjust = adjustAgreedPriceForInventoryChange({
+    pricingSettings,
+    lead,
+    previousInventoryLines: previousLines,
+    nextInventoryLines: nextLines,
+  })
+  if (!adjust) return {}
+  const patch = {
+    agreed_price: adjust.agreed_price,
+    calculated_total: adjust.calculated_total,
+    estimated_total: adjust.estimated_total,
   }
+  const previousLinkAmount = Number(lead.stripe_payment_link_amount)
+  const amountChanged =
+    !Number.isFinite(previousLinkAmount) ||
+    Math.abs(previousLinkAmount - adjust.agreed_price) > 0.009
+  if (amountChanged && String(lead.stripe_checkout_session_id || '').trim()) {
+    patch.stripe_checkout_session_id = null
+    patch.stripe_payment_link_url = null
+    patch.stripe_payment_link_amount = null
+  }
+  return patch
 }
 
 /** Stored on lead.wizard_data so Undo can restore prior lead + quote shape. */

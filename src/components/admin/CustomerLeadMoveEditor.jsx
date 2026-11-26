@@ -4,11 +4,30 @@ import { saveCustomerLeadMoveEdits } from '../../lib/customerLeadBookingConvert'
 import {
   diffInventorySelection,
   previewLeadInventoryPriceChange,
+  resolveInventoryLineVolumeM3,
 } from '../../lib/customerLeadAgreedInventoryAdjust'
+import { applyInventoryLineQuantityDelta } from '../../lib/inventoryLineQuantity'
 import SpecialInstructionBlocks from '../admin-workflow/SpecialInstructionBlocks'
 import { editsFromLead, normalizeAdminInventoryLine } from '../../lib/customerLeadMoveSync'
 import { fetchPricingSettings } from '../../lib/data/pricingSettingsRepository'
+import InlineInventoryQtyControl from '../quote-wizard/InlineInventoryQtyControl'
 import Step2Inventory from '../quote-wizard/steps/Step2Inventory'
+
+/**
+ * @param {Record<string, unknown>} line
+ * @param {number} index
+ */
+function normalizeEditorLine(line, index) {
+  const normalized = normalizeAdminInventoryLine(line, index)
+  if (!normalized.name) return normalized
+  if (normalized.m3 != null && Number.isFinite(Number(normalized.m3))) return normalized
+  const m3 = resolveInventoryLineVolumeM3(normalized)
+  return {
+    ...normalized,
+    m3,
+    volumePerUnitM3: m3,
+  }
+}
 
 /**
  * Add, remove, or rewrite items and special instructions on a customer lead.
@@ -33,7 +52,7 @@ export default function CustomerLeadMoveEditor({ lead, disabled = false, onSaved
 
   useEffect(() => {
     if (dirty) return
-    setLines(saved.inventoryLines)
+    setLines(saved.inventoryLines.map((line, index) => normalizeEditorLine(line, index)))
     setInstructions(saved.adminInstructions)
   }, [saved, dirty])
 
@@ -65,13 +84,13 @@ export default function CustomerLeadMoveEditor({ lead, disabled = false, onSaved
     setDirty(true)
     setMessage('')
     if (nextLines) {
-      setLines(
-        nextLines
-          .map((line, index) => normalizeAdminInventoryLine(line, index))
-          .filter((line) => line.name),
-      )
+      setLines(nextLines.map((line, index) => normalizeEditorLine(line, index)).filter((line) => line.name))
     }
     if (nextInstructions != null) setInstructions(nextInstructions)
+  }
+
+  function bumpCurrentItem(lineId, delta) {
+    markDirty(applyInventoryLineQuantityDelta(lines, lineId, delta))
   }
 
   async function handleSave() {
@@ -96,14 +115,6 @@ export default function CustomerLeadMoveEditor({ lead, disabled = false, onSaved
     } finally {
       setSaving(false)
     }
-  }
-
-  function cancelEdit() {
-    setLines(saved.inventoryLines)
-    setInstructions(saved.adminInstructions)
-    setDirty(false)
-    setMessage('')
-    setEditing(false)
   }
 
   const shownLines = editing ? lines : saved.inventoryLines
@@ -139,10 +150,18 @@ export default function CustomerLeadMoveEditor({ lead, disabled = false, onSaved
   function startEdit() {
     const ok = window.confirm('Are you sure you want to edit the items and special instructions?')
     if (!ok) return
-    setLines(saved.inventoryLines)
+    setLines(saved.inventoryLines.map((line, index) => normalizeEditorLine(line, index)))
     setInstructions(saved.adminInstructions)
     setMessage('')
     setEditing(true)
+  }
+
+  function cancelEdit() {
+    setLines(saved.inventoryLines.map((line, index) => normalizeEditorLine(line, index)))
+    setInstructions(saved.adminInstructions)
+    setDirty(false)
+    setMessage('')
+    setEditing(false)
   }
 
   function formatSignedGbp(amount) {
@@ -182,10 +201,26 @@ export default function CustomerLeadMoveEditor({ lead, disabled = false, onSaved
           {shownLines.map((line) => (
             <li
               key={line.lineId}
-              className="min-w-0 border-b border-slate-100 py-1.5 pr-3 text-sm leading-snug text-slate-700"
+              className={`min-w-0 border-b border-slate-100 py-1.5 pr-3 text-sm leading-snug text-slate-700 ${
+                editing ? 'flex items-center gap-2' : ''
+              }`}
             >
-              <span className="break-words">{line.name}</span>{' '}
-              <span className="whitespace-nowrap font-semibold text-slate-900">×{line.quantity}</span>
+              <span className={`break-words ${editing ? 'min-w-0 flex-1' : ''}`}>{line.name}</span>
+              {editing ? (
+                <InlineInventoryQtyControl
+                  catalog
+                  compact
+                  quantity={line.quantity}
+                  onAdd={() => bumpCurrentItem(line.lineId, 1)}
+                  onDecrement={() => bumpCurrentItem(line.lineId, -1)}
+                  onIncrement={() => bumpCurrentItem(line.lineId, 1)}
+                />
+              ) : (
+                <>
+                  {' '}
+                  <span className="whitespace-nowrap font-semibold text-slate-900">×{line.quantity}</span>
+                </>
+              )}
             </li>
           ))}
         </ul>

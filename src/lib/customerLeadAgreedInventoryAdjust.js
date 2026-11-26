@@ -2,6 +2,7 @@
  * When an admin has set an agreed price on a Customer Lead, inventory add/remove
  * moves that agreed price by the engine total delta (not raw volume £).
  */
+import { getFlattenedCatalogEntries, getCatalogItem } from '../components/quote-wizard/inventoryCatalog.js'
 import { calculateQuote } from './pricingCalculator'
 import { buildQuoteEngineInput } from './buildQuoteEngineInput'
 import { wizardStateFromCustomerLeadData } from './quoteRecoveryResume'
@@ -11,22 +12,93 @@ function round2(value) {
   return Math.round(Number(value) * 100) / 100
 }
 
+const VOLUME_KEYS = ['m3', 'volumePerUnitM3', 'volume_m3', 'cubic_metres_per_unit', 'defaultM3']
+
+/** @type {Map<string, { id: string, name: string, m3: number, weightType?: string, mult?: number }> | null} */
+let catalogByNameCache = null
+
+function catalogItemByName(name) {
+  const key = String(name || '')
+    .trim()
+    .toLowerCase()
+  if (!key) return null
+  if (!catalogByNameCache) {
+    catalogByNameCache = new Map()
+    for (const entry of getFlattenedCatalogEntries()) {
+      const item = entry?.item
+      if (!item?.name) continue
+      const n = String(item.name).trim().toLowerCase()
+      if (!catalogByNameCache.has(n)) catalogByNameCache.set(n, item)
+    }
+  }
+  return catalogByNameCache.get(key) || null
+}
+
+/**
+ * Prefer stored m³; if missing, use catalogue id/name so remove/add still moves price.
+ * @param {Record<string, unknown>} line
+ * @returns {number}
+ */
+export function resolveInventoryLineVolumeM3(line) {
+  for (const key of VOLUME_KEYS) {
+    if (line?.[key] == null || line[key] === '') continue
+    const value = Number(line[key])
+    if (Number.isFinite(value) && value >= 0) return value
+  }
+  if (!line?.isCustom && line?.catalogId != null) {
+    const found = getCatalogItem(String(line.catalogId))
+    const m3 = Number(found?.item?.m3)
+    if (Number.isFinite(m3) && m3 >= 0) return m3
+  }
+  if (!line?.isCustom) {
+    const found = catalogItemByName(line?.name)
+    const m3 = Number(found?.m3)
+    if (Number.isFinite(m3) && m3 >= 0) return m3
+  }
+  return 0
+}
+
+/**
+ * @param {Record<string, unknown>} line
+ */
+function resolveInventoryLineWeightType(line) {
+  const stored = String(line?.weightType || line?.weight_type || '').trim()
+  if (stored) return stored
+  if (!line?.isCustom && line?.catalogId != null) {
+    const found = getCatalogItem(String(line.catalogId))
+    if (found?.item?.weightType) return found.item.weightType
+  }
+  if (!line?.isCustom) {
+    const found = catalogItemByName(line?.name)
+    if (found?.weightType) return found.weightType
+  }
+  return 'std'
+}
+
 /**
  * @param {Array<Record<string, unknown>> | null | undefined} lines
  */
 export function inventoryLinesToEngineItems(lines) {
-  return (Array.isArray(lines) ? lines : []).map((line) => ({
-    name: line.name,
-    quantity: Number(line.quantity) || 0,
-    volumePerUnitM3: line.m3,
-    handlingMultiplier: line.mult ?? 1,
-    weightType: line.weightType,
-    heavyFee: line.heavyFee,
-    appliesHeavyHandlingFee: line.heavyFee,
-    handlingFeeOverride: line.handlingFeeOverride ?? null,
-    specialStairFeePerFloor: line.specialStairFeePerFloor ?? null,
-    isCustom: line.isCustom,
-  }))
+  return (Array.isArray(lines) ? lines : []).map((line) => {
+    const volumePerUnitM3 = resolveInventoryLineVolumeM3(line)
+    const weightType = resolveInventoryLineWeightType(line)
+    const catalog =
+      !line?.isCustom && line?.catalogId != null ? getCatalogItem(String(line.catalogId))?.item : null
+    const byName = !line?.isCustom && !catalog ? catalogItemByName(line?.name) : null
+    const mult = Number(line.mult) > 0 ? Number(line.mult) : Number(catalog?.mult || byName?.mult) || 1
+    return {
+      name: line.name,
+      quantity: Number(line.quantity) || 0,
+      volumePerUnitM3,
+      handlingMultiplier: mult,
+      weightType,
+      heavyFee: line.heavyFee,
+      appliesHeavyHandlingFee: line.heavyFee,
+      handlingFeeOverride: line.handlingFeeOverride ?? null,
+      specialStairFeePerFloor: line.specialStairFeePerFloor ?? null,
+      isCustom: line.isCustom,
+    }
+  })
 }
 
 /**
@@ -35,7 +107,7 @@ export function inventoryLinesToEngineItems(lines) {
 export function heavyCountFromInventoryLines(lines) {
   let count = 0
   for (const line of Array.isArray(lines) ? lines : []) {
-    if (line.weightType === 'heavy') count += Number(line.quantity) || 0
+    if (resolveInventoryLineWeightType(line) === 'heavy') count += Number(line.quantity) || 0
   }
   return count
 }
