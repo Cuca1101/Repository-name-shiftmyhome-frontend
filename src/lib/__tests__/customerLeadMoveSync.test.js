@@ -208,9 +208,9 @@ test('saved packing materials appear in special instructions even when that text
     },
   })
   assert.equal(opened.instructionBlocks.length, 1)
-  assert.equal(opened.instructionBlocks[0].author, 'customer')
+  assert.equal(opened.instructionBlocks[0].author, 'admin')
   assert.equal(opened.instructionBlocks[0].text, 'Supply: 4 small moving boxes.')
-  assert.equal(opened.supplyAuthor, 'customer')
+  assert.equal(opened.supplyAuthor, 'admin')
 
   const same = instructionRecordForStep({
     packingMaterials: true,
@@ -219,6 +219,8 @@ test('saved packing materials appear in special instructions even when that text
     customerSpecialInstructions: '',
     supplyNoteAuthor: 'customer',
   })
+  assert.equal(same.supplyAuthor, 'admin')
+  assert.match(same.specialInstructions, /^Added by admin:\nSupply: 4 small moving boxes\.$/)
   assert.equal(same.specialInstructions.match(/Supply:/gi).length, 1)
 })
 

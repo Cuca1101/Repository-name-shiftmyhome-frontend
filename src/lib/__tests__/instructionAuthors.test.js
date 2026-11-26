@@ -41,15 +41,16 @@ test('both authors stay in separate blocks and an admin edit does not replace th
   assert.equal(again.admin, 'Use the side gate.')
 })
 
-test('the supply line follows the person who changed the materials and does not duplicate', () => {
+test('the automatic supply line is an admin note and does not duplicate', () => {
   const customerPick = applyInstructionEdit(
     { specialInstructions: 'Please call before arrival.' },
     { quantities: { mediumBoxes: 4, bubble: 1 }, actor: 'customer' },
   )
-  assert.equal(customerPick.supplyAuthor, 'customer')
+  assert.equal(customerPick.customer, 'Please call before arrival.')
+  assert.equal(customerPick.supplyAuthor, 'admin')
   assert.equal(
     customerPick.specialInstructions,
-    'Added by customer:\nPlease call before arrival.\nSupply: 4 medium moving boxes, 1 roll of bubble wrap (10m).',
+    'Added by customer:\nPlease call before arrival.\n\nAdded by admin:\nSupply: 4 medium moving boxes, 1 roll of bubble wrap (10m).',
   )
 
   const adminChange = applyInstructionEdit(

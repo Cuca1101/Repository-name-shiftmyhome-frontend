@@ -116,8 +116,8 @@ export function readInstructionParts(step3, priceNote = '') {
  */
 export function composeInstructionRecord(input) {
   const note = String(input.supplyNote || '').trim()
-  const requested = String(input.supplyAuthor || '').trim().toLowerCase()
-  const supplyAuthor = !note ? '' : requested === 'admin' ? 'admin' : 'customer'
+  // The Supply line is generated for the crew. It is an admin note, not the customer's words.
+  const supplyAuthor = note ? 'admin' : ''
   const customerWords = stripSupplyLines(input.customer)
   const adminWords = stripSupplyLines(input.admin)
   const customerBody =
@@ -184,12 +184,7 @@ export function applyInstructionEdit(step3, edit = {}) {
   const quantitiesProvided = Object.prototype.hasOwnProperty.call(edit, 'quantities')
   const previous = supplyLineIn(source.specialInstructions)
   const note = quantitiesProvided ? buildSupplyNote(edit.quantities) : previous
-  const actor = edit.actor === 'admin' || edit.actor === 'customer' ? edit.actor : ''
-  const author = !note
-    ? ''
-    : quantitiesProvided && note !== previous && actor
-      ? actor
-      : parts.supplyAuthor || 'customer'
+  const author = note ? 'admin' : ''
   return composeInstructionRecord({
     customer: edit.customer != null ? edit.customer : parts.customer,
     admin: edit.admin != null ? edit.admin : parts.admin,
