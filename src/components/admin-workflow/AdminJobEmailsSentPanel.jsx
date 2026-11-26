@@ -135,7 +135,8 @@ export default function AdminJobEmailsSentPanel({
                   </div>
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
-                  {typeof onViewEmail === 'function' && recoveryKindFromEventKey(key) ? (
+                  {typeof onViewEmail === 'function' &&
+                  (recoveryKindFromEventKey(key) || n?.payload?.html) ? (
                     <button
                       type="button"
                       onClick={() => onViewEmail(n)}

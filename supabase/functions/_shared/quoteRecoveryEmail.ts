@@ -542,9 +542,20 @@ export async function sendRecoveryEmailForLead(params: {
     })
   }
 
-  await logCustomerRecoveryEmail(supabase, lead, kind, to, result.resendId || null, now.toISOString())
+  await logCustomerRecoveryEmail(supabase, lead, kind, to, result.resendId || null, now.toISOString(), {
+    subject: content.subject,
+    html: content.html,
+    quote_ref: quoteRef || String(lead.quote_ref || lead.lead_ref || ''),
+    agreed_price: lead.agreed_price ?? null,
+    calculated_total: lead.calculated_total ?? lead.estimated_total ?? null,
+  })
 
-  return { ok: true, resendId: result.resendId }
+  return {
+    ok: true,
+    resendId: result.resendId,
+    subject: content.subject,
+    html: content.html,
+  }
 }
 
 const RECOVERY_HISTORY_LABELS: Record<RecoveryEmailKind, string> = {
@@ -562,6 +573,13 @@ async function logCustomerRecoveryEmail(
   recipient: string,
   providerMessageId: string | null,
   sentAt: string,
+  snapshot: {
+    subject: string
+    html: string
+    quote_ref?: string
+    agreed_price?: unknown
+    calculated_total?: unknown
+  },
 ) {
   const eventKey = `quote_recovery_${kind}`
   const row = {
@@ -572,12 +590,19 @@ async function logCustomerRecoveryEmail(
     recipient_email: recipient,
     provider_message_id: providerMessageId,
     delivery_status: 'sent',
-    payload: { kind },
+    payload: {
+      kind,
+      subject: snapshot.subject,
+      html: snapshot.html,
+      quote_ref: snapshot.quote_ref || null,
+      agreed_price: snapshot.agreed_price ?? null,
+      calculated_total: snapshot.calculated_total ?? null,
+      captured_at: sentAt,
+    },
     sent_at: sentAt,
   }
-  const { error } = await supabase
-    .from('customer_lead_notifications')
-    .upsert(row, { onConflict: 'customer_lead_id,event_key' })
+  // Insert each send so Email History can open the exact body that went out.
+  const { error } = await supabase.from('customer_lead_notifications').insert(row)
   if (error) {
     console.error('[quote-recovery] history log failed', {
       leadId: lead.id,

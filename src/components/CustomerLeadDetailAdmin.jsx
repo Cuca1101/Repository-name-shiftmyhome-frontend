@@ -624,13 +624,21 @@ export default function CustomerLeadDetailAdmin() {
     setBusy('email')
     setActionMsg('')
     try {
-      await sendCustomerLeadRecoveryEmail(String(lead.id), {
+      const sent = await sendCustomerLeadRecoveryEmail(String(lead.id), {
         kind: lead.status === 'payment_failed' ? 'payment_failed' : undefined,
         force: true,
       })
       setActionMsg('Quote sent')
       await load()
-      openEmailPreview(true)
+      if (sent?.html) {
+        openEmailPreview(true, null, {
+          html: sent.html,
+          subject: sent.subject || 'Customer email',
+          fromHistory: true,
+        })
+      } else {
+        openEmailPreview(true)
+      }
     } catch (e) {
       setActionMsg(e?.message || 'Failed to send email.')
     } finally {
@@ -689,7 +697,17 @@ export default function CustomerLeadDetailAdmin() {
     }
   }
 
-  function openEmailPreview(justSent = false, kind) {
+  function openEmailPreview(justSent = false, kind, snapshot = null) {
+    if (snapshot?.html) {
+      setEmailPreview({
+        html: String(snapshot.html),
+        subject: String(snapshot.subject || 'Customer email'),
+        justSent: Boolean(justSent),
+        fromHistory: Boolean(snapshot.fromHistory),
+        rebuiltLive: false,
+      })
+      return
+    }
     const content = recoveryContentFromLead(lead)
     const token = lead.resume_token || 'preview-token'
     const emailKind = kind || (lead.status === 'payment_failed' ? 'payment_failed' : 'abandoned')
@@ -700,7 +718,29 @@ export default function CustomerLeadDetailAdmin() {
       payUrl: buildPayQuoteUrl(token),
       siteUrl: typeof window !== 'undefined' ? window.location.origin : undefined,
     })
-    setEmailPreview({ html: built.html, subject: built.subject, justSent })
+    setEmailPreview({
+      html: built.html,
+      subject: built.subject,
+      justSent: Boolean(justSent),
+      fromHistory: Boolean(snapshot?.fromHistory),
+      rebuiltLive: Boolean(snapshot?.fromHistory),
+    })
+  }
+
+  function openHistoryEmail(row) {
+    const payload = row?.payload && typeof row.payload === 'object' ? row.payload : null
+    const kind = recoveryKindFromEventKey(row?.event_key)
+    if (payload?.html) {
+      openEmailPreview(false, kind, {
+        html: payload.html,
+        subject: payload.subject || row?.event_label || 'Customer email',
+        fromHistory: true,
+      })
+      return
+    }
+    if (kind) {
+      openEmailPreview(false, kind, { fromHistory: true })
+    }
   }
 
   async function handleDelete() {
@@ -1504,7 +1544,13 @@ export default function CustomerLeadDetailAdmin() {
 
       {emailPreview ? (
         <ScreenModal
-          title={emailPreview.justSent ? 'Email sent to the customer' : 'Customer email'}
+          title={
+            emailPreview.justSent
+              ? 'Email sent to the customer'
+              : emailPreview.fromHistory && !emailPreview.rebuiltLive
+                ? 'Sent email'
+                : 'Customer email'
+          }
           wide
           onClose={() => setEmailPreview(null)}
         >
@@ -1512,8 +1558,14 @@ export default function CustomerLeadDetailAdmin() {
           <p className="mb-3 mt-1 text-xs text-slate-500">
             {emailPreview.justSent
               ? `This is the email just sent to ${lead.customer_email || 'the customer'}.`
-              : `This is the email ${lead.customer_email || 'the customer'} receives. Nothing is sent from this view.`}
-            {' '}Resume and Pay open in a new tab.
+              : emailPreview.fromHistory && !emailPreview.rebuiltLive
+                ? `Exact message that was sent to ${lead.customer_email || 'the customer'}.`
+                : emailPreview.rebuiltLive
+                  ? 'Original body was not stored for this older send. This preview is rebuilt from the lead as it is now (current items and price).'
+                  : `This is the email ${lead.customer_email || 'the customer'} receives. Nothing is sent from this view.`}
+            {emailPreview.rebuiltLive
+              ? ''
+              : ' Resume and Pay open in a new tab.'}
           </p>
           <div className="overflow-hidden rounded-lg border border-slate-200">
             <RecoveryEmailPreviewFrame html={emailPreview.html} className="h-[min(72dvh,40rem)] w-full bg-slate-100" />
@@ -1570,10 +1622,7 @@ export default function CustomerLeadDetailAdmin() {
           quoteId={lead.quote_id || undefined}
           recoveryLead={lead}
           refreshKey={`${lead.recovery_emails_sent_count || 0}:${lead.last_recovery_email_at || ''}`}
-          onViewEmail={(row) => {
-            const kind = recoveryKindFromEventKey(row?.event_key)
-            if (kind) openEmailPreview(false, kind)
-          }}
+          onViewEmail={(row) => openHistoryEmail(row)}
         />
       </DetailBlock>
 
