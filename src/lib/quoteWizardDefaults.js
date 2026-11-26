@@ -1,10 +1,25 @@
 /** Customer quote wizard: Address → Items & contact → Review → Pay */
 export const QUOTE_WIZARD_MAX_STEP = 4
 
+/** Canonical booking / quote reference: SMH-YYYY-NNNNNN */
+export function isCanonicalQuoteRef(ref) {
+  return /^SMH-\d{4}-\d{6}$/i.test(String(ref || '').trim())
+}
+
 export function makeQuoteRef() {
   const y = new Date().getFullYear()
   const n = Math.floor(100000 + Math.random() * 900000)
   return `SMH-${y}-${n}`
+}
+
+/**
+ * Prefer an existing SMH-YYYY-NNNNNN; never reuse RESUME-*, SMH-LEAD-*, or SMH-REC-*.
+ * @param {unknown} existing
+ */
+export function resolveBookingQuoteRef(existing) {
+  const raw = String(existing || '').trim()
+  if (isCanonicalQuoteRef(raw)) return raw
+  return makeQuoteRef()
 }
 
 export function initialWizardState() {

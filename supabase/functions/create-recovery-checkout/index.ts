@@ -46,6 +46,23 @@ function uuidLike(v: string) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(v)
 }
 
+/** Canonical booking ref SMH-YYYY-NNNNNN — never RESUME-*, SMH-LEAD-*, SMH-REC-*. */
+function isCanonicalQuoteRef(ref: string) {
+  return /^SMH-\d{4}-\d{6}$/i.test(ref)
+}
+
+function mintQuoteRef() {
+  const y = new Date().getFullYear()
+  const n = Math.floor(100000 + Math.random() * 900000)
+  return `SMH-${y}-${n}`
+}
+
+function resolveBookingQuoteRef(lead: Record<string, unknown>): string {
+  const fromLead = String(lead.quote_ref || '').trim()
+  if (isCanonicalQuoteRef(fromLead)) return fromLead
+  return mintQuoteRef()
+}
+
 function resolveChargeAmount(lead: Record<string, unknown>): number {
   if (lead.agreed_price != null && lead.agreed_price !== '') {
     const agreed = Number(lead.agreed_price)
@@ -104,9 +121,43 @@ async function ensureQuoteForRecoveryLead(
   amount: number,
 ): Promise<string | null> {
   const existingId = lead.quote_id ? String(lead.quote_id).trim() : ''
-  if (existingId && uuidLike(existingId)) return existingId
+  if (existingId && uuidLike(existingId)) {
+    const { data: existingQuote } = await supabase
+      .from('quotes')
+      .select('quote_ref')
+      .eq('id', existingId)
+      .maybeSingle()
+    const currentRef = String(existingQuote?.quote_ref || lead.quote_ref || '').trim()
+    if (!isCanonicalQuoteRef(currentRef)) {
+      const nextRef = mintQuoteRef()
+      await supabase.from('quotes').update({ quote_ref: nextRef }).eq('id', existingId)
+      await supabase
+        .from('customer_leads')
+        .update({ quote_ref: nextRef, updated_at: new Date().toISOString() })
+        .eq('id', String(lead.id))
+      lead.quote_ref = nextRef
+    } else {
+      const leadHad = String(lead.quote_ref || '').trim()
+      lead.quote_ref = currentRef
+      if (leadHad !== currentRef) {
+        await supabase
+          .from('customer_leads')
+          .update({ quote_ref: currentRef, updated_at: new Date().toISOString() })
+          .eq('id', String(lead.id))
+      }
+    }
+    return existingId
+  }
 
-  const quoteRef = String(lead.quote_ref || lead.lead_ref || '').trim()
+  const quoteRef = resolveBookingQuoteRef(lead)
+  if (quoteRef !== String(lead.quote_ref || '').trim()) {
+    lead.quote_ref = quoteRef
+    await supabase
+      .from('customer_leads')
+      .update({ quote_ref: quoteRef, updated_at: new Date().toISOString() })
+      .eq('id', String(lead.id))
+  }
+
   if (quoteRef) {
     const { data: byRef } = await supabase
       .from('quotes')
@@ -117,7 +168,7 @@ async function ensureQuoteForRecoveryLead(
       const id = String(byRef.id)
       await supabase
         .from('customer_leads')
-        .update({ quote_id: id, updated_at: new Date().toISOString() })
+        .update({ quote_id: id, quote_ref: quoteRef, updated_at: new Date().toISOString() })
         .eq('id', String(lead.id))
       return id
     }
@@ -130,7 +181,7 @@ async function ensureQuoteForRecoveryLead(
     Number.isFinite(Number(wizard.distanceMiles)) ? Number(wizard.distanceMiles) : null
 
   const insertRow: Record<string, unknown> = {
-    quote_ref: quoteRef || `SMH-REC-${String(lead.id).slice(0, 8)}`,
+    quote_ref: quoteRef,
     full_name: String(lead.customer_name || wizard.fullName || 'Customer').trim() || 'Customer',
     email: String(lead.customer_email || wizard.email || '').trim() || 'recovery@shiftmyhome.local',
     phone: String(lead.customer_phone || wizard.phone || '').trim() || '00000000000',
@@ -164,7 +215,7 @@ async function ensureQuoteForRecoveryLead(
   const id = String(inserted.id)
   await supabase
     .from('customer_leads')
-    .update({ quote_id: id, updated_at: new Date().toISOString() })
+    .update({ quote_id: id, quote_ref: quoteRef, updated_at: new Date().toISOString() })
     .eq('id', String(lead.id))
   return id
 }
@@ -264,7 +315,6 @@ Deno.serve(async (req) => {
     return jsonResponse({ error: 'Quote total unavailable — set an admin agreed price or resume the quote' }, 400)
   }
 
-  const quoteRef = String(lead.quote_ref || lead.lead_ref || '').trim()
   const email = String(lead.customer_email || '').trim()
   const name = String(lead.customer_name || '').trim()
   const resumeToken = String(lead.resume_token || '')
@@ -279,6 +329,9 @@ Deno.serve(async (req) => {
       console.warn('[create-recovery-checkout] quote backfill failed', err)
     }
   }
+
+  // Canonical SMH-YYYY-… only (ensureQuoteForRecoveryLead may have minted/synced it).
+  const quoteRef = resolveBookingQuoteRef(lead)
 
   // Invalidate previous checkout if amount changed or regenerating.
   const previousSessionId = String(lead.stripe_checkout_session_id || '').trim()

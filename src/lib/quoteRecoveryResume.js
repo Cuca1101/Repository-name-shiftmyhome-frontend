@@ -1,7 +1,11 @@
 /**
  * Hydrate quote wizard draft from customer_leads.wizard_data (server resume).
  */
-import { initialWizardState, QUOTE_WIZARD_MAX_STEP } from './quoteWizardDefaults'
+import {
+  initialWizardState,
+  QUOTE_WIZARD_MAX_STEP,
+  resolveBookingQuoteRef,
+} from './quoteWizardDefaults'
 import { hydrateWizardFromDraft, pathForServiceType, saveQuoteDraft } from './quoteDraftStorage'
 import { resolveSavedQuoteTotal, buildPriceAffectingFingerprint } from './quoteResumePriceLock'
 import { markResumeSavedQuote } from './quoteSessionMode'
@@ -93,7 +97,7 @@ export function draftPayloadFromCustomerLead(lead) {
 
   return {
     step,
-    quoteRef: String(lead?.quote_ref || '').trim() || `RESUME-${Date.now()}`,
+    quoteRef: resolveBookingQuoteRef(lead?.quote_ref),
     serviceType,
     returnPath,
     wizard,

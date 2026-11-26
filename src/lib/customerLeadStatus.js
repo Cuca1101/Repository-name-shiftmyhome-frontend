@@ -7,8 +7,11 @@
  */
 export function customerLeadBookingRef(row) {
   const quoteRef = String(row?.quote_ref ?? '').trim()
-  if (quoteRef) return quoteRef
-  return String(row?.lead_ref ?? '').trim()
+  // Prefer real booking refs (SMH-YYYY-…); skip resume / lead placeholders.
+  if (/^SMH-\d{4}-\d{6}$/i.test(quoteRef)) return quoteRef
+  const leadRef = String(row?.lead_ref ?? '').trim()
+  if (leadRef) return leadRef
+  return quoteRef
 }
 
 export const CUSTOMER_LEAD_STATUSES = [

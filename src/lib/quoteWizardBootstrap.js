@@ -1,5 +1,5 @@
 import { loadQuoteDraft } from './quoteDraftStorage'
-import { initialWizardState, makeQuoteRef } from './quoteWizardDefaults'
+import { initialWizardState, makeQuoteRef, resolveBookingQuoteRef } from './quoteWizardDefaults'
 import {
   clearResumeSavedQuote,
   consumeNewQuoteFromServiceCard,
@@ -56,7 +56,7 @@ export function resolveWizardBootstrap(serviceTypeProp) {
           : null
       return {
         step: draft.step,
-        quoteRef: draft.quoteRef,
+        quoteRef: resolveBookingQuoteRef(draft.quoteRef),
         wizard: draft.wizard,
         serviceType,
         isResumed: true,
