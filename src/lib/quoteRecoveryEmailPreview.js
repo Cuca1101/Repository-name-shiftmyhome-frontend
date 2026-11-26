@@ -366,7 +366,7 @@ export function recoveryContentFromLead(lead) {
     dropoffAddress: lead?.delivery_address || s1.deliveryAddress || '',
     collectionFloor: s1.pickupFloor,
     dropoffFloor: s1.deliveryFloor,
-    quoteRef: lead?.quote_ref || '',
+    quoteRef: lead?.quote_ref || lead?.lead_ref || '',
     routeLabel: lead?.route_label || '',
     serviceType: lead?.service_type || '',
     moveDate: lead?.move_date || s3.selectedMoveDate || '',

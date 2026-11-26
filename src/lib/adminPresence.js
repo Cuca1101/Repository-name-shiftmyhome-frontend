@@ -7,10 +7,24 @@ const STORAGE_KEY = 'smh_admin_login_session_id'
 export const ADMIN_PRESENCE_HEARTBEAT_MS = 30_000
 
 /** No heartbeat for this long means the visit is no longer live. */
-export const ADMIN_PRESENCE_ONLINE_MS = 90_000
+export const ADMIN_PRESENCE_ONLINE_MS = 3 * 60 * 1000
 
 /** On the next visit, close an idle open row at its last heartbeat. */
 const STALE_MS = 3 * 60 * 1000
+
+/** After midnight UK with no heartbeat yet, open a fresh visit so “Entered” shows today’s date. */
+function crossedUkMidnight(lastSeenIso) {
+  const last = new Date(lastSeenIso).getTime()
+  if (!Number.isFinite(last)) return false
+  const dayKey = (value) =>
+    new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Europe/London',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).format(new Date(value))
+  return dayKey(last) !== dayKey(Date.now())
+}
 
 /** False after Sign out so a late heartbeat cannot open a new visit. */
 let acceptPresence = false
@@ -47,7 +61,7 @@ async function resumeOpenSession(id, userId) {
   if (data.signed_out_at) return false
 
   const age = Date.now() - new Date(data.last_seen_at).getTime()
-  if (age > STALE_MS) {
+  if (age > STALE_MS || crossedUkMidnight(data.last_seen_at)) {
     await supabase.from(TABLE).update({ signed_out_at: data.last_seen_at }).eq('id', data.id).is('signed_out_at', null)
     return false
   }
@@ -87,8 +101,20 @@ async function closeOlderOpenSessions(userId, keepId) {
 async function adoptFreshOpenSession(userId) {
   const open = await listOpenSessions(userId)
   const now = Date.now()
-  const fresh = open.find((row) => now - new Date(row.last_seen_at).getTime() <= STALE_MS)
-  if (!fresh) return false
+  const fresh = open.find(
+    (row) =>
+      now - new Date(row.last_seen_at).getTime() <= STALE_MS && !crossedUkMidnight(row.last_seen_at),
+  )
+  if (!fresh) {
+    await Promise.all(
+      open
+        .filter((row) => crossedUkMidnight(row.last_seen_at) || now - new Date(row.last_seen_at).getTime() > STALE_MS)
+        .map((row) =>
+          supabase.from(TABLE).update({ signed_out_at: row.last_seen_at }).eq('id', row.id).is('signed_out_at', null),
+        ),
+    )
+    return false
+  }
 
   writeStoredId(fresh.id)
   await supabase
@@ -149,6 +175,31 @@ export async function touchAdminPresence() {
     await startAdminPresence()
     return
   }
+
+  const { data: current, error: currentError } = await supabase
+    .from(TABLE)
+    .select('id, last_seen_at, signed_out_at')
+    .eq('id', id)
+    .maybeSingle()
+
+  if (currentError || !current || current.signed_out_at) {
+    writeStoredId('')
+    await startAdminPresence()
+    return
+  }
+
+  // New UK day while the tab stayed open: close yesterday’s visit and start today’s.
+  if (crossedUkMidnight(current.last_seen_at)) {
+    await supabase
+      .from(TABLE)
+      .update({ signed_out_at: current.last_seen_at })
+      .eq('id', id)
+      .is('signed_out_at', null)
+    writeStoredId('')
+    await startAdminPresence()
+    return
+  }
+
   const { data, error } = await supabase
     .from(TABLE)
     .update({ last_seen_at: new Date().toISOString() })
@@ -210,12 +261,12 @@ export async function listAdminAuthHistory() {
   return data || []
 }
 
-export async function listAdminLoginSessions(limit = 200) {
+export async function listAdminLoginSessions(limit = 1000) {
   if (!supabase) return []
   const { data, error } = await supabase
     .from(TABLE)
     .select('id, user_id, email, signed_in_at, last_seen_at, signed_out_at, user_agent')
-    .order('signed_in_at', { ascending: false })
+    .order('last_seen_at', { ascending: false })
     .limit(limit)
 
   if (error) throw error

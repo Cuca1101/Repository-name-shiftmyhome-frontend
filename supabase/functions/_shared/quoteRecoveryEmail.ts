@@ -1,4 +1,5 @@
 import { sendResendEmail } from './resendClient.ts'
+import { emailLogoLinkHtml } from './emailLogo.ts'
 import { formatDateUK } from './formatDateUK.ts'
 import {
   alreadySentStage,
@@ -49,6 +50,8 @@ export type LeadLike = {
   pickup_address?: string | null
   delivery_address?: string | null
   quote_ref?: string | null
+  lead_ref?: string | null
+  quote_id?: string | null
   route_label?: string | null
   service_type?: string | null
   move_date?: string | null
@@ -208,7 +211,7 @@ export function buildRecoveryEmailContent(lead: LeadLike, kind: RecoveryEmailKin
     : ''
 
   const name = String(lead.customer_name || 'there').trim() || 'there'
-  const quoteRef = String(lead.quote_ref || '').trim() || '—'
+  const quoteRef = String(lead.quote_ref || lead.lead_ref || '').trim() || '—'
   const route = String(lead.route_label || '').trim() || '—'
   const service = String(lead.service_type || '').trim() || '—'
   const moveDate = formatDateUK(moveDateFromLead(lead))
@@ -283,7 +286,6 @@ export function buildRecoveryEmailContent(lead: LeadLike, kind: RecoveryEmailKin
     ${hasOverride ? `<div style="margin-top:6px;font-size:16px;line-height:1.3;color:#64748b;">Was <span style="text-decoration:line-through;">${escHtml(calculatedLabel)}</span></div>` : ''}
     <div style="font-size:30px;font-weight:800;color:#047857;margin-top:2px;">${escHtml(total)}</div>
     <div style="font-size:13px;color:#065f46;margin-top:6px;line-height:1.5;">${escHtml(priceNote)}</div>`
-  const logoUrl = `${siteUrl}/logo.png`
   const splitLines = (value: string) =>
     String(value || '')
       .split(/\s*,\s*/)
@@ -315,7 +317,7 @@ export function buildRecoveryEmailContent(lead: LeadLike, kind: RecoveryEmailKin
 <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#eff6ff;"><tr><td align="center" style="padding:24px 12px;">
 <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="width:100%;max-width:600px;background:#ffffff;border-radius:18px;border:1px solid #dbeafe;overflow:hidden;">
 <tr><td style="padding:20px 24px;">
-  <a href="${escHtml(siteUrl)}" style="text-decoration:none;"><img src="${escHtml(logoUrl)}" width="170" alt="ShiftMyHome" style="display:block;width:170px;max-width:100%;height:auto;border:0;" /></a>
+  ${emailLogoLinkHtml()}
 </td></tr>
 <tr><td style="padding:0 24px;">
   <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#1d4ed8;border-radius:14px;"><tr><td style="padding:22px;">
@@ -447,6 +449,27 @@ ${notesBlock}
   return { subject, html, text, resumeUrl: trackResume, payUrl: trackPay }
 }
 
+/** Booking reference first, then the lead reference shown in Customer Leads. */
+async function quoteRefForRecoveryEmail(
+  // deno-lint-ignore no-explicit-any
+  supabase: any,
+  lead: LeadLike,
+): Promise<string> {
+  const saved = String(lead.quote_ref || '').trim()
+  if (saved) return saved
+  const quoteId = String(lead.quote_id || '').trim()
+  if (quoteId) {
+    const { data } = await supabase
+      .from('quotes')
+      .select('quote_ref')
+      .eq('id', quoteId)
+      .maybeSingle()
+    const fromQuote = String(data?.quote_ref || '').trim()
+    if (fromQuote) return fromQuote
+  }
+  return String(lead.lead_ref || '').trim()
+}
+
 export async function sendRecoveryEmailForLead(params: {
   // deno-lint-ignore no-explicit-any
   supabase: any
@@ -468,7 +491,11 @@ export async function sendRecoveryEmailForLead(params: {
     return { ok: true, skipped: true, error: 'already_sent_stage' }
   }
 
-  const content = buildRecoveryEmailContent(lead, kind)
+  const quoteRef = await quoteRefForRecoveryEmail(supabase, lead)
+  const content = buildRecoveryEmailContent(
+    quoteRef ? { ...lead, quote_ref: quoteRef } : lead,
+    kind,
+  )
   const idempotencyKey = `quote-recovery:${lead.id}:${kind}:${Number(lead.recovery_emails_sent_count || 0)}`
   // Uses existing production RESEND_API_KEY via shared resendClient → postResendEmail.
   const result = await sendResendEmail({

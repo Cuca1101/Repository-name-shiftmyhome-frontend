@@ -1,12 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
-  ADMIN_PRESENCE_ONLINE_MS,
-  adminSessionDurationMs,
   adminSessionStatus,
   listAdminAuthHistory,
   listAdminLoginSessions,
 } from '../lib/adminPresence'
-import { parseUserAgentLite } from '../lib/parseUserAgent'
 import { supabase } from '../lib/supabase'
 
 const UK_TIME = {
@@ -20,13 +17,6 @@ const UK_TIME = {
 
 const VISIT_MATCH_MS = 5 * 60 * 1000
 
-function formatWhen(iso) {
-  if (!iso) return '—'
-  const date = new Date(iso)
-  if (Number.isNaN(date.getTime())) return '—'
-  return date.toLocaleString('en-GB', UK_TIME)
-}
-
 function londonDayKey(value) {
   const date = value instanceof Date ? value : new Date(value)
   if (Number.isNaN(date.getTime())) return ''
@@ -38,45 +28,76 @@ function londonDayKey(value) {
   }).format(date)
 }
 
-function formatSmartWhen(iso, now) {
-  if (!iso) return '—'
-  const date = new Date(iso)
+function formatStamp(value) {
+  const date = value instanceof Date ? value : new Date(value)
   if (Number.isNaN(date.getTime())) return '—'
-  const day = londonDayKey(date)
-  const today = londonDayKey(now)
-  const yesterday = londonDayKey(now - 24 * 60 * 60 * 1000)
-  const time = date.toLocaleTimeString('en-GB', {
-    timeZone: 'Europe/London',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
-  if (day === today) return `Today, ${time}`
-  if (day === yesterday) return `Yesterday, ${time}`
-  return formatWhen(iso)
+  return date.toLocaleString('en-GB', UK_TIME)
 }
 
-function relativeTime(iso, now) {
-  const then = new Date(iso).getTime()
-  if (!Number.isFinite(then)) return '—'
-  const minutes = Math.floor(Math.max(0, now - then) / 60000)
-  if (minutes < 1) return 'Just now'
-  if (minutes < 60) return `${minutes} min ago`
-  const hours = Math.floor(minutes / 60)
-  if (hours < 24) return `${hours}h ago`
-  const days = Math.floor(hours / 24)
-  if (days === 1) return 'Yesterday'
-  if (days < 14) return `${days} days ago`
-  return formatWhen(iso)
-}
-
-function formatDuration(ms) {
-  const safe = Math.max(0, ms)
-  const totalMin = Math.floor(safe / 60000)
-  if (totalMin <= 0) return 'Under a minute'
+function formatHours(ms) {
+  const totalMin = Math.max(0, Math.floor(Number(ms) / 60000))
   const hours = Math.floor(totalMin / 60)
   const minutes = totalMin % 60
-  if (hours <= 0) return `${minutes} min`
-  return `${hours}h ${minutes}m`
+  return `${hours}h ${String(minutes).padStart(2, '0')}m`
+}
+
+function londonOffsetMs(utcMs) {
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat('en-GB', {
+      timeZone: 'Europe/London',
+      hourCycle: 'h23',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+    })
+      .formatToParts(new Date(utcMs))
+      .filter((part) => part.type !== 'literal')
+      .map((part) => [part.type, part.value]),
+  )
+  const asUtc = Date.UTC(+parts.year, +parts.month - 1, +parts.day, +parts.hour, +parts.minute, +parts.second)
+  return asUtc - utcMs
+}
+
+function startOfLondonDay(dayKey) {
+  const [year, month, day] = dayKey.split('-').map(Number)
+  const noonUtc = Date.UTC(year, month - 1, day, 12, 0, 0)
+  return Date.UTC(year, month - 1, day, 0, 0, 0) - londonOffsetMs(noonUtc)
+}
+
+function nextLondonDay(dayKey) {
+  return londonDayKey(startOfLondonDay(dayKey) + 36 * 60 * 60 * 1000)
+}
+
+function dayKeysBetween(startMs, endMs) {
+  const keys = []
+  let key = londonDayKey(startMs)
+  const last = londonDayKey(endMs)
+  for (let guard = 0; key && last && key <= last && guard < 400; guard += 1) {
+    keys.push(key)
+    const next = nextLondonDay(key)
+    if (!next || next <= key) break
+    key = next
+  }
+  return keys
+}
+
+function overlapMs(startMs, endMs, dayKey) {
+  const dayStart = startOfLondonDay(dayKey)
+  const dayEnd = startOfLondonDay(nextLondonDay(dayKey))
+  return Math.max(0, Math.min(endMs, dayEnd) - Math.max(startMs, dayStart))
+}
+
+function formatDayHeading(dayKey) {
+  return new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Europe/London',
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  }).format(new Date(startOfLondonDay(dayKey)))
 }
 
 function personKey(email) {
@@ -137,9 +158,11 @@ function buildPeople(visits, history, now) {
     .map((person) => {
       const rows = visibleVisits(person.visits, now)
       const online = rows.find((row) => adminSessionStatus(row, now).state === 'online') || null
-      const logins = [...person.logins].sort(
-        (a, b) => new Date(b.signed_in_at).getTime() - new Date(a.signed_in_at).getTime(),
-      )
+      const logins = rows.length
+        ? []
+        : [...person.logins].sort(
+            (a, b) => new Date(b.signed_in_at).getTime() - new Date(a.signed_in_at).getTime(),
+          )
       const activity = [
         ...rows.map((row) => ({ kind: 'visit', at: row.signed_in_at, row })),
         ...logins.map((row) => ({ kind: 'login', at: row.signed_in_at, row })),
@@ -147,8 +170,17 @@ function buildPeople(visits, history, now) {
       const lastAt = online?.last_seen_at || activity[0]?.at || ''
       const activeToday =
         Boolean(online) ||
-        activity.some((item) => londonDayKey(item.at) === today || londonDayKey(item.row.last_seen_at || item.row.last_active_at) === today)
-      const deviceSource = online?.user_agent || rows[0]?.user_agent || logins[0]?.user_agent || ''
+        activity.some((item) => {
+          if (item.kind === 'login') {
+            return (
+              londonDayKey(item.at) === today ||
+              londonDayKey(item.row.last_active_at || item.at) === today
+            )
+          }
+          const bounds = activityBounds(item, now)
+          if (!Number.isFinite(bounds.start) || !Number.isFinite(bounds.end)) return false
+          return dayKeysBetween(bounds.start, bounds.end).includes(today)
+        })
       return {
         ...person,
         name: prettyName(person.email),
@@ -158,7 +190,6 @@ function buildPeople(visits, history, now) {
         activity,
         lastAt,
         activeToday,
-        browser: parseUserAgentLite(deviceSource),
       }
     })
     .sort((a, b) => {
@@ -167,21 +198,19 @@ function buildPeople(visits, history, now) {
     })
 }
 
-function DeviceLine({ browser }) {
-  return (
-    <span>
-      {browser.browser_name}
-      <span className="text-slate-400"> · {browser.device_type}</span>
-    </span>
-  )
-}
-
 function StatusPill({ status }) {
   if (status?.state === 'online') {
     return (
       <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-800">
         <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" aria-hidden />
         Online
+      </span>
+    )
+  }
+  if (status?.state === 'continued') {
+    return (
+      <span className="inline-flex rounded-full bg-sky-50 px-2.5 py-1 text-xs font-semibold text-sky-900">
+        Continued
       </span>
     )
   }
@@ -199,60 +228,81 @@ function StatusPill({ status }) {
   )
 }
 
-function ActivityList({ items, now }) {
-  const [expanded, setExpanded] = useState(false)
-  const shown = expanded ? items : items.slice(0, 5)
-  if (items.length === 0) {
-    return <p className="px-4 py-3 text-sm text-slate-500">No visits recorded yet.</p>
+function activityBounds(item, now) {
+  const start = new Date(item.row.signed_in_at).getTime()
+  if (item.kind === 'visit') {
+    const status = adminSessionStatus(item.row, now)
+    const end = status.state === 'online' ? now : new Date(status.leftAt).getTime()
+    return { start, end, status }
   }
-  return (
-    <div className="border-t border-slate-100">
-      <ul className="divide-y divide-slate-100">
-        {shown.map((item) => {
-          if (item.kind === 'login') {
-            return (
-              <li key={`login-${item.row.id}`} className="grid gap-1 px-4 py-3 text-sm text-slate-700 sm:grid-cols-[1fr_auto] sm:items-center">
-                <div>
-                  <p className="font-medium text-slate-900">{formatSmartWhen(item.row.signed_in_at, now)}</p>
-                  <p className="text-xs text-slate-500">
-                    Last active {formatSmartWhen(item.row.last_active_at, now)}
-                    {' · '}
-                    <DeviceLine browser={parseUserAgentLite(item.row.user_agent || '')} />
-                  </p>
-                </div>
-                <span className="text-xs font-medium text-slate-500">Login kept by the browser</span>
-              </li>
-            )
+  const end = new Date(item.row.last_active_at || item.row.signed_in_at).getTime()
+  return {
+    start,
+    end,
+    status: { state: 'left', leftAt: item.row.last_active_at, endedBy: 'unknown' },
+  }
+}
+
+/** One row per person per UK day, split so a long visit still shows on every day it was open. */
+function buildDaySheet(people, now) {
+  const slices = []
+  for (const person of people) {
+    for (const item of person.activity) {
+      const bounds = activityBounds(item, now)
+      if (!Number.isFinite(bounds.start) || !Number.isFinite(bounds.end) || bounds.end < bounds.start) continue
+      for (const dayKey of dayKeysBetween(bounds.start, bounds.end)) {
+        const hoursMs = overlapMs(bounds.start, bounds.end, dayKey)
+        if (hoursMs <= 0) continue
+        slices.push({
+          dayKey,
+          person,
+          id: `${item.kind}-${item.row.id}-${dayKey}`,
+          start: bounds.start,
+          end: bounds.end,
+          hoursMs,
+          status: bounds.status,
+          continued: londonDayKey(bounds.start) !== dayKey,
+        })
+      }
+    }
+  }
+
+  const byDay = new Map()
+  for (const slice of slices) {
+    if (!byDay.has(slice.dayKey)) byDay.set(slice.dayKey, [])
+    byDay.get(slice.dayKey).push(slice)
+  }
+
+  return [...byDay.entries()]
+    .sort((a, b) => (a[0] < b[0] ? 1 : -1))
+    .map(([dayKey, daySlices]) => {
+      const byPerson = new Map()
+      for (const slice of daySlices) {
+        if (!byPerson.has(slice.person.key)) byPerson.set(slice.person.key, [])
+        byPerson.get(slice.person.key).push(slice)
+      }
+      const admins = [...byPerson.values()]
+        .map((visits) => {
+          const ordered = visits.sort((a, b) => a.start - b.start)
+          return {
+            person: ordered[0].person,
+            visits: ordered.map((visit, index) => ({ ...visit, again: index > 0 })),
+            dayMs: ordered.reduce((sum, visit) => sum + visit.hoursMs, 0),
           }
-          const status = adminSessionStatus(item.row, now)
-          return (
-            <li key={item.row.id} className="grid gap-1 px-4 py-3 text-sm text-slate-700 sm:grid-cols-[1fr_auto] sm:items-center">
-              <div>
-                <p className="font-medium text-slate-900">{formatSmartWhen(item.row.signed_in_at, now)}</p>
-                <p className="text-xs text-slate-500">
-                  {formatDuration(adminSessionDurationMs(item.row, now))} in admin
-                  {' · '}
-                  {status.state === 'online' ? 'Still here' : `Left ${formatSmartWhen(status.leftAt, now)}`}
-                  {' · '}
-                  <DeviceLine browser={parseUserAgentLite(item.row.user_agent || '')} />
-                </p>
-              </div>
-              <StatusPill status={status} />
-            </li>
-          )
-        })}
-      </ul>
-      {items.length > 5 ? (
-        <button
-          type="button"
-          onClick={() => setExpanded((open) => !open)}
-          className="w-full border-t border-slate-100 px-4 py-2 text-left text-xs font-semibold text-slate-600 hover:bg-slate-50"
-        >
-          {expanded ? 'Show less' : `Show ${items.length - 5} older`}
-        </button>
-      ) : null}
-    </div>
-  )
+        })
+        .sort((a, b) => {
+          const aOnline = a.visits.some((visit) => visit.status.state === 'online')
+          const bOnline = b.visits.some((visit) => visit.status.state === 'online')
+          if (aOnline !== bOnline) return aOnline ? -1 : 1
+          return b.dayMs - a.dayMs
+        })
+      return {
+        dayKey,
+        label: formatDayHeading(dayKey),
+        admins,
+        totalMs: admins.reduce((sum, admin) => sum + admin.dayMs, 0),
+      }
+    })
 }
 
 export default function AdminSessionsPage() {
@@ -265,7 +315,7 @@ export default function AdminSessionsPage() {
   const [me, setMe] = useState('')
   const [query, setQuery] = useState('')
   const [scope, setScope] = useState('all')
-  const [openKeys, setOpenKeys] = useState(() => new Set())
+  const [showOlderDays, setShowOlderDays] = useState(false)
 
   const load = useCallback(async () => {
     const [visits, saved] = await Promise.allSettled([listAdminLoginSessions(), listAdminAuthHistory()])
@@ -329,17 +379,23 @@ export default function AdminSessionsPage() {
     if (scope === 'today') return person.activeToday
     return true
   })
-  const onlinePeople = visible.filter((person) => person.online)
-  const otherPeople = scope === 'online' ? [] : visible.filter((person) => !person.online)
-
-  function togglePerson(key) {
-    setOpenKeys((current) => {
-      const next = new Set(current)
-      if (next.has(key)) next.delete(key)
-      else next.add(key)
-      return next
-    })
-  }
+  const todayKey = londonDayKey(now)
+  const daySheet = useMemo(() => {
+    try {
+      return buildDaySheet(visible, now)
+    } catch (err) {
+      return [
+        {
+          dayKey: 'error',
+          label: err instanceof Error ? err.stack || err.message : String(err),
+          admins: [],
+          totalMs: 0,
+        },
+      ]
+    }
+  }, [visible, now])
+  const scopedDays = scope === 'today' ? daySheet.filter((day) => day.dayKey === todayKey) : daySheet
+  const daysShown = scope === 'all' && !showOlderDays ? scopedDays.slice(0, 14) : scopedDays
 
   return (
     <div className="mx-auto max-w-6xl space-y-4">
@@ -347,9 +403,8 @@ export default function AdminSessionsPage() {
         <div>
           <h1 className="text-2xl font-semibold text-slate-900">Admin sign-ins</h1>
           <p className="mt-1 max-w-2xl text-sm leading-relaxed text-slate-600">
-            Who is in the panel now, and when each admin last came in. Times are UK. A visit stays online
-            while this panel is open, and drops off about {Math.round(ADMIN_PRESENCE_ONLINE_MS / 1000)} seconds
-            after the browser closes.
+            Each UK day lists who was in admin, the date and time they entered, when they left, and the hours
+            that day. A second visit the same day is marked Entered again. Times are UK.
           </p>
         </div>
       </div>
@@ -422,103 +477,92 @@ export default function AdminSessionsPage() {
               ? 'Nobody is in admin right now.'
               : 'No admins match this search.'}
         </p>
+      ) : daysShown.length === 0 ? (
+        <p className="rounded-2xl border border-slate-200 bg-white px-4 py-8 text-sm text-slate-500 shadow-sm">
+          {scope === 'today' ? 'Nobody has been in admin today.' : 'No visits recorded yet.'}
+        </p>
       ) : (
         <div className="space-y-4">
-          {onlinePeople.length > 0 ? (
-            <section className="space-y-2">
-              <h2 className="text-sm font-semibold text-slate-900">In the panel now</h2>
-              <div className="grid gap-3 lg:grid-cols-2">
-                {onlinePeople.map((person) => {
-                  const open = openKeys.has(person.key)
-                  const status = adminSessionStatus(person.online, now)
-                  return (
-                    <article key={person.key} className="overflow-hidden rounded-2xl border border-emerald-200 bg-white shadow-sm">
-                      <button
-                        type="button"
-                        onClick={() => togglePerson(person.key)}
-                        aria-expanded={open}
-                        className="flex w-full items-start gap-3 px-4 py-3 text-left hover:bg-emerald-50/40"
-                      >
-                        <span className="mt-1 h-2.5 w-2.5 shrink-0 rounded-full bg-emerald-500" aria-hidden />
-                        <span className="min-w-0 flex-1">
-                          <span className="flex flex-wrap items-center gap-2">
-                            <span className="font-semibold text-slate-900">{person.name}</span>
-                            {person.key === me ? (
-                              <span className="rounded-full bg-slate-900 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white">
-                                You
-                              </span>
-                            ) : null}
-                            <StatusPill status={status} />
-                          </span>
-                          <span className="mt-0.5 block truncate text-xs text-slate-500">{person.email}</span>
-                          <span className="mt-1 block text-xs text-slate-600">
-                            Here for {formatDuration(adminSessionDurationMs(person.online, now))}
-                            {' · since '}
-                            {formatSmartWhen(person.online.signed_in_at, now)}
-                            {' · '}
-                            <DeviceLine browser={person.browser} />
-                          </span>
-                        </span>
-                      </button>
-                      {open ? <ActivityList items={person.activity} now={now} /> : null}
-                    </article>
-                  )
-                })}
+          {daysShown.map((day) => (
+            <section key={day.dayKey} className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+              <header className="flex flex-wrap items-end justify-between gap-2 border-b border-slate-200 px-4 py-3">
+                <h2 className="text-base font-semibold text-slate-900">{day.label}</h2>
+                <p className="text-xs font-medium text-slate-500">
+                  {day.admins.length} {day.admins.length === 1 ? 'person' : 'people'} entered · {formatHours(day.totalMs)} total
+                </p>
+              </header>
+              <div className="divide-y divide-slate-100">
+                {day.admins.map((admin) => (
+                  <article key={admin.person.key} className="px-4 py-3">
+                    <div className="flex flex-wrap items-baseline justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="font-semibold text-slate-900">
+                          {admin.person.name}
+                          {admin.person.key === me ? (
+                            <span className="ml-2 text-[10px] font-semibold uppercase tracking-wide text-slate-500">You</span>
+                          ) : null}
+                        </p>
+                        <p className="truncate text-xs text-slate-500">{admin.person.email}</p>
+                      </div>
+                      <p className="text-sm font-semibold text-slate-900">{formatHours(admin.dayMs)} this day</p>
+                    </div>
+                    <div className="mt-2 overflow-hidden rounded-xl border border-slate-200">
+                      <div className="hidden grid-cols-[1.3fr_1.3fr_0.7fr_auto] gap-3 bg-slate-50 px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500 sm:grid">
+                        <span>Entered</span>
+                        <span>Left</span>
+                        <span>Hours</span>
+                        <span>Status</span>
+                      </div>
+                      {admin.visits.map((visit) => {
+                        const dayStart = startOfLondonDay(visit.dayKey)
+                        const enteredAt = visit.continued ? dayStart : visit.start
+                        const leftSameDay = londonDayKey(visit.end) === visit.dayKey
+                        const leftLabel =
+                          !leftSameDay
+                            ? 'Still in admin overnight'
+                            : visit.status.state === 'online'
+                              ? 'Still here'
+                              : formatStamp(visit.end)
+                        return (
+                          <div
+                            key={visit.id}
+                            className="grid gap-2 border-t border-slate-100 px-3 py-2 text-sm first:border-t-0 sm:grid-cols-[1.3fr_1.3fr_0.7fr_auto] sm:items-center"
+                          >
+                            <div>
+                              <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+                                {visit.again ? 'Entered again' : 'Entered'}
+                              </p>
+                              <p className="font-medium text-slate-900">{formatStamp(enteredAt)}</p>
+                              {visit.continued ? (
+                                <p className="text-xs text-slate-500">Still open from {formatStamp(visit.start)}</p>
+                              ) : null}
+                            </div>
+                            <div>
+                              <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Left</p>
+                              <p className="font-medium text-slate-900">{leftLabel}</p>
+                            </div>
+                            <div>
+                              <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400 sm:hidden">Hours</p>
+                              <p className="font-semibold text-slate-900">{formatHours(visit.hoursMs)}</p>
+                            </div>
+                            <StatusPill status={!leftSameDay ? { state: 'continued' } : visit.status} />
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </article>
+                ))}
               </div>
             </section>
-          ) : scope === 'all' && !needle ? (
-            <p className="rounded-2xl border border-dashed border-slate-300 bg-white px-4 py-3 text-sm text-slate-500">
-              Nobody is in admin right now.
-            </p>
-          ) : null}
-
-          {otherPeople.length > 0 ? (
-            <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-              <h2 className="border-b border-slate-200 px-4 py-3 text-sm font-semibold text-slate-900">Recent admins</h2>
-              <ul className="divide-y divide-slate-100">
-                {otherPeople.map((person) => {
-                  const open = openKeys.has(person.key)
-                  const latest = person.activity[0]
-                  const latestVisit = person.visits[0]
-                  const latestStatus = latestVisit ? adminSessionStatus(latestVisit, now) : null
-                  return (
-                    <li key={person.key}>
-                      <button
-                        type="button"
-                        onClick={() => togglePerson(person.key)}
-                        aria-expanded={open}
-                        className="flex w-full items-start gap-3 px-4 py-3 text-left hover:bg-slate-50"
-                      >
-                        <span className="min-w-0 flex-1">
-                          <span className="flex flex-wrap items-center gap-2">
-                            <span className="font-semibold text-slate-900">{person.name}</span>
-                            {person.key === me ? (
-                              <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-600">
-                                You
-                              </span>
-                            ) : null}
-                            {latestStatus ? <StatusPill status={latestStatus} /> : (
-                              <span className="inline-flex rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600">
-                                Earlier login
-                              </span>
-                            )}
-                          </span>
-                          <span className="mt-0.5 block truncate text-xs text-slate-500">{person.email}</span>
-                          <span className="mt-1 block text-xs text-slate-600">
-                            Last seen {relativeTime(person.lastAt, now)}
-                            {latest ? ` · ${formatSmartWhen(latest.at, now)}` : ''}
-                            {' · '}
-                            <DeviceLine browser={person.browser} />
-                          </span>
-                        </span>
-                        <span className="shrink-0 text-xs font-semibold text-slate-400">{open ? 'Hide' : 'Visits'}</span>
-                      </button>
-                      {open ? <ActivityList items={person.activity} now={now} /> : null}
-                    </li>
-                  )
-                })}
-              </ul>
-            </section>
+          ))}
+          {scope === 'all' && scopedDays.length > 14 ? (
+            <button
+              type="button"
+              onClick={() => setShowOlderDays((open) => !open)}
+              className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-2 text-left text-xs font-semibold text-slate-600 shadow-sm hover:bg-slate-50"
+            >
+              {showOlderDays ? 'Show the latest 14 days' : `Show ${scopedDays.length - 14} older days`}
+            </button>
           ) : null}
         </div>
       )}
