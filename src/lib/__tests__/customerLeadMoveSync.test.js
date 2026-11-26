@@ -9,6 +9,7 @@ const {
   buildLeadWizardData,
   buildMoveDetailsWizard,
   buildQuoteExtrasWizard,
+  editsFromLead,
   mergeLeadEditsIntoQuoteDetails,
   mergePriceNoteIntoSpecialInstructions,
   notesForCustomerEmail,
@@ -167,4 +168,50 @@ test('turning materials off removes the boxes we supply and keeps the customer i
   assert.equal(supplied.name, 'Medium moving box (Boxes supplied by us)')
   assert.equal(supplied.quantity, 2)
   assert.equal(added.lines[0].name, 'Sofa')
+})
+
+test('the items view reads saved names, quantities, and instruction paragraphs', () => {
+  const lead = {
+    price_override_reason: 'Agreed on the phone',
+    wizard_data: {
+      step2: {
+        inventoryLines: [
+          { lineId: 'sofa', name: '3 seater sofa', quantity: 2, m3: 1.8 },
+          { lineId: 'box', name: 'Small moving box (Boxes supplied by us)', quantity: 4, m3: 0.05 },
+        ],
+      },
+      step3: { specialInstructions: 'Park on the left.\n\nCall before arrival.' },
+    },
+  }
+
+  const opened = editsFromLead(lead)
+  assert.deepEqual(
+    opened.inventoryLines.map((line) => [line.name, line.quantity, line.m3]),
+    [
+      ['3 seater sofa', 2, 1.8],
+      ['Small moving box (Boxes supplied by us)', 4, 0.05],
+    ],
+  )
+  assert.equal(opened.specialInstructions, 'Park on the left.\n\nCall before arrival.')
+
+  const saved = buildLeadWizardData(lead, {
+    inventoryLines: opened.inventoryLines.map((line) =>
+      line.lineId === 'sofa' ? { ...line, quantity: 3 } : line,
+    ),
+    specialInstructions: 'Park on the left.\n\nCall before arrival.\nUse the side gate.',
+    instructionsAuthor: 'admin',
+  })
+  const afterSave = editsFromLead({ ...lead, wizard_data: saved.wizard_data })
+  assert.deepEqual(
+    afterSave.inventoryLines.map((line) => [line.name, line.quantity, line.m3]),
+    [
+      ['3 seater sofa', 3, 1.8],
+      ['Small moving box (Boxes supplied by us)', 4, 0.05],
+    ],
+  )
+  assert.equal(
+    afterSave.specialInstructions,
+    'Park on the left.\n\nCall before arrival.\nUse the side gate.',
+  )
+  assert.equal(afterSave.priceNote, 'Agreed on the phone')
 })
