@@ -27,6 +27,7 @@ import {
   ensureLeadResumeToken,
   sendCustomerLeadRecoveryEmail,
 } from '../lib/quoteRecoveryAdminApi'
+import { recoveryKindFromEventKey } from '../lib/customerLeadEmailHistory'
 import {
   buildQuoteRecoveryEmailPreview,
   recoveryContentFromLead,
@@ -688,11 +689,12 @@ export default function CustomerLeadDetailAdmin() {
     }
   }
 
-  function openEmailPreview(justSent = false) {
+  function openEmailPreview(justSent = false, kind) {
     const content = recoveryContentFromLead(lead)
     const token = lead.resume_token || 'preview-token'
+    const emailKind = kind || (lead.status === 'payment_failed' ? 'payment_failed' : 'abandoned')
     const built = buildQuoteRecoveryEmailPreview({
-      kind: lead.status === 'payment_failed' ? 'payment_failed' : 'abandoned',
+      kind: emailKind,
       ...content,
       resumeUrl: buildResumeQuoteUrl(token),
       payUrl: buildPayQuoteUrl(token),
@@ -1556,6 +1558,12 @@ export default function CustomerLeadDetailAdmin() {
         <AdminJobEmailsSentPanel
           customerLeadId={lead.id}
           quoteId={lead.quote_id || undefined}
+          recoveryLead={lead}
+          refreshKey={`${lead.recovery_emails_sent_count || 0}:${lead.last_recovery_email_at || ''}`}
+          onViewEmail={(row) => {
+            const kind = recoveryKindFromEventKey(row?.event_key)
+            if (kind) openEmailPreview(false, kind)
+          }}
         />
       </DetailBlock>
 

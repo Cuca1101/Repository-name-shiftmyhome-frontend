@@ -515,5 +515,47 @@ export async function sendRecoveryEmailForLead(params: {
     })
   }
 
+  await logCustomerRecoveryEmail(supabase, lead, kind, to, result.resendId || null, now.toISOString())
+
   return { ok: true, resendId: result.resendId }
+}
+
+const RECOVERY_HISTORY_LABELS: Record<RecoveryEmailKind, string> = {
+  abandoned: 'Customer: quote still reserved',
+  abandoned_reminder: 'Customer: quote reminder',
+  abandoned_final: 'Customer: final quote reminder',
+  payment_failed: 'Customer: payment unsuccessful',
+}
+
+async function logCustomerRecoveryEmail(
+  // deno-lint-ignore no-explicit-any
+  supabase: any,
+  lead: LeadLike,
+  kind: RecoveryEmailKind,
+  recipient: string,
+  providerMessageId: string | null,
+  sentAt: string,
+) {
+  const eventKey = `quote_recovery_${kind}`
+  const row = {
+    customer_lead_id: lead.id,
+    event_key: eventKey,
+    event_label: RECOVERY_HISTORY_LABELS[kind],
+    channel: 'email',
+    recipient_email: recipient,
+    provider_message_id: providerMessageId,
+    delivery_status: 'sent',
+    payload: { kind },
+    sent_at: sentAt,
+  }
+  const { error } = await supabase
+    .from('customer_lead_notifications')
+    .upsert(row, { onConflict: 'customer_lead_id,event_key' })
+  if (error) {
+    console.error('[quote-recovery] history log failed', {
+      leadId: lead.id,
+      kind,
+      error: error.message || error,
+    })
+  }
 }
