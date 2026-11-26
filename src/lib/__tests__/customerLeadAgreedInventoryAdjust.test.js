@@ -5,7 +5,11 @@ import { pathToFileURL } from 'node:url'
 
 register('./esm-extension-loader.mjs', pathToFileURL('./scripts/'))
 
-const { applyInventoryDeltaToAgreedPrice } = await import('../customerLeadAgreedInventoryAdjust.js')
+const {
+  applyInventoryDeltaToAgreedPrice,
+  diffInventorySelection,
+  previewLeadInventoryPriceChange,
+} = await import('../customerLeadAgreedInventoryAdjust.js')
 
 test('adding items raises the agreed price by the engine delta', () => {
   const result = applyInventoryDeltaToAgreedPrice({
@@ -54,4 +58,38 @@ test('no change when the engine total is unchanged', () => {
     }),
     null,
   )
+})
+
+test('diffInventorySelection reports extras and removals', () => {
+  const diff = diffInventorySelection(
+    [
+      { name: 'Sofa', quantity: 1, catalogId: 'sofa' },
+      { name: 'Box', quantity: 2, catalogId: 'box' },
+    ],
+    [
+      { name: 'Sofa', quantity: 1, catalogId: 'sofa' },
+      { name: 'Box', quantity: 5, catalogId: 'box' },
+      { name: 'Bike', quantity: 1, catalogId: 'bike' },
+    ],
+  )
+  assert.deepEqual(diff.added, [
+    { name: 'Bike', quantity: 1 },
+    { name: 'Box', quantity: 3 },
+  ])
+  assert.deepEqual(diff.removed, [])
+})
+
+test('previewLeadInventoryPriceChange moves agreed checkout by engine delta', () => {
+  const preview = previewLeadInventoryPriceChange({
+    pricingSettings: null,
+    lead: { agreed_price: 600.43 },
+    previousInventoryLines: [],
+    nextInventoryLines: [],
+  })
+  assert.equal(preview.calculatedBefore, null)
+  assert.equal(preview.calculatedAfter, null)
+  assert.equal(preview.usesAgreed, true)
+  assert.equal(preview.checkoutBefore, 600.43)
+  assert.equal(preview.checkoutAfter, 600.43)
+  assert.equal(preview.checkoutDelta, 0)
 })

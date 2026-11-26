@@ -139,3 +139,127 @@ export function adjustAgreedPriceForInventoryChange({
     afterTotal,
   })
 }
+
+/**
+ * @param {Record<string, unknown>} line
+ */
+function inventoryLineKey(line) {
+  if (line?.catalogId != null && String(line.catalogId).trim() !== '') {
+    return `c:${String(line.catalogId)}`
+  }
+  const name = String(line?.name || '')
+    .trim()
+    .toLowerCase()
+  if (name) return `n:${name}`
+  return `id:${String(line?.lineId || '')}`
+}
+
+/**
+ * @param {Array<Record<string, unknown>> | null | undefined} lines
+ */
+function aggregateInventoryByKey(lines) {
+  /** @type {Map<string, { name: string, quantity: number }>} */
+  const map = new Map()
+  for (const line of Array.isArray(lines) ? lines : []) {
+    const name = String(line?.name || '').trim()
+    if (!name) continue
+    const key = inventoryLineKey(line)
+    const quantity = Math.max(0, Math.round(Number(line?.quantity) || 0))
+    const prev = map.get(key)
+    if (prev) map.set(key, { name: prev.name, quantity: prev.quantity + quantity })
+    else map.set(key, { name, quantity })
+  }
+  return map
+}
+
+/**
+ * Compare saved inventory to the in-progress edit list.
+ * @param {Array<Record<string, unknown>> | null | undefined} previous
+ * @param {Array<Record<string, unknown>> | null | undefined} next
+ * @returns {{
+ *   added: Array<{ name: string, quantity: number }>,
+ *   removed: Array<{ name: string, quantity: number }>,
+ * }}
+ */
+export function diffInventorySelection(previous, next) {
+  const before = aggregateInventoryByKey(previous)
+  const after = aggregateInventoryByKey(next)
+  /** @type {Array<{ name: string, quantity: number }>} */
+  const added = []
+  /** @type {Array<{ name: string, quantity: number }>} */
+  const removed = []
+  const keys = new Set([...before.keys(), ...after.keys()])
+  for (const key of keys) {
+    const was = before.get(key)?.quantity || 0
+    const now = after.get(key)?.quantity || 0
+    const name = after.get(key)?.name || before.get(key)?.name || ''
+    if (now > was) added.push({ name, quantity: now - was })
+    else if (was > now) removed.push({ name, quantity: was - now })
+  }
+  added.sort((a, b) => a.name.localeCompare(b.name))
+  removed.sort((a, b) => a.name.localeCompare(b.name))
+  return { added, removed }
+}
+
+/**
+ * Live price preview while editing inventory on a Customer Lead.
+ * @param {{
+ *   pricingSettings: Record<string, unknown> | null | undefined,
+ *   lead: Record<string, unknown>,
+ *   previousInventoryLines: Array<Record<string, unknown>>,
+ *   nextInventoryLines: Array<Record<string, unknown>>,
+ * }} params
+ */
+export function previewLeadInventoryPriceChange({
+  pricingSettings,
+  lead,
+  previousInventoryLines,
+  nextInventoryLines,
+}) {
+  const beforeTotal = engineTotalForLeadWithInventory(
+    pricingSettings,
+    lead,
+    previousInventoryLines,
+  )
+  const afterTotal = engineTotalForLeadWithInventory(pricingSettings, lead, nextInventoryLines)
+  const calculatedDelta =
+    beforeTotal != null && afterTotal != null ? round2(afterTotal - beforeTotal) : null
+
+  const agreedRaw = lead?.agreed_price
+  const hasAgreed = agreedRaw != null && String(agreedRaw).trim() !== ''
+  const agreed = hasAgreed ? Number(agreedRaw) : null
+  const agreedAdjust =
+    hasAgreed && Number.isFinite(agreed) && agreed >= 0 && beforeTotal != null && afterTotal != null
+      ? applyInventoryDeltaToAgreedPrice({
+          agreedPrice: agreed,
+          beforeTotal,
+          afterTotal,
+        })
+      : null
+
+  const checkoutBefore =
+    hasAgreed && Number.isFinite(agreed) && agreed >= 0
+      ? round2(agreed)
+      : beforeTotal != null
+        ? round2(beforeTotal)
+        : null
+  const checkoutAfter = agreedAdjust
+    ? agreedAdjust.agreed_price
+    : hasAgreed && Number.isFinite(agreed) && agreed >= 0
+      ? round2(agreed)
+      : afterTotal != null
+        ? round2(afterTotal)
+        : null
+  const checkoutDelta =
+    checkoutBefore != null && checkoutAfter != null ? round2(checkoutAfter - checkoutBefore) : null
+
+  return {
+    calculatedBefore: beforeTotal,
+    calculatedAfter: afterTotal,
+    calculatedDelta,
+    checkoutBefore,
+    checkoutAfter,
+    checkoutDelta,
+    usesAgreed: hasAgreed && Number.isFinite(agreed) && agreed >= 0,
+  }
+}

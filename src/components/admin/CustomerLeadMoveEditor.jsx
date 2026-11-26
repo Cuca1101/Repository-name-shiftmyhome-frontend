@@ -1,5 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
+import { formatGbp } from '../../lib/adminAgreedPrice'
 import { saveCustomerLeadMoveEdits } from '../../lib/customerLeadBookingConvert'
+import {
+  diffInventorySelection,
+  previewLeadInventoryPriceChange,
+} from '../../lib/customerLeadAgreedInventoryAdjust'
 import SpecialInstructionBlocks from '../admin-workflow/SpecialInstructionBlocks'
 import { editsFromLead, normalizeAdminInventoryLine } from '../../lib/customerLeadMoveSync'
 import { fetchPricingSettings } from '../../lib/data/pricingSettingsRepository'
@@ -23,7 +28,7 @@ export default function CustomerLeadMoveEditor({ lead, disabled = false, onSaved
   const [message, setMessage] = useState('')
   const [dirty, setDirty] = useState(false)
   const [editing, setEditing] = useState(false)
-  const [customSizeM3, setCustomSizeM3] = useState(null)
+  const [pricingSettings, setPricingSettings] = useState(null)
   const [settingsLoading, setSettingsLoading] = useState(true)
 
   useEffect(() => {
@@ -44,9 +49,9 @@ export default function CustomerLeadMoveEditor({ lead, disabled = false, onSaved
       setSettingsLoading(true)
       try {
         const settings = await fetchPricingSettings()
-        if (!cancelled) setCustomSizeM3(settings?.customSizeM3 ?? null)
+        if (!cancelled) setPricingSettings(settings || null)
       } catch {
-        if (!cancelled) setCustomSizeM3(null)
+        if (!cancelled) setPricingSettings(null)
       } finally {
         if (!cancelled) setSettingsLoading(false)
       }
@@ -114,6 +119,22 @@ export default function CustomerLeadMoveEditor({ lead, disabled = false, onSaved
   const itemTotal = shownLines.reduce((sum, line) => sum + (Number(line.quantity) || 0), 0)
   const itemTotalLabel = itemTotal === 1 ? '1 item' : `${itemTotal} items`
   const priceNote = String(lead?.price_override_reason || '').trim()
+  const customSizeM3 = pricingSettings?.customSizeM3 ?? null
+
+  const selectionDiff = useMemo(
+    () => (editing ? diffInventorySelection(saved.inventoryLines, lines) : { added: [], removed: [] }),
+    [editing, saved.inventoryLines, lines],
+  )
+
+  const pricePreview = useMemo(() => {
+    if (!editing || !pricingSettings) return null
+    return previewLeadInventoryPriceChange({
+      pricingSettings,
+      lead,
+      previousInventoryLines: saved.inventoryLines,
+      nextInventoryLines: lines,
+    })
+  }, [editing, pricingSettings, lead, saved.inventoryLines, lines])
 
   function startEdit() {
     const ok = window.confirm('Are you sure you want to edit the items and special instructions?')
@@ -122,6 +143,14 @@ export default function CustomerLeadMoveEditor({ lead, disabled = false, onSaved
     setInstructions(saved.adminInstructions)
     setMessage('')
     setEditing(true)
+  }
+
+  function formatSignedGbp(amount) {
+    if (amount == null || !Number.isFinite(Number(amount))) return '—'
+    const n = Number(amount)
+    if (Math.abs(n) < 0.009) return formatGbp(0)
+    const abs = formatGbp(Math.abs(n))
+    return n > 0 ? `+${abs}` : `−${abs}`
   }
 
   return (
@@ -163,24 +192,138 @@ export default function CustomerLeadMoveEditor({ lead, disabled = false, onSaved
       )}
 
       {editing ? (
-        <div className={`mt-4 border-t border-slate-100 pt-4 ${disabled || saving ? 'pointer-events-none opacity-60' : ''}`}>
-          <p className="mb-3 text-sm font-bold text-slate-900">Add items</p>
-          {settingsLoading ? (
-            <p className="text-sm text-slate-600">Loading item catalogue…</p>
-          ) : (
-            <Step2Inventory
-              layoutVariant="admin"
-              hideCrew
-              lines={lines}
-              onLinesChange={(inventoryLines) => markDirty(inventoryLines)}
-              customSizeM3={customSizeM3}
-              crewSize={2}
-              onCrewSizeChange={() => {}}
-              crewSettings={null}
-              crewRestrictions={{ oneManAllowed: true }}
-              showContact={false}
-            />
-          )}
+        <div
+          className={`mt-4 grid gap-4 border-t border-slate-100 pt-4 lg:grid-cols-2 ${
+            disabled || saving ? 'pointer-events-none opacity-60' : ''
+          }`}
+        >
+          <div className="min-w-0">
+            <p className="mb-3 text-sm font-bold text-slate-900">Add items</p>
+            {settingsLoading ? (
+              <p className="text-sm text-slate-600">Loading item catalogue…</p>
+            ) : (
+              <div className="max-h-[min(70vh,42rem)] overflow-y-auto overscroll-contain rounded-xl border border-slate-200 bg-slate-50/40 p-3">
+                <Step2Inventory
+                  layoutVariant="admin"
+                  hideCrew
+                  lines={lines}
+                  onLinesChange={(inventoryLines) => markDirty(inventoryLines)}
+                  customSizeM3={customSizeM3}
+                  crewSize={2}
+                  onCrewSizeChange={() => {}}
+                  crewSettings={null}
+                  crewRestrictions={{ oneManAllowed: true }}
+                  showContact={false}
+                />
+              </div>
+            )}
+          </div>
+
+          <aside className="min-w-0 lg:sticky lg:top-4 lg:self-start">
+            <div className="rounded-xl border border-slate-200 bg-gradient-to-br from-slate-50 to-white p-4 shadow-sm">
+              <p className="text-sm font-bold text-slate-900">Job total</p>
+              <p className="mt-1 text-xs text-slate-500">
+                Updates live as you add or remove items. Saving applies this to the lead
+                {pricePreview?.usesAgreed ? ' agreed total' : ' calculated total'}.
+              </p>
+
+              <dl className="mt-4 space-y-3">
+                <div>
+                  <dt className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                    Calculated total
+                  </dt>
+                  <dd className="mt-0.5 flex flex-wrap items-baseline gap-2">
+                    <span className="text-lg font-bold tabular-nums text-slate-900">
+                      {formatGbp(pricePreview?.calculatedAfter)}
+                    </span>
+                    {pricePreview?.calculatedDelta != null &&
+                    Math.abs(pricePreview.calculatedDelta) >= 0.009 ? (
+                      <span
+                        className={`text-sm font-semibold tabular-nums ${
+                          pricePreview.calculatedDelta > 0 ? 'text-emerald-700' : 'text-amber-700'
+                        }`}
+                      >
+                        {formatSignedGbp(pricePreview.calculatedDelta)}
+                      </span>
+                    ) : null}
+                  </dd>
+                  {pricePreview?.calculatedBefore != null &&
+                  pricePreview?.calculatedAfter != null &&
+                  Math.abs((pricePreview.calculatedDelta || 0)) >= 0.009 ? (
+                    <p className="mt-0.5 text-xs text-slate-500">
+                      Was {formatGbp(pricePreview.calculatedBefore)}
+                    </p>
+                  ) : null}
+                </div>
+
+                <div className="rounded-lg border border-blue-100 bg-blue-50/70 px-3 py-2.5">
+                  <dt className="text-[11px] font-semibold uppercase tracking-wide text-blue-700">
+                    {pricePreview?.usesAgreed ? 'Checkout / agreed total' : 'Checkout total'}
+                  </dt>
+                  <dd className="mt-0.5 flex flex-wrap items-baseline gap-2">
+                    <span className="text-xl font-bold tabular-nums text-blue-950">
+                      {formatGbp(pricePreview?.checkoutAfter)}
+                    </span>
+                    {pricePreview?.checkoutDelta != null &&
+                    Math.abs(pricePreview.checkoutDelta) >= 0.009 ? (
+                      <span
+                        className={`text-sm font-semibold tabular-nums ${
+                          pricePreview.checkoutDelta > 0 ? 'text-emerald-700' : 'text-amber-800'
+                        }`}
+                      >
+                        {formatSignedGbp(pricePreview.checkoutDelta)}
+                      </span>
+                    ) : (
+                      <span className="text-xs font-medium text-slate-500">No change yet</span>
+                    )}
+                  </dd>
+                  {pricePreview?.checkoutBefore != null &&
+                  pricePreview?.checkoutDelta != null &&
+                  Math.abs(pricePreview.checkoutDelta) >= 0.009 ? (
+                    <p className="mt-0.5 text-xs text-blue-800/80">
+                      Was {formatGbp(pricePreview.checkoutBefore)}
+                    </p>
+                  ) : null}
+                </div>
+              </dl>
+
+              <div className="mt-4 border-t border-slate-200 pt-3">
+                <p className="text-sm font-bold text-slate-900">Added this edit</p>
+                {selectionDiff.added.length === 0 ? (
+                  <p className="mt-1 text-sm text-slate-600">No extra items yet — pick from the left.</p>
+                ) : (
+                  <ul className="mt-2 max-h-48 space-y-1.5 overflow-y-auto">
+                    {selectionDiff.added.map((row) => (
+                      <li
+                        key={`add-${row.name}`}
+                        className="flex items-baseline justify-between gap-2 text-sm text-slate-800"
+                      >
+                        <span className="min-w-0 break-words">{row.name}</span>
+                        <span className="shrink-0 font-semibold text-emerald-700">+{row.quantity}</span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+
+              {selectionDiff.removed.length > 0 ? (
+                <div className="mt-3 border-t border-slate-200 pt-3">
+                  <p className="text-sm font-bold text-slate-900">Removed this edit</p>
+                  <ul className="mt-2 max-h-36 space-y-1.5 overflow-y-auto">
+                    {selectionDiff.removed.map((row) => (
+                      <li
+                        key={`rm-${row.name}`}
+                        className="flex items-baseline justify-between gap-2 text-sm text-slate-800"
+                      >
+                        <span className="min-w-0 break-words">{row.name}</span>
+                        <span className="shrink-0 font-semibold text-amber-700">−{row.quantity}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+            </div>
+          </aside>
         </div>
       ) : null}
 
